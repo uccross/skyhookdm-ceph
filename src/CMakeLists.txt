@@ -756,6 +756,8 @@ install(TARGETS ceph-mds DESTINATION bin)
 
 add_subdirectory(erasure-code)
 
+add_subdirectory(progly)
+
 # Support/Tools
 if(WITH_TESTS)
 add_subdirectory(googletest/googlemock)
