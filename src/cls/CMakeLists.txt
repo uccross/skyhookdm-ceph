@@ -218,3 +218,7 @@ if(WITH_EMBEDDED)
   set_target_properties(cephd_cls_base PROPERTIES COMPILE_DEFINITIONS BUILDING_FOR_EMBEDDED)
   merge_static_libraries(cephd_cls cephd_cls_base liblua)
 endif()
+
+add_library(cls_tabular SHARED tabular/cls_tabular.cc)
+set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
+install(TARGETS cls_tabular DESTINATION ${cls_dir})
