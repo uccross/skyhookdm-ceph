@@ -857,6 +857,10 @@ namespace librados
         ObjectCursor *split_start,
         ObjectCursor *split_finish);
 
+    void tabular_scan_alloc_context(void **context);
+    int tabular_scan(void *context, TabularScanUserContext *user_context);
+    void tabular_scan_free_context(void *context);
+
     /**
      * List available hit set objects
      *

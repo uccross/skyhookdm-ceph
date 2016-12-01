@@ -1773,6 +1773,30 @@ const librados::ObjectIterator& librados::IoCtx::objects_end() const
   return ObjectIterator::__EndObjectIterator;
 }
 
+void librados::IoCtx::tabular_scan_alloc_context(void **context)
+{
+  assert(*context == NULL);
+  *context = new Objecter::TabularScanContext;
+  Objecter::TabularScanContext *ctx = (Objecter::TabularScanContext*)*context;
+  ctx->pg = 0;
+  ctx->cookie = collection_list_handle_t();
+}
+
+int librados::IoCtx::tabular_scan(void *context, TabularScanUserContext *user_context)
+{
+  Objecter::TabularScanContext *ctx = (Objecter::TabularScanContext*)context;
+  assert(ctx);
+  return io_ctx_impl->tabular_scan(ctx, user_context);
+}
+
+void librados::IoCtx::tabular_scan_free_context(void *context)
+{
+  if (context == NULL)
+    return;
+  auto ptr = (Objecter::TabularScanContext*)context;
+  delete ptr;
+}
+
 int librados::IoCtx::hit_set_list(uint32_t hash, AioCompletion *c,
 				  std::list< std::pair<time_t, time_t> > *pls)
 {

@@ -222,6 +222,9 @@ struct librados::IoCtxImpl {
   int pool_change_auid(unsigned long long auid);
   int pool_change_auid_async(unsigned long long auid, PoolAsyncCompletionImpl *c);
 
+  int tabular_scan(Objecter::TabularScanContext *context,
+      TabularScanUserContext *user_context);
+
   int hit_set_list(uint32_t hash, AioCompletionImpl *c,
 		   std::list< std::pair<time_t, time_t> > *pls);
   int hit_set_get(uint32_t hash, AioCompletionImpl *c, time_t stamp,
