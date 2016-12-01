@@ -299,7 +299,8 @@ extern const char *ceph_osd_state_name(int s);
 	f(PG_HITSET_GET, __CEPH_OSD_OP(RD, PG, 4),	"pg-hitset-get")    \
 	f(PGNLS,	__CEPH_OSD_OP(RD, PG, 5),	"pgnls")	    \
 	f(PGNLS_FILTER,	__CEPH_OSD_OP(RD, PG, 6),	"pgnls-filter")     \
-	f(SCRUBLS, __CEPH_OSD_OP(RD, PG, 7), "scrubls")
+	f(SCRUBLS, __CEPH_OSD_OP(RD, PG, 7), "scrubls")                 \
+	f(PG_TABULAR_SCAN, __CEPH_OSD_OP(RD, PG, 8), "pg-tabular-scan")
 
 enum {
 #define GENERATE_ENUM_ENTRY(op, opcode, str)	CEPH_OSD_OP_##op = (opcode),

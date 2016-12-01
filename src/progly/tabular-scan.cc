@@ -21,6 +21,7 @@ int main(int argc, char **argv)
   std::string pool;
   bool use_cls;
   bool use_index;
+  bool use_pg;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -30,6 +31,7 @@ int main(int argc, char **argv)
     ("rows-per-obj", po::value<unsigned>(&rows_per_obj)->required(), "rows per object")
     ("selectivity", po::value<double>(&selectivity)->required(), "selectivity pct")
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "filter in cls")
+    ("use-pg", po::bool_switch(&use_pg)->default_value(false), "filter in pg")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use cls index")
 		("pool,p", po::value<std::string>(&pool)->required(), "pool")
   ;
@@ -56,8 +58,11 @@ int main(int argc, char **argv)
   assert(selectivity <= 100.0);
   selectivity /= 100.0;
 
+  assert((!use_cls && !use_pg) ||
+      (use_cls && !use_pg) ||
+      (!use_cls && use_pg));
   if (use_index)
-    assert(use_cls);
+    assert(use_cls || use_pg);
 
   // connect to rados
   librados::Rados cluster;
@@ -71,11 +76,95 @@ int main(int argc, char **argv)
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
 
-  uint64_t max_val = range_size * selectivity;
-
-  uint64_t filtered_rows = 0;
-
+  const uint64_t max_val = range_size * selectivity;
   const unsigned num_objs = num_rows / rows_per_obj;
+
+  // build list of objects involved. this is just used for verification
+  std::set<std::string> all_oids;
+  for (unsigned i = 0; i < num_objs; i++) {
+    std::stringstream ss;
+    ss << "obj." << i;
+    const std::string oid = ss.str();
+    auto r = all_oids.emplace(oid);
+    assert(r.second);
+  }
+
+  std::set<std::string> seen_oids;
+  assert(num_objs > 0);
+  assert(all_oids.size() == num_objs);
+  uint64_t filtered_rows = 0;
+  if (use_cls || (!use_cls && !use_pg)) {
+    if (use_cls)
+      assert(!use_pg);
+
+    // for each object in the data set
+    for (unsigned o = 0; o < num_objs; o++) {
+      std::stringstream ss;
+      ss << "obj." << o;
+      const std::string oid = ss.str();
+
+      // read rows
+      ceph::bufferlist bl;
+      if (use_cls) {
+        scan_op op;
+        op.max_val = max_val;
+        op.use_index = use_index;
+        ceph::bufferlist inbl;
+        ::encode(op, inbl);
+        int ret = ioctx.exec(oid, "tabular", "scan", inbl, bl);
+        checkret(ret, 0);
+      } else {
+        int ret = ioctx.read(oid, bl, 0, 0);
+        assert(ret > 0);
+        assert(bl.length() > 0);
+        assert(bl.length() / sizeof(uint64_t) == rows_per_obj);
+      }
+
+      const uint64_t row_count = bl.length() / sizeof(uint64_t);
+      const uint64_t *rows = (uint64_t*)bl.c_str();
+
+      if (use_cls) {
+        for (unsigned r = 0; r < row_count; r++) {
+          const uint64_t row_val = rows[r];
+          assert(row_val < max_val);
+          filtered_rows++;
+        }
+      } else {
+        for (unsigned r = 0; r < row_count; r++) {
+          const uint64_t row_val = rows[r];
+          if (row_val < max_val)
+            filtered_rows++;
+        }
+      }
+
+      auto r = seen_oids.insert(oid);
+      assert(r.second);
+    }
+  }
+
+  assert(all_oids == seen_oids);
+
+#if 0
+  void *scan_context = NULL;
+  ioctx.tabular_scan_alloc_context(&scan_context);
+  librados::TabularScanUserContext user_context;
+  user_context.selectivity = -1.0;
+  user_context.max_size = 16<<20;
+  while (true) {
+    int ret = ioctx.tabular_scan(scan_context, &user_context);
+    if (ret == -ERANGE)
+      return 0;
+    std::cout << "ret " << ret << " blob size " << user_context.bl.length() << std::endl;
+    for (auto oid : user_context.oids)
+      std::cout << oid << std::endl;
+    if (ret < 0)
+      return 0;
+  }
+  ioctx.tabular_scan_free_context(scan_context);
+  return 0;
+
+
+
   for (unsigned o = 0; o < num_objs; o++) {
     std::stringstream ss;
     ss << "obj." << o;
@@ -110,6 +199,7 @@ int main(int argc, char **argv)
         filtered_rows++;
     }
   }
+#endif
 
   std::cout << "total rows " << num_rows
     << " filtered rows " << filtered_rows

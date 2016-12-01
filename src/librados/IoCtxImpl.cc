@@ -1098,6 +1098,25 @@ int librados::IoCtxImpl::aio_cancel(AioCompletionImpl *c)
   return objecter->op_cancel(c->tid, -ECANCELED);
 }
 
+int librados::IoCtxImpl::tabular_scan(Objecter::TabularScanContext *context,
+    TabularScanUserContext *user_context)
+{
+  Cond cond;
+  bool done;
+  int r = 0;
+  Mutex mylock("IoCtxImpl::tabular_scan::mylock");
+
+  objecter->tabular_scan(poolid, snap_seq, oloc.nspace,
+      context, user_context,
+      new C_SafeCond(&mylock, &cond, &done, &r));
+
+  mylock.Lock();
+  while (!done)
+    cond.Wait(mylock);
+  mylock.Unlock();
+
+  return r;
+}
 
 int librados::IoCtxImpl::hit_set_list(uint32_t hash, AioCompletionImpl *c,
 			      std::list< std::pair<time_t, time_t> > *pls)

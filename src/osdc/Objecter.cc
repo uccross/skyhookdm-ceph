@@ -3437,6 +3437,34 @@ uint32_t Objecter::list_nobjects_seek(NListContext *list_context,
   return list_context->current_pg;
 }
 
+void Objecter::tabular_scan(int64_t poolid, int pool_snap_seq, string nspace,
+    TabularScanContext *ctx, librados::TabularScanUserContext *user_context, Context *onfinish)
+{
+  assert(ctx);
+
+  shared_lock rl(rwlock);
+  const pg_pool_t *pool = osdmap->get_pg_pool(poolid);
+  if (!pool) {
+    rl.unlock();
+    onfinish->complete(-ENOENT);
+    return;
+  }
+  int pg_num = pool->get_pg_num();
+  rl.unlock();
+
+  if (ctx->pg >= pg_num) {
+    onfinish->complete(-ERANGE);
+    return;
+  }
+
+  // build and submit op
+  ObjectOperation op;
+  op.tabular_scan(ctx->cookie, user_context->selectivity, user_context->max_size);
+  C_PGTabularScan *onack = new C_PGTabularScan(onfinish, ctx, user_context, this);
+  object_locator_t oloc(poolid, nspace);
+  pg_read(ctx->pg, oloc, op, &onack->bl, 0, onack, &onack->epoch, NULL);
+}
+
 void Objecter::list_nobjects(NListContext *list_context, Context *onfinish)
 {
   ldout(cct, 10) << "list_objects" << dendl;
@@ -3512,6 +3540,31 @@ void Objecter::list_nobjects(NListContext *list_context, Context *onfinish)
   pg_read(list_context->current_pg, oloc, op,
 	  &list_context->bl, 0, onack, &onack->epoch,
 	  &list_context->ctx_budget);
+}
+
+void Objecter::tabular_scan_reply(TabularScanContext *ctx, int r, Context *final_finish,
+    librados::TabularScanUserContext *user_context, bufferlist& bl_in)
+{
+  assert(r >= 0);
+  bufferlist::iterator it = bl_in.begin();
+  collection_list_handle_t next;
+  try {
+    ::decode(next, it);
+    ::decode(user_context->oids, it);
+    ::decode(user_context->bl, it);
+    //std::cout << "NEXT " << next << std::endl;
+    if (next.is_max() || r == 1) {
+      ctx->cookie = collection_list_handle_t();
+      ctx->pg++;
+      std::cerr << "REACHED END.... NEXT" << std::endl;
+    } else {
+      ctx->cookie = next;
+    }
+    //std::cerr << "TAB SCAN REP " << r << " BL LEN " << blob.length() << std::endl;
+    final_finish->complete(0);
+  } catch (buffer::error&) {
+    final_finish->complete(-EIO);
+  }
 }
 
 void Objecter::_nlist_reply(NListContext *list_context, int r,

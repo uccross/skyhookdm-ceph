@@ -1471,6 +1471,173 @@ void PrimaryLogPG::do_pg_op(OpRequestRef op)
       result = do_scrub_ls(m, &osd_op);
       break;
 
+   case CEPH_OSD_OP_PG_TABULAR_SCAN:
+      result = 0;
+      if (get_osdmap()->raw_pg_to_pg(m->get_pg()) != info.pgid.pgid) {
+        dout(10) << " pgnls pg=" << m->get_pg()
+		 << " " << get_osdmap()->raw_pg_to_pg(m->get_pg())
+		 << " != " << info.pgid << dendl;
+	result = -EINVAL; // hmm?
+        break;
+      } else {
+        hobject_t cookie;
+        double selectivity;
+        size_t max_size;
+        try {
+          ::decode(cookie, bp);
+          ::decode(selectivity, bp);
+          ::decode(max_size, bp);
+        } catch (const buffer::error& err) {
+          dout(0) << "tabular scan decode input error" << dendl;
+          result = -EINVAL;
+          break;
+        }
+
+	hobject_t lower_bound = cookie;
+	hobject_t pg_start = info.pgid.pgid.get_hobj_start();
+	hobject_t pg_end = info.pgid.pgid.get_hobj_end(pool.info.get_pg_num());
+	if (get_sort_bitwise() &&
+	    ((!lower_bound.is_max() &&
+	      cmp_bitwise(lower_bound, pg_end) >= 0) ||
+	     (lower_bound != hobject_t() &&
+	      cmp_bitwise(lower_bound, pg_start) < 0))) {
+	  // this should only happen with a buggy client.
+	  dout(0) << "outside of PG bounds " << pg_start << " .. "
+		   << pg_end << dendl;
+	  result = -EINVAL;
+	  break;
+	}
+
+        osr->flush();
+
+        /*
+         * normally we would want to handle the special cases involved with
+         * the presence of missing objects. but that just complicated the
+         * common case which is all we want to deal with for the tabular scan
+         * experiments.
+         */
+        assert(snapid == CEPH_NOSNAP ||
+            pg_log.get_missing().get_items().empty());
+        pg_log.resort_missing(get_sort_bitwise());
+        if (!pg_log.get_missing().get_items().empty()) {
+          result = -EINVAL;
+          break;
+        }
+
+        assert(result == 0);
+
+        hobject_t next;
+        hobject_t current = lower_bound;
+        bufferlist filtered_rows;
+        vector<string> oids;
+
+        for (;;) {
+          vector<hobject_t> sentries;
+          int r = pgbackend->objects_list_partial(
+              current, 2, 2, &sentries, &next);
+          if (r) {
+            result = -EINVAL;
+            break;
+          }
+
+          vector<hobject_t>::iterator sit = sentries.begin();
+          for (; sit != sentries.end(); sit++) {
+            hobject_t candidate = *sit;
+            assert(!candidate.is_max());
+
+            // why would objects_list_partial contain an entry that sorted
+            // past @next when it was providing @next as an output? i think
+            // the answer is it won't, but the case is necessary in normal
+            // object iteration that handles missing objects.
+            assert(cmp(candidate, next, get_sort_bitwise()) < 0);
+
+            if (candidate.snap == CEPH_SNAPDIR)
+              continue;
+
+            if (candidate.snap < snapid)
+              continue;
+
+            if (snapid != CEPH_NOSNAP) {
+              result = -EINVAL;
+              break;
+            }
+
+            if (candidate.get_namespace() == cct->_conf->osd_hit_set_namespace)
+              continue;
+
+            if (m->get_object_locator().nspace != librados::all_nspaces &&
+                candidate.get_namespace() != m->get_object_locator().nspace)
+              continue;
+
+            // filled up a batch?
+            if (filtered_rows.length() > max_size)
+              break;
+
+            // read object
+            bufferlist bl;
+            int ret = pgbackend->objects_read_sync(
+                candidate, 0, 0, 0, &bl);
+            if (ret < 0) {
+              derr << "tabular scan read error " << ret << dendl;
+              result = ret;
+              break;
+            }
+
+            oids.push_back(candidate.oid.name);
+
+            // add to output
+            filtered_rows.append(bl.c_str(), bl.length());
+          }
+
+          // if we aborted iteration because of an error we'll just return to
+          // the client. the client is expected to abort on any error so we
+          // don't even bother here with providing state that would let the
+          // client restart.
+          if (result < 0)
+            break;
+
+          /*
+           * if we aborted iteration early it is only because we filled up a
+           * batch, which isn't an error case. we set @next to be the current
+           * object that we didn't get a chance to process so the client can
+           * resume where it left off.
+           *
+           * so at this point @next is either the output parameter from
+           * objects_list_partial or it is an hobject from the set of objects
+           * returned by objects_list_partial.
+           */
+          assert(result == 0);
+          if (sit != sentries.end()) {
+            assert(filtered_rows.length() > max_size);
+            next = *sit;
+            break;
+          }
+
+          if (next.is_max() && sit == sentries.end()) {
+            result = 1;
+            if (get_osdmap()->test_flag(CEPH_OSDMAP_SORTBITWISE)) {
+              next = info.pgid.pgid.get_hobj_end(
+                  pool.info.get_pg_num());
+            }
+            break;
+          }
+
+          current = next;
+        }
+
+        if (result < 0)
+          break;
+
+        ::encode(next, osd_op.outdata);
+        ::encode(oids, osd_op.outdata);
+        ::encode(filtered_rows, osd_op.outdata);
+      }
+
+      if (result < 0)
+        osd_op.outdata.clear();
+
+      break;
+
     default:
       result = -EINVAL;
       break;

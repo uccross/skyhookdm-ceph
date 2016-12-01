@@ -215,6 +215,14 @@ struct ObjectOperation {
     flags |= CEPH_OSD_FLAG_PGOP;
   }
 
+  void tabular_scan(collection_list_handle_t cookie, double selectivity, size_t max_size) {
+    OSDOp& osd_op = add_op(CEPH_OSD_OP_PG_TABULAR_SCAN);
+    ::encode(cookie, osd_op.indata);
+    ::encode(selectivity, osd_op.indata);
+    ::encode(max_size, osd_op.indata);
+    flags |= CEPH_OSD_FLAG_PGOP;
+  }
+
   void scrub_ls(const librados::object_id_t& start_after,
 		uint64_t max_to_get,
 		std::vector<librados::inconsistent_obj_t> *objects,
@@ -1508,6 +1516,35 @@ public:
     }
   };
 
+  struct TabularScanContext {
+    int pg;
+    collection_list_handle_t cookie;
+  };
+
+  struct C_PGTabularScan : public Context {
+    Context *final_finish;
+    epoch_t epoch;
+    TabularScanContext *ctx;
+    librados::TabularScanUserContext *user_context;
+    bufferlist bl;
+    Objecter *objecter;
+
+    C_PGTabularScan(Context *finish, TabularScanContext *scan_context,
+        librados::TabularScanUserContext *user_context, Objecter *o) :
+      final_finish(finish), ctx(scan_context), user_context(user_context),
+      objecter(o)
+    {}
+
+    void finish(int r) {
+      if (r >= 0) {
+        objecter->tabular_scan_reply(ctx, r, final_finish,
+            user_context, bl);
+      } else {
+        final_finish->complete(r);
+      }
+    }
+  };
+
   struct PoolStatOp {
     ceph_tid_t tid;
     list<string> pools;
@@ -1908,6 +1945,9 @@ private:
   void get_session(OSDSession *s);
   void _reopen_session(OSDSession *session);
   void close_session(OSDSession *session);
+
+  void tabular_scan_reply(TabularScanContext *ctx, int r, Context *final_finish,
+      librados::TabularScanUserContext *user_context, bufferlist& bl_in);
 
   void _nlist_reply(NListContext *list_context, int r, Context *final_finish,
 		   epoch_t reply_epoch);
@@ -2774,6 +2814,10 @@ public:
     op_submit(o, &tid);
     return tid;
   }
+
+  void tabular_scan(int64_t poolid, int pool_snap_seq, string nspace,
+      TabularScanContext *context, librados::TabularScanUserContext *user_context,
+      Context *onfinish);
 
   void list_nobjects(NListContext *p, Context *onfinish);
   uint32_t list_nobjects_seek(NListContext *p, uint32_t pos);
