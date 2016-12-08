@@ -95,7 +95,8 @@ int main(int argc, char **argv)
       checkret(ret, 0);
 
     // write object
-    ret = ioctx.write_full(ss.str(), bl);
+    ceph::bufferlist outbl;
+    ret = ioctx.exec(ss.str(), "tabular", "add", bl, outbl);
     checkret(ret, 0);
   }
   std::cout << std::endl;
