@@ -83,6 +83,8 @@ static int scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   }
 
   struct tab_index idx;
+  bool index_skipped = false;
+  bufferlist rows_bl;
 
   if (op.use_index) {
     // read index header
@@ -106,8 +108,12 @@ static int scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
       return -EIO;
     }
 
-    if (op.max_val < idx.min)
+    if (op.max_val < idx.min) {
+      index_skipped = true;
+      ::encode(index_skipped, *out);
+      ::encode(rows_bl, *out);
       return 0;
+    }
   }
 
   bufferlist bl;
@@ -123,8 +129,11 @@ static int scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   for (unsigned i = 0; i < row_count; i++) {
     const uint64_t row_val = rows[i];
     if (row_val < op.max_val)
-      out->append((char*)&row_val, sizeof(row_val));
+      rows_bl.append((char*)&row_val, sizeof(row_val));
   }
+
+  ::encode(index_skipped, *out);
+  ::encode(rows_bl, *out);
 
   return 0;
 }

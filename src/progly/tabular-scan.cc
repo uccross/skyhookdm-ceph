@@ -93,6 +93,7 @@ int main(int argc, char **argv)
   assert(num_objs > 0);
   assert(all_oids.size() == num_objs);
   uint64_t filtered_rows = 0;
+  uint64_t objects_read = 0;
   if (use_cls || (!use_cls && !use_pg)) {
     if (use_cls)
       assert(!use_pg);
@@ -111,13 +112,28 @@ int main(int argc, char **argv)
         op.use_index = use_index;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
-        int ret = ioctx.exec(oid, "tabular", "scan", inbl, bl);
+        ceph::bufferlist outbl;
+        int ret = ioctx.exec(oid, "tabular", "scan", inbl, outbl);
         checkret(ret, 0);
+
+        ceph::bufferlist::iterator it = outbl.begin();
+        try {
+          bool index_skipped;
+          ::decode(index_skipped, it);
+          ::decode(bl, it);
+          if (!index_skipped)
+            objects_read++;
+          else
+            assert(use_index);
+        } catch (ceph::buffer::error&) {
+          assert(0);
+        }
       } else {
         int ret = ioctx.read(oid, bl, 0, 0);
         assert(ret > 0);
         assert(bl.length() > 0);
         assert(bl.length() / sizeof(uint64_t) == rows_per_obj);
+        objects_read++;
       }
 
       const uint64_t row_count = bl.length() / sizeof(uint64_t);
@@ -203,9 +219,10 @@ int main(int argc, char **argv)
 
   std::cout << "total rows " << num_rows
     << " filtered rows " << filtered_rows
-    << " selectivity wanted " << (100.0 * selectivity)
-    << " selectivity observed "
+    << "; selectivity wanted " << (100.0 * selectivity)
+    << "; selectivity observed "
     << (100.0 * (double)filtered_rows / (double)num_rows)
+    << "; objects read " << objects_read << "/" << num_objs
     << std::endl;
 
   ioctx.close();
