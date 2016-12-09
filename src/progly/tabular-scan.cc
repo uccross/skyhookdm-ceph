@@ -5,6 +5,20 @@
 
 namespace po = boost::program_options;
 
+
+static inline uint64_t __getns(clockid_t clock)
+{
+  struct timespec ts;
+  int ret = clock_gettime(clock, &ts);
+  assert(ret == 0);
+  return (((uint64_t)ts.tv_sec) * 1000000000ULL) + ts.tv_nsec;
+}
+
+static inline uint64_t getns()
+{
+  return __getns(CLOCK_MONOTONIC);
+}
+
 #define checkret(r,v) do { \
   if (r != v) { \
     fprintf(stderr, "error %d/%s\n", r, strerror(-r)); \
@@ -22,6 +36,7 @@ int main(int argc, char **argv)
   bool use_cls;
   bool use_index;
   bool use_pg;
+  bool robot;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -34,6 +49,7 @@ int main(int argc, char **argv)
     ("use-pg", po::bool_switch(&use_pg)->default_value(false), "filter in pg")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use cls index")
 		("pool,p", po::value<std::string>(&pool)->required(), "pool")
+    ("robot", po::bool_switch(&robot)->default_value(false), "robot output")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -95,6 +111,8 @@ int main(int argc, char **argv)
   uint64_t filtered_rows = 0;
   uint64_t objects_read = 0;
   uint64_t bytes_read = 0;
+
+  uint64_t start_ns = getns();
 
   if (use_cls || (!use_cls && !use_pg)) {
     if (use_cls)
@@ -203,16 +221,27 @@ int main(int argc, char **argv)
     ioctx.tabular_scan_free_context(scan_context);
   }
 
+  uint64_t duration_ns = getns() - start_ns;
+
   assert(all_oids == seen_oids);
 
-  std::cout << "total rows " << num_rows
-    << " filtered rows " << filtered_rows
-    << "; selectivity wanted " << (100.0 * selectivity)
-    << "; selectivity observed "
-    << (100.0 * (double)filtered_rows / (double)num_rows)
-    << "; objects read " << objects_read << "/" << num_objs
-    << "; data read " << bytes_read
-    << std::endl;
+  if (robot) {
+    std::cout << duration_ns << ";"
+      << num_rows << ";"
+      << filtered_rows << ";"
+      << num_objs << ";"
+      << objects_read << ";"
+      << bytes_read << std::endl;
+  } else {
+    std::cout << "total rows " << num_rows
+      << " filtered rows " << filtered_rows
+      << "; selectivity wanted " << (100.0 * selectivity)
+      << "; selectivity observed "
+      << (100.0 * (double)filtered_rows / (double)num_rows)
+      << "; objects read " << objects_read << "/" << num_objs
+      << "; data read " << bytes_read
+      << std::endl;
+  }
 
   ioctx.close();
   cluster.shutdown();
