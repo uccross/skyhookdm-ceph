@@ -3459,7 +3459,8 @@ void Objecter::tabular_scan(int64_t poolid, int pool_snap_seq, string nspace,
 
   // build and submit op
   ObjectOperation op;
-  op.tabular_scan(ctx->cookie, user_context->selectivity, user_context->max_size);
+  op.tabular_scan(ctx->cookie, user_context->use_index,
+      user_context->max_val, user_context->max_size);
   C_PGTabularScan *onack = new C_PGTabularScan(onfinish, ctx, user_context, this);
   object_locator_t oloc(poolid, nspace);
   pg_read(ctx->pg, oloc, op, &onack->bl, 0, onack, &onack->epoch, NULL);
@@ -3556,7 +3557,6 @@ void Objecter::tabular_scan_reply(TabularScanContext *ctx, int r, Context *final
     if (next.is_max() || r == 1) {
       ctx->cookie = collection_list_handle_t();
       ctx->pg++;
-      std::cerr << "REACHED END.... NEXT" << std::endl;
     } else {
       ctx->cookie = next;
     }

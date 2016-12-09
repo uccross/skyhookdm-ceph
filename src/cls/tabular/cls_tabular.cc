@@ -61,6 +61,14 @@ static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return ret;
   }
 
+  bufferlist attr_bl;
+  ::encode(idx.min, attr_bl);
+  ret = cls_cxx_setxattr(hctx, "min", &attr_bl);
+  if (ret < 0) {
+    CLS_ERR("ERROR: writing min xattr %d", ret);
+    return ret;
+  }
+
   ret = cls_cxx_write_full(hctx, in);
   if (ret < 0) {
     CLS_ERR("ERROR: writing obj full %d", ret);

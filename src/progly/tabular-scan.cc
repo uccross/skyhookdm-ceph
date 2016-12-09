@@ -94,6 +94,8 @@ int main(int argc, char **argv)
   assert(all_oids.size() == num_objs);
   uint64_t filtered_rows = 0;
   uint64_t objects_read = 0;
+  uint64_t bytes_read = 0;
+
   if (use_cls || (!use_cls && !use_pg)) {
     if (use_cls)
       assert(!use_pg);
@@ -136,6 +138,8 @@ int main(int argc, char **argv)
         objects_read++;
       }
 
+      bytes_read += bl.length();
+
       const uint64_t row_count = bl.length() / sizeof(uint64_t);
       const uint64_t *rows = (uint64_t*)bl.c_str();
 
@@ -158,64 +162,48 @@ int main(int argc, char **argv)
     }
   }
 
+  if (use_pg) {
+    assert(seen_oids.empty());
+    assert(!use_cls);
+
+    void *scan_context = NULL;
+    ioctx.tabular_scan_alloc_context(&scan_context);
+    librados::TabularScanUserContext user_context;
+
+    user_context.use_index = use_index;
+    user_context.max_val = max_val;
+    user_context.max_size = 8<<20;
+
+    while (true) {
+      int ret = ioctx.tabular_scan(scan_context, &user_context);
+      if (ret == -ERANGE)
+        break;
+      else
+        checkret(ret, 0);
+
+      const uint64_t row_count = user_context.bl.length() / sizeof(uint64_t);
+      const uint64_t *rows = (uint64_t*)user_context.bl.c_str();
+
+      bytes_read += user_context.bl.length();
+
+      for (unsigned r = 0; r < row_count; r++) {
+        const uint64_t row_val = rows[r];
+        if (row_val < max_val)
+          filtered_rows++;
+      }
+
+      for (auto oid : user_context.oids) {
+        auto r = seen_oids.insert(oid.first);
+        assert(r.second);
+        if (!oid.second) // index_skipped?
+          objects_read++;
+      }
+    }
+
+    ioctx.tabular_scan_free_context(scan_context);
+  }
+
   assert(all_oids == seen_oids);
-
-#if 0
-  void *scan_context = NULL;
-  ioctx.tabular_scan_alloc_context(&scan_context);
-  librados::TabularScanUserContext user_context;
-  user_context.selectivity = -1.0;
-  user_context.max_size = 16<<20;
-  while (true) {
-    int ret = ioctx.tabular_scan(scan_context, &user_context);
-    if (ret == -ERANGE)
-      return 0;
-    std::cout << "ret " << ret << " blob size " << user_context.bl.length() << std::endl;
-    for (auto oid : user_context.oids)
-      std::cout << oid << std::endl;
-    if (ret < 0)
-      return 0;
-  }
-  ioctx.tabular_scan_free_context(scan_context);
-  return 0;
-
-
-
-  for (unsigned o = 0; o < num_objs; o++) {
-    std::stringstream ss;
-    ss << "obj." << o;
-    const std::string oid = ss.str();
-
-    ceph::bufferlist bl;
-
-    if (use_cls) {
-      scan_op op;
-      op.max_val = max_val;
-      op.use_index = use_index;
-      ceph::bufferlist inbl;
-      ::encode(op, inbl);
-      int ret = ioctx.exec(oid, "tabular", "scan", inbl, bl);
-      checkret(ret, 0);
-    } else {
-      int ret = ioctx.read(oid, bl, 0, 0);
-      assert(ret > 0);
-      assert(bl.length() > 0);
-      assert(bl.length() / sizeof(uint64_t) == rows_per_obj);
-    }
-
-    const uint64_t row_count = bl.length() / sizeof(uint64_t);
-    const uint64_t *rows = (uint64_t*)bl.c_str();
-
-    for (unsigned r = 0; r < row_count; r++) {
-      const uint64_t row_val = rows[r];
-      if (use_cls) {
-        assert(row_val < max_val);
-        filtered_rows++;
-      } else if (row_val < max_val)
-        filtered_rows++;
-    }
-  }
-#endif
 
   std::cout << "total rows " << num_rows
     << " filtered rows " << filtered_rows
@@ -223,6 +211,7 @@ int main(int argc, char **argv)
     << "; selectivity observed "
     << (100.0 * (double)filtered_rows / (double)num_rows)
     << "; objects read " << objects_read << "/" << num_objs
+    << "; data read " << bytes_read
     << std::endl;
 
   ioctx.close();

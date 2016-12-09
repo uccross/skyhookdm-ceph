@@ -252,9 +252,10 @@ struct inconsistent_snapset_t {
 const std::string all_nspaces(LIBRADOS_ALL_NSPACES);
 
 struct TabularScanUserContext {
-  double selectivity;
+  bool use_index;
+  uint64_t max_val;
   uint64_t max_size;
-  std::vector<std::string> oids;
+  std::vector<std::pair<std::string, bool>> oids;
   ceph::bufferlist bl;
 };
 
