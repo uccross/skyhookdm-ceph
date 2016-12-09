@@ -215,10 +215,12 @@ struct ObjectOperation {
     flags |= CEPH_OSD_FLAG_PGOP;
   }
 
-  void tabular_scan(collection_list_handle_t cookie, double selectivity, size_t max_size) {
+  void tabular_scan(collection_list_handle_t cookie, bool use_index,
+      uint64_t max_val, size_t max_size) {
     OSDOp& osd_op = add_op(CEPH_OSD_OP_PG_TABULAR_SCAN);
     ::encode(cookie, osd_op.indata);
-    ::encode(selectivity, osd_op.indata);
+    ::encode(use_index, osd_op.indata);
+    ::encode(max_val, osd_op.indata);
     ::encode(max_size, osd_op.indata);
     flags |= CEPH_OSD_FLAG_PGOP;
   }

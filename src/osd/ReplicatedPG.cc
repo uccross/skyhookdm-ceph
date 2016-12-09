@@ -1480,11 +1480,13 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
         break;
       } else {
         hobject_t cookie;
-        double selectivity;
-        size_t max_size;
+        bool use_index;
+        uint64_t max_val;
+        uint64_t max_size;
         try {
           ::decode(cookie, bp);
-          ::decode(selectivity, bp);
+          ::decode(use_index, bp);
+          ::decode(max_val, bp);
           ::decode(max_size, bp);
         } catch (const buffer::error& err) {
           dout(0) << "tabular scan decode input error" << dendl;
@@ -1528,7 +1530,7 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
         hobject_t next;
         hobject_t current = lower_bound;
         bufferlist filtered_rows;
-        vector<string> oids;
+        vector<pair<string, bool>> oids;
 
         for (;;) {
           vector<hobject_t> sentries;
@@ -1572,6 +1574,30 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
             if (filtered_rows.length() > max_size)
               break;
 
+            if (use_index) {
+              bufferlist attr_bl;
+              int ret = pgbackend->objects_get_attr(
+                  candidate, "_min", &attr_bl);
+              if (ret < 0) {
+                derr << "ABC " << candidate << " " << ret << dendl;
+                result = ret;
+                break;
+              }
+              uint64_t min_val;
+              bufferlist::iterator it = attr_bl.begin();
+              try {
+                ::decode(min_val, it);
+              } catch (buffer::error&) {
+                result = -EINVAL;
+                break;
+              }
+
+              if (max_val < min_val) {
+                oids.push_back(make_pair(candidate.oid.name, true));
+                continue;
+              }
+            }
+
             // read object
             bufferlist bl;
             int ret = pgbackend->objects_read_sync(
@@ -1582,10 +1608,15 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
               break;
             }
 
-            oids.push_back(candidate.oid.name);
+            oids.push_back(make_pair(candidate.oid.name, false));
 
-            // add to output
-            filtered_rows.append(bl.c_str(), bl.length());
+            const uint64_t *rows = (uint64_t*)bl.c_str();
+            const uint64_t row_count = bl.length() / sizeof(uint64_t);
+            for (unsigned i = 0; i < row_count; i++) {
+              const uint64_t row_val = rows[i];
+              if (row_val < max_val)
+                filtered_rows.append((char*)&row_val, sizeof(row_val));
+            }
           }
 
           // if we aborted iteration because of an error we'll just return to
