@@ -190,14 +190,19 @@ int main(int argc, char **argv)
 
     user_context.use_index = use_index;
     user_context.max_val = max_val;
-    user_context.max_size = 8<<20;
+    user_context.max_size = 32<<20;
 
     while (true) {
+      //uint64_t a = getns();
       int ret = ioctx.tabular_scan(scan_context, &user_context);
+      //uint64_t b = getns();
       if (ret == -ERANGE)
         break;
       else
         checkret(ret, 0);
+
+      //uint64_t d = (b - a) / 1000000;
+      //std::cout << "tabular_scan_pg " << d << " ms" << std::endl;
 
       const uint64_t row_count = user_context.bl.length() / sizeof(uint64_t);
       const uint64_t *rows = (uint64_t*)user_context.bl.c_str();

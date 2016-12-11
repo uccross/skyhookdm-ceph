@@ -1535,7 +1535,7 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
         for (;;) {
           vector<hobject_t> sentries;
           int r = pgbackend->objects_list_partial(
-              current, 2, 2, &sentries, &next);
+              current, 100, 100, &sentries, &next);
           if (r) {
             result = -EINVAL;
             break;
