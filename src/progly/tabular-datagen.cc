@@ -19,6 +19,7 @@ int main(int argc, char **argv)
   unsigned num_rows;
   unsigned rows_per_obj;
   std::string pool;
+  bool range_partition;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -27,6 +28,7 @@ int main(int argc, char **argv)
     ("seed", po::value<uint64_t>(&seed)->default_value(1234), "rand seed")
     ("num-rows", po::value<unsigned>(&num_rows)->required(), "number of rows")
     ("rows-per-obj", po::value<unsigned>(&rows_per_obj)->required(), "rows per object")
+    ("range-part", po::bool_switch(&range_partition)->default_value(false), "range partition")
 		("pool,p", po::value<std::string>(&pool)->required(), "pool")
   ;
 
@@ -54,10 +56,21 @@ int main(int argc, char **argv)
   uint64_t range_max = range_size - 1;
   assert(range_max < mte.max());
 
-  // distribution
-  std::uniform_int_distribution<uint64_t> dist(0, range_max);
-  assert(dist.min() == 0);
-  assert(dist.max() == range_max);
+  // we'll set distribution based on user options
+  std::uniform_int_distribution<uint64_t> dist;
+
+  const unsigned num_objs = num_rows / rows_per_obj;
+
+  // the non-range-partition case uses the same uniform distribution across
+  // all objects.
+  if (!range_partition) {
+    dist = std::uniform_int_distribution<uint64_t>(0, range_max);
+    assert(dist.min() == 0);
+    assert(dist.max() == range_max);
+  } else {
+    // just a sanity check
+    assert((range_size / num_objs) >= (10*rows_per_obj));
+  }
 
   // connect to rados
   librados::Rados cluster;
@@ -72,8 +85,15 @@ int main(int argc, char **argv)
   checkret(ret, 0);
 
   // build each object
-  const unsigned num_objs = num_rows / rows_per_obj;
-  for (unsigned o = 0; o < num_objs; o++) {
+  for (uint64_t o = 0; o < num_objs; o++) {
+
+    if (range_partition) {
+      const uint64_t part_size = range_size / num_objs;
+      dist = std::uniform_int_distribution<uint64_t>(o*part_size, (o+1)*part_size-1);
+      assert(dist.min() == (o*part_size));
+      assert(dist.max() == ((o+1)*part_size-1));
+    }
+    //std::cout << o << ": " << dist.min() << " / " << dist.max() << std::endl;
 
     // fill a blob with random numbers
     ceph::bufferlist bl;
