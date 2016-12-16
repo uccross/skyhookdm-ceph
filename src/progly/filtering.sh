@@ -48,18 +48,65 @@ fi
 rm -f $output
 echo "name,instance,hotcache,selectivity,duration_ns,num_rows,filtered_rows,num_objs,objects_read" > $output
 
+NUM_ROWS=-1
+declare -A FILTERED_ROWS
+NUM_OBJS=-1
+declare -A READ_OBJS
+
+for s in $selectivities; do
+  FILTERED_ROWS["$s"]="-1"
+  READ_OBJS["$s"]="-1"
+done
+
 function record_run() {
   local name="$1"
   local instance="$2"
   local hotcache="$3"
   local selectivity="$4"
   IFS=';' read -ra RES <<< "$5"
+  local using_index=$6
   local duration_ns=${RES[0]}
   local num_rows=${RES[1]}
   local filtered_rows=${RES[2]}
   local num_objs=${RES[3]}
   local objects_read=${RES[4]}
   echo "${name},${instance},${hotcache},${selectivity},${duration_ns},${num_rows},${filtered_rows},${num_objs},${objects_read}" >> $output
+
+  # init
+  if [ $NUM_OBJS -eq -1 ]; then
+    NUM_OBJS=$num_objs
+  fi
+  if [ $NUM_ROWS -eq -1 ]; then
+    NUM_ROWS=$num_rows
+  fi
+  if [ ${FILTERED_ROWS[${selectivity}]} -eq -1 ]; then
+    FILTERED_ROWS[${selectivity}]=$filtered_rows
+  fi
+  if $using_index; then
+    if [ ${READ_OBJS[${selectivity}]} -eq -1 ]; then
+      READ_OBJS[${selectivity}]=$objects_read
+    fi
+  fi
+
+  # verify
+  if [ ! $NUM_ROWS -eq $num_rows ]; then
+    exit 1
+  fi
+  if [ ! ${FILTERED_ROWS[${selectivity}]} -eq $filtered_rows ]; then
+    exit 1
+  fi
+  if $using_index; then
+    if [ ! ${READ_OBJS[${selectivity}]} -eq $objects_read ]; then
+      exit 1
+    fi
+  else
+    if [ ! $objects_read -eq $num_objs ]; then
+      exit 1
+    fi
+  fi
+  if [ ! $NUM_OBJS -eq $num_objs ]; then
+    exit 1
+  fi
 }
 
 function clear_cache() {
@@ -97,7 +144,7 @@ function run_exprs() {
       if ! $hotcache; then clear_cache; fi
       out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
         --rows-per-obj $objrows --pool $pool --selectivity $selectivity)
-      record_run $name $instance $hotcache $selectivity $out
+      record_run $name $instance $hotcache $selectivity $out false
 
       # baseline 2: same as (1) but bulk read goes through object class
       name="client-cls"
@@ -105,7 +152,7 @@ function run_exprs() {
       out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
         --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
         --use-cls --cls-read)
-      record_run $name $instance $hotcache $selectivity $out
+      record_run $name $instance $hotcache $selectivity $out false
 
       # object filtering basic 1: remotely read and filter all object data
       name="cls-basic"
@@ -113,7 +160,7 @@ function run_exprs() {
       out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
         --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
         --use-cls --cls-naive)
-      record_run $name $instance $hotcache $selectivity $out
+      record_run $name $instance $hotcache $selectivity $out false
 
       # object filtering basic 2: same as 1 but pre-allocates output buffer
       name="cls-basic-prealloc"
@@ -121,7 +168,7 @@ function run_exprs() {
       out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
         --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
         --use-cls --cls-naive --cls-prealloc)
-      record_run $name $instance $hotcache $selectivity $out
+      record_run $name $instance $hotcache $selectivity $out false
 
       # object filtering basic 2: same as 1 but pre-allocates output buffer
       name="cls-staged"
@@ -129,7 +176,7 @@ function run_exprs() {
       out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
         --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
         --use-cls --cls-prealloc)
-      record_run $name $instance $hotcache $selectivity $out
+      record_run $name $instance $hotcache $selectivity $out false
 
       # object filtering with index: avoid unnecessary object reads
       name="cls-index"
@@ -137,7 +184,7 @@ function run_exprs() {
       out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
         --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
         --use-cls --use-index)
-      record_run $name $instance $hotcache $selectivity $out
+      record_run $name $instance $hotcache $selectivity $out true
 
 #      # pg filtering basic: read and filter all object data at pg level
 #      name="pg-all"
