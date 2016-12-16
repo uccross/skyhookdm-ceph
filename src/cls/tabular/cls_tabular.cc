@@ -10,6 +10,7 @@ CLS_NAME(tabular)
 
 cls_handle_t h_class;
 cls_method_handle_t h_scan;
+cls_method_handle_t h_read;
 cls_method_handle_t h_add;
 
 struct tab_index {
@@ -53,6 +54,7 @@ static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     idx.max = std::max(row_val, idx.max);
   }
 
+#if 0
   bufferlist hdrbl;
   ::encode(idx, hdrbl);
   int ret = cls_cxx_map_write_header(hctx, &hdrbl);
@@ -60,10 +62,11 @@ static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_ERR("ERROR: writing obj hdr %d", ret);
     return ret;
   }
+#endif
 
   bufferlist attr_bl;
   ::encode(idx.min, attr_bl);
-  ret = cls_cxx_setxattr(hctx, "min", &attr_bl);
+  int ret = cls_cxx_setxattr(hctx, "min", &attr_bl);
   if (ret < 0) {
     CLS_ERR("ERROR: writing min xattr %d", ret);
     return ret;
@@ -74,6 +77,20 @@ static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_ERR("ERROR: writing obj full %d", ret);
     return ret;
   }
+
+  return 0;
+}
+
+static int read(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  bufferlist bl;
+  int ret = cls_cxx_read(hctx, 0, 0, &bl);
+  if (ret < 0) {
+    CLS_ERR("ERROR: reading obj %d", ret);
+    return ret;
+  }
+
+  ::encode(bl, *out);
 
   return 0;
 }
@@ -90,12 +107,14 @@ static int scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return -EINVAL;
   }
 
-  struct tab_index idx;
   bool index_skipped = false;
+  uint64_t buffer[8192];
   bufferlist rows_bl;
 
   if (op.use_index) {
-    // read index header
+#if 0
+    struct tab_index idx;
+
     bufferlist hdrbl;
     int ret = cls_cxx_map_read_header(hctx, &hdrbl);
     if (ret < 0) {
@@ -115,8 +134,30 @@ static int scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
       CLS_ERR("ERROR: decoding index");
       return -EIO;
     }
+#endif
 
-    if (op.max_val < idx.min) {
+    bufferlist attr_bl;
+    int ret = cls_cxx_getxattr(hctx, "min", &attr_bl);
+    if (ret < 0) {
+      CLS_ERR("ERROR: reading min attr: %d", ret);
+      return ret;
+    }
+
+    if (attr_bl.length() == 0) {
+      CLS_ERR("ERROR: no min attr");
+      return -EINVAL;
+    }
+
+    uint64_t min_val;
+    try {
+      bufferlist::iterator it = attr_bl.begin();
+      ::decode(min_val, it);
+    } catch (const buffer::error&) {
+      CLS_ERR("ERROR: decoding min attr");
+      return -EIO;
+    }
+
+    if (op.max_val < min_val) {
       index_skipped = true;
       ::encode(index_skipped, *out);
       ::encode(rows_bl, *out);
@@ -134,10 +175,39 @@ static int scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   const uint64_t *rows = (uint64_t*)bl.c_str();
   const uint64_t row_count = bl.length() / sizeof(uint64_t);
 
-  for (unsigned i = 0; i < row_count; i++) {
-    const uint64_t row_val = rows[i];
-    if (row_val < op.max_val)
-      rows_bl.append((char*)&row_val, sizeof(row_val));
+  /*
+   * TODO:
+   *  - can we use loop unrolling, vector ops, or other techniques to speed
+   *  this up?
+   */
+  if (op.naive) {
+    if (op.preallocate) {
+      rows_bl.reserve(bl.length());
+    }
+    for (unsigned i = 0; i < row_count; i++) {
+      const uint64_t row_val = rows[i];
+      if (row_val < op.max_val) {
+        rows_bl.append((char*)&row_val, sizeof(row_val));
+      }
+    }
+  } else {
+    rows_bl.reserve(bl.length());
+    size_t curr_entry = 0;
+    for (unsigned i = 0; i < row_count; i++) {
+      const uint64_t row_val = rows[i];
+      if (row_val < op.max_val) {
+        buffer[curr_entry] = row_val;
+        if (++curr_entry == 8192) {
+          rows_bl.append((char*)buffer,
+              sizeof(uint64_t) * curr_entry);
+          curr_entry = 0;
+        }
+      }
+    }
+    if (curr_entry > 0) {
+      rows_bl.append((char*)buffer,
+          sizeof(uint64_t) * curr_entry);
+    }
   }
 
   ::encode(index_skipped, *out);
@@ -151,6 +221,9 @@ void __cls_init()
   CLS_LOG(20, "Loaded tabular class!");
 
   cls_register("tabular", &h_class);
+
+  cls_register_cxx_method(h_class, "read",
+      CLS_METHOD_RD | CLS_METHOD_WR, read, &h_read);
 
   cls_register_cxx_method(h_class, "scan",
       CLS_METHOD_RD | CLS_METHOD_WR, scan, &h_scan);

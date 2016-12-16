@@ -37,6 +37,9 @@ int main(int argc, char **argv)
   bool use_index;
   bool use_pg;
   bool robot;
+  bool cls_read;
+  bool cls_prealloc;
+  bool cls_naive;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -48,6 +51,9 @@ int main(int argc, char **argv)
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "filter in cls")
     ("use-pg", po::bool_switch(&use_pg)->default_value(false), "filter in pg")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use cls index")
+    ("cls-read", po::bool_switch(&cls_read)->default_value(false), "use cls read")
+    ("cls-prealloc", po::bool_switch(&cls_prealloc)->default_value(false), "cls prealloc")
+    ("cls-naive", po::bool_switch(&cls_naive)->default_value(false), "cls naive")
 		("pool,p", po::value<std::string>(&pool)->required(), "pool")
     ("robot", po::bool_switch(&robot)->default_value(false), "robot output")
   ;
@@ -74,11 +80,21 @@ int main(int argc, char **argv)
   assert(selectivity <= 100.0);
   selectivity /= 100.0;
 
+  if (cls_naive || cls_prealloc) {
+    assert(use_cls);
+    assert(!use_index);
+    assert(!use_pg);
+    assert(!cls_read);
+  }
+
   assert((!use_cls && !use_pg) ||
       (use_cls && !use_pg) ||
       (!use_cls && use_pg));
   if (use_index)
     assert(use_cls || use_pg);
+
+  if (cls_read)
+    assert(use_cls && !use_index && !use_pg);
 
   // connect to rados
   librados::Rados cluster;
@@ -127,26 +143,43 @@ int main(int argc, char **argv)
       // read rows
       ceph::bufferlist bl;
       if (use_cls) {
-        scan_op op;
-        op.max_val = max_val;
-        op.use_index = use_index;
-        ceph::bufferlist inbl;
-        ::encode(op, inbl);
-        ceph::bufferlist outbl;
-        int ret = ioctx.exec(oid, "tabular", "scan", inbl, outbl);
-        checkret(ret, 0);
+        if (cls_read) {
+          ceph::bufferlist inbl;
+          ceph::bufferlist outbl;
+          int ret = ioctx.exec(oid, "tabular", "read", inbl, outbl);
+          checkret(ret, 0);
 
-        ceph::bufferlist::iterator it = outbl.begin();
-        try {
-          bool index_skipped;
-          ::decode(index_skipped, it);
-          ::decode(bl, it);
-          if (!index_skipped)
-            objects_read++;
-          else
-            assert(use_index);
-        } catch (ceph::buffer::error&) {
-          assert(0);
+          ceph::bufferlist::iterator it = outbl.begin();
+          try {
+            ::decode(bl, it);
+          } catch (ceph::buffer::error&) {
+            assert(0);
+          }
+          objects_read++;
+        } else {
+          scan_op op;
+          op.max_val = max_val;
+          op.use_index = use_index;
+          op.preallocate = cls_prealloc;
+          op.naive = cls_naive;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+          ceph::bufferlist outbl;
+          int ret = ioctx.exec(oid, "tabular", "scan", inbl, outbl);
+          checkret(ret, 0);
+
+          ceph::bufferlist::iterator it = outbl.begin();
+          try {
+            bool index_skipped;
+            ::decode(index_skipped, it);
+            ::decode(bl, it);
+            if (!index_skipped)
+              objects_read++;
+            else
+              assert(use_index);
+          } catch (ceph::buffer::error&) {
+            assert(0);
+          }
         }
       } else {
         int ret = ioctx.read(oid, bl, 0, 0);
@@ -161,7 +194,7 @@ int main(int argc, char **argv)
       const uint64_t row_count = bl.length() / sizeof(uint64_t);
       const uint64_t *rows = (uint64_t*)bl.c_str();
 
-      if (use_cls) {
+      if (use_cls && !cls_read) {
         for (unsigned r = 0; r < row_count; r++) {
           const uint64_t row_val = rows[r];
           assert(row_val < max_val);

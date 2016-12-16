@@ -5,6 +5,8 @@
 struct scan_op {
   uint64_t max_val;
   bool use_index;
+  bool naive;
+  bool preallocate;
 
   scan_op() {}
 
@@ -12,6 +14,8 @@ struct scan_op {
     ENCODE_START(1, 1, bl);
     ::encode(max_val, bl);
     ::encode(use_index, bl);
+    ::encode(naive, bl);
+    ::encode(preallocate, bl);
     ENCODE_FINISH(bl);
   }
 
@@ -19,6 +23,8 @@ struct scan_op {
     DECODE_START(1, bl);
     ::decode(max_val, bl);
     ::decode(use_index, bl);
+    ::decode(naive, bl);
+    ::decode(preallocate, bl);
     DECODE_FINISH(bl);
   }
 };
