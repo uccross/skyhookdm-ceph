@@ -1530,6 +1530,8 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
         hobject_t next;
         hobject_t current = lower_bound;
         bufferlist filtered_rows;
+        filtered_rows.reserve(max_size);
+        uint64_t row_buffer[8192];
         vector<pair<string, bool>> oids;
 
         for (;;) {
@@ -1610,12 +1612,25 @@ void ReplicatedPG::do_pg_op(OpRequestRef op)
 
             oids.push_back(make_pair(candidate.oid.name, false));
 
+
             const uint64_t *rows = (uint64_t*)bl.c_str();
             const uint64_t row_count = bl.length() / sizeof(uint64_t);
+
+            size_t curr_entry = 0;
             for (unsigned i = 0; i < row_count; i++) {
               const uint64_t row_val = rows[i];
-              if (row_val < max_val)
-                filtered_rows.append((char*)&row_val, sizeof(row_val));
+              if (row_val < max_val) {
+                row_buffer[curr_entry] = row_val;
+                if (++curr_entry == 8192) {
+                  filtered_rows.append((char*)row_buffer,
+                      sizeof(uint64_t) * curr_entry);
+                  curr_entry = 0;
+                }
+              }
+            }
+            if (curr_entry > 0) {
+              filtered_rows.append((char*)row_buffer,
+                  sizeof(uint64_t) * curr_entry);
             }
           }
 
