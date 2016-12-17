@@ -186,21 +186,21 @@ function run_exprs() {
         --use-cls --use-index)
       record_run $name $instance $hotcache $selectivity $out true
 
-#      # pg filtering basic: read and filter all object data at pg level
-#      name="pg-all"
-#      if ! $hotcache; then clear_cache; fi
-#      out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
-#        --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
-#        --use-pg)
-#      record_run $name $instance $hotcache $selectivity $out
-#
-#      # pg filtering basic: read and filter all object data at pg level
-#      name="pg-index"
-#      if ! $hotcache; then clear_cache; fi
-#      out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
-#        --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
-#        --use-pg --use-index)
-#      record_run $name $instance $hotcache $selectivity $out
+      # pg filtering basic: read and filter all object data at pg level
+      name="pg-all"
+      if ! $hotcache; then clear_cache; fi
+      out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
+        --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
+        --use-pg)
+      record_run $name $instance $hotcache $selectivity $out false
+
+      # pg filtering basic: read and filter all object data at pg level
+      name="pg-index"
+      if ! $hotcache; then clear_cache; fi
+      out=$(tabular-scan --robot --range-size $valrange --num-rows $numrows \
+        --rows-per-obj $objrows --pool $pool --selectivity $selectivity \
+        --use-pg --use-index)
+      record_run $name $instance $hotcache $selectivity $out true
     done
   done
 }
