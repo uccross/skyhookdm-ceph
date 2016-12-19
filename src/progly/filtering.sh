@@ -4,15 +4,21 @@ set -x
 
 PATH=$PWD/bin:$PATH
 
-pool=rbd
+pool=tabular
 output=log.txt
 
 # 1000 8M objects
-valrange=10000000000
-numrows=1000000000
+#valrange=10000000000
+#numrows=1000000000
+#objrows=1000000
+
+# 6000 8M objects
+valrange=60000000000
+numrows=6000000000
 objrows=1000000
+
 selectivities="0.0 0.1 1.0 5.0 10.0 25.0 50.0 75.0 100.0"
-repeat=1
+repeat=2
 
 reset=false
 while [[ $# -gt 0 ]]; do
@@ -111,12 +117,14 @@ function record_run() {
 
 function clear_cache() {
   ../src/stop.sh || true
+  sudo systemctl stop ceph-osd@0
   sync
   sync
   echo 3 | sudo tee /proc/sys/vm/drop_caches
   sync
   sync
-  ../src/vstart.sh
+  ../src/vstart.sh || true
+  sudo systemctl start ceph-osd@0
   while true; do
     if ceph status | tee /dev/tty | grep -q HEALTH_OK; then
       break

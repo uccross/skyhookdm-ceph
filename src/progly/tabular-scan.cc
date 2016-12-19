@@ -29,7 +29,7 @@ static inline uint64_t getns()
 int main(int argc, char **argv)
 {
   uint64_t range_size;
-  unsigned num_rows;
+  uint64_t num_rows;
   unsigned rows_per_obj;
   double selectivity;
   std::string pool;
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
   gen_opts.add_options()
     ("help,h", "show help message")
     ("range-size", po::value<uint64_t>(&range_size)->required(), "data range")
-    ("num-rows", po::value<unsigned>(&num_rows)->required(), "number of rows")
+    ("num-rows", po::value<uint64_t>(&num_rows)->required(), "number of rows")
     ("rows-per-obj", po::value<unsigned>(&rows_per_obj)->required(), "rows per object")
     ("selectivity", po::value<double>(&selectivity)->required(), "selectivity pct")
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "filter in cls")
