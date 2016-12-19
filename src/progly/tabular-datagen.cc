@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 {
   uint64_t range_size;
   uint64_t seed;
-  unsigned num_rows;
+  uint64_t num_rows;
   unsigned rows_per_obj;
   std::string pool;
   bool range_partition;
@@ -26,7 +26,7 @@ int main(int argc, char **argv)
     ("help,h", "show help message")
     ("range-size", po::value<uint64_t>(&range_size)->required(), "data range")
     ("seed", po::value<uint64_t>(&seed)->default_value(1234), "rand seed")
-    ("num-rows", po::value<unsigned>(&num_rows)->required(), "number of rows")
+    ("num-rows", po::value<uint64_t>(&num_rows)->required(), "number of rows")
     ("rows-per-obj", po::value<unsigned>(&rows_per_obj)->required(), "rows per object")
     ("range-part", po::bool_switch(&range_partition)->default_value(false), "range partition")
 		("pool,p", po::value<std::string>(&pool)->required(), "pool")
