@@ -1,0 +1,19 @@
+git clone --recursive https://github.com/ceph/ceph.git
+
+git remote add noah https://github.com/noahdesu/ceph.git
+git checkout -b progly noah/progly
+git submodule update --init --recursive
+./do_cmake.sh
+cd build
+make -j20
+
+These should have been built:
+
+nwatkins@pl1:~/ceph-progly/build$ ls -l bin/tabular-*
+-rwxrwxr-x 1 nwatkins nwatkins 6973064 Mar  1 11:23 bin/tabular-datagen
+-rwxrwxr-x 1 nwatkins nwatkins 7133328 Mar  1 11:23 bin/tabular-scan
+
+This looks to be a runner for all of the experiments:
+
+nwatkins@pl1:~/ceph-progly/build$ ls -l ../src/progly/filtering.sh 
+-rwxrwxr-x 1 nwatkins nwatkins 6500 Mar  1 11:08 ../src/progly/filtering.sh
