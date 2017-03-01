@@ -17,3 +17,17 @@ This looks to be a runner for all of the experiments:
 
 nwatkins@pl1:~/ceph-progly/build$ ls -l ../src/progly/filtering.sh 
 -rwxrwxr-x 1 nwatkins nwatkins 6500 Mar  1 11:08 ../src/progly/filtering.sh
+
+Running the experiments:
+
+Edit the parameters in ../src/progly/filtering.sh to adjust the experiment
+size. For instance I just used the following which is a very small experiment
+configuration:
+
+numrows=6000
+objrows=100
+
+Then this will run the tests
+
+bin/rados mkpool tabular
+../src/progly/filtering.sh
