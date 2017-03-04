@@ -39,7 +39,7 @@ if(USEPCRE)
   list(APPEND EXTRA_TARGET_LINK_LIBRARIES pcre)
 endif()
 
-include_directories(${CMAKE_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(RE2_SOURCES
     re2/bitstate.cc
@@ -67,6 +67,7 @@ set(RE2_SOURCES
     )
 
 add_library(re2 ${RE2_SOURCES})
+target_include_directories(re2 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(TESTING_SOURCES
     re2/testing/backtrack.cc
