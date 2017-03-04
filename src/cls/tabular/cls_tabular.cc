@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <string>
 #include <sstream>
+#include "re2/re2.h"
 #include "include/types.h"
 #include "objclass/objclass.h"
 #include "cls_tabular.h"
@@ -12,6 +13,7 @@ cls_handle_t h_class;
 cls_method_handle_t h_scan;
 cls_method_handle_t h_read;
 cls_method_handle_t h_add;
+cls_method_handle_t h_regex_scan;
 
 struct tab_index {
   uint64_t min;
@@ -91,6 +93,43 @@ static int read(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   }
 
   ::encode(bl, *out);
+
+  return 0;
+}
+
+static int regex_scan(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  regex_scan_op op;
+
+  try {
+    bufferlist::iterator it = in->begin();
+    ::decode(op, it);
+  } catch (const buffer::error &err) {
+    CLS_ERR("ERROR: decoding regex scan op");
+    return -EINVAL;
+  }
+
+  bufferlist bl;
+  int ret = cls_cxx_read(hctx, 0, 0, &bl);
+  if (ret < 0) {
+    CLS_ERR("ERROR: reading obj %d", ret);
+    return ret;
+  }
+
+  const char *rows = bl.c_str();
+  size_t num_rows = bl.length() / op.row_size;
+
+  bufferlist rows_bl;
+  rows_bl.reserve(bl.length());
+  for (size_t r = 0; r < num_rows; r++) {
+    const char *row = rows + r * op.row_size;
+    const char *cptr = row + op.field_offset;
+    const std::string comment(cptr, op.field_length);
+    if (op.regex == "" || RE2::PartialMatch(comment, op.regex))
+      rows_bl.append(row, op.row_size);
+  }
+
+  ::encode(rows_bl, *out);
 
   return 0;
 }
@@ -230,4 +269,7 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "add",
       CLS_METHOD_RD | CLS_METHOD_WR, add, &h_add);
+
+  cls_register_cxx_method(h_class, "regex_scan",
+      CLS_METHOD_RD, regex_scan, &h_regex_scan);
 }
