@@ -1,0 +1,68 @@
+Add `--use-cls` to any query below to use storage-assist.
+
+========
+QUERY: a
+========
+
+select count(*) from lineitem where l_extendedprice > VALUE;
+
+notes:
+  when run without storage-assist full rows are returned and the matching rows
+  are counted by the client. when run with storage-assist only the partial
+  per-object counts are returned. one variant on this is that we could
+  re-write it to use an empty projection and return zero-length rows.
+
+examples:
+  - bin/run-query --num-objs 10 --pool rbd --quiet --query a --extended-price 91000.0
+
+========
+QUERY: b
+========
+
+select * from lineitem where l_extendedprice > VALUE;
+
+examples:
+  - bin/run-query --num-objs 10 --pool rbd --quiet --query b --extended-price 91000.0
+
+========
+QUERY: c
+========
+
+select l_orderkey, l_linenumber, l_extendedprice from \
+         lineitem where l_extendedprice = VALUE;
+
+examples:
+  - bin/run-query --num-objs 10 --pool rbd --quiet --query c --extended-price 91000.0
+
+========
+QUERY: d
+========
+
+select l_orderkey, l_linenumber, l_extendedprice from \
+           lineitem where l_orderkey=VALUE and l_linenumber=VALUE;
+
+examples:
+  - bin/run-query --num-objs 10 --pool rbd --query d --order-key 5 --line-number 3
+
+========
+QUERY: e
+========
+
+select l_extendedprice, l_discount from lineitem \
+           where l_shipdate>='1994-01-01' and l_shipdate<'1995-01-01' \
+           and l_discount >0.05 and l_discount <0.07 and l_quantity<24;
+
+examples:
+  - bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 1 \
+      --ship-date-high 2000000000 --discount-low 0.001 --discount-high 5 \
+      --quantity 50000
+
+========
+QUERY: f
+========
+
+select l_orderkey, l_linenumber, l_comment from lineitem \
+           where l_comment ilike '%regularly%';
+
+examples:
+  - bin/run-query --num-objs 10 --pool rbd --query f --comment_regex regularly
