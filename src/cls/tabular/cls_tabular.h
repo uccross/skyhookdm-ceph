@@ -58,4 +58,49 @@ struct regex_scan_op {
 };
 WRITE_CLASS_ENCODER(regex_scan_op)
 
+struct query_op {
+  // query name
+  std::string query;
+
+  // query parameters
+  double extended_price;
+  int order_key;
+  int line_number;
+  int ship_date_low;
+  int ship_date_high;
+  double discount_low;
+  double discount_high;
+  double quantity;
+  std::string comment_regex;
+
+  query_op() {}
+
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(query, bl);
+    ::encode(extended_price, bl);
+    ::encode(ship_date_low, bl);
+    ::encode(ship_date_high, bl);
+    ::encode(discount_low, bl);
+    ::encode(discount_high, bl);
+    ::encode(quantity, bl);
+    ::encode(comment_regex, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(query, bl);
+    ::decode(extended_price, bl);
+    ::decode(ship_date_low, bl);
+    ::decode(ship_date_high, bl);
+    ::decode(discount_low, bl);
+    ::decode(discount_high, bl);
+    ::decode(quantity, bl);
+    ::decode(comment_regex, bl);
+    DECODE_FINISH(bl);
+  }
+};
+WRITE_CLASS_ENCODER(query_op)
+
 #endif

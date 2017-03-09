@@ -14,6 +14,7 @@ cls_method_handle_t h_scan;
 cls_method_handle_t h_read;
 cls_method_handle_t h_add;
 cls_method_handle_t h_regex_scan;
+cls_method_handle_t h_query_op;
 
 struct tab_index {
   uint64_t min;
@@ -36,6 +37,11 @@ struct tab_index {
   }
 };
 WRITE_CLASS_ENCODER(tab_index)
+
+static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
+  const char* copyupto = std::find(buffer, buffer + buffer_size, 0);
+  return std::string(buffer, copyupto);
+}
 
 static int add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
@@ -93,6 +99,117 @@ static int read(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   }
 
   ::encode(bl, *out);
+
+  return 0;
+}
+
+static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  query_op op;
+
+  try {
+    bufferlist::iterator it = in->begin();
+    ::decode(op, it);
+  } catch (const buffer::error &err) {
+    CLS_ERR("ERROR: decoding query op");
+    return -EINVAL;
+  }
+
+  bufferlist bl;
+  int ret = cls_cxx_read(hctx, 0, 0, &bl);
+  if (ret < 0) {
+    CLS_ERR("ERROR: reading obj %d", ret);
+    return ret;
+  }
+
+  const size_t row_size = 141;
+  const char *rows = bl.c_str();
+  const size_t num_rows = bl.length() / row_size;
+
+  bufferlist result_bl;
+  result_bl.reserve(bl.length());
+
+  const size_t order_key_field_offset = 0;
+  const size_t line_number_field_offset = 12;
+  const size_t quantity_field_offset = 16;
+  const size_t extended_price_field_offset = 24;
+  const size_t discount_field_offset = 32;
+  const size_t shipdate_field_offset = 50;
+  const size_t comment_field_offset = 97;
+  const size_t comment_field_length = 44;
+
+  if (op.query == "a") {
+    size_t result_count = 0;
+    for (size_t rid = 0; rid < num_rows; rid++) {
+      const char *row = rows + rid * row_size;
+      const char *vptr = row + extended_price_field_offset;
+      const double val = *(const double*)vptr;
+      if (val > op.extended_price) {
+        result_count++;
+      }
+    }
+    ::encode(result_count, result_bl);
+  } else if (op.query == "b") {
+    for (size_t rid = 0; rid < num_rows; rid++) {
+      const char *row = rows + rid * row_size;
+      const char *vptr = row + extended_price_field_offset;
+      const double val = *(const double*)vptr;
+      if (val > op.extended_price) {
+        result_bl.append(row, row_size);
+      }
+    }
+  } else if (op.query == "c") {
+    for (size_t rid = 0; rid < num_rows; rid++) {
+      const char *row = rows + rid * row_size;
+      const char *vptr = row + extended_price_field_offset;
+      const double val = *(const double*)vptr;
+      if (val == op.extended_price) {
+        result_bl.append(row, row_size);
+      }
+    }
+  } else if (op.query == "d") {
+    for (size_t rid = 0; rid < num_rows; rid++) {
+      const char *row = rows + rid * row_size;
+      const char *vptr = row + order_key_field_offset;
+      const int order_key_val = *(const int*)vptr;
+      if (order_key_val == op.order_key) {
+        const char *vptr = row + line_number_field_offset;
+        const int line_number_val = *(const int*)vptr;
+        if (line_number_val == op.line_number) {
+          result_bl.append(row, row_size);
+        }
+      }
+    }
+  } else if (op.query == "e") {
+    for (size_t rid = 0; rid < num_rows; rid++) {
+      const char *row = rows + rid * row_size;
+
+      const int shipdate_val = *((const int *)(row + shipdate_field_offset));
+      if (shipdate_val >= op.ship_date_low && shipdate_val < op.ship_date_high) {
+        const double discount_val = *((const double *)(row + discount_field_offset));
+        if (discount_val > op.discount_low && discount_val < op.discount_high) {
+          const double quantity_val = *((const double *)(row + quantity_field_offset));
+          if (quantity_val < op.quantity) {
+            result_bl.append(row, row_size);
+          }
+        }
+      }
+    }
+  } else if (op.query == "f") {
+    for (size_t rid = 0; rid < num_rows; rid++) {
+      const char *row = rows + rid * row_size;
+      const char *cptr = row + comment_field_offset;
+      const std::string comment_val = string_ncopy(cptr,
+          comment_field_length);
+      if (RE2::PartialMatch(comment_val, op.comment_regex)) {
+        result_bl.append(row, row_size);
+      }
+    }
+  } else {
+    return -EINVAL;
+  }
+
+  ::encode(result_bl, *out);
 
   return 0;
 }
@@ -272,4 +389,7 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "regex_scan",
       CLS_METHOD_RD, regex_scan, &h_regex_scan);
+
+  cls_register_cxx_method(h_class, "query_op",
+      CLS_METHOD_RD, query_op_op, &h_query_op);
 }
