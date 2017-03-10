@@ -79,6 +79,8 @@ struct query_op {
     ENCODE_START(1, 1, bl);
     ::encode(query, bl);
     ::encode(extended_price, bl);
+    ::encode(order_key, bl);
+    ::encode(line_number, bl);
     ::encode(ship_date_low, bl);
     ::encode(ship_date_high, bl);
     ::encode(discount_low, bl);
@@ -92,6 +94,8 @@ struct query_op {
     DECODE_START(1, bl);
     ::decode(query, bl);
     ::decode(extended_price, bl);
+    ::decode(order_key, bl);
+    ::decode(line_number, bl);
     ::decode(ship_date_low, bl);
     ::decode(ship_date_high, bl);
     ::decode(discount_low, bl);
