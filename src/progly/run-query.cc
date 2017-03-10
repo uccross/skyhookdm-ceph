@@ -216,6 +216,8 @@ int main(int argc, char **argv)
       query_op op;
       op.query = query;
       op.extended_price = extended_price;
+      op.order_key = order_key;
+      op.line_number = line_number;
       op.ship_date_low = ship_date_low;
       op.ship_date_high = ship_date_high;
       op.discount_low = discount_low;
