@@ -1,4 +1,6 @@
 #include <iostream>
+#include <thread>
+#include <atomic>
 #include <boost/program_options.hpp>
 #include "include/rados/librados.hpp"
 #include "cls/tabular/cls_tabular.h"
@@ -26,17 +28,39 @@ static inline uint64_t getns()
     exit(1); \
   } } while (0)
 
-std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
+static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   const char* copyupto = std::find(buffer, buffer + buffer_size, 0);
   return std::string(buffer, copyupto);
 }
 
+static std::vector<std::string> target_objects;
+static std::mutex work_lock;
+static std::mutex print_lock;
+
 static bool quiet;
+static bool use_cls;
+static std::string query;
+
+// query parameters
+static double extended_price;
+static int order_key;
+static int line_number;
+static int ship_date_low;
+static int ship_date_high;
+static double discount_low;
+static double discount_high;
+static double quantity;
+static std::string comment_regex;
+
+static std::atomic<unsigned> result_count;
+static std::atomic<unsigned> rows_returned;
 
 static void print_row(const char *row)
 {
   if (quiet)
     return;
+
+  print_lock.lock();
 
   const size_t order_key_field_offset = 0;
   const size_t line_number_field_offset = 12;
@@ -64,150 +88,34 @@ static void print_row(const char *row)
     "|" << quantity <<
     "|" << comment <<
     std::endl;
+
+  print_lock.unlock();
 }
 
-int main(int argc, char **argv)
+/*
+ *
+ */
+static const size_t order_key_field_offset = 0;
+static const size_t line_number_field_offset = 12;
+static const size_t quantity_field_offset = 16;
+static const size_t extended_price_field_offset = 24;
+static const size_t discount_field_offset = 32;
+static const size_t shipdate_field_offset = 50;
+static const size_t comment_field_offset = 97;
+static const size_t comment_field_length = 44;
+
+static void worker(librados::IoCtx *ioctx)
 {
-  std::string pool;
-  unsigned num_objs;
-  std::string query;
-  bool use_cls;
-
-  // query parameters
-  double extended_price;
-  int order_key;
-  int line_number;
-  int ship_date_low;
-  int ship_date_high;
-  double discount_low;
-  double discount_high;
-  double quantity;
-  std::string comment_regex;
-  //std::vector<std::string> projection;
-
-  po::options_description gen_opts("General options");
-  gen_opts.add_options()
-    ("help,h", "show help message")
-		("pool", po::value<std::string>(&pool)->required(), "pool")
-    ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
-    ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
-    ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
-    ("query", po::value<std::string>(&query)->required(), "query name")
-    // query parameters
-    ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
-    ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
-    ("line-number", po::value<int>(&line_number)->default_value(0.0), "line number")
-    ("ship-date-low", po::value<int>(&ship_date_low)->default_value(-9999), "ship date low")
-    ("ship-date-high", po::value<int>(&ship_date_high)->default_value(-9999), "ship date high")
-    ("discount-low", po::value<double>(&discount_low)->default_value(-9999.0), "discount low")
-    ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
-    ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
-    ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
-    //("projection", po::value<std::vector<std::string>>(&projection)->multitoken(), "projection")
-  ;
-
-  po::options_description all_opts("Allowed options");
-  all_opts.add(gen_opts);
-
-  po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, all_opts), vm);
-
-  if (vm.count("help")) {
-    std::cout << all_opts << std::endl;
-    return 1;
-  }
-
-  po::notify(vm);
-
-  assert(num_objs > 0);
-
-  /*
-   * sanity check queries against provided parameters
-   */
-  if (query == "a") {
-
-    assert(extended_price != 0.0);
-    std::cout << "select count(*) from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  } else if (query == "b") {
-
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  } else if (query == "c") {
-
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice = "
-      << extended_price << std::endl;
-
-  } else if (query == "d") {
-
-    assert(order_key != 0.0);
-    assert(line_number != 0.0);
-    std::cout << "select * from from lineitem where l_orderkey = "
-      << order_key << " and l_linenumber = " << line_number << std::endl;
-
-  } else if (query == "e") {
-
-    assert(ship_date_low != -9999);
-    assert(ship_date_high != -9999);
-    assert(discount_low != -9999.0);
-    assert(discount_high != -9999.0);
-    assert(quantity != 0.0);
-    std::cout << "select * from lineitem where l_shipdate >= "
-      << ship_date_low << " and l_shipdate < " << ship_date_high
-      << " and l_discount > " << discount_low << " and l_discount < "
-      << discount_high << " and l_quantity < " << quantity << std::endl;
-
-  } else if (query == "f") {
-
-    assert(comment_regex != "");
-    std::cout << "select * from lineitem where l_comment ilike '%"
-      << comment_regex << "%'" << std::endl;
-
-  } else {
-    std::cerr << "invalid query: " << query << std::endl;
-    exit(1);
-  }
-
-  // connect to rados
-  librados::Rados cluster;
-  cluster.init(NULL);
-  cluster.conf_read_file(NULL);
-  int ret = cluster.connect();
-  checkret(ret, 0);
-
-  // open pool i/o context
-  librados::IoCtx ioctx;
-  ret = cluster.ioctx_create(pool.c_str(), ioctx);
-  checkret(ret, 0);
-
-  /*
-   *
-   */
-  const size_t order_key_field_offset = 0;
-  const size_t line_number_field_offset = 12;
-  const size_t quantity_field_offset = 16;
-  const size_t extended_price_field_offset = 24;
-  const size_t discount_field_offset = 32;
-  const size_t shipdate_field_offset = 50;
-  const size_t comment_field_offset = 97;
-  const size_t comment_field_length = 44;
-
-  // for each object we read the object from rados and then apply the query
-  // to the rows that are returned. when --use-cls is specified the query is
-  // also applied in the osd before returning the results.
-  size_t result_count = 0;
-  size_t rows_returned = 0;
-
-  for (unsigned oidx = 0; oidx < num_objs; oidx++) {
-
-    // name of object is: obj.oidx
-    std::stringstream oid_ss;
-    oid_ss << "obj." << oidx;
-    const std::string oid = oid_ss.str();
+  while (true) {
+    // step 0: get object to process, or exit
+    work_lock.lock();
+    if (target_objects.empty()) {
+      work_lock.unlock();
+      break;
+    }
+    std::string oid = target_objects.back();
+    target_objects.pop_back();
+    work_lock.unlock();
 
     // step 1: read the object
     ceph::bufferlist bl;
@@ -229,7 +137,7 @@ int main(int argc, char **argv)
 
       // execute it remotely
       ceph::bufferlist outbl;
-      int ret = ioctx.exec(oid, "tabular", "query_op", inbl, outbl);
+      int ret = ioctx->exec(oid, "tabular", "query_op", inbl, outbl);
       checkret(ret, 0);
 
       // resulting rows
@@ -240,7 +148,7 @@ int main(int argc, char **argv)
         assert(0);
       }
     } else {
-      int ret = ioctx.read(oid, bl, 0, 0);
+      int ret = ioctx->read(oid, bl, 0, 0);
       assert(ret > 0);
       assert(bl.length() > 0);
     }
@@ -334,7 +242,136 @@ int main(int argc, char **argv)
     } else {
       assert(0);
     }
+  }
 
+  ioctx->close();
+  delete ioctx;
+}
+
+int main(int argc, char **argv)
+{
+  std::string pool;
+  unsigned num_objs;
+  int nthreads;
+
+  po::options_description gen_opts("General options");
+  gen_opts.add_options()
+    ("help,h", "show help message")
+		("pool", po::value<std::string>(&pool)->required(), "pool")
+    ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
+    ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
+    ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
+    ("query", po::value<std::string>(&query)->required(), "query name")
+    ("nthreads", po::value<int>(&nthreads)->default_value(1), "num threads")
+    // query parameters
+    ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
+    ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
+    ("line-number", po::value<int>(&line_number)->default_value(0.0), "line number")
+    ("ship-date-low", po::value<int>(&ship_date_low)->default_value(-9999), "ship date low")
+    ("ship-date-high", po::value<int>(&ship_date_high)->default_value(-9999), "ship date high")
+    ("discount-low", po::value<double>(&discount_low)->default_value(-9999.0), "discount low")
+    ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
+    ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
+    ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
+  ;
+
+  po::options_description all_opts("Allowed options");
+  all_opts.add(gen_opts);
+
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, all_opts), vm);
+
+  if (vm.count("help")) {
+    std::cout << all_opts << std::endl;
+    return 1;
+  }
+
+  po::notify(vm);
+
+  assert(num_objs > 0);
+  assert(nthreads > 0);
+
+  /*
+   * sanity check queries against provided parameters
+   */
+  if (query == "a") {
+
+    assert(extended_price != 0.0);
+    std::cout << "select count(*) from lineitem where l_extendedprice > "
+      << extended_price << std::endl;
+
+  } else if (query == "b") {
+
+    assert(extended_price != 0.0);
+    std::cout << "select * from lineitem where l_extendedprice > "
+      << extended_price << std::endl;
+
+  } else if (query == "c") {
+
+    assert(extended_price != 0.0);
+    std::cout << "select * from lineitem where l_extendedprice = "
+      << extended_price << std::endl;
+
+  } else if (query == "d") {
+
+    assert(order_key != 0.0);
+    assert(line_number != 0.0);
+    std::cout << "select * from from lineitem where l_orderkey = "
+      << order_key << " and l_linenumber = " << line_number << std::endl;
+
+  } else if (query == "e") {
+
+    assert(ship_date_low != -9999);
+    assert(ship_date_high != -9999);
+    assert(discount_low != -9999.0);
+    assert(discount_high != -9999.0);
+    assert(quantity != 0.0);
+    std::cout << "select * from lineitem where l_shipdate >= "
+      << ship_date_low << " and l_shipdate < " << ship_date_high
+      << " and l_discount > " << discount_low << " and l_discount < "
+      << discount_high << " and l_quantity < " << quantity << std::endl;
+
+  } else if (query == "f") {
+
+    assert(comment_regex != "");
+    std::cout << "select * from lineitem where l_comment ilike '%"
+      << comment_regex << "%'" << std::endl;
+
+  } else {
+    std::cerr << "invalid query: " << query << std::endl;
+    exit(1);
+  }
+
+  // connect to rados
+  librados::Rados cluster;
+  cluster.init(NULL);
+  cluster.conf_read_file(NULL);
+  int ret = cluster.connect();
+  checkret(ret, 0);
+
+  result_count = 0;
+  rows_returned = 0;
+
+  // generate the names of the objects to process
+  for (unsigned oidx = 0; oidx < num_objs; oidx++) {
+    std::stringstream oid_ss;
+    oid_ss << "obj." << oidx;
+    const std::string oid = oid_ss.str();
+    target_objects.push_back(oid);
+  }
+
+  // start worker threads
+  std::vector<std::thread> threads;
+  for (int i = 0; i < nthreads; i++) {
+    auto ioctx = new librados::IoCtx;
+    int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+    checkret(ret, 0);
+    threads.push_back(std::thread(worker, ioctx));
+  }
+
+  // the threads will exit when all the objects are processed
+  for (auto& thread : threads) {
+    thread.join();
   }
 
   if (query == "a" && use_cls) {
