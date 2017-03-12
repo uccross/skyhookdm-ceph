@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <string>
 #include <sstream>
+#include <boost/lexical_cast.hpp>
 #include "re2/re2.h"
 #include "include/types.h"
 #include "objclass/objclass.h"
@@ -15,6 +16,7 @@ cls_method_handle_t h_read;
 cls_method_handle_t h_add;
 cls_method_handle_t h_regex_scan;
 cls_method_handle_t h_query_op;
+cls_method_handle_t h_build_index;
 
 struct tab_index {
   uint64_t min;
@@ -103,6 +105,74 @@ static int read(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   return 0;
 }
 
+static inline std::string u64tostr(uint64_t value)
+{
+  std::stringstream ss;
+  ss << std::setw(20) << std::setfill('0') << value;
+  return ss.str();
+}
+ 
+/*
+ * Convert string into numeric value.
+ */
+static inline int strtou64(const std::string value, uint64_t *out)
+{
+  uint64_t v;
+
+  try {
+    v = boost::lexical_cast<uint64_t>(value);
+  } catch (boost::bad_lexical_cast &) {
+    CLS_ERR("converting key into numeric value %s", value.c_str());
+    return -EIO;
+  }
+ 
+  *out = v;
+  return 0;
+}
+
+static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  bufferlist bl;
+  int ret = cls_cxx_read(hctx, 0, 0, &bl);
+  if (ret < 0) {
+    CLS_ERR("ERROR: reading obj %d", ret);
+    return ret;
+  }
+
+  const size_t row_size = 141;
+  const char *rows = bl.c_str();
+  const size_t num_rows = bl.length() / row_size;
+
+  const size_t order_key_field_offset = 0;
+  const size_t line_number_field_offset = 12;
+
+  for (size_t rid = 0; rid < num_rows; rid++) {
+    const char *row = rows + rid * row_size;
+    const char *o_vptr = row + order_key_field_offset;
+    const int order_key_val = *(const int*)o_vptr;
+    const char *l_vptr = row + line_number_field_offset;
+    const int line_number_val = *(const int*)l_vptr;
+
+    // key
+    uint64_t key = ((uint64_t)order_key_val) << 32;
+    key |= (uint32_t)line_number_val;
+    const std::string strkey = u64tostr(key);
+
+    // val
+    bufferlist row_offset_bl;
+    const size_t row_offset = rid * row_size;
+    ::encode(row_offset, row_offset_bl);
+
+    int ret = cls_cxx_map_set_val(hctx, strkey, &row_offset_bl);
+    if (ret < 0) {
+      CLS_ERR("error setting index entry %d", ret);
+      return ret;
+    }
+  }
+
+  return 0;
+}
+
 static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   query_op op;
@@ -168,15 +238,46 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       }
     }
   } else if (op.query == "d") {
-    for (size_t rid = 0; rid < num_rows; rid++) {
-      const char *row = rows + rid * row_size;
-      const char *vptr = row + order_key_field_offset;
-      const int order_key_val = *(const int*)vptr;
-      if (order_key_val == op.order_key) {
-        const char *vptr = row + line_number_field_offset;
-        const int line_number_val = *(const int*)vptr;
-        if (line_number_val == op.line_number) {
-          result_bl.append(row, row_size);
+    if (op.use_index) {
+      uint64_t key = ((uint64_t)op.order_key) << 32;
+      key |= (uint32_t)op.line_number;
+      const std::string strkey = u64tostr(key);
+
+      bufferlist row_offset_bl;
+      int ret = cls_cxx_map_get_val(hctx, strkey, &row_offset_bl);
+      if (ret < 0 && ret != -ENOENT) {
+        CLS_ERR("cant read map val index %d", ret);
+        return ret;
+      }
+
+      if (ret >= 0) {
+        size_t row_offset;
+        bufferlist::iterator it = row_offset_bl.begin();
+        try {
+          ::decode(row_offset, it);
+        } catch (const buffer::error &err) {
+          CLS_ERR("ERR cant decode index entry");
+          return -EIO;
+        }
+
+        if ((row_offset + row_size) > bl.length()) {
+          return -EIO;
+        }
+
+        result_bl.append(rows + row_offset, row_size);
+      }
+
+    } else {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *vptr = row + order_key_field_offset;
+        const int order_key_val = *(const int*)vptr;
+        if (order_key_val == op.order_key) {
+          const char *vptr = row + line_number_field_offset;
+          const int line_number_val = *(const int*)vptr;
+          if (line_number_val == op.line_number) {
+            result_bl.append(row, row_size);
+          }
         }
       }
     }
@@ -392,4 +493,7 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "query_op",
       CLS_METHOD_RD, query_op_op, &h_query_op);
+
+  cls_register_cxx_method(h_class, "build_index",
+      CLS_METHOD_RD | CLS_METHOD_WR, build_index, &h_build_index);
 }
