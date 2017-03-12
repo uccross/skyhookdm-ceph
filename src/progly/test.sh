@@ -17,4 +17,10 @@ for nthreads in 1 2 3 4; do
     $remote_cmd --nthreads $nthreads | sort > $output
     diff $output ${THIS_DIR}/test/q${q}.cls.expected_result.sorted.txt
   done
+
+  # test --use-index. must run --build-index first manually
+  # bin/run-query --num-objs 10 --pool rbd --build-index
+  qd_cmd=$(cat ${THIS_DIR}/test/qd.cls.txt)
+  $qd_cmd --nthreads $nthreads --use-index | sort > $output
+  diff $output ${THIS_DIR}/test/qd.cls.expected_result.sorted.txt
 done

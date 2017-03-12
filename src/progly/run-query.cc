@@ -40,6 +40,7 @@ static std::mutex print_lock;
 static bool quiet;
 static bool use_cls;
 static std::string query;
+static bool use_index;
 
 // query parameters
 static double extended_price;
@@ -132,6 +133,7 @@ static void worker(librados::IoCtx *ioctx)
       op.discount_high = discount_high;
       op.quantity = quantity;
       op.comment_regex = comment_regex;
+      op.use_index = use_index;
       ceph::bufferlist inbl;
       ::encode(op, inbl);
 
@@ -253,6 +255,7 @@ int main(int argc, char **argv)
   std::string pool;
   unsigned num_objs;
   int nthreads;
+  bool build_index;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -263,6 +266,8 @@ int main(int argc, char **argv)
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
     ("query", po::value<std::string>(&query)->required(), "query name")
     ("nthreads", po::value<int>(&nthreads)->default_value(1), "num threads")
+    ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
+    ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -291,36 +296,76 @@ int main(int argc, char **argv)
   assert(num_objs > 0);
   assert(nthreads > 0);
 
+  // connect to rados
+  librados::Rados cluster;
+  cluster.init(NULL);
+  cluster.conf_read_file(NULL);
+  int ret = cluster.connect();
+  checkret(ret, 0);
+
+  // generate the names of the objects to process
+  for (unsigned oidx = 0; oidx < num_objs; oidx++) {
+    std::stringstream oid_ss;
+    oid_ss << "obj." << oidx;
+    const std::string oid = oid_ss.str();
+    target_objects.push_back(oid);
+  }
+
+  // build index for query "d"
+  if (build_index) {
+    librados::IoCtx ioctx;
+    int ret = cluster.ioctx_create(pool.c_str(), ioctx);
+    checkret(ret, 0);
+
+    for (auto oid : target_objects) {
+      std::cout << "building index... " << oid << std::endl;
+      ceph::bufferlist inbl, outbl;
+      int ret = ioctx.exec(oid, "tabular", "build_index", inbl, outbl);
+      checkret(ret, 0);
+    }
+
+    ioctx.close();
+
+    return 0;
+  }
+
   /*
    * sanity check queries against provided parameters
    */
   if (query == "a") {
 
+    assert(!use_index); // not supported
     assert(extended_price != 0.0);
     std::cout << "select count(*) from lineitem where l_extendedprice > "
       << extended_price << std::endl;
 
   } else if (query == "b") {
 
+    assert(!use_index); // not supported
     assert(extended_price != 0.0);
     std::cout << "select * from lineitem where l_extendedprice > "
       << extended_price << std::endl;
 
   } else if (query == "c") {
 
+    assert(!use_index); // not supported
     assert(extended_price != 0.0);
     std::cout << "select * from lineitem where l_extendedprice = "
       << extended_price << std::endl;
 
   } else if (query == "d") {
 
-    assert(order_key != 0.0);
-    assert(line_number != 0.0);
+    if (use_index)
+      assert(use_cls);
+
+    assert(order_key != 0);
+    assert(line_number != 0);
     std::cout << "select * from from lineitem where l_orderkey = "
       << order_key << " and l_linenumber = " << line_number << std::endl;
 
   } else if (query == "e") {
 
+    assert(!use_index); // not supported
     assert(ship_date_low != -9999);
     assert(ship_date_high != -9999);
     assert(discount_low != -9999.0);
@@ -333,6 +378,7 @@ int main(int argc, char **argv)
 
   } else if (query == "f") {
 
+    assert(!use_index); // not supported
     assert(comment_regex != "");
     std::cout << "select * from lineitem where l_comment ilike '%"
       << comment_regex << "%'" << std::endl;
@@ -342,23 +388,8 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  // connect to rados
-  librados::Rados cluster;
-  cluster.init(NULL);
-  cluster.conf_read_file(NULL);
-  int ret = cluster.connect();
-  checkret(ret, 0);
-
   result_count = 0;
   rows_returned = 0;
-
-  // generate the names of the objects to process
-  for (unsigned oidx = 0; oidx < num_objs; oidx++) {
-    std::stringstream oid_ss;
-    oid_ss << "obj." << oidx;
-    const std::string oid = oid_ss.str();
-    target_objects.push_back(oid);
-  }
 
   // start worker threads
   std::vector<std::thread> threads;

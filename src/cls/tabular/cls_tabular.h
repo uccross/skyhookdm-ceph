@@ -72,6 +72,7 @@ struct query_op {
   double discount_high;
   double quantity;
   std::string comment_regex;
+  bool use_index;
 
   query_op() {}
 
@@ -87,6 +88,7 @@ struct query_op {
     ::encode(discount_high, bl);
     ::encode(quantity, bl);
     ::encode(comment_regex, bl);
+    ::encode(use_index, bl);
     ENCODE_FINISH(bl);
   }
 
@@ -102,6 +104,7 @@ struct query_op {
     ::decode(discount_high, bl);
     ::decode(quantity, bl);
     ::decode(comment_regex, bl);
+    ::decode(use_index, bl);
     DECODE_FINISH(bl);
   }
 };
