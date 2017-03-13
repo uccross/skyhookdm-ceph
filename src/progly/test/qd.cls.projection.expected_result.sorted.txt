@@ -1,0 +1,3 @@
+5|3
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1

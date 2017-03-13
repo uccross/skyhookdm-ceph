@@ -220,21 +220,45 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     }
     ::encode(result_count, result_bl);
   } else if (op.query == "b") {
-    for (size_t rid = 0; rid < num_rows; rid++) {
-      const char *row = rows + rid * row_size;
-      const char *vptr = row + extended_price_field_offset;
-      const double val = *(const double*)vptr;
-      if (val > op.extended_price) {
-        result_bl.append(row, row_size);
+    if (op.projection) {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *vptr = row + extended_price_field_offset;
+        const double val = *(const double*)vptr;
+        if (val > op.extended_price) {
+          result_bl.append(row + order_key_field_offset, 4);
+          result_bl.append(row + line_number_field_offset, 4);
+        }
+      }
+    } else {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *vptr = row + extended_price_field_offset;
+        const double val = *(const double*)vptr;
+        if (val > op.extended_price) {
+          result_bl.append(row, row_size);
+        }
       }
     }
   } else if (op.query == "c") {
-    for (size_t rid = 0; rid < num_rows; rid++) {
-      const char *row = rows + rid * row_size;
-      const char *vptr = row + extended_price_field_offset;
-      const double val = *(const double*)vptr;
-      if (val == op.extended_price) {
-        result_bl.append(row, row_size);
+    if (op.projection) {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *vptr = row + extended_price_field_offset;
+        const double val = *(const double*)vptr;
+        if (val == op.extended_price) {
+          result_bl.append(row + order_key_field_offset, 4);
+          result_bl.append(row + line_number_field_offset, 4);
+        }
+      }
+    } else {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *vptr = row + extended_price_field_offset;
+        const double val = *(const double*)vptr;
+        if (val == op.extended_price) {
+          result_bl.append(row, row_size);
+        }
       }
     }
   } else if (op.query == "d") {
@@ -264,46 +288,98 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           return -EIO;
         }
 
-        result_bl.append(rows + row_offset, row_size);
+        if (op.projection) {
+          result_bl.append(rows + row_offset + order_key_field_offset, 4);
+          result_bl.append(rows + row_offset + line_number_field_offset, 4);
+        } else {
+          result_bl.append(rows + row_offset, row_size);
+        }
       }
 
     } else {
-      for (size_t rid = 0; rid < num_rows; rid++) {
-        const char *row = rows + rid * row_size;
-        const char *vptr = row + order_key_field_offset;
-        const int order_key_val = *(const int*)vptr;
-        if (order_key_val == op.order_key) {
-          const char *vptr = row + line_number_field_offset;
-          const int line_number_val = *(const int*)vptr;
-          if (line_number_val == op.line_number) {
-            result_bl.append(row, row_size);
+      if (op.projection) {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          const char *vptr = row + order_key_field_offset;
+          const int order_key_val = *(const int*)vptr;
+          if (order_key_val == op.order_key) {
+            const char *vptr = row + line_number_field_offset;
+            const int line_number_val = *(const int*)vptr;
+            if (line_number_val == op.line_number) {
+              result_bl.append(row + order_key_field_offset, 4);
+              result_bl.append(row + line_number_field_offset, 4);
+            }
+          }
+        }
+      } else {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          const char *vptr = row + order_key_field_offset;
+          const int order_key_val = *(const int*)vptr;
+          if (order_key_val == op.order_key) {
+            const char *vptr = row + line_number_field_offset;
+            const int line_number_val = *(const int*)vptr;
+            if (line_number_val == op.line_number) {
+              result_bl.append(row, row_size);
+            }
           }
         }
       }
     }
   } else if (op.query == "e") {
-    for (size_t rid = 0; rid < num_rows; rid++) {
-      const char *row = rows + rid * row_size;
+    if (op.projection) {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
 
-      const int shipdate_val = *((const int *)(row + shipdate_field_offset));
-      if (shipdate_val >= op.ship_date_low && shipdate_val < op.ship_date_high) {
-        const double discount_val = *((const double *)(row + discount_field_offset));
-        if (discount_val > op.discount_low && discount_val < op.discount_high) {
-          const double quantity_val = *((const double *)(row + quantity_field_offset));
-          if (quantity_val < op.quantity) {
-            result_bl.append(row, row_size);
+        const int shipdate_val = *((const int *)(row + shipdate_field_offset));
+        if (shipdate_val >= op.ship_date_low && shipdate_val < op.ship_date_high) {
+          const double discount_val = *((const double *)(row + discount_field_offset));
+          if (discount_val > op.discount_low && discount_val < op.discount_high) {
+            const double quantity_val = *((const double *)(row + quantity_field_offset));
+            if (quantity_val < op.quantity) {
+              result_bl.append(row + order_key_field_offset, 4);
+              result_bl.append(row + line_number_field_offset, 4);
+            }
+          }
+        }
+      }
+    } else {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+
+        const int shipdate_val = *((const int *)(row + shipdate_field_offset));
+        if (shipdate_val >= op.ship_date_low && shipdate_val < op.ship_date_high) {
+          const double discount_val = *((const double *)(row + discount_field_offset));
+          if (discount_val > op.discount_low && discount_val < op.discount_high) {
+            const double quantity_val = *((const double *)(row + quantity_field_offset));
+            if (quantity_val < op.quantity) {
+              result_bl.append(row, row_size);
+            }
           }
         }
       }
     }
   } else if (op.query == "f") {
-    for (size_t rid = 0; rid < num_rows; rid++) {
-      const char *row = rows + rid * row_size;
-      const char *cptr = row + comment_field_offset;
-      const std::string comment_val = string_ncopy(cptr,
-          comment_field_length);
-      if (RE2::PartialMatch(comment_val, op.comment_regex)) {
-        result_bl.append(row, row_size);
+    if (op.projection) {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *cptr = row + comment_field_offset;
+        const std::string comment_val = string_ncopy(cptr,
+            comment_field_length);
+        if (RE2::PartialMatch(comment_val, op.comment_regex)) {
+          result_bl.append(row + order_key_field_offset, 4);
+          result_bl.append(row + line_number_field_offset, 4);
+        }
+      }
+    } else {
+      for (size_t rid = 0; rid < num_rows; rid++) {
+        const char *row = rows + rid * row_size;
+        const char *cptr = row + comment_field_offset;
+        const std::string comment_val = string_ncopy(cptr,
+            comment_field_length);
+        if (RE2::PartialMatch(comment_val, op.comment_regex)) {
+          result_bl.append(row, row_size);
+        }
       }
     }
   } else {

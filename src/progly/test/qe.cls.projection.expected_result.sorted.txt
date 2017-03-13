@@ -1,0 +1,20 @@
+1028|1
+1699|2
+1732|6
+1825|4
+1861|1
+195|1
+229|1
+2339|1
+256|1
+3169|1
+4612|2
+5863|2
+70|1
+7457|1
+7681|1
+8582|3
+8933|2
+9860|5
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 758678400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 24
+total result row count: 18 / 18

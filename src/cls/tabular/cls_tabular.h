@@ -73,6 +73,7 @@ struct query_op {
   double quantity;
   std::string comment_regex;
   bool use_index;
+  bool projection;
 
   query_op() {}
 
@@ -89,6 +90,7 @@ struct query_op {
     ::encode(quantity, bl);
     ::encode(comment_regex, bl);
     ::encode(use_index, bl);
+    ::encode(projection, bl);
     ENCODE_FINISH(bl);
   }
 
@@ -105,6 +107,7 @@ struct query_op {
     ::decode(quantity, bl);
     ::decode(comment_regex, bl);
     ::decode(use_index, bl);
+    ::decode(projection, bl);
     DECODE_FINISH(bl);
   }
 };

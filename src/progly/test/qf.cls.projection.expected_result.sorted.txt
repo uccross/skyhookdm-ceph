@@ -1,0 +1,17 @@
+2178|3
+2656|1
+3872|6
+7330|5
+7462|4
+7909|3
+8038|1
+8294|1
+8674|2
+8995|6
+9445|1
+9634|2
+9732|3
+9925|6
+9952|2
+select * from lineitem where l_comment ilike '%regularly%'
+total result row count: 15 / 15

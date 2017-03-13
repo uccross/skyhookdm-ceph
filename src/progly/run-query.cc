@@ -41,6 +41,7 @@ static bool quiet;
 static bool use_cls;
 static std::string query;
 static bool use_index;
+static bool projection;
 
 // query parameters
 static double extended_price;
@@ -64,7 +65,11 @@ static void print_row(const char *row)
   print_lock.lock();
 
   const size_t order_key_field_offset = 0;
-  const size_t line_number_field_offset = 12;
+  size_t line_number_field_offset;
+  if (projection && use_cls)
+    line_number_field_offset = 4;
+  else
+    line_number_field_offset = 12;
   const size_t quantity_field_offset = 16;
   const size_t extended_price_field_offset = 24;
   const size_t discount_field_offset = 32;
@@ -81,14 +86,20 @@ static void print_row(const char *row)
   const std::string comment = string_ncopy(row + comment_field_offset,
       comment_field_length);
 
-  std::cout << extended_price <<
-    "|" << order_key <<
-    "|" << line_number <<
-    "|" << ship_date <<
-    "|" << discount <<
-    "|" << quantity <<
-    "|" << comment <<
-    std::endl;
+  if (projection) {
+    std::cout << order_key <<
+      "|" << line_number <<
+      std::endl;
+  } else {
+    std::cout << extended_price <<
+      "|" << order_key <<
+      "|" << line_number <<
+      "|" << ship_date <<
+      "|" << discount <<
+      "|" << quantity <<
+      "|" << comment <<
+      std::endl;
+  }
 
   print_lock.unlock();
 }
@@ -134,6 +145,7 @@ static void worker(librados::IoCtx *ioctx)
       op.quantity = quantity;
       op.comment_regex = comment_regex;
       op.use_index = use_index;
+      op.projection = projection;
       ceph::bufferlist inbl;
       ::encode(op, inbl);
 
@@ -156,7 +168,11 @@ static void worker(librados::IoCtx *ioctx)
     }
 
     // step 2: apply the query
-    const size_t row_size = 141;
+    size_t row_size;
+    if (projection && use_cls)
+      row_size = 8;
+    else
+      row_size = 141;
     const char *rows = bl.c_str();
     const size_t num_rows = bl.length() / row_size;
     rows_returned += num_rows;
@@ -171,74 +187,118 @@ static void worker(librados::IoCtx *ioctx)
         ::decode(matching_rows, it);
         result_count += matching_rows;
       } else {
+        if (projection && use_cls) {
+          result_count += num_rows;
+        } else {
+          for (size_t rid = 0; rid < num_rows; rid++) {
+            const char *row = rows + rid * row_size;
+            const char *vptr = row + extended_price_field_offset;
+            const double val = *(const double*)vptr;
+            if (val > extended_price) {
+              result_count++;
+            }
+          }
+        }
+      }
+    } else if (query == "b") {
+      if (projection && use_cls) {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          print_row(row);
+          result_count++;
+        }
+      } else {
         for (size_t rid = 0; rid < num_rows; rid++) {
           const char *row = rows + rid * row_size;
           const char *vptr = row + extended_price_field_offset;
           const double val = *(const double*)vptr;
           if (val > extended_price) {
-            result_count++;
-          }
-        }
-      }
-    } else if (query == "b") {
-      for (size_t rid = 0; rid < num_rows; rid++) {
-        const char *row = rows + rid * row_size;
-        const char *vptr = row + extended_price_field_offset;
-        const double val = *(const double*)vptr;
-        if (val > extended_price) {
-          print_row(row);
-          result_count++;
-        }
-      }
-    } else if (query == "c") {
-      for (size_t rid = 0; rid < num_rows; rid++) {
-        const char *row = rows + rid * row_size;
-        const char *vptr = row + extended_price_field_offset;
-        const double val = *(const double*)vptr;
-        if (val == extended_price) {
-          print_row(row);
-          result_count++;
-        }
-      }
-    } else if (query == "d") {
-      for (size_t rid = 0; rid < num_rows; rid++) {
-        const char *row = rows + rid * row_size;
-        const char *vptr = row + order_key_field_offset;
-        const int order_key_val = *(const int*)vptr;
-        if (order_key_val == order_key) {
-          const char *vptr = row + line_number_field_offset;
-          const int line_number_val = *(const int*)vptr;
-          if (line_number_val == line_number) {
             print_row(row);
             result_count++;
           }
         }
       }
-    } else if (query == "e") {
-      for (size_t rid = 0; rid < num_rows; rid++) {
-        const char *row = rows + rid * row_size;
-
-        const int shipdate_val = *((const int *)(row + shipdate_field_offset));
-        if (shipdate_val >= ship_date_low && shipdate_val < ship_date_high) {
-          const double discount_val = *((const double *)(row + discount_field_offset));
-          if (discount_val > discount_low && discount_val < discount_high) {
-            const double quantity_val = *((const double *)(row + quantity_field_offset));
-            if (quantity_val < quantity) {
+    } else if (query == "c") {
+      if (projection && use_cls) {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          print_row(row);
+          result_count++;
+        }
+      } else {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          const char *vptr = row + extended_price_field_offset;
+          const double val = *(const double*)vptr;
+          if (val == extended_price) {
+            print_row(row);
+            result_count++;
+          }
+        }
+      }
+    } else if (query == "d") {
+      if (projection && use_cls) {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          print_row(row);
+          result_count++;
+        }
+      } else {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          const char *vptr = row + order_key_field_offset;
+          const int order_key_val = *(const int*)vptr;
+          if (order_key_val == order_key) {
+            const char *vptr = row + line_number_field_offset;
+            const int line_number_val = *(const int*)vptr;
+            if (line_number_val == line_number) {
               print_row(row);
               result_count++;
             }
           }
         }
       }
-    } else if (query == "f") {
-      for (size_t rid = 0; rid < num_rows; rid++) {
-        const char *row = rows + rid * row_size;
-        const char *cptr = row + comment_field_offset;
-        const std::string comment_val = string_ncopy(cptr,
-            comment_field_length);
-        if (RE2::PartialMatch(comment_val, comment_regex)) {
+    } else if (query == "e") {
+      if (projection && use_cls) {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
           print_row(row);
           result_count++;
+        }
+      } else {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+
+          const int shipdate_val = *((const int *)(row + shipdate_field_offset));
+          if (shipdate_val >= ship_date_low && shipdate_val < ship_date_high) {
+            const double discount_val = *((const double *)(row + discount_field_offset));
+            if (discount_val > discount_low && discount_val < discount_high) {
+              const double quantity_val = *((const double *)(row + quantity_field_offset));
+              if (quantity_val < quantity) {
+                print_row(row);
+                result_count++;
+              }
+            }
+          }
+        }
+      }
+    } else if (query == "f") {
+      if (projection && use_cls) {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          print_row(row);
+          result_count++;
+        }
+      } else {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          const char *cptr = row + comment_field_offset;
+          const std::string comment_val = string_ncopy(cptr,
+              comment_field_length);
+          if (RE2::PartialMatch(comment_val, comment_regex)) {
+            print_row(row);
+            result_count++;
+          }
         }
       }
     } else {
@@ -268,6 +328,7 @@ int main(int argc, char **argv)
     ("nthreads", po::value<int>(&nthreads)->default_value(1), "num threads")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
+    ("projection", po::bool_switch(&projection)->default_value(false), "projection")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
