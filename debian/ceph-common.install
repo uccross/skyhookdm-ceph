@@ -19,6 +19,9 @@ usr/bin/ceph-brag
 usr/bin/tabular-filtering.sh
 usr/bin/tabular-datagen
 usr/bin/tabular-scan
+usr/bin/run-query
+usr/bin/rados-store-glob.sh
+usr/bin/convert-tpch-tables.py
 usr/sbin/mount.ceph sbin
 usr/lib/ceph/compressor/*
 usr/share/man/man8/ceph-authtool.8

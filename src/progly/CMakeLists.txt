@@ -15,3 +15,6 @@ install(TARGETS run-query DESTINATION bin)
 
 install(PROGRAMS filtering.sh DESTINATION bin
     RENAME tabular-filtering.sh)
+
+install(PROGRAMS convert-tpch-tables.py DESTINATION bin)
+install(PROGRAMS rados-store-glob.sh DESTINATION bin)
