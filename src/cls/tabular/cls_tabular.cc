@@ -186,10 +186,13 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   bufferlist bl;
-  int ret = cls_cxx_read(hctx, 0, 0, &bl);
-  if (ret < 0) {
-    CLS_ERR("ERROR: reading obj %d", ret);
-    return ret;
+
+  if (op.query != "d" || !op.use_index) {
+    int ret = cls_cxx_read(hctx, 0, 0, &bl);
+    if (ret < 0) {
+      CLS_ERR("ERROR: reading obj %d", ret);
+      return ret;
+    }
   }
 
   const size_t row_size = 141;
@@ -284,15 +287,36 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           return -EIO;
         }
 
-        if ((row_offset + row_size) > bl.length()) {
+        size_t size;
+        int ret = cls_cxx_stat(hctx, &size, NULL);
+        if (ret < 0) {
+          CLS_ERR("ERR stat %d", ret);
+          return ret;
+        }
+
+        if ((row_offset + row_size) > size) {
           return -EIO;
         }
 
+        bufferlist bl;
+        ret = cls_cxx_read(hctx, row_offset, row_size, &bl);
+        if (ret < 0) {
+          CLS_ERR("ERROR: reading obj %d", ret);
+          return ret;
+        }
+
+        if (bl.length() != row_size) {
+          CLS_ERR("unexpected read size");
+          return -EIO;
+        }
+
+        const char *row = bl.c_str();
+
         if (op.projection) {
-          result_bl.append(rows + row_offset + order_key_field_offset, 4);
-          result_bl.append(rows + row_offset + line_number_field_offset, 4);
+          result_bl.append(row + order_key_field_offset, 4);
+          result_bl.append(row + line_number_field_offset, 4);
         } else {
-          result_bl.append(rows + row_offset, row_size);
+          result_bl.append(row, row_size);
         }
       }
 
