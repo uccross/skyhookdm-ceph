@@ -116,6 +116,25 @@ static const size_t shipdate_field_offset = 50;
 static const size_t comment_field_offset = 97;
 static const size_t comment_field_length = 44;
 
+static void worker_test_par(librados::IoCtx *ioctx, int i, uint64_t iters,
+    bool test_par_read)
+{
+  std::stringstream ss;
+  ss << "obj." << i;
+  const std::string oid = ss.str();
+
+  int ret = ioctx->create(oid, false);
+  checkret(ret, 0);
+
+  while (true) {
+    ceph::bufferlist inbl, outbl;
+    ::encode(iters, inbl);
+    ::encode(test_par_read, inbl);
+    ret = ioctx->exec(oid, "tabular", "test_par", inbl, outbl);
+    checkret(ret, 0);
+  }
+}
+
 static void worker(librados::IoCtx *ioctx)
 {
   while (true) {
@@ -316,6 +335,8 @@ int main(int argc, char **argv)
   unsigned num_objs;
   int nthreads;
   bool build_index;
+  uint64_t test_par;
+  bool test_par_read;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -329,6 +350,8 @@ int main(int argc, char **argv)
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
+    ("test-par", po::value<uint64_t>(&test_par)->default_value(0), "test par")
+    ("test-par-read", po::bool_switch(&test_par_read)->default_value(false), "test par read")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -370,6 +393,23 @@ int main(int argc, char **argv)
     oid_ss << "obj." << oidx;
     const std::string oid = oid_ss.str();
     target_objects.push_back(oid);
+  }
+
+  if (test_par) {
+    std::vector<std::thread> threads;
+    for (int i = 0; i < nthreads; i++) {
+      auto ioctx = new librados::IoCtx;
+      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+      checkret(ret, 0);
+      threads.push_back(std::thread(worker_test_par,
+            ioctx, i % num_objs, test_par, test_par_read));
+    }
+
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    return 0;
   }
 
   // build index for query "d"

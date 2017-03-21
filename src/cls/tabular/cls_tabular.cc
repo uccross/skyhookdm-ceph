@@ -17,6 +17,7 @@ cls_method_handle_t h_add;
 cls_method_handle_t h_regex_scan;
 cls_method_handle_t h_query_op;
 cls_method_handle_t h_build_index;
+cls_method_handle_t h_test_par;
 
 struct tab_index {
   uint64_t min;
@@ -169,6 +170,39 @@ static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       return ret;
     }
   }
+
+  return 0;
+}
+
+static int test_par(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  uint64_t iters;
+  bool readobj;
+
+  try {
+    bufferlist::iterator it = in->begin();
+    ::decode(iters, it);
+    ::decode(readobj, it);
+  } catch (const buffer::error &err) {
+    CLS_ERR("ERROR: decoding iters");
+    return -EINVAL;
+  }
+
+  if (readobj) {
+    bufferlist bl;
+    int ret = cls_cxx_read(hctx, 0, 0, &bl);
+    if (ret < 0) {
+      CLS_ERR("ERROR: reading obj %d", ret);
+      return ret;
+    }
+  }
+
+  int sum = 0;
+  iters = std::min(iters, (uint64_t)10000000000ULL);
+  for (uint64_t count = 0; count < iters; count++)
+    sum += (int)count;
+
+  ::encode(sum, *out);
 
   return 0;
 }
@@ -593,6 +627,9 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "query_op",
       CLS_METHOD_RD, query_op_op, &h_query_op);
+
+  cls_register_cxx_method(h_class, "test_par",
+      CLS_METHOD_RD, test_par, &h_test_par);
 
   cls_register_cxx_method(h_class, "build_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_index, &h_build_index);
