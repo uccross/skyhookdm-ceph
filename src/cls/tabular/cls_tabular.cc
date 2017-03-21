@@ -133,6 +133,16 @@ static inline int strtou64(const std::string value, uint64_t *out)
 
 static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+  uint32_t batch_size;
+
+  try {
+    bufferlist::iterator it = in->begin();
+    ::decode(batch_size, it);
+  } catch (const buffer::error &err) {
+    CLS_ERR("ERROR: decoding batch_size");
+    return -EINVAL;
+  }
+
   bufferlist bl;
   int ret = cls_cxx_read(hctx, 0, 0, &bl);
   if (ret < 0) {
@@ -146,6 +156,9 @@ static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
   const size_t order_key_field_offset = 0;
   const size_t line_number_field_offset = 12;
+
+
+  std::map<string, bufferlist> index;
 
   for (size_t rid = 0; rid < num_rows; rid++) {
     const char *row = rows + rid * row_size;
@@ -164,9 +177,25 @@ static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     const size_t row_offset = rid * row_size;
     ::encode(row_offset, row_offset_bl);
 
-    int ret = cls_cxx_map_set_val(hctx, strkey, &row_offset_bl);
+    if (index.count(strkey) != 0)
+      return -EINVAL;
+
+    index[strkey] = row_offset_bl;
+
+    if (index.size() > batch_size) {
+      int ret = cls_cxx_map_set_vals(hctx, &index);
+      if (ret < 0) {
+        CLS_ERR("error setting index entries %d", ret);
+        return ret;
+      }
+      index.clear();
+    }
+  }
+
+  if (!index.empty()) {
+    int ret = cls_cxx_map_set_vals(hctx, &index);
     if (ret < 0) {
-      CLS_ERR("error setting index entry %d", ret);
+      CLS_ERR("error setting index entries %d", ret);
       return ret;
     }
   }

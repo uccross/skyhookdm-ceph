@@ -337,6 +337,7 @@ int main(int argc, char **argv)
   bool build_index;
   uint64_t test_par;
   bool test_par_read;
+  uint32_t build_index_batch_size;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -352,6 +353,7 @@ int main(int argc, char **argv)
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
     ("test-par", po::value<uint64_t>(&test_par)->default_value(0), "test par")
     ("test-par-read", po::bool_switch(&test_par_read)->default_value(false), "test par read")
+    ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -421,6 +423,7 @@ int main(int argc, char **argv)
     for (auto oid : target_objects) {
       std::cout << "building index... " << oid << std::endl;
       ceph::bufferlist inbl, outbl;
+      ::encode(build_index_batch_size, inbl);
       int ret = ioctx.exec(oid, "tabular", "build_index", inbl, outbl);
       checkret(ret, 0);
     }
