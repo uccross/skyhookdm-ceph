@@ -1,3 +1,5 @@
+set -e
+
 pool=$1
 nobjs=$2
 nthreads=$3
@@ -16,7 +18,7 @@ echo "--use-cls=$cls"
 # selectivity 1105/1000000 = 0.1%
 # select * from lineitem1m where l_extendedprice > 99000.0;
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query b --extended-price 99000.0 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`
@@ -29,7 +31,7 @@ done
 # selectivity 10058/1000000 = 1%
 # select * from lineitem1m where l_extendedprice > 91400.0;
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query b --extended-price 91400.0 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`
@@ -42,7 +44,7 @@ done
 # selectivity 100452/1000000 = 10%
 # select * from lineitem1m where l_extendedprice > 71000.0;
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query b --extended-price 71000.0 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`
@@ -55,7 +57,7 @@ done
 # selectivity 503747/1000000 = 50%
 # select * from lineitem1m where l_extendedprice > 36500.0;
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query b --extended-price 36500.0 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`
@@ -68,7 +70,7 @@ done
 # selectivity 1000000/1000000 = 100%
 # select * from lineitem1m where l_extendedprice > 1.0;
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query b --extended-price 1.0 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`

@@ -1,3 +1,5 @@
+set -e
+
 pool=$1
 nobjs=$2
 nthreads=$3
@@ -18,7 +20,7 @@ echo "--use-cls=$cls"
 # select * from lineitem1m where l_orderkey=5 and l_linenumber=3;
 #
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query d --order-key 5 --line-number 3 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`

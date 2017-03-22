@@ -1,3 +1,5 @@
+set -e
+
 pool=$1
 nobjs=$2
 nthreads=$3
@@ -16,7 +18,7 @@ echo "--use-cls=$cls"
 # selectivity 2/1000000 <= 0.001%
 # select * from lineitem1m where l_extendedprice =21168.23;
 q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query c --extended-price 21168.23 --quiet $cls"
-for i in `seq 1 3`;
+for i in `seq 1 2`;
 do
     echo $q
     t1=`date --utc "+%s.%N"`
