@@ -25,7 +25,7 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qd selectivity=unique-with use-index run$i=$res"
+    echo "qd selectivity=unique-with use-index pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
 #

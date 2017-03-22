@@ -23,8 +23,7 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qc selectivity=0.0001% run$i=$res"
+    echo "qc selectivity=0.0001% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
 #
-

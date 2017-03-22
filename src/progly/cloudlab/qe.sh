@@ -24,7 +24,7 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qe selectivity=0.1% run$i=$res"
+    echo "qe selectivity=0.1% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
 #
@@ -38,7 +38,7 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qe selectivity=1% run$i=$res"
+    echo "qe selectivity=1% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
 #
@@ -52,7 +52,7 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qd selectivity=5% run$i=$res"
+    echo "qe selectivity=5% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
 #
@@ -66,7 +66,7 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qe selectivity=10% run$i=$res"
+    echo "qe selectivity=10% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
 #
@@ -80,6 +80,6 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=$(echo "$t2 - $t1"|bc); 
-    echo "qe selectivity=50% run$i=$res"
+    echo "qe selectivity=50% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
