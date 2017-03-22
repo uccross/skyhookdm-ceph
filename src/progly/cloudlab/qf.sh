@@ -24,7 +24,7 @@ do
     t1=`date --utc "+%s.%N"`
     $q
     t2=`date --utc "+%s.%N"`
-    res=$(echo "$t2 - $t1"|bc); 
+    res=0$(echo "0$t2 - $t1"|bc); 
     echo "qf selectivity=1% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
@@ -37,7 +37,7 @@ do
     t1=`date --utc "+%s.%N"`
     $q
     t2=`date --utc "+%s.%N"`
-    res=$(echo "$t2 - $t1"|bc); 
+    res=0$(echo "$t2 - $t1"|bc); 
     echo "qf selectivity=10% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done 
 #
