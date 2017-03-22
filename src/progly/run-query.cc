@@ -42,6 +42,7 @@ static bool use_cls;
 static std::string query;
 static bool use_index;
 static bool projection;
+static uint32_t build_index_batch_size;
 
 // query parameters
 static double extended_price;
@@ -133,6 +134,27 @@ static void worker_test_par(librados::IoCtx *ioctx, int i, uint64_t iters,
     ret = ioctx->exec(oid, "tabular", "test_par", inbl, outbl);
     checkret(ret, 0);
   }
+}
+
+static void worker_build_index(librados::IoCtx *ioctx)
+{
+  while (true) {
+    work_lock.lock();
+    if (target_objects.empty()) {
+      work_lock.unlock();
+      break;
+    }
+    std::string oid = target_objects.back();
+    target_objects.pop_back();
+    std::cout << "building index... " << oid << std::endl;
+    work_lock.unlock();
+
+    ceph::bufferlist inbl, outbl;
+    ::encode(build_index_batch_size, inbl);
+    int ret = ioctx->exec(oid, "tabular", "build_index", inbl, outbl);
+    checkret(ret, 0);
+  }
+  ioctx->close();
 }
 
 static void worker(librados::IoCtx *ioctx)
@@ -337,7 +359,6 @@ int main(int argc, char **argv)
   bool build_index;
   uint64_t test_par;
   bool test_par_read;
-  uint32_t build_index_batch_size;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -416,19 +437,17 @@ int main(int argc, char **argv)
 
   // build index for query "d"
   if (build_index) {
-    librados::IoCtx ioctx;
-    int ret = cluster.ioctx_create(pool.c_str(), ioctx);
-    checkret(ret, 0);
-
-    for (auto oid : target_objects) {
-      std::cout << "building index... " << oid << std::endl;
-      ceph::bufferlist inbl, outbl;
-      ::encode(build_index_batch_size, inbl);
-      int ret = ioctx.exec(oid, "tabular", "build_index", inbl, outbl);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < nthreads; i++) {
+      auto ioctx = new librados::IoCtx;
+      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
+      threads.push_back(std::thread(worker_build_index, ioctx));
     }
 
-    ioctx.close();
+    for (auto& thread : threads) {
+      thread.join();
+    }
 
     return 0;
   }
