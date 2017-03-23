@@ -164,3 +164,233 @@ total result row count: 59975456 / 59975456
 qb selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run2=0227.921480277
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query b --extended-price 36500.0 --quiet --use-cls
 select * from lineitem where l_extendedprice > 36500
+total result row count: 301757496 / 301757496
+qb selectivity=50% pool=tpc1osd nthreads=40 cls=--use-cls run1=0228.957933002
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query b --extended-price 36500.0 --quiet --use-cls
+select * from lineitem where l_extendedprice > 36500
+total result row count: 301757496 / 301757496
+qb selectivity=50% pool=tpc1osd nthreads=40 cls=--use-cls run2=0227.426704061
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query b --extended-price 1.0 --quiet --use-cls
+select * from lineitem where l_extendedprice > 1
+total result row count: 600037902 / 600037902
+qb selectivity=100% pool=tpc1osd nthreads=40 cls=--use-cls run1=0229.429505337
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query b --extended-price 1.0 --quiet --use-cls
+select * from lineitem where l_extendedprice > 1
+total result row count: 600037902 / 600037902
+qb selectivity=100% pool=tpc1osd nthreads=40 cls=--use-cls run2=0227.354154761
+usage: ./qc.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query c --extended-price 21168.23 --quiet
+select * from lineitem where l_extendedprice = 21168.2
+total result row count: 129 / 600037902
+qc selectivity=0.0001% pool=tpc1osd nthreads=40 cls= run1=0229.527147887
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query c --extended-price 21168.23 --quiet
+select * from lineitem where l_extendedprice = 21168.2
+total result row count: 129 / 600037902
+qc selectivity=0.0001% pool=tpc1osd nthreads=40 cls= run2=0227.561382245
+usage: ./qc.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=--use-cls
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query c --extended-price 21168.23 --quiet --use-cls
+select * from lineitem where l_extendedprice = 21168.2
+total result row count: 129 / 129
+qc selectivity=0.0001% pool=tpc1osd nthreads=40 cls=--use-cls run1=0228.854805862
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query c --extended-price 21168.23 --quiet --use-cls
+select * from lineitem where l_extendedprice = 21168.2
+total result row count: 129 / 129
+qc selectivity=0.0001% pool=tpc1osd nthreads=40 cls=--use-cls run2=0226.382954266
+usage: ./qd.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 600037902
+qd selectivity=unique pool=tpc1osd nthreads=40 cls= run1=0228.261231029
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 600037902
+qd selectivity=unique pool=tpc1osd nthreads=40 cls= run2=0228.828827833
+usage: ./qd.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=--use-cls
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-cls
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+qd selectivity=unique pool=tpc1osd nthreads=40 cls=--use-cls run1=0227.838246063
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-cls
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+qd selectivity=unique pool=tpc1osd nthreads=40 cls=--use-cls run2=0229.867479330
+usage: ./qe.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 757900800 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 757900800 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 680326 / 600037902
+qe selectivity=0.1% pool=tpc1osd nthreads=40 cls= run1=0229.060853082
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 757900800 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 757900800 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 680326 / 600037902
+qe selectivity=0.1% pool=tpc1osd nthreads=40 cls= run2=0227.039369754
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 759974400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 759974400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 6117458 / 600037902
+qe selectivity=1% pool=tpc1osd nthreads=40 cls= run1=0229.366918588
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 759974400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 759974400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 6117458 / 600037902
+qe selectivity=1% pool=tpc1osd nthreads=40 cls= run2=0228.528385843
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 769046400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 769046400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 29913265 / 600037902
+qe selectivity=5% pool=tpc1osd nthreads=40 cls= run1=0227.908086281
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 769046400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 769046400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 29913265 / 600037902
+qe selectivity=5% pool=tpc1osd nthreads=40 cls= run2=0227.939830485
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 780451200 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 780451200 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 59853851 / 600037902
+qe selectivity=10% pool=tpc1osd nthreads=40 cls= run1=0227.663172902
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 780451200 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 780451200 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 59853851 / 600037902
+qe selectivity=10% pool=tpc1osd nthreads=40 cls= run2=0227.916694623
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 871689600 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 871689600 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 299288443 / 600037902
+qe selectivity=50% pool=tpc1osd nthreads=40 cls= run1=0228.998167024
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 871689600 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 871689600 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 299288443 / 600037902
+qe selectivity=50% pool=tpc1osd nthreads=40 cls= run2=0228.195230101
+usage: ./qe.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=--use-cls
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 757900800 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 757900800 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 680326 / 680326
+qe selectivity=0.1% pool=tpc1osd nthreads=40 cls=--use-cls run1=0227.375420100
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 757900800 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 757900800 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 680326 / 680326
+qe selectivity=0.1% pool=tpc1osd nthreads=40 cls=--use-cls run2=0226.743530662
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 759974400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 759974400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 6117458 / 6117458
+qe selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls run1=0227.154528745
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 759974400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 759974400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 6117458 / 6117458
+qe selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls run2=0227.303880429
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 769046400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 769046400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 29913265 / 29913265
+qe selectivity=5% pool=tpc1osd nthreads=40 cls=--use-cls run1=0227.686510747
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 769046400 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 769046400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 29913265 / 29913265
+qe selectivity=5% pool=tpc1osd nthreads=40 cls=--use-cls run2=0228.313679854
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 780451200 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 780451200 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 59853851 / 59853851
+qe selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run1=0230.322369754
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 780451200 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 780451200 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 59853851 / 59853851
+qe selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run2=0227.760137687
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 871689600 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 871689600 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 299288443 / 299288443
+qe selectivity=50% pool=tpc1osd nthreads=40 cls=--use-cls run1=0225.955256751
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query e --ship-date-low 757641600 --ship-date-high 871689600 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet --use-cls
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 871689600 and l_discount > 0.001 and l_discount < 5 and l_quantity < 100
+total result row count: 299288443 / 299288443
+qe selectivity=50% pool=tpc1osd nthreads=40 cls=--use-cls run2=0229.562361860
+usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 6551020 / 600037902
+qf selectivity=1% pool=tpc1osd nthreads=40 cls= run1=0607.307714014
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 6551020 / 600037902
+qf selectivity=1% pool=tpc1osd nthreads=40 cls= run2=0601.441107125
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 60862747 / 600037902
+qf selectivity=10% pool=tpc1osd nthreads=40 cls= run1=0867.641719794
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 60862747 / 600037902
+qf selectivity=10% pool=tpc1osd nthreads=40 cls= run2=0872.762514586
+usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=--use-cls
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet --use-cls
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 6551020 / 6551020
+qf selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls run1=0399.310877187
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet --use-cls
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 6551020 / 6551020
+qf selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls run2=0399.162073395
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet --use-cls
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 60862747 / 60862747
+qf selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run1=0533.928261147
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet --use-cls
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 60862747 / 60862747
+qf selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run2=0534.446608108
+usage: ./qd-index.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=--use-cls
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-index --use-cls
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+qd selectivity=unique-with use-index pool=tpc1osd nthreads=40 cls=--use-cls run1=09.578390864
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-index --use-cls
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+qd selectivity=unique-with use-index pool=tpc1osd nthreads=40 cls=--use-cls run2=0.388148091
+usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
+--pool=tpc1osd
+--num-objs=10001
+--nthreads=40
+--use-cls=--use-cls
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet --projection --use-cls
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 6551020 / 6551020
+qf selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run1=399.739481328
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet --projection --use-cls
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 6551020 / 6551020
+qf selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run2=398.964877741
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet --projection --use-cls
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 60862747 / 60862747
+qf selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run1=532.718288522
+run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet --projection --use-cls
+select * from lineitem where l_comment ilike '%uriously%'
