@@ -60,9 +60,9 @@ do
 done
 #
 #
-# selectivity 499985/1000000 = 50%
-# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '08-16-1997' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
-q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query e --ship-date-low 757641600 --ship-date-high 871689600 --discount-low 0.001 --discount-high 5 --quantity 100 --quiet $cls"
+# selectivity 1000000/1000000 = 100%
+# select * from lineitem1m where l_shipdate >= '12-01-1991' and l_shipdate < '12-01-2000' and l_discount> -1.0 and l_discount < 1.0 and l_quantity < 100;
+q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query e --ship-date-low 691545600 --ship-date-high 975628800 --discount-low -0.1 --discount-high 1.0 --quantity 100 --quiet"
 for i in `seq 1 $nruns`;
 do
     echo $q
@@ -70,6 +70,6 @@ do
     $q
     t2=`date --utc "+%s.%N"`
     res=0$(echo "$t2 - $t1"|bc);
-    echo "qe selectivity=50% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
+    echo "qe selectivity=100% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done
 #

@@ -56,18 +56,6 @@ do
     echo "qb selectivity=10% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
 done
 #
-# selectivity 503747/1000000 = 50%
-# select * from lineitem1m where l_extendedprice > 36500.0;
-q="run-query --num-objs $nobjs --pool $pool --nthreads $nthreads --query b --extended-price 36500.0 --quiet $cls"
-for i in `seq 1 $nruns`;
-do
-    echo $q
-    t1=`date --utc "+%s.%N"`
-    $q
-    t2=`date --utc "+%s.%N"`
-    res=0$(echo "$t2 - $t1"|bc);
-    echo "qb selectivity=50% pool=$pool nthreads=$nthreads cls=$cls run$i=$res"
-done
 #
 # selectivity 1000000/1000000 = 100%
 # select * from lineitem1m where l_extendedprice > 1.0;
