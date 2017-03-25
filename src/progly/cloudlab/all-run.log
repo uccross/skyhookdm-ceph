@@ -370,11 +370,11 @@ usage: ./qd-index.sh <pool> <nobjs> <nthreads> [--use-cls]
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-index --use-cls
 select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
 total result row count: 1 / 1
-qd selectivity=unique-with use-index pool=tpc1osd nthreads=40 cls=--use-cls run1=09.578390864
+qd-index selectivity=unique pool=tpc1osd nthreads=40 cls=--use-cls run1=09.578390864
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-index --use-cls
 select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
 total result row count: 1 / 1
-qd selectivity=unique-with use-index pool=tpc1osd nthreads=40 cls=--use-cls run2=0.388148091
+qd-index selectivity=unique pool=tpc1osd nthreads=40 cls=--use-cls run2=0.388148091
 usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
 --pool=tpc1osd
 --num-objs=10001
@@ -383,19 +383,19 @@ usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%ave%'
 total result row count: 6551020 / 6551020
-qf selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run1=399.739481328
+qf-proj selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls  run1=399.739481328
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex ave --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%ave%'
 total result row count: 6551020 / 6551020
-qf selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run2=398.964877741
+qf-proj selectivity=1% pool=tpc1osd nthreads=40 cls=--use-cls run2=398.964877741
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%uriously%'
 total result row count: 60862747 / 60862747
-qf selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run1=532.718288522
+qf-proj selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run1=532.718288522
 run-query --num-objs 10001 --pool tpc1osd --nthreads 40 --query f --comment_regex uriously --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%uriously%'
 total result row count: 60862747 / 60862747
-qf selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls projection=1 run2=531.388095323
+qf-proj selectivity=10% pool=tpc1osd nthreads=40 cls=--use-cls run2=531.388095323
 usage: ./qa.sh <pool> <nobjs> <nthreads> [--use-cls]
 --pool=tpc2osd
 --num-objs=10001
@@ -768,11 +768,11 @@ usage: ./qd-index.sh <pool> <nobjs> <nthreads> [--use-cls]
 run-query --num-objs 10001 --pool tpc2osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-index --use-cls
 select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
 total result row count: 1 / 1
-qd selectivity=unique-with use-index pool=tpc2osd nthreads=40 cls=--use-cls run1=05.402993344
+qd-index selectivity=unique pool=tpc2osd nthreads=40 cls=--use-cls run1=05.402993344
 run-query --num-objs 10001 --pool tpc2osd --nthreads 40 --query d --order-key 5 --line-number 3 --quiet --use-index --use-cls
 select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
 total result row count: 1 / 1
-qd selectivity=unique-with use-index pool=tpc2osd nthreads=40 cls=--use-cls run2=0.305160987
+qd-index selectivity=unique pool=tpc2osd nthreads=40 cls=--use-cls run2=0.305160987
 usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
 --pool=tpc2osd
 --num-objs=10001
@@ -781,16 +781,17 @@ usage: ./qf.sh <pool> <nobjs> <nthreads> [--use-cls]
 run-query --num-objs 10001 --pool tpc2osd --nthreads 40 --query f --comment_regex ave --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%ave%'
 total result row count: 6551020 / 6551020
-qf selectivity=1% pool=tpc2osd nthreads=40 cls=--use-cls projection=1 run1=252.829237699
+qf-proj selectivity=1% pool=tpc2osd nthreads=40 cls=--use-cls run1=252.829237699
 run-query --num-objs 10001 --pool tpc2osd --nthreads 40 --query f --comment_regex ave --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%ave%'
 total result row count: 6551020 / 6551020
-qf selectivity=1% pool=tpc2osd nthreads=40 cls=--use-cls projection=1 run2=252.845712871
+qf-proj selectivity=1% pool=tpc2osd nthreads=40 cls=--use-cls run2=252.845712871
 run-query --num-objs 10001 --pool tpc2osd --nthreads 40 --query f --comment_regex uriously --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%uriously%'
 total result row count: 60862747 / 60862747
-qf selectivity=10% pool=tpc2osd nthreads=40 cls=--use-cls projection=1 run1=325.832244729
+qf-proj selectivity=10% pool=tpc2osd nthreads=40 cls=--use-cls run1=325.832244729
 run-query --num-objs 10001 --pool tpc2osd --nthreads 40 --query f --comment_regex uriously --quiet --projection --use-cls
 select * from lineitem where l_comment ilike '%uriously%'
 total result row count: 60862747 / 60862747
-qf selectivity=10% pool=tpc2osd nthreads=40 cls=--use-cls projection=1 run2=325.118464322
+qf-proj selectivity=10% pool=tpc2osd nthreads=40 cls=--use-cls run2=325.118464322
+
