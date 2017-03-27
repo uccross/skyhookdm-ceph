@@ -74,6 +74,7 @@ struct query_op {
   std::string comment_regex;
   bool use_index;
   bool projection;
+  uint64_t extra_row_cost;
 
   query_op() {}
 
@@ -91,6 +92,8 @@ struct query_op {
     ::encode(comment_regex, bl);
     ::encode(use_index, bl);
     ::encode(projection, bl);
+    // serialize the field into bufferlist to be sent over the wire
+    ::encode(extra_row_cost, bl);
     ENCODE_FINISH(bl);
   }
 
@@ -108,6 +111,8 @@ struct query_op {
     ::decode(comment_regex, bl);
     ::decode(use_index, bl);
     ::decode(projection, bl);
+    // deserialize the field from the bufferlist into this struct
+    ::decode(extra_row_cost, bl);
     DECODE_FINISH(bl);
   }
 };

@@ -43,6 +43,7 @@ static std::string query;
 static bool use_index;
 static bool projection;
 static uint32_t build_index_batch_size;
+static uint64_t extra_row_cost;
 
 // query parameters
 static double extended_price;
@@ -157,6 +158,15 @@ static void worker_build_index(librados::IoCtx *ioctx)
   ioctx->close();
 }
 
+// busy loop work
+volatile uint64_t __tabular_x;
+static void add_extra_row_cost(uint64_t cost)
+{
+  for (uint64_t i = 0; i < cost; i++) {
+    __tabular_x += i;
+  }
+}
+
 static void worker(librados::IoCtx *ioctx)
 {
   while (true) {
@@ -187,6 +197,8 @@ static void worker(librados::IoCtx *ioctx)
       op.comment_regex = comment_regex;
       op.use_index = use_index;
       op.projection = projection;
+      // set the parameter on the op struct to be sent to the osd
+      op.extra_row_cost = extra_row_cost;
       ceph::bufferlist inbl;
       ::encode(op, inbl);
 
@@ -237,6 +249,8 @@ static void worker(librados::IoCtx *ioctx)
             const double val = *(const double*)vptr;
             if (val > extended_price) {
               result_count++;
+              // when a predicate passes, add some extra work
+              add_extra_row_cost(extra_row_cost);
             }
           }
         }
@@ -256,6 +270,7 @@ static void worker(librados::IoCtx *ioctx)
           if (val > extended_price) {
             print_row(row);
             result_count++;
+            add_extra_row_cost(extra_row_cost);
           }
         }
       }
@@ -274,6 +289,7 @@ static void worker(librados::IoCtx *ioctx)
           if (val == extended_price) {
             print_row(row);
             result_count++;
+            add_extra_row_cost(extra_row_cost);
           }
         }
       }
@@ -295,6 +311,7 @@ static void worker(librados::IoCtx *ioctx)
             if (line_number_val == line_number) {
               print_row(row);
               result_count++;
+              add_extra_row_cost(extra_row_cost);
             }
           }
         }
@@ -318,6 +335,7 @@ static void worker(librados::IoCtx *ioctx)
               if (quantity_val < quantity) {
                 print_row(row);
                 result_count++;
+                add_extra_row_cost(extra_row_cost);
               }
             }
           }
@@ -339,6 +357,7 @@ static void worker(librados::IoCtx *ioctx)
           if (RE2::PartialMatch(comment_val, comment_regex)) {
             print_row(row);
             result_count++;
+            add_extra_row_cost(extra_row_cost);
           }
         }
       }
@@ -375,6 +394,7 @@ int main(int argc, char **argv)
     ("test-par", po::value<uint64_t>(&test_par)->default_value(0), "test par")
     ("test-par-read", po::bool_switch(&test_par_read)->default_value(false), "test par read")
     ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
+    ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")

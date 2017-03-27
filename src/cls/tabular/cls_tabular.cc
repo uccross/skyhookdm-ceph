@@ -236,6 +236,15 @@ static int test_par(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   return 0;
 }
 
+// busy loop work
+volatile uint64_t __tabular_x;
+static void add_extra_row_cost(uint64_t cost)
+{
+  for (uint64_t i = 0; i < cost; i++) {
+    __tabular_x += i;
+  }
+}
+
 static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   query_op op;
@@ -282,6 +291,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       const double val = *(const double*)vptr;
       if (val > op.extended_price) {
         result_count++;
+        // when a predicate passes, add some extra work
+        add_extra_row_cost(op.extra_row_cost);
       }
     }
     ::encode(result_count, result_bl);
@@ -294,6 +305,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         if (val > op.extended_price) {
           result_bl.append(row + order_key_field_offset, 4);
           result_bl.append(row + line_number_field_offset, 4);
+          add_extra_row_cost(op.extra_row_cost);
         }
       }
     } else {
@@ -303,6 +315,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         const double val = *(const double*)vptr;
         if (val > op.extended_price) {
           result_bl.append(row, row_size);
+          add_extra_row_cost(op.extra_row_cost);
         }
       }
     }
@@ -315,6 +328,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         if (val == op.extended_price) {
           result_bl.append(row + order_key_field_offset, 4);
           result_bl.append(row + line_number_field_offset, 4);
+          add_extra_row_cost(op.extra_row_cost);
         }
       }
     } else {
@@ -324,6 +338,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         const double val = *(const double*)vptr;
         if (val == op.extended_price) {
           result_bl.append(row, row_size);
+          add_extra_row_cost(op.extra_row_cost);
         }
       }
     }
@@ -395,6 +410,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             if (line_number_val == op.line_number) {
               result_bl.append(row + order_key_field_offset, 4);
               result_bl.append(row + line_number_field_offset, 4);
+              add_extra_row_cost(op.extra_row_cost);
             }
           }
         }
@@ -408,6 +424,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             const int line_number_val = *(const int*)vptr;
             if (line_number_val == op.line_number) {
               result_bl.append(row, row_size);
+              add_extra_row_cost(op.extra_row_cost);
             }
           }
         }
@@ -426,6 +443,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             if (quantity_val < op.quantity) {
               result_bl.append(row + order_key_field_offset, 4);
               result_bl.append(row + line_number_field_offset, 4);
+              add_extra_row_cost(op.extra_row_cost);
             }
           }
         }
@@ -441,6 +459,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             const double quantity_val = *((const double *)(row + quantity_field_offset));
             if (quantity_val < op.quantity) {
               result_bl.append(row, row_size);
+              add_extra_row_cost(op.extra_row_cost);
             }
           }
         }
@@ -456,6 +475,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         if (RE2::PartialMatch(comment_val, op.comment_regex)) {
           result_bl.append(row + order_key_field_offset, 4);
           result_bl.append(row + line_number_field_offset, 4);
+          add_extra_row_cost(op.extra_row_cost);
         }
       }
     } else {
@@ -466,6 +486,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             comment_field_length);
         if (RE2::PartialMatch(comment_val, op.comment_regex)) {
           result_bl.append(row, row_size);
+          add_extra_row_cost(op.extra_row_cost);
         }
       }
     }
