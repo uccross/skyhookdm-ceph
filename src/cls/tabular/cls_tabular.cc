@@ -2,6 +2,7 @@
 #include <string>
 #include <sstream>
 #include <boost/lexical_cast.hpp>
+#include <time.h>
 #include "re2/re2.h"
 #include "include/types.h"
 #include "objclass/objclass.h"
@@ -18,6 +19,19 @@ cls_method_handle_t h_regex_scan;
 cls_method_handle_t h_query_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_test_par;
+
+static inline uint64_t __getns(clockid_t clock)
+{
+  struct timespec ts;
+  int ret = clock_gettime(clock, &ts);
+  assert(ret == 0);
+  return (((uint64_t)ts.tv_sec) * 1000000000ULL) + ts.tv_nsec;
+}
+
+static inline uint64_t getns()
+{
+  return __getns(CLOCK_MONOTONIC);
+}
 
 struct tab_index {
   uint64_t min;
@@ -259,13 +273,18 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
   bufferlist bl;
 
+  uint64_t read_ns = 0;
   if (op.query != "d" || !op.use_index) {
+    uint64_t start = getns();
     int ret = cls_cxx_read(hctx, 0, 0, &bl);
     if (ret < 0) {
       CLS_ERR("ERROR: reading obj %d", ret);
       return ret;
     }
+    read_ns = getns() - start;
   }
+
+  uint64_t eval_ns_start = getns();
 
   const size_t row_size = 141;
   const char *rows = bl.c_str();
@@ -494,6 +513,10 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     return -EINVAL;
   }
 
+  uint64_t eval_ns = getns() - eval_ns_start;
+
+  ::encode(read_ns, *out);
+  ::encode(eval_ns, *out);
   ::encode(result_bl, *out);
 
   return 0;

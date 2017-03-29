@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <atomic>
+#include <fstream>
 #include <boost/program_options.hpp>
 #include "include/rados/librados.hpp"
 #include "cls/tabular/cls_tabular.h"
@@ -44,6 +45,8 @@ static bool use_index;
 static bool projection;
 static uint32_t build_index_batch_size;
 static uint64_t extra_row_cost;
+
+static std::vector<std::pair<uint64_t, uint64_t>> remote_costs;
 
 // query parameters
 static double extended_price;
@@ -208,12 +211,16 @@ static void worker(librados::IoCtx *ioctx)
       checkret(ret, 0);
 
       // resulting rows
+      uint64_t read_ns, eval_ns;
       ceph::bufferlist::iterator it = outbl.begin();
       try {
+        ::decode(read_ns, it);
+        ::decode(eval_ns, it);
         ::decode(bl, it);
       } catch (ceph::buffer::error&) {
         assert(0);
       }
+      remote_costs.emplace_back(std::make_pair(read_ns, eval_ns));
     } else {
       int ret = ioctx->read(oid, bl, 0, 0);
       assert(ret > 0);
@@ -378,6 +385,7 @@ int main(int argc, char **argv)
   bool build_index;
   uint64_t test_par;
   bool test_par_read;
+  std::string logfile;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -395,6 +403,7 @@ int main(int argc, char **argv)
     ("test-par-read", po::bool_switch(&test_par_read)->default_value(false), "test par read")
     ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
+    ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -429,6 +438,8 @@ int main(int argc, char **argv)
   cluster.conf_read_file(NULL);
   int ret = cluster.connect();
   checkret(ret, 0);
+
+  remote_costs.reserve(num_objs);
 
   // generate the names of the objects to process
   for (unsigned oidx = 0; oidx < num_objs; oidx++) {
@@ -554,6 +565,15 @@ int main(int argc, char **argv)
   } else {
     std::cout << "total result row count: " << result_count
       << " / " << rows_returned << std::endl;
+  }
+
+  if (logfile.length()) {
+    std::ofstream out;
+    out.open(logfile, std::ios::trunc);
+    out << "read_ns,eval_ns" << std::endl;
+    for (const auto& item : remote_costs)
+      out << item.first << "," << item.second << std::endl;
+    out.close();
   }
 
   return 0;
