@@ -1,0 +1,48 @@
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-5000_q-b_nt-1_ep-150000.0_sel-0_run-1_dur-056.225084599
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-5000_q-b_nt-1_ep-150000.0_sel-0_run-2_dur-066.292534226
+select * from lineitem where l_extendedprice > 91400
+total result row count: 5056754 / 5056754
+no-5000_q-b_nt-1_ep-91400.0_sel-1_run-1_dur-073.243108220
+select * from lineitem where l_extendedprice > 91400
+total result row count: 5056754 / 5056754
+no-5000_q-b_nt-1_ep-91400.0_sel-1_run-2_dur-067.368829791
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+no-5000_q-b_nt-1_ep-71000.0_sel-10_run-1_dur-084.258440346
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+no-5000_q-b_nt-1_ep-71000.0_sel-10_run-2_dur-084.642773284
+select * from lineitem where l_extendedprice > 1
+total result row count: 500000000 / 500000000
+no-5000_q-b_nt-1_ep-1.0_sel-100_run-1_dur-0297.505436595
+select * from lineitem where l_extendedprice > 1
+total result row count: 500000000 / 500000000
+no-5000_q-b_nt-1_ep-1.0_sel-100_run-2_dur-0293.038610837
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-5000_q-b_nt-10_ep-150000.0_sel-0_run-1_dur-010.605956082
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-5000_q-b_nt-10_ep-150000.0_sel-0_run-2_dur-010.508307422
+select * from lineitem where l_extendedprice > 91400
+total result row count: 5056754 / 5056754
+no-5000_q-b_nt-10_ep-91400.0_sel-1_run-1_dur-010.617255449
+select * from lineitem where l_extendedprice > 91400
+total result row count: 5056754 / 5056754
+no-5000_q-b_nt-10_ep-91400.0_sel-1_run-2_dur-010.655533172
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+no-5000_q-b_nt-10_ep-71000.0_sel-10_run-1_dur-012.278862775
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+no-5000_q-b_nt-10_ep-71000.0_sel-10_run-2_dur-012.781383924
+select * from lineitem where l_extendedprice > 1
+total result row count: 500000000 / 500000000
+no-5000_q-b_nt-10_ep-1.0_sel-100_run-1_dur-084.403331318
+select * from lineitem where l_extendedprice > 1
+total result row count: 500000000 / 500000000
+no-5000_q-b_nt-10_ep-1.0_sel-100_run-2_dur-083.435413160

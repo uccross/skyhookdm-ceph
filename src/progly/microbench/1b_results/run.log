@@ -1,0 +1,88 @@
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-1_ep-150000.0_sel-0_run-1_coldcache-1_dur-0454.141481908
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-1_ep-150000.0_sel-0_run-2_coldcache-1_dur-0454.181605089
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-1_ep-150000.0_sel-0_run-3_coldcache-0_dur-0217.857660810
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-1_ep-91400.0_sel-1_run-1_coldcache-1_dur-0459.005924794
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-1_ep-91400.0_sel-1_run-2_coldcache-1_dur-0456.260097997
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-1_ep-91400.0_sel-1_run-3_coldcache-0_dur-0214.043724268
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-1_ep-71000.0_sel-10_run-1_coldcache-1_dur-0494.493336062
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-1_ep-71000.0_sel-10_run-2_coldcache-1_dur-0497.052430802
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-1_ep-71000.0_sel-10_run-3_coldcache-0_dur-0251.674010093
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-1_coldcache-1_dur-0863.903175547
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-2_coldcache-1_dur-0852.518938963
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-3_coldcache-0_dur-0653.481690222
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-10_ep-150000.0_sel-0_run-1_coldcache-1_dur-0290.293378039
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-10_ep-150000.0_sel-0_run-2_coldcache-1_dur-0290.420909651
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-10_ep-150000.0_sel-0_run-3_coldcache-0_dur-079.887839401
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-10_ep-91400.0_sel-1_run-1_coldcache-1_dur-0290.468129325
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-10_ep-91400.0_sel-1_run-2_coldcache-1_dur-0290.305765159
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-10_ep-91400.0_sel-1_run-3_coldcache-0_dur-079.449815624
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-10_ep-71000.0_sel-10_run-1_coldcache-1_dur-0290.456397360
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-10_ep-71000.0_sel-10_run-2_coldcache-1_dur-0290.655695131
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-10_ep-71000.0_sel-10_run-3_coldcache-0_dur-084.261047597
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-1_coldcache-1_dur-0296.834670100
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-2_coldcache-1_dur-0296.840075346
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-3_coldcache-0_dur-0217.359626400
