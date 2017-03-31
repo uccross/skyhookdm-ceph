@@ -10,8 +10,8 @@ nthreads="1 2"
 #nthreads="1 2 10 20 40 60"
 runs="1 2"
 
-q_ab_extended_prices=(91400.0 71000.0 36760.0 1.0)
-q_ab_selectivities=(1 10 50 100)
+q_ab_extended_prices=(91400.0 71000.0 1.0)
+q_ab_selectivities=(1 10 100)
 
 q_f_regex=("ave" "uriously" "[i|\s*|a]")
 q_f_selectivities=(1 10 100)
