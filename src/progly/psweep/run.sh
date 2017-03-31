@@ -38,9 +38,8 @@ for nthread in ${nthreads}; do
     selpct=${q_ab_selectivities[i]}
     cmd="${cmdbase} --extended-price ${price}"
     for qname in a b; do
-      cmd="${cmd} --query ${qname}"
-      run_query "$cmd"
-      run_query "$cmd --use-cls"
+      run_query "$cmd --query ${qname}"
+      run_query "$cmd --query ${qname} --use-cls"
     done
   done
 
