@@ -1,0 +1,195 @@
+1
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-1_ep-150000.0_sel-0_run-1_coldcache-1_dur-0456.279063261
+1
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-1_ep-150000.0_sel-0_run-2_coldcache-1_dur-0460.179510088
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-1_ep-150000.0_sel-0_run-3_coldcache-0_dur-0152.144565827
+1
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-1_ep-91400.0_sel-1_run-1_coldcache-1_dur-0462.477127196
+1
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-1_ep-91400.0_sel-1_run-2_coldcache-1_dur-0466.204096517
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-1_ep-91400.0_sel-1_run-3_coldcache-0_dur-0144.883054468
+1
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-1_ep-71000.0_sel-10_run-1_coldcache-1_dur-0501.606684182
+1
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-1_ep-71000.0_sel-10_run-2_coldcache-1_dur-0502.877913045
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-1_ep-71000.0_sel-10_run-3_coldcache-0_dur-0179.111511643
+1
+1
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-1_ep-36760.0_sel-50_run-1_coldcache-1_dur-0678.772722631
+1
+1
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-1_ep-36760.0_sel-50_run-2_coldcache-1_dur-0678.446258182
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-1_ep-36760.0_sel-50_run-3_coldcache-0_dur-0368.320024925
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-1_coldcache-1_dur-0967.876598789
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-2_coldcache-1_dur-0941.830102568
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-3_coldcache-0_dur-0793.542656839
+1
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-2_ep-150000.0_sel-0_run-1_coldcache-1_dur-0302.904034044
+1
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-2_ep-150000.0_sel-0_run-2_coldcache-1_dur-0302.411446031
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-2_ep-150000.0_sel-0_run-3_coldcache-0_dur-084.220534912
+1
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-2_ep-91400.0_sel-1_run-1_coldcache-1_dur-0305.068247250
+1
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-2_ep-91400.0_sel-1_run-2_coldcache-1_dur-0304.195440610
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-2_ep-91400.0_sel-1_run-3_coldcache-0_dur-086.902457842
+1
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-2_ep-71000.0_sel-10_run-1_coldcache-1_dur-0317.534458217
+1
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-2_ep-71000.0_sel-10_run-2_coldcache-1_dur-0316.761039327
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-2_ep-71000.0_sel-10_run-3_coldcache-0_dur-0108.515018962
+1
+1
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-2_ep-36760.0_sel-50_run-1_coldcache-1_dur-0414.296544570
+1
+1
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-2_ep-36760.0_sel-50_run-2_coldcache-1_dur-0417.435597776
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-2_ep-36760.0_sel-50_run-3_coldcache-0_dur-0208.276086088
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-1_coldcache-1_dur-0568.923970538
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-2_coldcache-1_dur-0557.636192661
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-3_coldcache-0_dur-0400.458219699
+1
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-10_ep-150000.0_sel-0_run-1_coldcache-1_dur-0165.743424417
+1
+1
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-10_ep-150000.0_sel-0_run-2_coldcache-1_dur-0166.741380815
+select * from lineitem where l_extendedprice > 150000
+total result row count: 0 / 0
+no-10000_q-b_nt-10_ep-150000.0_sel-0_run-3_coldcache-0_dur-019.627511762
+1
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-10_ep-91400.0_sel-1_run-1_coldcache-1_dur-0165.955684627
+1
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-10_ep-91400.0_sel-1_run-2_coldcache-1_dur-0165.939359439
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+no-10000_q-b_nt-10_ep-91400.0_sel-1_run-3_coldcache-0_dur-021.511285470
+1
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-10_ep-71000.0_sel-10_run-1_coldcache-1_dur-0167.126064508
+1
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-10_ep-71000.0_sel-10_run-2_coldcache-1_dur-0167.191126897
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+no-10000_q-b_nt-10_ep-71000.0_sel-10_run-3_coldcache-0_dur-028.758061252
+1
+1
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-10_ep-36760.0_sel-50_run-1_coldcache-1_dur-0173.563714796
+1
+1
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-10_ep-36760.0_sel-50_run-2_coldcache-1_dur-0173.532088202
+select * from lineitem where l_extendedprice > 36760
+total result row count: 499278288 / 499278288
+no-10000_q-b_nt-10_ep-36760.0_sel-50_run-3_coldcache-0_dur-066.281851102
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-1_coldcache-1_dur-0191.500166221
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-2_coldcache-1_dur-0192.641064938
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-3_coldcache-0_dur-0161.981794997

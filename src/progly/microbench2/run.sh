@@ -23,6 +23,8 @@ for nthread in ${nthreads}; do
       if [ $run -lt 3 ]; then
         ssh osd0 sync
         ssh osd0 "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+        ssh osd1 sync
+        ssh osd1 "echo 1 | sudo tee /proc/sys/vm/drop_caches"
         name="${name}_coldcache-1"
       else
         name="${name}_coldcache-0"
