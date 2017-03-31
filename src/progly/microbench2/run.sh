@@ -3,12 +3,13 @@ set -e
 #set -x
 
 query=b
-pool=tpc2
+pool=tpc
 nobjs=10000
-nthreads="1 2 10"
-runs="1 2 3"
-extended_prices=(150000.0 91400.0 71000.0 36760.0 1.0)
-selectivies=(0 1 10 50 100)
+nthreads="1 2 10 20 40 60"
+runs="1 2"
+nosds=1
+extended_prices=(1.0)
+selectivies=(100)
 
 for nthread in ${nthreads}; do
   for ((i=0; i<${#extended_prices[@]}; i++)); do
@@ -21,10 +22,10 @@ for nthread in ${nthreads}; do
           --query ${query} --nthreads ${nthread} --extended-price ${price} \
           --use-cls --log-file ${logfile}"
       if [ $run -lt 3 ]; then
-        ssh osd0 sync
-        ssh osd0 "echo 1 | sudo tee /proc/sys/vm/drop_caches"
-        ssh osd1 sync
-        ssh osd1 "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+        for ((j=0; j<${nosds}; j++)); do
+          ssh osd${j} sync
+          ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+        done
         name="${name}_coldcache-1"
       else
         name="${name}_coldcache-0"
