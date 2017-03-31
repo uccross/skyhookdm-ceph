@@ -23,7 +23,7 @@ function run_query() {
     echo ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
   done
   start=$(date --utc "+%s.%N")
-  #$cmd
+  $cmd
   end=$(date --utc "+%s.%N")
   dur=0$(echo "$end - $start" | bc)
   echo $cmd $dur
@@ -44,7 +44,7 @@ for nthread in ${nthreads}; do
   done
 
   # query: d
-  cmd_q_f="${cmd} --query d --order-key 5 --line-number 3"
+  cmd_q_f="${cmdbase} --query d --order-key 5 --line-number 3"
   run_query "${cmd_q_f}"
   run_query "${cmd_q_f} --use-cls"
   run_query "${cmd_q_f} --use-cls --use-index"
