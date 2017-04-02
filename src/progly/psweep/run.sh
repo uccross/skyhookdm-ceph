@@ -6,7 +6,7 @@ set -e
 nosds=1
 nobjs=10000
 pool=tpc
-nthreads="1 2 10 20 40 60"
+nthreads="2 10 20 40"
 runs="1 2"
 
 q_ab_extended_prices=(91400.0 71000.0 1.0)
@@ -49,11 +49,13 @@ for nthread in ${nthreads}; do
   run_query "${cmd_q_f} --use-cls --use-index"
 
   # query: f
-  for ((i=0; i<${#q_f_regex[@]}; i++)); do
-    regex=${q_f_regex[i]}
-    selpct=${q_f_selectivities[i]}
-    cmd="${cmdbase} --query f --comment_regex \"${regex}\""
-    run_query "$cmd"
-    run_query "$cmd --use-cls"
-  done
+  if [ $nthread -gt 2 ]; then
+    for ((i=0; i<${#q_f_regex[@]}; i++)); do
+      regex=${q_f_regex[i]}
+      selpct=${q_f_selectivities[i]}
+      cmd="${cmdbase} --query f --comment_regex \"${regex}\""
+      run_query "$cmd"
+      run_query "$cmd --use-cls"
+    done
+  fi
 done
