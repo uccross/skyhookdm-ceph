@@ -1,0 +1,144 @@
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave run-1 0168.066648748
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave run-2 0167.114977618
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave --use-cls run-1 0149.608932170
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave --use-cls run-2 0149.740176549
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously run-1 0168.781573484
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously run-2 0168.056803816
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously --use-cls run-1 0154.259416957
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously --use-cls run-2 0154.029777475
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] run-1 0172.494874218
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] run-2 0174.012524412
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-1 0213.990892680
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-2 0215.365747597
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave run-1 0124.730049644
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave run-2 0124.668553038
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave --use-cls run-1 0118.133562368
+1
+1
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave --use-cls run-2 0117.923212483
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously run-1 0125.053483947
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously run-2 0124.911377232
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously --use-cls run-1 0119.089024388
+1
+1
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously --use-cls run-2 0118.827272108
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] run-1 0126.100669013
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] run-2 0125.813415475
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-1 0137.683416274
+1
+1
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-2 0138.062689330
