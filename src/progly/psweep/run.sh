@@ -3,11 +3,10 @@
 set -e
 #set -x
 
-nosds=3
+nosds=2
 nobjs=10000
 pool=tpc
-#nthreads="10 20 40 60"
-nthreads="40 60"
+nthreads="10 20 40 60"
 runs="1 2"
 
 q_ab_extended_prices=(91400.0 71000.0 1.0)
