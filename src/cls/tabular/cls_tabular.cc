@@ -486,24 +486,26 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     }
   } else if (op.query == "f") {
     if (op.projection) {
+      RE2 re(op.comment_regex);
       for (size_t rid = 0; rid < num_rows; rid++) {
         const char *row = rows + rid * row_size;
         const char *cptr = row + comment_field_offset;
         const std::string comment_val = string_ncopy(cptr,
             comment_field_length);
-        if (RE2::PartialMatch(comment_val, op.comment_regex)) {
+        if (RE2::PartialMatch(comment_val, re)) {
           result_bl.append(row + order_key_field_offset, 4);
           result_bl.append(row + line_number_field_offset, 4);
           add_extra_row_cost(op.extra_row_cost);
         }
       }
     } else {
+      RE2 re(op.comment_regex);
       for (size_t rid = 0; rid < num_rows; rid++) {
         const char *row = rows + rid * row_size;
         const char *cptr = row + comment_field_offset;
         const std::string comment_val = string_ncopy(cptr,
             comment_field_length);
-        if (RE2::PartialMatch(comment_val, op.comment_regex)) {
+        if (RE2::PartialMatch(comment_val, re)) {
           result_bl.append(row, row_size);
           add_extra_row_cost(op.extra_row_cost);
         }
