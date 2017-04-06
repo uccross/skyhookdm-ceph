@@ -1,0 +1,48 @@
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-1_coldcache-1_dur-0895.767040282
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-2_coldcache-1_dur-0901.685980702
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-1_coldcache-1_dur-0611.090572748
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-2_coldcache-1_dur-0599.780763788
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-1_coldcache-1_dur-0293.311964057
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-2_coldcache-1_dur-0293.559543178
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-20_ep-1.0_sel-100_run-1_coldcache-1_dur-0282.728940734
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-20_ep-1.0_sel-100_run-2_coldcache-1_dur-0282.763584680
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-40_ep-1.0_sel-100_run-1_coldcache-1_dur-0281.146757358
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-40_ep-1.0_sel-100_run-2_coldcache-1_dur-0281.070667795
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-60_ep-1.0_sel-100_run-1_coldcache-1_dur-0280.802816634
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-60_ep-1.0_sel-100_run-2_coldcache-1_dur-0280.766588202
