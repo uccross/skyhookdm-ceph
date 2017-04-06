@@ -3,10 +3,10 @@
 set -e
 #set -x
 
-nosds=1
+nosds=3
 nobjs=10000
 pool=tpc
-nthreads="2 10 20 40"
+nthreads="10 20 40 60"
 runs="1 2"
 
 q_ab_extended_prices=(91400.0 71000.0 1.0)
@@ -17,15 +17,17 @@ q_f_selectivities=(1 10 100)
 
 function run_query() {
   local cmd=$1
-  for ((j=0; j<${nosds}; j++)); do
-    ssh osd${j} sync
-    ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+  for rr in $runs; do
+    for ((j=0; j<${nosds}; j++)); do
+      ssh osd${j} sync
+      ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+    done
+    start=$(date --utc "+%s.%N")
+    $cmd
+    end=$(date --utc "+%s.%N")
+    dur=0$(echo "$end - $start" | bc)
+    echo $cmd run-${rr} $dur
   done
-  start=$(date --utc "+%s.%N")
-  $cmd
-  end=$(date --utc "+%s.%N")
-  dur=0$(echo "$end - $start" | bc)
-  echo $cmd $dur
 }
 
 for nthread in ${nthreads}; do

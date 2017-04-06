@@ -1,0 +1,7 @@
+run2/run.log: this is 3 osds running all of 10 threads and all of 20 threads,
+except for query f at 20 threads.
+
+run2/qf-compile.log: this is 3 osds running 10 and 20 threads only query f.
+when analyzing we can remove the 10 threads query f case from run.log.
+
+run2/run-rest.log: this is all the queries running at 40 and 60 threads.
