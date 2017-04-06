@@ -1,0 +1,60 @@
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-1_coldcache-1_dur-0909.911464447
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-1_ep-1.0_sel-100_run-2_coldcache-1_dur-0893.442820840
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-1_coldcache-1_dur-0519.496942838
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-2_ep-1.0_sel-100_run-2_coldcache-1_dur-0514.437383643
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-1_coldcache-1_dur-0184.883548800
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-10_ep-1.0_sel-100_run-2_coldcache-1_dur-0185.128301407
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-20_ep-1.0_sel-100_run-1_coldcache-1_dur-0154.964135995
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-20_ep-1.0_sel-100_run-2_coldcache-1_dur-0154.926063930
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-40_ep-1.0_sel-100_run-1_coldcache-1_dur-0145.828569496
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-40_ep-1.0_sel-100_run-2_coldcache-1_dur-0145.955582974
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-60_ep-1.0_sel-100_run-1_coldcache-1_dur-0144.158980790
+1
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+no-10000_q-b_nt-60_ep-1.0_sel-100_run-2_coldcache-1_dur-0144.193518776

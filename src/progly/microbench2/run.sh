@@ -7,7 +7,7 @@ pool=tpc
 nobjs=10000
 nthreads="1 2 10 20 40 60"
 runs="1 2"
-nosds=1
+nosds=2
 extended_prices=(1.0)
 selectivies=(100)
 
