@@ -3,7 +3,7 @@
 set -e
 #set -x
 
-nosds=2
+nosds=1
 nobjs=10000
 pool=tpc
 nthreads="10 20 40 60"
