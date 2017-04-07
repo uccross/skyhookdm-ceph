@@ -1,0 +1,672 @@
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query a run-1 0288.043764948
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query a run-2 0288.184823081
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query a --use-cls run-1 0285.849520007
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query a --use-cls run-2 0285.972802225
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query b run-1 0288.222682327
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query b run-2 0288.086313413
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query b --use-cls run-1 0285.824246760
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 91400.0 --query b --use-cls run-2 0286.080751875
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query a run-1 0287.658900159
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query a run-2 0288.199852295
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query a --use-cls run-1 0285.928387292
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query a --use-cls run-2 0285.861139013
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query b run-1 0288.177975724
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query b run-2 0288.178145549
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query b --use-cls run-1 0286.392502946
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 71000.0 --query b --use-cls run-2 0286.401942651
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query a run-1 0288.082702548
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query a run-2 0287.995092908
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query a --use-cls run-1 0286.034031760
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query a --use-cls run-2 0285.976707066
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query b run-1 0288.400485889
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query b run-2 0288.400500939
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query b --use-cls run-1 0293.605442431
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --extended-price 1.0 --query b --use-cls run-2 0293.581755131
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query d --order-key 5 --line-number 3 run-1 0288.103313058
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query d --order-key 5 --line-number 3 run-2 0288.106536080
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query d --order-key 5 --line-number 3 --use-cls run-1 0285.871729745
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query d --order-key 5 --line-number 3 --use-cls run-2 0286.001035785
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-1 04.308278847
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-2 03.863050520
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave run-1 0294.067741401
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave run-2 0293.594756130
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave --use-cls run-1 0306.870904468
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex ave --use-cls run-2 0307.781412723
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously run-1 0293.246112151
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously run-2 0293.773955009
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously --use-cls run-1 0303.971949999
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex uriously --use-cls run-2 0304.974094354
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] run-1 0294.851206342
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] run-2 0294.928683964
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-1 0317.780264294
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 10 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-2 0318.141029834
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query a run-1 0281.064459974
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query a run-2 0281.005764173
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query a --use-cls run-1 0281.211549637
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query a --use-cls run-2 0281.285919816
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query b run-1 0281.090062879
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query b run-2 0281.097893526
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query b --use-cls run-1 0281.284753756
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 91400.0 --query b --use-cls run-2 0281.305691593
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query a run-1 0281.054581285
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query a run-2 0280.855281561
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query a --use-cls run-1 0281.223956736
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query a --use-cls run-2 0281.176806976
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query b run-1 0280.954238574
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query b run-2 0281.061155657
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query b --use-cls run-1 0281.499738480
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 71000.0 --query b --use-cls run-2 0281.481083339
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query a run-1 0281.027173894
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query a run-2 0281.080628306
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query a --use-cls run-1 0281.174450855
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query a --use-cls run-2 0281.275140803
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query b run-1 0281.040543155
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query b run-2 0281.023271501
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query b --use-cls run-1 0282.854151421
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --extended-price 1.0 --query b --use-cls run-2 0282.793908267
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query d --order-key 5 --line-number 3 run-1 0281.062352456
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query d --order-key 5 --line-number 3 run-2 0281.093457229
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query d --order-key 5 --line-number 3 --use-cls run-1 0281.245154159
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query d --order-key 5 --line-number 3 --use-cls run-2 0281.249042483
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-1 03.646266686
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-2 03.633316883
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave run-1 0281.371250588
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave run-2 0281.363911597
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave --use-cls run-1 0290.196270403
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex ave --use-cls run-2 0290.982796460
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously run-1 0281.248444558
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously run-2 0281.256709793
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously --use-cls run-1 0289.936305202
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex uriously --use-cls run-2 0289.844744627
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] run-1 0281.381058148
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] run-2 0281.395624171
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-1 0291.155714503
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 20 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-2 0291.117618244
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query a run-1 0280.093627637
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query a run-2 0280.033855325
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query a --use-cls run-1 0280.246671909
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query a --use-cls run-2 0280.312930862
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query b run-1 0280.122345501
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query b run-2 0280.072231894
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query b --use-cls run-1 0280.398592467
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 91400.0 --query b --use-cls run-2 0280.340811726
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query a run-1 0280.096687776
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query a run-2 0280.157367974
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query a --use-cls run-1 0280.293221504
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query a --use-cls run-2 0280.088590985
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query b run-1 0280.085812565
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query b run-2 0280.088705828
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query b --use-cls run-1 0280.418202875
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 71000.0 --query b --use-cls run-2 0280.475196818
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query a run-1 0280.130960332
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query a run-2 0280.111762483
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query a --use-cls run-1 0280.307981981
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query a --use-cls run-2 0280.339615370
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query b run-1 0280.095735871
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query b run-2 0280.145284231
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query b --use-cls run-1 0281.121627367
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --extended-price 1.0 --query b --use-cls run-2 0281.184627280
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query d --order-key 5 --line-number 3 run-1 0280.092921079
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query d --order-key 5 --line-number 3 run-2 0280.167457272
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query d --order-key 5 --line-number 3 --use-cls run-1 0280.266311575
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query d --order-key 5 --line-number 3 --use-cls run-2 0280.274670441
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-1 03.585175774
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-2 03.572044916
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex ave run-1 0280.452394531
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex ave run-2 0280.547129196
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex ave --use-cls run-1 0287.066879591
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex ave --use-cls run-2 0287.365596973
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex uriously run-1 0283.995677128
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex uriously run-2 0280.434251660
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex uriously --use-cls run-1 0286.368002125
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex uriously --use-cls run-2 0286.596754371
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex [i|\s*|a] run-1 0280.501110167
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex [i|\s*|a] run-2 0280.487785668
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-1 0287.151304802
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 40 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-2 0287.214952096
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query a run-1 0280.200435046
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query a run-2 0280.159411644
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query a --use-cls run-1 0280.163008829
+1
+select count(*) from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query a --use-cls run-2 0280.181181762
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query b run-1 0280.209108123
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query b run-2 0280.175013412
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query b --use-cls run-1 0280.286999553
+1
+select * from lineitem where l_extendedprice > 91400
+total result row count: 10111403 / 10111403
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 91400.0 --query b --use-cls run-2 0280.291081298
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query a run-1 0280.150745839
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query a run-2 0280.174737428
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query a --use-cls run-1 0280.268784090
+1
+select count(*) from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query a --use-cls run-2 0280.199680295
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query b run-1 0280.177735382
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query b run-2 0279.974211636
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query b --use-cls run-1 0280.327506748
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 99950829 / 99950829
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 71000.0 --query b --use-cls run-2 0280.374865236
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query a run-1 0280.188509876
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query a run-2 0280.101658887
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query a --use-cls run-1 0280.186567842
+1
+select count(*) from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / -1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query a --use-cls run-2 0280.205892383
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query b run-1 0280.072438977
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query b run-2 0280.120211306
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query b --use-cls run-1 0281.176229519
+1
+select * from lineitem where l_extendedprice > 1
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --extended-price 1.0 --query b --use-cls run-2 0281.154421197
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query d --order-key 5 --line-number 3 run-1 0280.154075873
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query d --order-key 5 --line-number 3 run-2 0280.147663431
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query d --order-key 5 --line-number 3 --use-cls run-1 0280.206717631
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query d --order-key 5 --line-number 3 --use-cls run-2 0280.196005032
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-1 03.582387797
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+total result row count: 1 / 1
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index run-2 03.590889806
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex ave run-1 0280.273960341
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex ave run-2 0280.210152723
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex ave --use-cls run-1 0285.883866295
+1
+select * from lineitem where l_comment ilike '%ave%'
+total result row count: 10920005 / 10920005
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex ave --use-cls run-2 0285.914668716
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex uriously run-1 0280.200288360
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex uriously run-2 0280.237117828
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex uriously --use-cls run-1 0285.972707337
+1
+select * from lineitem where l_comment ilike '%uriously%'
+total result row count: 101429530 / 101429530
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex uriously --use-cls run-2 0285.598019136
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex [i|\s*|a] run-1 0280.148836494
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 1000000000
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex [i|\s*|a] run-2 0280.250238619
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-1 0286.098529951
+1
+select * from lineitem where l_comment ilike '%[i|\s*|a]%'
+total result row count: 999663512 / 999663512
+run-query --num-objs 10000 --pool tpc --nthreads 60 --quiet --query f --comment_regex [i|\s*|a] --use-cls run-2 0286.293583917
