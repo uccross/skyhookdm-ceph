@@ -1,0 +1,13 @@
+This experiment used Noah's cloudlab setup with 1 client node and 1 osd node.
+We used Wisconsin cluster c220g1 nodes this time (not g2 nodes).
+
+On the osd node, we sliced the SSD (/dev/sdc) into 4 partitions.  
+We then treated each partitions as a separate OSD with prepare+activate.
+We did an experiment each for 1,2,3,4 OSDs on the single device, loading 
+our 1B dataset into a newly created pool each time.
+
+We varied the nthreads from 20,40,60,80.
+For each experiment, we did 2 runs with cold cache and 2 with hot.  
+
+
+
