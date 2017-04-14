@@ -1,0 +1,43 @@
+Thu Apr 13 18:18:55 MDT 2017
+nosds=4
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000
+clearing cache on osd0
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 500000000
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 cache=cold run-1 0139.320778193
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000
+clearing cache on osd0
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 500000000
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 cache=cold run-2 0139.329053995
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 500000000
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 cache=hot run-3 060.483996062
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 500000000
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 cache=hot run-4 060.135422248
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls
+clearing cache on osd0
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls cache=cold run-1 0139.196407018
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls
+clearing cache on osd0
+1
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls cache=cold run-2 0139.841638569
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls cache=hot run-3 07.567448850
+todo next: --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls
+select * from lineitem where l_extendedprice > 71000
+total result row count: 49971468 / 49971468
+/usr/bin/run-query --query b --num-objs 5000 --pool tpc --nthreads 20 --quiet --extended-price 71000 --use-cls cache=hot run-4 06.791537983
+Thu Apr 13 18:30:52 MDT 2017
