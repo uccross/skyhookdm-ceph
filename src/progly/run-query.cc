@@ -2,6 +2,7 @@
 #include <thread>
 #include <atomic>
 #include <fstream>
+#include <algorithm>
 #include <condition_variable>
 #include <boost/program_options.hpp>
 #include "include/rados/librados.hpp"
@@ -402,6 +403,7 @@ int main(int argc, char **argv)
   bool test_par_read;
   std::string logfile;
   int qdepth;
+  std::string dir;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -411,7 +413,6 @@ int main(int argc, char **argv)
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
     ("query", po::value<std::string>(&query)->required(), "query name")
-    // rename to wthreads
     ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
     ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
@@ -422,6 +423,7 @@ int main(int argc, char **argv)
     ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
+    ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -471,6 +473,18 @@ int main(int argc, char **argv)
     oid_ss << "obj." << oidx;
     const std::string oid = oid_ss.str();
     target_objects.push_back(oid);
+  }
+
+  if (dir == "fwd") {
+    std::reverse(std::begin(target_objects),
+        std::end(target_objects));
+  } else if (dir == "bwd") {
+    // initial order
+  } else if (dir == "rnd") {
+    std::random_shuffle(std::begin(target_objects),
+        std::end(target_objects));
+  } else {
+    assert(0);
   }
 
   if (test_par) {
