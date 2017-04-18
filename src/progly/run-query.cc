@@ -2,6 +2,7 @@
 #include <thread>
 #include <atomic>
 #include <fstream>
+#include <condition_variable>
 #include <boost/program_options.hpp>
 #include "include/rados/librados.hpp"
 #include "cls/tabular/cls_tabular.h"
@@ -34,8 +35,6 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   return std::string(buffer, copyupto);
 }
 
-static std::vector<std::string> target_objects;
-static std::mutex work_lock;
 static std::mutex print_lock;
 
 static bool quiet;
@@ -61,6 +60,20 @@ static std::string comment_regex;
 
 static std::atomic<unsigned> result_count;
 static std::atomic<unsigned> rows_returned;
+
+struct AioState {
+  ceph::bufferlist bl;
+  librados::AioCompletion *c;
+};
+
+// rename work_lock
+static std::mutex work_lock;
+static std::atomic<int> outstanding_ios;
+static std::vector<std::string> target_objects;
+static std::list<AioState*> ready_ios;
+static std::condition_variable dispatch_cond;
+static std::condition_variable work_cond;
+static bool stop;
 
 static void print_row(const char *row)
 {
@@ -170,49 +183,30 @@ static void add_extra_row_cost(uint64_t cost)
   }
 }
 
-static void worker(librados::IoCtx *ioctx)
+static void worker()
 {
-  while (true) {
-    // step 0: get object to process, or exit
-    work_lock.lock();
-    if (target_objects.empty()) {
-      work_lock.unlock();
-      break;
-    }
-    std::string oid = target_objects.back();
-    target_objects.pop_back();
-    work_lock.unlock();
+  std::unique_lock<std::mutex> lock(work_lock);
 
-    // step 1: read the object
+  while (true) {
+    // wait for work, or done
+    if (ready_ios.empty()) {
+      if (stop)
+        break;
+      work_cond.wait(lock);
+      continue;
+    }
+
+    // prepare result
+    AioState *s = ready_ios.front();
+    ready_ios.pop_front();
+
+    // process result without lock. we own it now.
+    lock.unlock();
+
     ceph::bufferlist bl;
     if (use_cls) {
-      // populate query op
-      query_op op;
-      op.query = query;
-      op.extended_price = extended_price;
-      op.order_key = order_key;
-      op.line_number = line_number;
-      op.ship_date_low = ship_date_low;
-      op.ship_date_high = ship_date_high;
-      op.discount_low = discount_low;
-      op.discount_high = discount_high;
-      op.quantity = quantity;
-      op.comment_regex = comment_regex;
-      op.use_index = use_index;
-      op.projection = projection;
-      // set the parameter on the op struct to be sent to the osd
-      op.extra_row_cost = extra_row_cost;
-      ceph::bufferlist inbl;
-      ::encode(op, inbl);
-
-      // execute it remotely
-      ceph::bufferlist outbl;
-      int ret = ioctx->exec(oid, "tabular", "query_op", inbl, outbl);
-      checkret(ret, 0);
-
-      // resulting rows
       uint64_t read_ns, eval_ns;
-      ceph::bufferlist::iterator it = outbl.begin();
+      ceph::bufferlist::iterator it = s->bl.begin();
       try {
         ::decode(read_ns, it);
         ::decode(eval_ns, it);
@@ -220,14 +214,14 @@ static void worker(librados::IoCtx *ioctx)
       } catch (ceph::buffer::error&) {
         assert(0);
       }
-      remote_costs.emplace_back(std::make_pair(read_ns, eval_ns));
     } else {
-      int ret = ioctx->read(oid, bl, 0, 0);
-      assert(ret > 0);
-      assert(bl.length() > 0);
+      bl = s->bl;
     }
 
-    // step 2: apply the query
+    // data is now all in bl
+    delete s;
+
+    // apply the query
     size_t row_size;
     if (projection && use_cls)
       row_size = 8;
@@ -371,21 +365,43 @@ static void worker(librados::IoCtx *ioctx)
     } else {
       assert(0);
     }
-  }
 
-  ioctx->close();
-  delete ioctx;
+    outstanding_ios--;
+    dispatch_cond.notify_one();
+
+    lock.lock();
+  }
+}
+
+/*
+ * 1. free up aio resources
+ * 2. put io on work queue
+ * 3. wake-up a worker
+ */
+static void handle_cb(librados::completion_t cb, void *arg)
+{
+  AioState *s = (AioState*)arg;
+  assert(s->c->get_return_value() >= 0);
+  s->c->release();
+  s->c = NULL;
+
+  work_lock.lock();
+  ready_ios.push_back(s);
+  work_lock.unlock();
+
+  work_cond.notify_one();
 }
 
 int main(int argc, char **argv)
 {
   std::string pool;
   unsigned num_objs;
-  int nthreads;
+  int wthreads;
   bool build_index;
   uint64_t test_par;
   bool test_par_read;
   std::string logfile;
+  int qdepth;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -395,7 +411,9 @@ int main(int argc, char **argv)
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
     ("query", po::value<std::string>(&query)->required(), "query name")
-    ("nthreads", po::value<int>(&nthreads)->default_value(1), "num threads")
+    // rename to wthreads
+    ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
+    ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
@@ -430,13 +448,19 @@ int main(int argc, char **argv)
   po::notify(vm);
 
   assert(num_objs > 0);
-  assert(nthreads > 0);
+  assert(wthreads > 0);
+  assert(qdepth > 0);
 
   // connect to rados
   librados::Rados cluster;
   cluster.init(NULL);
   cluster.conf_read_file(NULL);
   int ret = cluster.connect();
+  checkret(ret, 0);
+
+  // open pool
+  librados::IoCtx ioctx;
+  ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
 
   remote_costs.reserve(num_objs);
@@ -451,7 +475,7 @@ int main(int argc, char **argv)
 
   if (test_par) {
     std::vector<std::thread> threads;
-    for (int i = 0; i < nthreads; i++) {
+    for (int i = 0; i < wthreads; i++) {
       auto ioctx = new librados::IoCtx;
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
@@ -469,7 +493,7 @@ int main(int argc, char **argv)
   // build index for query "d"
   if (build_index) {
     std::vector<std::thread> threads;
-    for (int i = 0; i < nthreads; i++) {
+    for (int i = 0; i < wthreads; i++) {
       auto ioctx = new librados::IoCtx;
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
@@ -545,19 +569,82 @@ int main(int argc, char **argv)
   result_count = 0;
   rows_returned = 0;
 
+  outstanding_ios = 0;
+  stop = false;
+
   // start worker threads
   std::vector<std::thread> threads;
-  for (int i = 0; i < nthreads; i++) {
-    auto ioctx = new librados::IoCtx;
-    int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-    checkret(ret, 0);
-    threads.push_back(std::thread(worker, ioctx));
+  for (int i = 0; i < wthreads; i++) {
+    threads.push_back(std::thread(worker));
   }
+
+  std::unique_lock<std::mutex> lock(work_lock);
+  while (true) {
+    while (outstanding_ios < qdepth) {
+      // get an object to process
+      if (target_objects.empty())
+        break;
+      std::string oid = target_objects.back();
+      target_objects.pop_back();
+
+      // dispatch an io request
+      AioState *s = new AioState;
+      s->c = librados::Rados::aio_create_completion(
+          s, NULL, handle_cb);
+
+      if (use_cls) {
+        query_op op;
+        op.query = query;
+        op.extended_price = extended_price;
+        op.order_key = order_key;
+        op.line_number = line_number;
+        op.ship_date_low = ship_date_low;
+        op.ship_date_high = ship_date_high;
+        op.discount_low = discount_low;
+        op.discount_high = discount_high;
+        op.quantity = quantity;
+        op.comment_regex = comment_regex;
+        op.use_index = use_index;
+        op.projection = projection;
+        op.extra_row_cost = extra_row_cost;
+        ceph::bufferlist inbl;
+        ::encode(op, inbl);
+        int ret = ioctx.aio_exec(oid, s->c,
+            "tabular", "query_op", inbl, &s->bl);
+        checkret(ret, 0);
+      } else {
+        int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+        checkret(ret, 0);
+      }
+
+      outstanding_ios++;
+    }
+    if (target_objects.empty())
+      break;
+    dispatch_cond.wait(lock);
+  }
+  lock.unlock();
+
+  // drain any still-in-flight operations
+  while (true) {
+    if (outstanding_ios == 0)
+      break;
+    std::cout << "draining ios: " << outstanding_ios << " remaining" << std::endl;
+    sleep(1);
+  }
+
+  // wait for all the workers to stop
+  lock.lock();
+  stop = true;
+  lock.unlock();
+  work_cond.notify_all();
 
   // the threads will exit when all the objects are processed
   for (auto& thread : threads) {
     thread.join();
   }
+
+  ioctx.close();
 
   if (query == "a" && use_cls) {
     std::cout << "total result row count: " << result_count
