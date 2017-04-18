@@ -77,12 +77,16 @@ struct AioState {
 };
 
 // rename work_lock
-static std::mutex work_lock;
-static std::atomic<int> outstanding_ios;
+static int outstanding_ios;
 static std::vector<std::string> target_objects;
 static std::list<AioState*> ready_ios;
+
+static std::mutex dispatch_lock;
 static std::condition_variable dispatch_cond;
+
+static std::mutex work_lock;
 static std::condition_variable work_cond;
+
 static bool stop;
 
 static void print_row(const char *row)
@@ -382,11 +386,12 @@ static void worker()
 
     times.eval2_ns = getns() - eval2_start;
 
+    dispatch_lock.lock();
     outstanding_ios--;
+    dispatch_lock.unlock();
     dispatch_cond.notify_one();
 
     lock.lock();
-
     timings.push_back(times);
   }
 }
@@ -610,7 +615,7 @@ int main(int argc, char **argv)
     threads.push_back(std::thread(worker));
   }
 
-  std::unique_lock<std::mutex> lock(work_lock);
+  std::unique_lock<std::mutex> lock(dispatch_lock);
   while (true) {
     while (outstanding_ios < qdepth) {
       // get an object to process
@@ -618,6 +623,7 @@ int main(int argc, char **argv)
         break;
       std::string oid = target_objects.back();
       target_objects.pop_back();
+      lock.unlock();
 
       // dispatch an io request
       AioState *s = new AioState;
@@ -652,6 +658,7 @@ int main(int argc, char **argv)
         checkret(ret, 0);
       }
 
+      lock.lock();
       outstanding_ios++;
     }
     if (target_objects.empty())
@@ -662,16 +669,20 @@ int main(int argc, char **argv)
 
   // drain any still-in-flight operations
   while (true) {
-    if (outstanding_ios == 0)
+    lock.lock();
+    if (outstanding_ios == 0) {
+      lock.unlock();
       break;
+    }
+    lock.unlock();
     std::cout << "draining ios: " << outstanding_ios << " remaining" << std::endl;
     sleep(1);
   }
 
   // wait for all the workers to stop
-  lock.lock();
+  work_lock.lock();
   stop = true;
-  lock.unlock();
+  work_lock.unlock();
   work_cond.notify_all();
 
   // the threads will exit when all the objects are processed
