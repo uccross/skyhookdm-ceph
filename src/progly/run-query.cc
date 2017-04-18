@@ -46,7 +46,15 @@ static bool projection;
 static uint32_t build_index_batch_size;
 static uint64_t extra_row_cost;
 
-static std::vector<std::pair<uint64_t, uint64_t>> remote_costs;
+struct timing {
+  uint64_t dispatch;
+  uint64_t response;
+  uint64_t read_ns;
+  uint64_t eval_ns;
+  uint64_t eval2_ns;
+};
+
+static std::vector<timing> timings;
 
 // query parameters
 static double extended_price;
@@ -65,6 +73,7 @@ static std::atomic<unsigned> rows_returned;
 struct AioState {
   ceph::bufferlist bl;
   librados::AioCompletion *c;
+  timing times;
 };
 
 // rename work_lock
@@ -204,13 +213,14 @@ static void worker()
     // process result without lock. we own it now.
     lock.unlock();
 
+    struct timing times = s->times;
+
     ceph::bufferlist bl;
     if (use_cls) {
-      uint64_t read_ns, eval_ns;
       ceph::bufferlist::iterator it = s->bl.begin();
       try {
-        ::decode(read_ns, it);
-        ::decode(eval_ns, it);
+        ::decode(times.read_ns, it);
+        ::decode(times.eval_ns, it);
         ::decode(bl, it);
       } catch (ceph::buffer::error&) {
         assert(0);
@@ -221,6 +231,8 @@ static void worker()
 
     // data is now all in bl
     delete s;
+
+    uint64_t eval2_start = getns();
 
     // apply the query
     size_t row_size;
@@ -351,12 +363,13 @@ static void worker()
           result_count++;
         }
       } else {
+        RE2 re(comment_regex);
         for (size_t rid = 0; rid < num_rows; rid++) {
           const char *row = rows + rid * row_size;
           const char *cptr = row + comment_field_offset;
           const std::string comment_val = string_ncopy(cptr,
               comment_field_length);
-          if (RE2::PartialMatch(comment_val, comment_regex)) {
+          if (RE2::PartialMatch(comment_val, re)) {
             print_row(row);
             result_count++;
             add_extra_row_cost(extra_row_cost);
@@ -367,10 +380,14 @@ static void worker()
       assert(0);
     }
 
+    times.eval2_ns = getns() - eval2_start;
+
     outstanding_ios--;
     dispatch_cond.notify_one();
 
     lock.lock();
+
+    timings.push_back(times);
   }
 }
 
@@ -382,6 +399,7 @@ static void worker()
 static void handle_cb(librados::completion_t cb, void *arg)
 {
   AioState *s = (AioState*)arg;
+  s->times.response = getns();
   assert(s->c->get_return_value() >= 0);
   s->c->release();
   s->c = NULL;
@@ -465,7 +483,7 @@ int main(int argc, char **argv)
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
 
-  remote_costs.reserve(num_objs);
+  timings.reserve(num_objs);
 
   // generate the names of the objects to process
   for (unsigned oidx = 0; oidx < num_objs; oidx++) {
@@ -606,6 +624,9 @@ int main(int argc, char **argv)
       s->c = librados::Rados::aio_create_completion(
           s, NULL, handle_cb);
 
+      memset(&s->times, 0, sizeof(s->times));
+      s->times.dispatch = getns();
+
       if (use_cls) {
         query_op op;
         op.query = query;
@@ -671,9 +692,15 @@ int main(int argc, char **argv)
   if (logfile.length()) {
     std::ofstream out;
     out.open(logfile, std::ios::trunc);
-    out << "read_ns,eval_ns" << std::endl;
-    for (const auto& item : remote_costs)
-      out << item.first << "," << item.second << std::endl;
+    out << "dispatch,response,read_ns,eval_ns,eval2_ns" << std::endl;
+    for (const auto& time : timings) {
+      out <<
+        time.dispatch << "," <<
+        time.response << "," <<
+        time.read_ns << "," <<
+        time.eval_ns << "," <<
+        time.eval2_ns << std::endl;
+    }
     out.close();
   }
 
