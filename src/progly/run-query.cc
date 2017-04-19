@@ -200,7 +200,6 @@ static void add_extra_row_cost(uint64_t cost)
 static void worker()
 {
   std::unique_lock<std::mutex> lock(work_lock);
-
   while (true) {
     // wait for work, or done
     if (ready_ios.empty()) {
@@ -216,6 +215,11 @@ static void worker()
 
     // process result without lock. we own it now.
     lock.unlock();
+
+    dispatch_lock.lock();
+    outstanding_ios--;
+    dispatch_lock.unlock();
+    dispatch_cond.notify_one();
 
     struct timing times = s->times;
 
@@ -385,11 +389,6 @@ static void worker()
     }
 
     times.eval2_ns = getns() - eval2_start;
-
-    dispatch_lock.lock();
-    outstanding_ios--;
-    dispatch_lock.unlock();
-    dispatch_cond.notify_one();
 
     lock.lock();
     timings.push_back(times);
