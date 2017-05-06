@@ -1,12 +1,13 @@
 #!/bin/bash
 set -e
 #set -x
+echo "./this <nosds> <nobjs>"
 
 echo START at `date`
 
 nosds=$1
 queue_depth=$(( ${nosds} * 12 ))
-nobjs=2500
+nobjs=$2
 worker_threads=10
 pool=tpc
 runs="1 2 3 4 5 6"
