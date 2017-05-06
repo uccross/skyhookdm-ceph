@@ -1,0 +1,1269 @@
+START at Fri May 5 16:12:03 CDT 2017
+begin function run_query with selectivity percent= 1
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 90 remaining
+draining ios: 84 remaining
+draining ios: 77 remaining
+draining ios: 71 remaining
+draining ios: 65 remaining
+draining ios: 60 remaining
+draining ios: 55 remaining
+draining ios: 48 remaining
+draining ios: 43 remaining
+draining ios: 37 remaining
+draining ios: 32 remaining
+draining ios: 26 remaining
+draining ios: 21 remaining
+draining ios: 16 remaining
+draining ios: 12 remaining
+draining ios: 7 remaining
+draining ios: 2 remaining
+total result row count: 10111403 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b selectivity-pct=1 cache=cold start=1494018752.327568104 end=1494019135.973563370 run-1 0383.645995266
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 90 remaining
+draining ios: 86 remaining
+draining ios: 81 remaining
+draining ios: 77 remaining
+draining ios: 73 remaining
+draining ios: 69 remaining
+draining ios: 65 remaining
+draining ios: 61 remaining
+draining ios: 57 remaining
+draining ios: 53 remaining
+draining ios: 48 remaining
+draining ios: 44 remaining
+draining ios: 40 remaining
+draining ios: 36 remaining
+draining ios: 32 remaining
+draining ios: 28 remaining
+draining ios: 24 remaining
+draining ios: 19 remaining
+draining ios: 15 remaining
+draining ios: 11 remaining
+draining ios: 7 remaining
+draining ios: 3 remaining
+total result row count: 10111403 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b selectivity-pct=1 cache=cold start=1494019167.892107690 end=1494019505.598193456 run-2 0337.706085766
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 90 remaining
+draining ios: 83 remaining
+draining ios: 77 remaining
+draining ios: 72 remaining
+draining ios: 67 remaining
+draining ios: 61 remaining
+draining ios: 57 remaining
+draining ios: 52 remaining
+draining ios: 47 remaining
+draining ios: 41 remaining
+draining ios: 36 remaining
+draining ios: 31 remaining
+draining ios: 25 remaining
+draining ios: 21 remaining
+draining ios: 16 remaining
+draining ios: 11 remaining
+draining ios: 6 remaining
+total result row count: 10111403 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b selectivity-pct=1 cache=cold start=1494019537.056575208 end=1494019909.521095655 run-3 0372.464520447
+starting run4
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 90 remaining
+draining ios: 85 remaining
+draining ios: 80 remaining
+draining ios: 76 remaining
+draining ios: 72 remaining
+draining ios: 67 remaining
+draining ios: 63 remaining
+draining ios: 58 remaining
+draining ios: 54 remaining
+draining ios: 49 remaining
+draining ios: 45 remaining
+draining ios: 40 remaining
+draining ios: 35 remaining
+draining ios: 30 remaining
+draining ios: 26 remaining
+draining ios: 21 remaining
+draining ios: 17 remaining
+draining ios: 12 remaining
+draining ios: 8 remaining
+draining ios: 4 remaining
+total result row count: 10111403 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b selectivity-pct=1 cache=hot start=1494019919.526535939 end=1494020279.573286024 run-4 0360.046750085
+starting run5
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 84 remaining
+draining ios: 78 remaining
+draining ios: 73 remaining
+draining ios: 69 remaining
+draining ios: 64 remaining
+draining ios: 59 remaining
+draining ios: 55 remaining
+draining ios: 50 remaining
+draining ios: 46 remaining
+draining ios: 41 remaining
+draining ios: 37 remaining
+draining ios: 31 remaining
+draining ios: 24 remaining
+draining ios: 18 remaining
+draining ios: 12 remaining
+draining ios: 6 remaining
+total result row count: 10111403 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b selectivity-pct=1 cache=hot start=1494020289.579262704 end=1494020589.803705785 run-5 0300.224443081
+starting run6
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 85 remaining
+draining ios: 76 remaining
+draining ios: 69 remaining
+draining ios: 65 remaining
+draining ios: 60 remaining
+draining ios: 56 remaining
+draining ios: 52 remaining
+draining ios: 48 remaining
+draining ios: 43 remaining
+draining ios: 39 remaining
+draining ios: 31 remaining
+draining ios: 23 remaining
+draining ios: 14 remaining
+draining ios: 7 remaining
+draining ios: 1 remaining
+total result row count: 10111403 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b selectivity-pct=1 cache=hot start=1494020599.809771961 end=1494020860.146410904 run-6 0260.336638943
+begin function run_query with selectivity percent= 1
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 10111403 / 10111403
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b --use-cls selectivity-pct=1 cache=cold start=1494020892.397807809 end=1494020942.971341689 run-1 050.573533880
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 10111403 / 10111403
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b --use-cls selectivity-pct=1 cache=cold start=1494020974.965073734 end=1494021025.520226250 run-2 050.555152516
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 17 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 10111403 / 10111403
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b --use-cls selectivity-pct=1 cache=cold start=1494021057.648245049 end=1494021108.258844062 run-3 050.610599013
+starting run4
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+total result row count: 10111403 / 10111403
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b --use-cls selectivity-pct=1 cache=hot start=1494021118.264765390 end=1494021123.268046840 run-4 05.003281450
+starting run5
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+total result row count: 10111403 / 10111403
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b --use-cls selectivity-pct=1 cache=hot start=1494021133.273965618 end=1494021138.281074400 run-5 05.007108782
+starting run6
+select * from lineitem where l_extendedprice > 91400
+draining ios: 96 remaining
+total result row count: 10111403 / 10111403
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 91400.0 --query b --use-cls selectivity-pct=1 cache=hot start=1494021148.286762755 end=1494021153.193864433 run-6 04.907101678
+begin function run_query with selectivity percent= 10
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 90 remaining
+draining ios: 86 remaining
+draining ios: 81 remaining
+draining ios: 76 remaining
+draining ios: 71 remaining
+draining ios: 67 remaining
+draining ios: 63 remaining
+draining ios: 59 remaining
+draining ios: 55 remaining
+draining ios: 51 remaining
+draining ios: 47 remaining
+draining ios: 43 remaining
+draining ios: 40 remaining
+draining ios: 34 remaining
+draining ios: 28 remaining
+draining ios: 22 remaining
+draining ios: 16 remaining
+draining ios: 9 remaining
+draining ios: 3 remaining
+total result row count: 99950829 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b selectivity-pct=10 cache=cold start=1494021185.455420085 end=1494021434.105534419 run-1 0248.650114334
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 86 remaining
+draining ios: 80 remaining
+draining ios: 74 remaining
+draining ios: 68 remaining
+draining ios: 62 remaining
+draining ios: 55 remaining
+draining ios: 49 remaining
+draining ios: 43 remaining
+draining ios: 37 remaining
+draining ios: 32 remaining
+draining ios: 25 remaining
+draining ios: 20 remaining
+draining ios: 14 remaining
+draining ios: 8 remaining
+draining ios: 2 remaining
+total result row count: 99950829 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b selectivity-pct=10 cache=cold start=1494021465.590382132 end=1494021692.616705418 run-2 0227.026323286
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 89 remaining
+draining ios: 84 remaining
+draining ios: 80 remaining
+draining ios: 76 remaining
+draining ios: 72 remaining
+draining ios: 67 remaining
+draining ios: 63 remaining
+draining ios: 58 remaining
+draining ios: 53 remaining
+draining ios: 47 remaining
+draining ios: 42 remaining
+draining ios: 37 remaining
+draining ios: 32 remaining
+draining ios: 26 remaining
+draining ios: 21 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 6 remaining
+draining ios: 1 remaining
+total result row count: 99950829 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b selectivity-pct=10 cache=cold start=1494021723.911204011 end=1494022001.504798001 run-3 0277.593593990
+starting run4
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 85 remaining
+draining ios: 79 remaining
+draining ios: 72 remaining
+draining ios: 68 remaining
+draining ios: 64 remaining
+draining ios: 60 remaining
+draining ios: 56 remaining
+draining ios: 53 remaining
+draining ios: 49 remaining
+draining ios: 45 remaining
+draining ios: 40 remaining
+draining ios: 34 remaining
+draining ios: 28 remaining
+draining ios: 22 remaining
+draining ios: 17 remaining
+draining ios: 11 remaining
+draining ios: 6 remaining
+draining ios: 1 remaining
+total result row count: 99950829 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b selectivity-pct=10 cache=hot start=1494022011.510225150 end=1494022290.653772411 run-4 0279.143547261
+starting run5
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 89 remaining
+draining ios: 85 remaining
+draining ios: 81 remaining
+draining ios: 77 remaining
+draining ios: 73 remaining
+draining ios: 69 remaining
+draining ios: 65 remaining
+draining ios: 61 remaining
+draining ios: 57 remaining
+draining ios: 54 remaining
+draining ios: 50 remaining
+draining ios: 46 remaining
+draining ios: 42 remaining
+draining ios: 33 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 9 remaining
+draining ios: 2 remaining
+total result row count: 99950829 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b selectivity-pct=10 cache=hot start=1494022300.659128923 end=1494022585.399654381 run-5 0284.740525458
+starting run6
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 86 remaining
+draining ios: 80 remaining
+draining ios: 72 remaining
+draining ios: 65 remaining
+draining ios: 58 remaining
+draining ios: 50 remaining
+draining ios: 44 remaining
+draining ios: 38 remaining
+draining ios: 33 remaining
+draining ios: 28 remaining
+draining ios: 23 remaining
+draining ios: 18 remaining
+draining ios: 13 remaining
+draining ios: 8 remaining
+draining ios: 3 remaining
+total result row count: 99950829 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b selectivity-pct=10 cache=hot start=1494022595.405259198 end=1494022877.650556070 run-6 0282.245296872
+begin function run_query with selectivity percent= 10
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 99950829 / 99950829
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b --use-cls selectivity-pct=10 cache=cold start=1494022909.511419317 end=1494022960.194788344 run-1 050.683369027
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 99950829 / 99950829
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b --use-cls selectivity-pct=10 cache=cold start=1494022991.547062433 end=1494023042.242928571 run-2 050.695866138
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 17 remaining
+draining ios: 12 remaining
+draining ios: 6 remaining
+total result row count: 99950829 / 99950829
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b --use-cls selectivity-pct=10 cache=cold start=1494023074.007983975 end=1494023124.720246549 run-3 050.712262574
+starting run4
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+total result row count: 99950829 / 99950829
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b --use-cls selectivity-pct=10 cache=hot start=1494023134.725891664 end=1494023147.367104722 run-4 012.641213058
+starting run5
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+total result row count: 99950829 / 99950829
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b --use-cls selectivity-pct=10 cache=hot start=1494023157.372373637 end=1494023170.006454009 run-5 012.634080372
+starting run6
+select * from lineitem where l_extendedprice > 71000
+draining ios: 96 remaining
+total result row count: 99950829 / 99950829
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 71000.0 --query b --use-cls selectivity-pct=10 cache=hot start=1494023180.012581947 end=1494023192.663774564 run-6 012.651192617
+begin function run_query with selectivity percent= 100
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 89 remaining
+draining ios: 83 remaining
+draining ios: 77 remaining
+draining ios: 71 remaining
+draining ios: 66 remaining
+draining ios: 57 remaining
+draining ios: 46 remaining
+draining ios: 41 remaining
+draining ios: 36 remaining
+draining ios: 32 remaining
+draining ios: 28 remaining
+draining ios: 24 remaining
+draining ios: 21 remaining
+draining ios: 17 remaining
+draining ios: 12 remaining
+draining ios: 8 remaining
+draining ios: 3 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b selectivity-pct=100 cache=cold start=1494023224.557235077 end=1494023471.455995995 run-1 0246.898760918
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 87 remaining
+draining ios: 81 remaining
+draining ios: 75 remaining
+draining ios: 69 remaining
+draining ios: 64 remaining
+draining ios: 57 remaining
+draining ios: 52 remaining
+draining ios: 46 remaining
+draining ios: 41 remaining
+draining ios: 36 remaining
+draining ios: 31 remaining
+draining ios: 26 remaining
+draining ios: 21 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 5 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b selectivity-pct=100 cache=cold start=1494023502.872327931 end=1494023750.228760990 run-2 0247.356433059
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 87 remaining
+draining ios: 81 remaining
+draining ios: 74 remaining
+draining ios: 67 remaining
+draining ios: 59 remaining
+draining ios: 52 remaining
+draining ios: 45 remaining
+draining ios: 39 remaining
+draining ios: 32 remaining
+draining ios: 26 remaining
+draining ios: 19 remaining
+draining ios: 13 remaining
+draining ios: 6 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b selectivity-pct=100 cache=cold start=1494023781.785748859 end=1494024030.301224064 run-3 0248.515475205
+starting run4
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 89 remaining
+draining ios: 83 remaining
+draining ios: 76 remaining
+draining ios: 70 remaining
+draining ios: 64 remaining
+draining ios: 57 remaining
+draining ios: 51 remaining
+draining ios: 44 remaining
+draining ios: 39 remaining
+draining ios: 34 remaining
+draining ios: 28 remaining
+draining ios: 23 remaining
+draining ios: 17 remaining
+draining ios: 12 remaining
+draining ios: 6 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b selectivity-pct=100 cache=hot start=1494024040.306645006 end=1494024288.820415246 run-4 0248.513770240
+starting run5
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 81 remaining
+draining ios: 75 remaining
+draining ios: 70 remaining
+draining ios: 64 remaining
+draining ios: 58 remaining
+draining ios: 52 remaining
+draining ios: 46 remaining
+draining ios: 40 remaining
+draining ios: 34 remaining
+draining ios: 29 remaining
+draining ios: 23 remaining
+draining ios: 17 remaining
+draining ios: 12 remaining
+draining ios: 6 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b selectivity-pct=100 cache=hot start=1494024298.825658866 end=1494024553.512774986 run-5 0254.687116120
+starting run6
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 87 remaining
+draining ios: 81 remaining
+draining ios: 75 remaining
+draining ios: 69 remaining
+draining ios: 63 remaining
+draining ios: 57 remaining
+draining ios: 52 remaining
+draining ios: 46 remaining
+draining ios: 41 remaining
+draining ios: 36 remaining
+draining ios: 31 remaining
+draining ios: 27 remaining
+draining ios: 22 remaining
+draining ios: 17 remaining
+draining ios: 13 remaining
+draining ios: 8 remaining
+draining ios: 4 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b selectivity-pct=100 cache=hot start=1494024563.517908644 end=1494024819.251983659 run-6 0255.734075015
+begin function run_query with selectivity percent= 100
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 87 remaining
+draining ios: 79 remaining
+draining ios: 71 remaining
+draining ios: 64 remaining
+draining ios: 56 remaining
+draining ios: 48 remaining
+draining ios: 43 remaining
+draining ios: 37 remaining
+draining ios: 31 remaining
+draining ios: 26 remaining
+draining ios: 20 remaining
+draining ios: 13 remaining
+draining ios: 6 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b --use-cls selectivity-pct=100 cache=cold start=1494024851.798327170 end=1494025115.503057455 run-1 0263.704730285
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 82 remaining
+draining ios: 76 remaining
+draining ios: 70 remaining
+draining ios: 65 remaining
+draining ios: 59 remaining
+draining ios: 53 remaining
+draining ios: 48 remaining
+draining ios: 42 remaining
+draining ios: 36 remaining
+draining ios: 31 remaining
+draining ios: 25 remaining
+draining ios: 20 remaining
+draining ios: 15 remaining
+draining ios: 10 remaining
+draining ios: 5 remaining
+draining ios: 1 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b --use-cls selectivity-pct=100 cache=cold start=1494025147.074211652 end=1494025413.129328293 run-2 0266.055116641
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 82 remaining
+draining ios: 76 remaining
+draining ios: 71 remaining
+draining ios: 65 remaining
+draining ios: 59 remaining
+draining ios: 54 remaining
+draining ios: 49 remaining
+draining ios: 44 remaining
+draining ios: 39 remaining
+draining ios: 35 remaining
+draining ios: 30 remaining
+draining ios: 25 remaining
+draining ios: 20 remaining
+draining ios: 14 remaining
+draining ios: 9 remaining
+draining ios: 3 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b --use-cls selectivity-pct=100 cache=cold start=1494025444.855849626 end=1494025711.498374606 run-3 0266.642524980
+starting run4
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 87 remaining
+draining ios: 81 remaining
+draining ios: 75 remaining
+draining ios: 69 remaining
+draining ios: 63 remaining
+draining ios: 57 remaining
+draining ios: 51 remaining
+draining ios: 46 remaining
+draining ios: 40 remaining
+draining ios: 35 remaining
+draining ios: 30 remaining
+draining ios: 24 remaining
+draining ios: 19 remaining
+draining ios: 13 remaining
+draining ios: 8 remaining
+draining ios: 2 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b --use-cls selectivity-pct=100 cache=hot start=1494025721.503784708 end=1494025982.091169388 run-4 0260.587384680
+starting run5
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 89 remaining
+draining ios: 82 remaining
+draining ios: 76 remaining
+draining ios: 70 remaining
+draining ios: 64 remaining
+draining ios: 58 remaining
+draining ios: 52 remaining
+draining ios: 46 remaining
+draining ios: 39 remaining
+draining ios: 33 remaining
+draining ios: 27 remaining
+draining ios: 20 remaining
+draining ios: 13 remaining
+draining ios: 7 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b --use-cls selectivity-pct=100 cache=hot start=1494025992.097095373 end=1494026265.102642371 run-5 0273.005546998
+starting run6
+select * from lineitem where l_extendedprice > 1
+draining ios: 96 remaining
+draining ios: 89 remaining
+draining ios: 81 remaining
+draining ios: 75 remaining
+draining ios: 69 remaining
+draining ios: 63 remaining
+draining ios: 58 remaining
+draining ios: 52 remaining
+draining ios: 46 remaining
+draining ios: 41 remaining
+draining ios: 34 remaining
+draining ios: 26 remaining
+draining ios: 20 remaining
+draining ios: 12 remaining
+draining ios: 5 remaining
+total result row count: 1000000000 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --extended-price 1.0 --query b --use-cls selectivity-pct=100 cache=hot start=1494026275.108383885 end=1494026551.881912443 run-6 0276.773528558
+begin function run_query with selectivity percent= unique
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 81 remaining
+draining ios: 74 remaining
+draining ios: 69 remaining
+draining ios: 62 remaining
+draining ios: 56 remaining
+draining ios: 50 remaining
+draining ios: 43 remaining
+draining ios: 37 remaining
+draining ios: 31 remaining
+draining ios: 25 remaining
+draining ios: 19 remaining
+draining ios: 13 remaining
+draining ios: 6 remaining
+total result row count: 1 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 selectivity-pct=unique cache=cold start=1494026583.284222978 end=1494026834.734402994 run-1 0251.450180016
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 81 remaining
+draining ios: 75 remaining
+draining ios: 70 remaining
+draining ios: 64 remaining
+draining ios: 58 remaining
+draining ios: 53 remaining
+draining ios: 47 remaining
+draining ios: 41 remaining
+draining ios: 35 remaining
+draining ios: 30 remaining
+draining ios: 25 remaining
+draining ios: 20 remaining
+draining ios: 14 remaining
+draining ios: 9 remaining
+draining ios: 3 remaining
+total result row count: 1 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 selectivity-pct=unique cache=cold start=1494026866.443318060 end=1494027119.972105889 run-2 0253.528787829
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 91 remaining
+draining ios: 84 remaining
+draining ios: 78 remaining
+draining ios: 71 remaining
+draining ios: 64 remaining
+draining ios: 58 remaining
+draining ios: 53 remaining
+draining ios: 49 remaining
+draining ios: 45 remaining
+draining ios: 40 remaining
+draining ios: 36 remaining
+draining ios: 32 remaining
+draining ios: 28 remaining
+draining ios: 24 remaining
+draining ios: 19 remaining
+draining ios: 15 remaining
+draining ios: 11 remaining
+draining ios: 7 remaining
+draining ios: 3 remaining
+total result row count: 1 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 selectivity-pct=unique cache=cold start=1494027151.093435019 end=1494027445.028511792 run-3 0293.935076773
+starting run4
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 83 remaining
+draining ios: 77 remaining
+draining ios: 71 remaining
+draining ios: 65 remaining
+draining ios: 59 remaining
+draining ios: 53 remaining
+draining ios: 47 remaining
+draining ios: 41 remaining
+draining ios: 36 remaining
+draining ios: 30 remaining
+draining ios: 25 remaining
+draining ios: 20 remaining
+draining ios: 15 remaining
+draining ios: 9 remaining
+draining ios: 4 remaining
+total result row count: 1 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 selectivity-pct=unique cache=hot start=1494027455.033573530 end=1494027726.549794496 run-4 0271.516220966
+starting run5
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 87 remaining
+draining ios: 81 remaining
+draining ios: 74 remaining
+draining ios: 67 remaining
+draining ios: 59 remaining
+draining ios: 52 remaining
+draining ios: 45 remaining
+draining ios: 40 remaining
+draining ios: 34 remaining
+draining ios: 29 remaining
+draining ios: 24 remaining
+draining ios: 19 remaining
+draining ios: 13 remaining
+draining ios: 7 remaining
+draining ios: 1 remaining
+total result row count: 1 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 selectivity-pct=unique cache=hot start=1494027736.555554171 end=1494028020.418730043 run-5 0283.863175872
+starting run6
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 88 remaining
+draining ios: 82 remaining
+draining ios: 77 remaining
+draining ios: 71 remaining
+draining ios: 66 remaining
+draining ios: 61 remaining
+draining ios: 55 remaining
+draining ios: 50 remaining
+draining ios: 45 remaining
+draining ios: 40 remaining
+draining ios: 35 remaining
+draining ios: 30 remaining
+draining ios: 25 remaining
+draining ios: 20 remaining
+draining ios: 16 remaining
+draining ios: 11 remaining
+draining ios: 6 remaining
+draining ios: 1 remaining
+total result row count: 1 / 1000000000
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 selectivity-pct=unique cache=hot start=1494028030.423972477 end=1494028326.089183709 run-6 0295.665211232
+begin function run_query with selectivity percent= unique
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls selectivity-pct=unique cache=cold start=1494028358.103569446 end=1494028408.650514545 run-1 050.546945099
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls selectivity-pct=unique cache=cold start=1494028440.613474884 end=1494028491.195909898 run-2 050.582435014
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+draining ios: 54 remaining
+draining ios: 40 remaining
+draining ios: 32 remaining
+draining ios: 24 remaining
+draining ios: 16 remaining
+draining ios: 10 remaining
+draining ios: 4 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls selectivity-pct=unique cache=cold start=1494028522.451184518 end=1494028573.045017504 run-3 050.593832986
+starting run4
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls selectivity-pct=unique cache=hot start=1494028583.051045291 end=1494028587.391041271 run-4 04.339995980
+starting run5
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls selectivity-pct=unique cache=hot start=1494028597.397405286 end=1494028601.748625938 run-5 04.351220652
+starting run6
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 96 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls selectivity-pct=unique cache=hot start=1494028611.754228019 end=1494028616.008954037 run-6 04.254726018
+begin function run_query with selectivity percent= unique
+starting run1
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 95 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index selectivity-pct=unique cache=cold start=1494028647.695571511 end=1494028648.870075052 run-1 01.174503541
+starting run2
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 14 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index selectivity-pct=unique cache=cold start=1494028671.162447699 end=1494028672.287585300 run-2 01.125137601
+starting run3
+clearing cache on osd0
+1
+clearing cache on osd1
+1
+clearing cache on osd2
+1
+clearing cache on osd3
+1
+clearing cache on osd4
+1
+clearing cache on osd5
+1
+clearing cache on osd6
+1
+clearing cache on osd7
+1
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 72 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index selectivity-pct=unique cache=cold start=1494028694.305724597 end=1494028695.444705343 run-3 01.138980746
+starting run4
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 95 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index selectivity-pct=unique cache=hot start=1494028705.450199931 end=1494028706.592767532 run-4 01.142567601
+starting run5
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 48 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index selectivity-pct=unique cache=hot start=1494028716.598522011 end=1494028717.728506451 run-5 01.129984440
+starting run6
+select * from from lineitem where l_orderkey = 5 and l_linenumber = 3
+draining ios: 86 remaining
+total result row count: 1 / 1
+run-query --num-objs 2500 --pool tpc --wthreads 10 --qdepth 96 --quiet --query d --order-key 5 --line-number 3 --use-cls --use-index selectivity-pct=unique cache=hot start=1494028727.734191723 end=1494028728.839186387 run-6 01.104994664
+END at Fri May 5 18:58:58 CDT 2017
