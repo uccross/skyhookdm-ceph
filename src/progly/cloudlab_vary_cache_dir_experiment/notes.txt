@@ -1,0 +1,11 @@
+In this experiment we try to create Memory pressure on the OSD machine to test if the ordering of reading objects can benefit from the data in the cache.
+
+To that end we create an experiment that first warms up the cache on the OSD machine with 3x cold cache experiment, then we repeat 3x with a hot cache for each cache direction:
+--dir fwd|bwd|rnd
+
+For this experiment we use only query b, all selectivities, and cloudlab machines m220g1 (instead of g2) since g1 has only 128MB RAM and our 1B row dataset is about 130GB.
+
+The expectation is that the performance of hot cache will change if the storage device can choose which objects to read first; assuming that it knows what objects were read last and thus may still be in the local machine cache.  
+The argument being to let the storage device make the local choices since it has more information than the non-local client application dispatching the reads.
+For now we simluate this knowledge here by assuming an LRU policy on the machine and we dispatch the requests with a flag describing which order to consider when reading the objects on a device.
+
