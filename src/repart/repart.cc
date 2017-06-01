@@ -167,6 +167,8 @@ int main(int argc, char **argv)
   bool generate;
   bool split;
 	std::string logfile;
+  unsigned seq_start;
+  unsigned seq_end;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -177,6 +179,9 @@ int main(int argc, char **argv)
     ("num-objs", po::value<size_t>(&num_objs)->required(), "num objs")
     ("nthreads", po::value<unsigned>(&nthreads)->default_value(1), "num threads")
 		("logfile", po::value<std::string>(&logfile)->default_value(""), "log file")
+
+    ("seq-start", po::value<unsigned>(&seq_start)->default_value(0), "seq start")
+    ("seq-end", po::value<unsigned>(&seq_end)->default_value(0), "seq end")
     
     ("generate", po::bool_switch(&generate)->default_value(false), "generate mode")
     ("split", po::bool_switch(&split)->default_value(false), "split mode")
@@ -211,10 +216,18 @@ int main(int argc, char **argv)
 
   rows_per_obj = obj_size / row_size;
 
+  if (seq_start == 0 && seq_end == 0) {
+    seq_end = num_objs;
+  } else {
+    assert(seq_end > seq_start);
+  }
+
   std::cout << "row-size: " << row_size << std::endl
             << "obj-size: " << obj_size << std::endl
             << "num-objs: " << num_objs << std::endl
-            << "rows/obj: " << rows_per_obj << std::endl;
+            << "rows/obj: " << rows_per_obj << std::endl
+            << "seq-start: " << seq_start << std::endl
+            << "seq-end: " << seq_end << std::endl;
 
   // connect to rados
   librados::Rados cluster;
@@ -229,7 +242,7 @@ int main(int argc, char **argv)
   checkret(ret, 0);
 
   // generate list of source oids
-  for (unsigned i = 0; i < num_objs; i++) {
+  for (unsigned i = seq_start; i < seq_end; i++) {
     std::stringstream ss;
     ss << "src." << i;
     src_oids.push_back(ss.str());
