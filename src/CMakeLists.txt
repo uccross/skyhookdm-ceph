@@ -243,6 +243,8 @@ if(WITH_CEPHFS_JAVA)
   add_subdirectory(java)
 endif()
 
+add_subdirectory(repart)
+
 # Python stuff
 find_package(PythonInterp 2 REQUIRED)
 find_package(PythonLibs 2 REQUIRED)
