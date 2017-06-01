@@ -17,6 +17,11 @@ static inline uint64_t __getns(clockid_t clock)
   return (((uint64_t)ts.tv_sec) * 1000000000ULL) + ts.tv_nsec;
 }
 
+static inline uint64_t getns_rt()
+{
+  return __getns(CLOCK_REALTIME);
+}
+
 static inline uint64_t getns()
 {
   return __getns(CLOCK_MONOTONIC);
@@ -66,14 +71,14 @@ static void worker_split(librados::IoCtx *ioctx)
     // read source object
     ceph::bufferlist src;
     src.reserve(obj_size);
-    op.read_start = getns();
+    op.read_start = getns_rt();
     int ret = ioctx->read(oid, src, 0, 0);
     assert(ret == (int)obj_size);
     const char *src_ptr = src.c_str();
 
     ceph::bufferlist dst_a;
     ceph::bufferlist dst_b;
-    op.write_start = getns();
+    op.write_start = getns_rt();
     for (unsigned i = 0; i < rows_per_obj; i++) {
       if (i % 2 == 0)
         dst_a.append(src_ptr, row_size);
@@ -102,7 +107,7 @@ static void worker_split(librados::IoCtx *ioctx)
     c_b->wait_for_safe();
     assert(c_b->get_return_value() == 0);
 
-    op.write_end = getns();
+    op.write_end = getns_rt();
 
     c_a->release();
     c_b->release();
