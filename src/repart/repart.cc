@@ -36,27 +36,44 @@ static size_t obj_size;
 static size_t rows_per_obj;
 static unsigned long run_id;
 
+struct opinfo {
+  uint64_t read_start;
+  uint64_t write_start;
+  uint64_t write_end;
+};
+
+static std::list<opinfo> results;
+
 static void worker_split(librados::IoCtx *ioctx)
 {
+  std::list<opinfo> ops;
+
   std::string oid;
   while (true) {
     {
       std::lock_guard<std::mutex> l(lock);
-      if (src_oids.empty())
+      if (src_oids.empty()) {
+				auto it = results.end();
+        results.splice(it, ops);
         return;
+      }
       oid = src_oids.front();
       src_oids.pop_front();
     }
 
+    struct opinfo op;
+
     // read source object
     ceph::bufferlist src;
     src.reserve(obj_size);
+    op.read_start = getns();
     int ret = ioctx->read(oid, src, 0, 0);
     assert(ret == (int)obj_size);
     const char *src_ptr = src.c_str();
 
     ceph::bufferlist dst_a;
     ceph::bufferlist dst_b;
+    op.write_start = getns();
     for (unsigned i = 0; i < rows_per_obj; i++) {
       if (i % 2 == 0)
         dst_a.append(src_ptr, row_size);
@@ -85,8 +102,12 @@ static void worker_split(librados::IoCtx *ioctx)
     c_b->wait_for_safe();
     assert(c_b->get_return_value() == 0);
 
+    op.write_end = getns();
+
     c_a->release();
     c_b->release();
+
+    ops.push_back(op);
   }
 }
 
@@ -140,6 +161,7 @@ int main(int argc, char **argv)
   unsigned nthreads;
   bool generate;
   bool split;
+	std::string logfile;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -149,6 +171,7 @@ int main(int argc, char **argv)
     ("obj-size", po::value<size_t>(&obj_size)->required(), "obj size")
     ("num-objs", po::value<size_t>(&num_objs)->required(), "num objs")
     ("nthreads", po::value<unsigned>(&nthreads)->default_value(1), "num threads")
+		("logfile", po::value<std::string>(&logfile)->default_value(""), "log file")
     
     ("generate", po::bool_switch(&generate)->default_value(false), "generate mode")
     ("split", po::bool_switch(&split)->default_value(false), "split mode")
@@ -229,4 +252,18 @@ int main(int argc, char **argv)
 
   ioctx.close();
   cluster.shutdown();
+
+  if (logfile.length()) {
+    std::ofstream out;
+    out.open(logfile, std::ios::trunc);
+    out << "read_start,write_start,write_end" << std::endl;
+		std::lock_guard<std::mutex> l(lock);
+    for (const auto& op : results) {
+      out <<
+        op.read_start << "," <<
+        op.write_start << "," <<
+        op.write_end << std::endl;
+    }
+    out.close();
+  }
 }
