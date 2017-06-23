@@ -20,11 +20,18 @@ def makeDict(line, debug):
     dict = {}
     lineitems = [x.strip("--") for x in tmp[1:len(tmp)-1]]
     if debug: print "lineitems", lineitems
-    dict["nobjs"] = lineitems[lineitems.index("num-objs")+1]
-    dict["wthreads"] = lineitems[lineitems.index("wthreads")+1]
-    dict["qdepth"] = lineitems[lineitems.index("qdepth")+1]
-    dict["query"] = lineitems[lineitems.index("query")+1]
-    dict["pool"] = lineitems[lineitems.index("pool")+1]
+    if "num-objs" in lineitems:
+        dict["nobjs"] = lineitems[lineitems.index("num-objs")+1]
+    if "wthreads" in lineitems:
+        dict["wthreads"] = lineitems[lineitems.index("wthreads")+1]
+    if "qdepth" in lineitems:
+        dict["qdepth"] = lineitems[lineitems.index("qdepth")+1]
+    if "query" in lineitems:
+        dict["query"] = lineitems[lineitems.index("query")+1]
+    if "pool" in lineitems:
+        dict["pool"] = lineitems[lineitems.index("pool")+1]
+    if "dir" in lineitems:
+        dict["dir"] = lineitems[lineitems.index("dir")+1]
     
     if "use-cls" in lineitems:
         dict["cls"] = "true"
@@ -77,7 +84,7 @@ def main(argv):
     if not infile:
         usage()
         
-    header = ["filename", "nosds", "nobjs","query", "run", "time", "pool", "qdepth","wthreads", "selectivity-pct", "cls", "cache"]
+    header = ["filename", "nosds", "nobjs","query", "run", "time", "pool", "qdepth","wthreads", "selectivity-pct", "cls", "cache", "dir"]
     print ",".join(header)
     
     with open(infile) as f:
