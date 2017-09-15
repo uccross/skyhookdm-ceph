@@ -1,0 +1,163 @@
+starting 3 run query bench for table=lineitem1bssd query=qb.10pct.sql
+query text file:
+\timing
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+EXPLAIN VERBOSE SELECT * FROM :tname WHERE l_extendedprice > 71000;
+\o '/dev/null'
+SELECT * FROM :tname WHERE l_extendedprice > 71000;
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.297 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.165 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.076 ms
+EXPLAIN VERBOSE SELECT * FROM :tname WHERE l_extendedprice > 71000;
+                                                                                                             QUERY PLAN                                                                                                              
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=125)
+   Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=125)
+         Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 72.171 ms
+\o '/dev/null'
+SELECT * FROM :tname WHERE l_extendedprice > 71000;
+Time: 451744.454 ms
+result: table=lineitem1bssd query=qb.10pct.sql time=001479.058235892
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.292 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.179 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.063 ms
+EXPLAIN VERBOSE SELECT * FROM :tname WHERE l_extendedprice > 71000;
+                                                                                                             QUERY PLAN                                                                                                              
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=125)
+   Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=125)
+         Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 66.455 ms
+\o '/dev/null'
+SELECT * FROM :tname WHERE l_extendedprice > 71000;
+Time: 451414.027 ms
+result: table=lineitem1bssd query=qb.10pct.sql time=001475.280938765
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.283 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.183 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.135 ms
+EXPLAIN VERBOSE SELECT * FROM :tname WHERE l_extendedprice > 71000;
+                                                                                                             QUERY PLAN                                                                                                              
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=125)
+   Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=125)
+         Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 66.376 ms
+\o '/dev/null'
+SELECT * FROM :tname WHERE l_extendedprice > 71000;
+Time: 451214.860 ms
+result: table=lineitem1bssd query=qb.10pct.sql time=001484.909667016
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 3.127 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.172 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.163 ms
+EXPLAIN VERBOSE SELECT * FROM :tname WHERE l_extendedprice > 71000;
+                                                                                                             QUERY PLAN                                                                                                              
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=125)
+   Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=125)
+         Output: l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment, l_empty
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 66.363 ms
+\o '/dev/null'
+SELECT * FROM :tname WHERE l_extendedprice > 71000;
+Time: 445569.663 ms
+result: table=lineitem1bssd query=qb.10pct.sql time=001477.557025787

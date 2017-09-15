@@ -1,0 +1,176 @@
+starting 3 run query bench for table=lineitem1bssd query=qa.10pct.int.sql
+query text file:
+\timing
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.355 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.166 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.062 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=21169708.67..21169708.68 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=21169707.74..21169708.65 rows=9 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 9
+         ->  Partial Aggregate  (cost=21168707.74..21168707.75 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=10924874 width=0)
+                     Filter: (lineitem1bssd.l_orderkey > 900000000)
+(9 rows)
+
+Time: 61.337 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+Time: 453081.127 ms
+result: table=lineitem1bssd query=qa.10pct.int.sql time=00453.359213326
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 11.067 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.168 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.158 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=21169708.67..21169708.68 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=21169707.74..21169708.65 rows=9 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 9
+         ->  Partial Aggregate  (cost=21168707.74..21168707.75 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=10924874 width=0)
+                     Filter: (lineitem1bssd.l_orderkey > 900000000)
+(9 rows)
+
+Time: 60.974 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+Time: 452994.288 ms
+result: table=lineitem1bssd query=qa.10pct.int.sql time=00453.283210313
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.331 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.165 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.061 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=21169708.67..21169708.68 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=21169707.74..21169708.65 rows=9 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 9
+         ->  Partial Aggregate  (cost=21168707.74..21168707.75 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=10924874 width=0)
+                     Filter: (lineitem1bssd.l_orderkey > 900000000)
+(9 rows)
+
+Time: 66.810 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+Time: 453630.112 ms
+result: table=lineitem1bssd query=qa.10pct.int.sql time=00453.899483778
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.378 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.173 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.066 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=21169708.67..21169708.68 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=21169707.74..21169708.65 rows=9 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 9
+         ->  Partial Aggregate  (cost=21168707.74..21168707.75 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=10924874 width=0)
+                     Filter: (lineitem1bssd.l_orderkey > 900000000)
+(9 rows)
+
+Time: 61.266 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_orderkey > 900000000;
+Time: 453079.231 ms
+result: table=lineitem1bssd query=qa.10pct.int.sql time=00453.338294707

@@ -1,0 +1,163 @@
+starting 3 run query bench for table=lineitem1bssd query=qb.10pct.3cols.sql
+query text file:
+\timing
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+EXPLAIN VERBOSE SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+\o '/dev/null'
+SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.829 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.176 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.123 ms
+EXPLAIN VERBOSE SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=12)
+   Output: l_orderkey, l_partkey, l_suppkey
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=12)
+         Output: l_orderkey, l_partkey, l_suppkey
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 57.084 ms
+\o '/dev/null'
+SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+Time: 455698.688 ms
+result: table=lineitem1bssd query=qb.10pct.3cols.sql time=00625.481560273
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.858 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.093 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.058 ms
+EXPLAIN VERBOSE SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=12)
+   Output: l_orderkey, l_partkey, l_suppkey
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=12)
+         Output: l_orderkey, l_partkey, l_suppkey
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 61.191 ms
+\o '/dev/null'
+SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+Time: 454134.733 ms
+result: table=lineitem1bssd query=qb.10pct.3cols.sql time=00623.422713215
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 8.849 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.174 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.162 ms
+EXPLAIN VERBOSE SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=12)
+   Output: l_orderkey, l_partkey, l_suppkey
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=12)
+         Output: l_orderkey, l_partkey, l_suppkey
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 60.964 ms
+\o '/dev/null'
+SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+Time: 453742.146 ms
+result: table=lineitem1bssd query=qb.10pct.3cols.sql time=00620.908463515
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.816 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.178 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.159 ms
+EXPLAIN VERBOSE SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+                                            QUERY PLAN                                            
+--------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..31248247.76 rows=101058522 width=12)
+   Output: l_orderkey, l_partkey, l_suppkey
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21141395.56 rows=11228725 width=12)
+         Output: l_orderkey, l_partkey, l_suppkey
+         Filter: (lineitem1bssd.l_extendedprice > '71000'::numeric)
+(6 rows)
+
+Time: 57.046 ms
+\o '/dev/null'
+SELECT l_orderkey, l_partkey, l_suppkey FROM :tname WHERE l_extendedprice > 71000;
+Time: 451589.219 ms
+result: table=lineitem1bssd query=qb.10pct.3cols.sql time=00620.560034979

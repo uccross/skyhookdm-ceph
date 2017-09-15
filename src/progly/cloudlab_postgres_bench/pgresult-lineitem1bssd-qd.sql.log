@@ -1,0 +1,163 @@
+starting 3 run query bench for table=lineitem1bssd query=qd.sql
+query text file:
+\timing
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+EXPLAIN VERBOSE SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+\o '/dev/null'
+SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.802 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.167 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.120 ms
+EXPLAIN VERBOSE SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..21420208.67 rows=436 width=16)
+   Output: l_orderkey, l_linenumber, l_extendedprice
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21419165.07 rows=48 width=16)
+         Output: l_orderkey, l_linenumber, l_extendedprice
+         Filter: ((lineitem1bssd.l_orderkey = 5) AND (lineitem1bssd.l_linenumber = 3))
+(6 rows)
+
+Time: 55.278 ms
+\o '/dev/null'
+SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+Time: 456474.127 ms
+result: table=lineitem1bssd query=qd.sql time=00456.741046055
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.814 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.136 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.082 ms
+EXPLAIN VERBOSE SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..21420208.67 rows=436 width=16)
+   Output: l_orderkey, l_linenumber, l_extendedprice
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21419165.07 rows=48 width=16)
+         Output: l_orderkey, l_linenumber, l_extendedprice
+         Filter: ((lineitem1bssd.l_orderkey = 5) AND (lineitem1bssd.l_linenumber = 3))
+(6 rows)
+
+Time: 49.679 ms
+\o '/dev/null'
+SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+Time: 454004.545 ms
+result: table=lineitem1bssd query=qd.sql time=00454.254504919
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 5.978 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.087 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.055 ms
+EXPLAIN VERBOSE SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..21420208.67 rows=436 width=16)
+   Output: l_orderkey, l_linenumber, l_extendedprice
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21419165.07 rows=48 width=16)
+         Output: l_orderkey, l_linenumber, l_extendedprice
+         Filter: ((lineitem1bssd.l_orderkey = 5) AND (lineitem1bssd.l_linenumber = 3))
+(6 rows)
+
+Time: 46.214 ms
+\o '/dev/null'
+SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+Time: 451118.741 ms
+result: table=lineitem1bssd query=qd.sql time=00451.380342653
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 12.724 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.176 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.166 ms
+EXPLAIN VERBOSE SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..21420208.67 rows=436 width=16)
+   Output: l_orderkey, l_linenumber, l_extendedprice
+   Workers Planned: 9
+   ->  Parallel Seq Scan on public.lineitem1bssd  (cost=0.00..21419165.07 rows=48 width=16)
+         Output: l_orderkey, l_linenumber, l_extendedprice
+         Filter: ((lineitem1bssd.l_orderkey = 5) AND (lineitem1bssd.l_linenumber = 3))
+(6 rows)
+
+Time: 51.114 ms
+\o '/dev/null'
+SELECT  l_orderkey, l_linenumber, l_extendedprice FROM :tname WHERE l_orderkey=5 and l_linenumber=3;
+Time: 453456.397 ms
+result: table=lineitem1bssd query=qd.sql time=00453.725599626
