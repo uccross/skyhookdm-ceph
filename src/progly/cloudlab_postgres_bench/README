@@ -1,0 +1,26 @@
+This test runs successfully on postgres 9.6 installed on ubuntu, with database user 'postgres'.
+
+It assumes there is a table.csv data file from our tpch lineitem table, csv of various sizes.
+
+It also assumes there are 2 separate storage devices, with at least 400GB each.
+/dev/sda4 # an hdd 
+/dev/sdc  # an ssd
+
+It assumes those dirs are owned by OS user 'postgres' who also has sudo privileges.
+
+Running the create.ddl file with psql will create the tablespaces and tables and copy data into the tables.
+
+Further details are in the create.ddl file.
+
+After the tables are loaded, copy these files to the run dir:
+all queries files (q*)
+pg-bench.sh
+runscript.sh
+
+The runscript should be invoked by OS user 'postgres' with sudo as follows:
+sudo sh runscript.sh <tablename>
+
+This will run a loop of each query (q*) 3x, on tablename (e.g., lineitem1bssd).
+For additional table names please see those listed in create.ddl
+
+
