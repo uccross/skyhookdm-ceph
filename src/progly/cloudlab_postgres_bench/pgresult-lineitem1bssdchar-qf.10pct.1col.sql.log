@@ -1,0 +1,165 @@
+starting 3 run query bench for table=lineitem1bssdchar query=qf.10pct.1col.sql
+query text file:
+\timing
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes ;
+EXPLAIN VERBOSE SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+\o '/dev/null'
+SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+
+
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes ;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 7.346 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.179 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.164 ms
+EXPLAIN VERBOSE SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..30545917.18 rows=70726941 width=4)
+   Output: l_linenumber
+   Workers Planned: 10
+   ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=7072694 width=4)
+         Output: l_linenumber
+         Filter: (lineitem1bssdchar.l_comment ~~* '%uriously%'::text)
+(6 rows)
+
+Time: 50.849 ms
+\o '/dev/null'
+SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+Time: 408548.048 ms
+result: table=lineitem1bssdchar query=qf.10pct.1col.sql time=00431.254939263
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes ;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 7.365 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.115 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.081 ms
+EXPLAIN VERBOSE SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..30545917.18 rows=70726941 width=4)
+   Output: l_linenumber
+   Workers Planned: 10
+   ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=7072694 width=4)
+         Output: l_linenumber
+         Filter: (lineitem1bssdchar.l_comment ~~* '%uriously%'::text)
+(6 rows)
+
+Time: 45.334 ms
+\o '/dev/null'
+SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+Time: 409353.923 ms
+result: table=lineitem1bssdchar query=qf.10pct.1col.sql time=00434.037667018
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes ;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 7.370 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.146 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.064 ms
+EXPLAIN VERBOSE SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..30545917.18 rows=70726941 width=4)
+   Output: l_linenumber
+   Workers Planned: 10
+   ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=7072694 width=4)
+         Output: l_linenumber
+         Filter: (lineitem1bssdchar.l_comment ~~* '%uriously%'::text)
+(6 rows)
+
+Time: 45.372 ms
+\o '/dev/null'
+SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+Time: 400835.245 ms
+result: table=lineitem1bssdchar query=qf.10pct.1col.sql time=00426.498861968
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes ;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 10.298 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.142 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.060 ms
+EXPLAIN VERBOSE SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+                                             QUERY PLAN                                             
+----------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..30545917.18 rows=70726941 width=4)
+   Output: l_linenumber
+   Workers Planned: 10
+   ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=7072694 width=4)
+         Output: l_linenumber
+         Filter: (lineitem1bssdchar.l_comment ~~* '%uriously%'::text)
+(6 rows)
+
+Time: 45.430 ms
+\o '/dev/null'
+SELECT l_linenumber FROM :tname WHERE l_comment ilike '%uriously%';
+Time: 405119.484 ms
+result: table=lineitem1bssdchar query=qf.10pct.1col.sql time=00428.386156073

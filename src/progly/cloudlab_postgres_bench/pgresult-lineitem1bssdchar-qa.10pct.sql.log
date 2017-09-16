@@ -1,0 +1,176 @@
+starting 3 run query bench for table=lineitem1bssdchar query=qa.10pct.sql
+query text file:
+\timing
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.590 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.084 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.051 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=23498214.68..23498214.69 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=23498213.64..23498214.66 rows=10 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 10
+         ->  Partial Aggregate  (cost=23497213.64..23497213.66 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=9996226 width=0)
+                     Filter: (lineitem1bssdchar.l_extendedprice > '71000'::numeric)
+(9 rows)
+
+Time: 59.994 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+Time: 840099.942 ms
+result: table=lineitem1bssdchar query=qa.10pct.sql time=00840.430376825
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.530 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.101 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.084 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=23498214.68..23498214.69 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=23498213.64..23498214.66 rows=10 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 10
+         ->  Partial Aggregate  (cost=23497213.64..23497213.66 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=9996226 width=0)
+                     Filter: (lineitem1bssdchar.l_extendedprice > '71000'::numeric)
+(9 rows)
+
+Time: 65.732 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+Time: 505158.509 ms
+result: table=lineitem1bssdchar query=qa.10pct.sql time=00505.453571620
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.525 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.174 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.127 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=23498214.68..23498214.69 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=23498213.64..23498214.66 rows=10 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 10
+         ->  Partial Aggregate  (cost=23497213.64..23497213.66 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=9996226 width=0)
+                     Filter: (lineitem1bssdchar.l_extendedprice > '71000'::numeric)
+(9 rows)
+
+Time: 65.574 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+Time: 509955.539 ms
+result: table=lineitem1bssdchar query=qa.10pct.sql time=00510.243838549
+1
+CACHE CLEARED AND Postgres restarted...READY!!!
+\timing
+Timing is on.
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+ force_parallel_mode 
+---------------------
+ off
+(1 row)
+
+Time: 6.514 ms
+ max_parallel_workers_per_gather 
+---------------------------------
+ 30
+(1 row)
+
+Time: 0.086 ms
+ max_worker_processes 
+----------------------
+ 32
+(1 row)
+
+Time: 0.056 ms
+EXPLAIN VERBOSE SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=23498214.68..23498214.69 rows=1 width=8)
+   Output: count(*)
+   ->  Gather  (cost=23498213.64..23498214.66 rows=10 width=8)
+         Output: (PARTIAL count(*))
+         Workers Planned: 10
+         ->  Partial Aggregate  (cost=23497213.64..23497213.66 rows=1 width=8)
+               Output: PARTIAL count(*)
+               ->  Parallel Seq Scan on public.lineitem1bssdchar  (cost=0.00..23472223.08 rows=9996226 width=0)
+                     Filter: (lineitem1bssdchar.l_extendedprice > '71000'::numeric)
+(9 rows)
+
+Time: 65.782 ms
+\o '/dev/null'
+SELECT count(*) FROM :tname WHERE l_extendedprice > 71000;
+Time: 507634.843 ms
+result: table=lineitem1bssdchar query=qa.10pct.sql time=00507.916502160
