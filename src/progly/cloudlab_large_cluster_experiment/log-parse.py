@@ -99,7 +99,7 @@ def main(argv):
         usage()
         
    # header = ["filename", "nosds", "nobjs","query", "run", "time", "pool", "qdepth","wthreads", "selectivity-pct", "cls", "cache", "dir"]
-    header = ["filename",  "nobjs","query", "selectivity-pct", "cls", "cache", "start", "end", "resp-time", "offset-from-epoch-qstart", "offset-from-epoch-qend"]
+    header = ["filename", "nosds", "nobjs","query", "selectivity-pct", "cls", "cache", "start", "end", "resp-time", "offset-from-epoch-qstart", "offset-from-epoch-qend"]
     print ",".join(header)
     
     with open(infile) as f:
