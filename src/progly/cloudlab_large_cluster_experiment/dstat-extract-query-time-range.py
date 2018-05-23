@@ -66,8 +66,14 @@ def makeDict(line, debug):
     return dict
         
 def usage():
-    print "usage: --dstatlog <file> --runlog <file> --outfile <outlog> --query <a|b|c|d|e|f|g> --cls <use-cls|no-cls> --cache <cold|hot> --selectivity-pct <1|10|100|unique|none> [--debug]"
+    print "usage: --dstatlog <file> --runlog <file> --outfile <outlog> --query <a|b|c|d|e|f|g> --cls <use-cls|no-cls> --cache <cold|hot> --selectivity-pct <1|10|100|unique|none> [--debug] [--help]"
     sys.exit(2)
+
+def helpmsg():
+    print "extracts relevant epoch time portion of large dstat log to match the start to end epoch time of the given query params, which are first extracted from the query run log."
+    print "requires as input a dstat csv log (assumes epoch is always the last column), a runlog such as 1osds.log, an output file for the extracted relevant portion of full dstat log, "
+    print "and set of query params: query name (a,b...); cls, cache, selectivity-pct as follows."
+    usage()
     
     
 def main(argv):
@@ -76,14 +82,15 @@ def main(argv):
     try:
         opts, args = getopt.getopt(
             argv,
-            "gd:r:o:q:u:c:s:",
-            ["debug","dstatlog=","runlog=","outfile=","query=","cls=","cache=","selectivity-pct="])            
+            "hgd:r:o:q:u:c:s:",
+            ["help","debug","dstatlog=","runlog=","outfile=","query=","cls=","cache=","selectivity-pct="])            
     except getopt.GetoptError:
         usage()
         
     global epoch_start 
     epoch_start = 0
     
+    help = False
     debug = False
     dstatlog = ""
     runlog = ""
@@ -96,7 +103,9 @@ def main(argv):
     }
     
     for opt, arg in opts:
-        if opt in ("-g", "--debug"):
+        if opt in ("-h", "--help"):
+            help = True
+        elif opt in ("-g", "--debug"):
             debug = True
         elif opt in ("-d", "--dstatlog"):
             dstatlog = arg        
@@ -115,6 +124,9 @@ def main(argv):
     
     print "will search for params:"
     print(json.dumps(params, indent=4))
+    
+    if help == True:
+        helpmsg()
     if runlog == "" or  dstatlog == "" or outfile == "":
         usage()
     
