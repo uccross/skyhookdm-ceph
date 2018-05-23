@@ -66,7 +66,7 @@ def makeDict(line, debug):
     return dict
         
 def usage():
-    print "usage: ./this.py --dstatlog <file> --runlog <file> [--query <a|b|...>)] [--epoch <epoch start> [--debug]"
+    print "usage: --dstatlog <file> --runlog <file> --outfile <outlog> --query <a|b|c|d|e|f|g> --cls <use-cls|no-cls> --cache <cold|hot> --selectivity-pct <1|10|100|unique|none> [--debug]"
     sys.exit(2)
     
     
