@@ -193,6 +193,7 @@ def main(argv):
                 matched_lines += 1
                 print line
                 ofile.write(line+"\n")
+    ofile.close()
       
     print "\n\nstarting with line#:" + str(first_line) + " in dstatlog: " + dstatlog 
     print  "sfound " + str(matched_lines) + " lines that matched where epoch start was " + str(start) + "; epoch end was " + str(end)
