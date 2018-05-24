@@ -1,0 +1,18 @@
+"Dstat 0.7.2 CSV output"
+"Author:","Dag Wieers <dag@wieers.com>",,,,"URL:","http://dag.wieers.com/home-made/dstat/"
+"Host:","osd0.skyhook-2osds.skyhook-pg0.wisc.cloudlab.us",,,,"User:","jlefevre"
+"Cmdline:","dstat -av --epoch --integer --noheaders --output 2osds.dstat-osd0.log 5",,,,"Date:","25 Apr 2017 15:01:59 CDT"
+
+"total cpu usage",,,,,,"dsk/total",,"net/total",,"paging",,"system",,"procs",,,"memory usage",,,,"paging",,"dsk/total",,"system",,"total cpu usage",,,,,,"epoch"
+"usr","sys","idl","wai","hiq","siq","read","writ","recv","send","in","out","int","csw","run","blk","new","used","buff","cach","free","in","out","read","writ","int","csw","usr","sys","idl","wai","hiq","siq","epoch"
+
+
+"Host:","osd0.skyhook-2osds.skyhook-pg0.wisc.cloudlab.us",,,,"User:","jlefevre"
+"Cmdline:","dstat -av --epoch --integer --noheaders --output 2osds.dstat-osd0.log 5",,,,"Date:","25 Apr 2017 15:08:52 CDT"
+
+"total cpu usage",,,,,,"dsk/total",,"net/total",,"paging",,"system",,"procs",,,"memory usage",,,,"paging",,"dsk/total",,"system",,"total cpu usage",,,,,,"epoch"
+"usr","sys","idl","wai","hiq","siq","read","writ","recv","send","in","out","int","csw","run","blk","new","used","buff","cach","free","in","out","read","writ","int","csw","usr","sys","idl","wai","hiq","siq","epoch"
+0.010,0.005,99.985,0.0,0.0,0.0,0.0,2457.600,1884.600,23462.400,0.0,0.0,119.0,122.400,0.0,0.0,0.0,5079547904.0,1507328.0,70899032064.0,92800106496.0,0.0,0.0,0.0,2457.600,118.800,122.400,0.010,0.0,99.990,0.0,0.0,0.0,1493166322.689,
+2.042,3.423,94.526,0.0,0.0,0.010,0.0,0.0,100169.400,92384.200,0.0,0.0,3369.600,4210.800,3.600,0.0,0.0,5180112896.0,1507328.0,70899032064.0,92699541504.0,0.0,0.0,0.0,0.0,3372.400,4212.400,2.047,3.438,94.505,0.0,0.0,0.010,1493166327.689,
+6.671,11.058,82.211,0.010,0.0,0.050,0.0,2457.600,325649.200,274950.400,0.0,0.0,10750.0,13600.600,6.800,0.0,0.0,5184815104.0,1515520.0,70899032064.0,92694831104.0,0.0,0.0,0.0,2457.600,10747.600,13600.200,6.669,11.050,82.220,0.010,0.0,0.050,1493166332.689,
+2.221,3.572,94.201,0.0,0.0,0.005,0.0,0.0,109459.400,115790.200,0.0,0.0,3772.800,4716.600,1.200,0.0,0.0,5107863552.0,1515520.0,70899032064.0,92771782656.0,0.0,0.0,0.0,0.0,3772.400,4715.400,2.216,3.567,94.211,0.0,0.0,0.005,1493166337.689,

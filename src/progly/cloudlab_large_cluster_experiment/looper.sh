@@ -1,6 +1,6 @@
 #!/bin/bash
-
-for nosds in '1' 
+outdir=$1
+for nosds in '1'  '2' '4' '8' '16'
 do
     echo ${nosds}
     
@@ -22,10 +22,10 @@ do
         
             echo "passed continue"
             
-            cmdbase="python dstat-extract-query-time-range.py --dstatlog  ${dstatlog} --runlog ${runlog}"
+            cmdbase="python dstat-extract-query-time-range.py --dstatlog  ${dstatlog} --runlog ${runlog} --outdir ${outdir}"
             #echo $cmdbase
             
-            for qname in 'a' #'b' 'c' 'd' 'e' 'f'
+            for qname in 'a' 'b' 'c' 'd' 'e' 'f'
             do 
                 for cls in 'use-cls' 'no-cls'
                 do 
