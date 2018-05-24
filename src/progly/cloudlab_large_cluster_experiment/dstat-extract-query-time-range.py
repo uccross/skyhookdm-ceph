@@ -66,7 +66,7 @@ def makeDict(line, debug):
     return dict
         
 def usage():
-    print "usage: --dstatlog <file> --runlog <file> --outfile <outlog> --query <a|b|c|d|e|f|g> --cls <use-cls|no-cls> --cache <cold|hot> --selectivity-pct <1|10|100|unique|none> [--debug] [--help]"
+    print "usage: --dstatlog <file> --runlog <file> --query <a|b|c|d|e|f|g> --cls <use-cls|no-cls> --cache <cold|hot> --selectivity-pct <1|10|100|unique|none> [--debug] [--help]"
     sys.exit(2)
 
 def helpmsg():
@@ -78,12 +78,11 @@ def helpmsg():
     
 def main(argv):
     
-
     try:
         opts, args = getopt.getopt(
             argv,
-            "hgd:r:o:q:u:c:s:",
-            ["help","debug","dstatlog=","runlog=","outfile=","query=","cls=","cache=","selectivity-pct="])            
+            "hgd:r:o:q:u:c:s:p:",
+            ["help","debug","dstatlog=","runlog=","query=","cls=","cache=","selectivity-pct=","outdir="])            
     except getopt.GetoptError:
         usage()
         
@@ -94,7 +93,7 @@ def main(argv):
     debug = False
     dstatlog = ""
     runlog = ""
-    outfile = ""
+    outdir = "./"
     params = {
         "cls":"",
         "cache":"",
@@ -111,29 +110,35 @@ def main(argv):
             dstatlog = arg        
         elif opt in ("-r", "--runlog"):
             runlog = arg
-        elif opt in ("-o", "--outfile"):
-            outfile = arg        
         elif opt in ("-q", "--query"):
-            params["query"] = arg             
+            params["query"] = arg      
+        elif opt in ("-p", "--outdir"):
+            outdir = os.path.abspath(arg) 
+            print "outdir=" + outdir
+            if os.path.exists(outdir):   
+                print outdir
+            else:
+                print "ERROR: --outdir does not exist"
+                usage()
         elif opt in ("-u", "--cls"):
             params["cls"] = arg        
         elif opt in ("-c", "--cache"):
             params["cache"] = arg        
         elif opt in ("-s", "--selectivity-pct"):
-            params["selectivity-pct"] = arg   
+            params["selectivity-pct"] = arg
     
-    print "will search for params:"
-    print(json.dumps(params, indent=4))
-    
+    #print ",".join([str(len(v)) for v in params.values()])
+    #if 0 in [len(v) for v in params.values()]:
+       # print "\n\n\nhello"
     if help == True:
         helpmsg()
-    if runlog == "" or  dstatlog == "" or outfile == "":
+    if runlog == "" or  dstatlog == "" or 0 in [len(v) for v in params.values()]:
         usage()
-    
-    print "\n\n"
+    print "\n"
     
     header = ["filename", "nosds", "nobjs","query", "selectivity-pct", "cls", "cache", "start", "end", "resp-time", "offset-from-epoch-qstart", "offset-from-epoch-qend"]
-    print ",".join(header)
+    if debug:
+        print ",".join(header)
     
     # this gets the runlog data, we need the start and end time for each query and its params.
     match = False
@@ -152,19 +157,20 @@ def main(argv):
                 else: 
                     results["nosds"] = f.name.rstrip("osds.log")
                 data = ",".join(results[k] for k in header)
-                #print data
+                if debug:
+                    print data
                 match = True
                 for k,v in params.items():
                     if results[k] == v:
                         match = match and True
-                        #print "k=" + k + ";v=" + v
                     else:
                         match = match and False
                 if match:
                     start = int(results["start"]) 
                     end = int(results["end"]) 
-                    print "found matching runlog line:" + data
-                    print "start time=" + str(start) + "; end time=" + str(end) + "; resp time=" + str(end - start)
+                    if debug:
+                        print "found matching runlog line:" + data
+                        print "start time=" + str(start) + "; end time=" + str(end) + "; resp time=" + str(end - start)
                     break
                     
     if not match:
@@ -175,7 +181,14 @@ def main(argv):
     linenum = 0
     matched_lines = 0
     first_line = 0;
-    ofile = open(outfile, "w")
+    fname = dstatlog + \
+        ".query." + params["query"] + \
+        ".cache." + params["cache"] + \
+        ".cls." + params["cls"] + \
+        ".sel." + params["selectivity-pct"]
+    outpath = os.path.join(outdir, fname)
+    print outpath
+    ofile = open(outpath, "w")
     ofile_header = ""
     with open(dstatlog) as f:
         for line in f:
@@ -191,15 +204,16 @@ def main(argv):
                     ofile.write(ofile_header)
                     first_line = linenum
                 matched_lines += 1
-                print line
+                if debug:
+                    print line
                 ofile.write(line+"\n")
     ofile.close()
       
-    print "\n\nstarting with line#:" + str(first_line) + " in dstatlog: " + dstatlog 
-    print  "sfound " + str(matched_lines) + " lines that matched where epoch start was " + str(start) + "; epoch end was " + str(end)
-    print "extracted from runlog:" + runlog
-    print "with query params:"
+    print "starting with line#:" + str(first_line) + " in dstatlog: " + dstatlog + ","
+    print  "found " + str(matched_lines) + " lines that matched with epoch start=" + str(start) + "; epoch end= " + str(end)
+    print "in runlog:" + runlog + " with query params:"
     print(json.dumps(params, indent = 4))
+    print "output written to\n" + outpath
     
 
 if __name__ == "__main__":
