@@ -1,3 +1,14 @@
+/*
+* Copyright © 2018 The Regents of the University of California
+* All Rights Reserved
+*
+* This library can redistribute it and/or modify under the terms
+* of the GNU Lesser General Public License Version 2.1 as published
+* by the Free Software Foundation.
+*
+*/
+
+
 #ifndef CLS_TABULAR_H
 #define CLS_TABULAR_H
 #include "include/types.h"

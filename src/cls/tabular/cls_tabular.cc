@@ -1,3 +1,14 @@
+/*
+* Copyright © 2018 The Regents of the University of California
+* All Rights Reserved
+*
+* This library can redistribute it and/or modify under the terms
+* of the GNU Lesser General Public License Version 2.1 as published
+* by the Free Software Foundation.
+*
+*/
+
+
 #include <errno.h>
 #include <string>
 #include <sstream>
@@ -126,7 +137,7 @@ static inline std::string u64tostr(uint64_t value)
   ss << std::setw(20) << std::setfill('0') << value;
   return ss.str();
 }
- 
+
 /*
  * Convert string into numeric value.
  */
@@ -140,7 +151,7 @@ static inline int strtou64(const std::string value, uint64_t *out)
     CLS_ERR("converting key into numeric value %s", value.c_str());
     return -EIO;
   }
- 
+
   *out = v;
   return 0;
 }
