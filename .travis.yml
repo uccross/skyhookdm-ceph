@@ -1,0 +1,39 @@
+---
+# We build binaries for all branches and pull requests to verify correctness.
+# We only builds OSD binaries because there is a 50 minute time limit [1].
+# Building Ceph with a single thread on Travis only gets to about 80% complete.
+# So we only build a subset of Ceph. Looking at the changes made for Skyhook:
+#
+#     bash git diff --name-only 98a87fa
+# 
+# We only see the `cls`, `librados`, `osd`, and `osdc` directories as being
+# changed, so we only need to compile `ceph-osd`, `osdc`, and `librados`. When
+# we add `cls` classes, we'll need to compile these, too.
+# 
+# We cannot pull precompiled artifacts because the size of the libraries,
+# binaries, and objects is about 40GB; the disk size of Travis [2] is 30GB
+# total so we run out of space. We also tried compiling using `-DWITH_RBD=OFF`,
+# `-DWITH_CEPHFS=OFF`, and `-DWITH_RGW=OFF` but there were `dencoder` errors.
+#
+# [1] https://docs.travis-ci.com/user/customizing-the-build/#Build-Timeouts
+# [2] https://docs.travis-ci.com/user/reference/overview/#Virtualisation-Environment-vs-Operating-System)
+
+dist: xenial
+
+sudo: required
+
+services:
+  - docker
+
+before_install:
+  - sudo apt-get -y -qq update
+  - sudo apt-get -o Dpkg::Options::="--force-confnew" install -y docker-ce
+
+env:
+  - RELEASE=kraken THREADS=2
+  - RELEASE=kraken THREADS=1
+
+script:
+  - docker run -di --name test -v /home/travis/build/uccross/skyhook-ceph:/ceph cephbuilder/ceph:${RELEASE}
+  - docker exec test /bin/bash -c "mkdir build && cd build && cmake .." >> /dev/null
+  - docker exec test /bin/bash -c "cd build && make -j${THREADS} ceph-osd osdc librados"
