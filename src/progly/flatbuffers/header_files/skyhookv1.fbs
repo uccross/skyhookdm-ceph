@@ -1,0 +1,18 @@
+namespace Tables;
+
+table Table {
+	skyhook_version:ubyte;
+	schema_version:ubyte;
+	table_name:string;
+	delete_vector:[ubyte];
+	rows:[Row];
+	nrows:uint32;
+}
+
+table Row {
+	RID:uint64;
+	nullbits:[uint64];
+	data:[ubyte] (flexbuffer);
+}
+
+root_type Table;

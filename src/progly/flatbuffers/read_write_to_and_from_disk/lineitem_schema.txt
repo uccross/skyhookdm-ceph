@@ -1,0 +1,17 @@
+orderkey linenumber
+0 orderkey int 1
+1 partkey int 1
+2 suppkey int 1
+3 linenumber int 1
+4 quantity double 2
+5 extendedprice double 2
+6 discount double 2
+7 tax double 2
+8 returnflag byte 3
+9 linestatus byte 3
+10 shipdate Date 4
+11 commitdate Date 4
+12 receipdate Date 4
+13 shipinstruct string 5
+14 shipmode string 5
+15 comment string 5
