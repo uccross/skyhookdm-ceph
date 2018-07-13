@@ -1,19 +1,25 @@
+// This IDL file represents our flatbuffer schema (Table).
+// The top level Table contains metadata and a vecor of Row Tables where each element
+// is similarly a flatbuffer table.
+// The Row Table also has metadata about the flexbuffer (single row)
+// which contains the row's data
+
 namespace Tables;
 
 table Table {
-	skyhook_version:ubyte;
-	schema_version:ubyte;
-	table_name:string;
-	schema:string;
-	delete_vector:[ubyte];
-	rows:[Row];
-	nrows:uint32;
+	skyhook_version:ubyte;	// skyhook version
+	schema_version:ubyte;	// schema version of flexbuffers contained
+	table_name:string;	// table name containing oid for verification
+	schema:string;		// schema descriptor
+	delete_vector:[ubyte];	// used to signal a deleted row (dead records)
+	rows:[Row];		// vector of Row Tables
+	nrows:uint32;		// number of rows in buffer
 }
 
 table Row {
-	RID:uint64;
-	nullbits:[uint64];
-	data:[ubyte] (flexbuffer);
+	RID:uint64;			// record ID
+	nullbits:[uint64];		// keeps track of null fields within the data
+	data:[ubyte] (flexbuffer);	// row data
 }
 
 root_type Table;

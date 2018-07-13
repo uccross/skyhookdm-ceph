@@ -8,19 +8,6 @@
 *
 */
 
-/*
-*  Updating a LINEITEM field within a FlatBuffer of FlexBuffers (Rewriting FlatBuffer)
-*
-*  Timed:
-*	Read n FlexBuffer Rows
-*		Create new FlexBuffer with the values and updated value
-*		Throw into Rows Vector
-*	Read remaining Rows
-*		Throw into Rows Vector
-*	Serialize Rows Vector
-*	Create Table
-*
-*/
 
 #include <iostream>
 #include <fstream>

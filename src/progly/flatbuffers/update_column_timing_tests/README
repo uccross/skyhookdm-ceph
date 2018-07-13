@@ -1,0 +1,19 @@
+Updating a LINEITEM field within a FlatBuffer of FlexBuffers (In-Place Mutating vs. Rewriting FlatBuffer)
+
+(updateRewriteTest.cpp)
+
+Used gettimeofday() method to time:
+1.	Read n FlexBuffer Rows
+		- Create new FlexBuffer with the values and updated value
+		- Throw into Rows Vector
+2.	Read remaining Rows
+		- Throw into Rows Vector
+3.	Serialize Rows Vector
+4.	Create Table
+
+(updateTest.cpp)
+
+Timed:
+1.	Read n FlexBuffer Rows
+		- Mutate a scalar field in-place
+	

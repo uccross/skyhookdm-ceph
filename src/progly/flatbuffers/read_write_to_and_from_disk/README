@@ -1,0 +1,26 @@
+Implemented Steps (writeBufer.cpp, readBuffer.cpp)
+--------------------------------------------------
+
+writeBuffer.cpp
+
+0. The configurable parameters are: f = data_file_name, s = schema_file_name, n = number of rows to read, r = number of rows until bucket is flushed, o = number of objects in Ceph cluster
+1. Opens a .csv file within its own directory (/skyhook-ceph/src/progly/flatbuffers/read_write_to_and_from_disk/lineitem-10K-nulls.tbl)
+2. Prompt for configurable parameters if missing
+
+Loop until number of rows to read is reached or no more rows in file:
+3. Call get_next_row to parse and extract the row data according to a given schema file (/skyhook-ceph/src/progly/flatbuffers/read_write_to_and_from_disk/lineitem_schema.txt)
+4. Use schema file to build a flexbuffer containing current row data
+5. Extract the key columns(s) and create composite key of 64-bit int over 2 columns (linenumber+orderkey)
+6. Uses jumpconsistent hash to map the key to a bucket number (buckets are created if it does not already exist, and bucket key represents the object id)
+7. Inserts flexbuffer row into FlatBufferBuilder within returned bucket
+8. If current count of rows in builder reached our flush_rows parameter, then flush bucket to disk
+9. If bucket is flushed, clear the bucket and remove from map
+endloop
+
+10. Iterate over map of current buckets flushing any remaining partially full buckets to disk
+11. Clear all buckets and free allocated memory
+
+
+readBuffer.cpp
+
+- In Progress
