@@ -31,7 +31,7 @@ before_install:
 
 env:
   - RELEASE=kraken THREADS=2
-  - RELEASE=kraken THREADS=1
+  #- RELEASE=kraken THREADS=1
 
 script:
   - docker run -di --name test -v /home/travis/build/uccross/skyhook-ceph:/ceph cephbuilder/ceph:${RELEASE}
