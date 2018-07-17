@@ -17,6 +17,8 @@
 #
 # [1] https://docs.travis-ci.com/user/customizing-the-build/#Build-Timeouts
 # [2] https://docs.travis-ci.com/user/reference/overview/#Virtualisation-Environment-vs-Operating-System)
+# 
+# Travis build url:  https://travis-ci.com/uccross/skyhookdb-ceph
 
 dist: xenial
 
@@ -34,6 +36,6 @@ env:
   #- RELEASE=kraken THREADS=1
 
 script:
-  - docker run -di --name test -v /home/travis/build/uccross/skyhook-ceph:/ceph cephbuilder/ceph:${RELEASE}
+  - docker run -di --name test -v /home/travis/build/uccross/skyhookdb-ceph:/ceph cephbuilder/ceph:${RELEASE}
   - docker exec test /bin/bash -c "mkdir build && cd build && cmake .." >> /dev/null
-  - docker exec test /bin/bash -c "cd build && make -j${THREADS} ceph-osd osdc librados"
+  - docker exec test /bin/bash -c "cd build && make -j${THREADS} ceph-osd osdc librados cls_tabular"
