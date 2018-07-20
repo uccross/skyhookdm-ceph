@@ -1,5 +1,11 @@
 # these were used for earlier test of single col integer distributions/filtering
 # may still be useful but moved out of main progly dir.
+
+add_executable(run-query run-query.cc)
+target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-query DESTINATION bin)
+
 add_executable(tabular-datagen tabular-datagen.cc)
 target_link_libraries(tabular-datagen librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY})
