@@ -26,23 +26,44 @@ struct Table FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint8_t skyhook_version() const {
     return GetField<uint8_t>(VT_SKYHOOK_VERSION, 0);
   }
+  bool mutate_skyhook_version(uint8_t _skyhook_version) {
+    return SetField<uint8_t>(VT_SKYHOOK_VERSION, _skyhook_version, 0);
+  }
   uint8_t schema_version() const {
     return GetField<uint8_t>(VT_SCHEMA_VERSION, 0);
+  }
+  bool mutate_schema_version(uint8_t _schema_version) {
+    return SetField<uint8_t>(VT_SCHEMA_VERSION, _schema_version, 0);
   }
   const flatbuffers::String *table_name() const {
     return GetPointer<const flatbuffers::String *>(VT_TABLE_NAME);
   }
+  flatbuffers::String *mutable_table_name() {
+    return GetPointer<flatbuffers::String *>(VT_TABLE_NAME);
+  }
   const flatbuffers::String *schema() const {
     return GetPointer<const flatbuffers::String *>(VT_SCHEMA);
+  }
+  flatbuffers::String *mutable_schema() {
+    return GetPointer<flatbuffers::String *>(VT_SCHEMA);
   }
   const flatbuffers::Vector<uint8_t> *delete_vector() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
   }
+  flatbuffers::Vector<uint8_t> *mutable_delete_vector() {
+    return GetPointer<flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
+  }
   const flatbuffers::Vector<flatbuffers::Offset<Row>> *rows() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Row>> *>(VT_ROWS);
   }
+  flatbuffers::Vector<flatbuffers::Offset<Row>> *mutable_rows() {
+    return GetPointer<flatbuffers::Vector<flatbuffers::Offset<Row>> *>(VT_ROWS);
+  }
   uint32_t nrows() const {
     return GetField<uint32_t>(VT_NROWS, 0);
+  }
+  bool mutate_nrows(uint32_t _nrows) {
+    return SetField<uint32_t>(VT_NROWS, _nrows, 0);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -147,11 +168,20 @@ struct Row FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint64_t RID() const {
     return GetField<uint64_t>(VT_RID, 0);
   }
+  bool mutate_RID(uint64_t _RID) {
+    return SetField<uint64_t>(VT_RID, _RID, 0);
+  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
+  flatbuffers::Vector<uint64_t> *mutable_nullbits() {
+    return GetPointer<flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
+  }
   const flatbuffers::Vector<uint8_t> *data() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA);
+  }
+  flatbuffers::Vector<uint8_t> *mutable_data() {
+    return GetPointer<flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
   flexbuffers::Reference data_flexbuffer_root() const {
     auto v = data();
@@ -222,6 +252,10 @@ inline const Tables::Table *GetTable(const void *buf) {
 
 inline const Tables::Table *GetSizePrefixedTable(const void *buf) {
   return flatbuffers::GetSizePrefixedRoot<Tables::Table>(buf);
+}
+
+inline Table *GetMutableTable(void *buf) {
+  return flatbuffers::GetMutableRoot<Table>(buf);
 }
 
 inline bool VerifyTableBuffer(

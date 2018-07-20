@@ -23,7 +23,7 @@ using namespace Tables;
 const uint8_t SKYHOOK_VERSION = 1;
 const uint8_t SCHEMA_VERSION = 1;
 const string SCHEMA = " ";
-uint64_t RID = 0;
+uint64_t RID = 1;
 enum DataType {TypeInt = 1, TypeDouble, TypeChar, TypeDate, TypeString};
 typedef flatbuffers::FlatBufferBuilder fbBuilder;
 typedef flatbuffers::FlatBufferBuilder* fbb;
@@ -269,7 +269,7 @@ vector<int> getSchema(vector<string>& compositeKey, string& schema_file_name) {
 	// Parse Schema File for Data Types
 	while( getline(schemaFile, line) ) {
 		vector<string> parsedData = split(line, ' ');
-		schema.push_back( atoi(parsedData[3].c_str()) );
+		schema.push_back( atoi(parsedData[1].c_str()) );
 	}
 
 	cout<<"'"<<schema_file_name<<"' was sucessfully read and schema vector passed back!"<<endl<<endl;
@@ -371,10 +371,13 @@ int findKeyIndexWithinSchema(string schemaFileName, string key) {
 	while( getline(schemaFile, line) ) {
 		vector<string> parsedData = split(line, ' ');
 		// Hardcoded to know schema file 
-		//	has 'name' field as 2nd column of schema file
-		//	and has 'field number' as 1st column of schema file
-		//	field number | name | data type | data type enum
-		if( strcmp(parsedData[1].c_str(), key.c_str()) == 0) {
+		//	has 'column number' as 1st column of schema file
+		//	'data type enum' as 2nd column of schema file
+		//	and 'name' field as 3rd column of schema file
+		//
+		//	Ex:	column number | data type enum | column name
+		//
+		if( strcmp(parsedData[2].c_str(), key.c_str()) == 0) {
 			schemaFile.close();
 			return atoi(parsedData[0].c_str());
 		}

@@ -23,4 +23,17 @@ endloop
 
 readBuffer.cpp
 
-- In Progress
+0. The configurable parameters are: f = object_file_name, s = return_schema_file_name (use original schema_file_name if all data fields are to be read)
+1. Get object file size
+2. Build the returnSchemaString and get returnSchema and returnTypes (return column # of original schema, enum data type)
+3a. OBJECT API: Copy contents of object file into a buffer (this will use the object API for checking against our own API)
+3b. OUR API: Peels out headers and data without loading entire buffer
+	Read the root header by lseeking through file (object)
+	Read vector containing rowOffsets; pointers to the root table of each row
+
+Loop until rows have been read
+	Read each row header
+	Load a flexbuffer row into memory and compare with object API's data
+endloop
+
+4. Build return flatbuffer
