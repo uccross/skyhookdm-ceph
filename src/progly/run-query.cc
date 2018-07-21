@@ -592,12 +592,13 @@ int main(int argc, char **argv)
     assert(comment_regex != "");
     std::cout << "select * from lineitem where l_comment ilike '%"
       << comment_regex << "%'" << std::endl;
-      
+
   } else if (query == "fastpath") {   // no processing required
-      
+
     assert(!use_index); // not supported
+    assert(!projection); // not supported
     std::cout << "select * from lineitem" << std::endl;
-      
+
   } else {
     std::cerr << "invalid query: " << query << std::endl;
     exit(1);
