@@ -395,6 +395,12 @@ static void worker()
           }
         }
       }
+    } else if (query == "fastpath") {
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          print_row(row);
+          result_count++;
+        }
     } else {
       assert(0);
     }
@@ -586,7 +592,12 @@ int main(int argc, char **argv)
     assert(comment_regex != "");
     std::cout << "select * from lineitem where l_comment ilike '%"
       << comment_regex << "%'" << std::endl;
-
+      
+  } else if (query == "fastpath") {   // no processing required
+      
+    assert(!use_index); // not supported
+    std::cout << "select * from lineitem" << std::endl;
+      
   } else {
     std::cerr << "invalid query: " << query << std::endl;
     exit(1);

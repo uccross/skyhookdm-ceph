@@ -192,7 +192,17 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   uint64_t eval_ns_start = getns();
-
+  
+  // fastpath (select *) query,  we just copy data directly out.
+  if(op.query == "fastpath") { 
+      uint64_t eval_ns = 0;
+      // store timings and original data into output  BL
+      ::encode(read_ns, *out);
+      ::encode(eval_ns, *out);
+      ::encode(bl, *out);
+      return 0;
+  }
+  
   // our test data is fixed size per col and uses tpch lineitem schema.
   const size_t row_size = 141;
   const char *rows = bl.c_str();
