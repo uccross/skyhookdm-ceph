@@ -432,8 +432,6 @@ int main(int argc, char **argv)
   unsigned num_objs;
   int wthreads;
   bool build_index;
-  uint64_t test_par;
-  bool test_par_read;
   std::string logfile;
   int qdepth;
   std::string dir;
@@ -451,8 +449,6 @@ int main(int argc, char **argv)
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
-    ("test-par", po::value<uint64_t>(&test_par)->default_value(0), "test par")
-    ("test-par-read", po::bool_switch(&test_par_read)->default_value(false), "test par read")
     ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
@@ -518,23 +514,6 @@ int main(int argc, char **argv)
         std::end(target_objects));
   } else {
     assert(0);
-  }
-
-  if (test_par) {
-    std::vector<std::thread> threads;
-    for (int i = 0; i < wthreads; i++) {
-      auto ioctx = new librados::IoCtx;
-      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-      checkret(ret, 0);
-      threads.push_back(std::thread(worker_test_par,
-            ioctx, i % num_objs, test_par, test_par_read));
-    }
-
-    for (auto& thread : threads) {
-      thread.join();
-    }
-
-    return 0;
   }
 
   // build index for query "d"
