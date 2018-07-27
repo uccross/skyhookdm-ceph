@@ -32,10 +32,8 @@ before_install:
   - sudo apt-get -o Dpkg::Options::="--force-confnew" install -y docker-ce
 
 env:
-  - RELEASE=kraken THREADS=2
-  #- RELEASE=kraken THREADS=1
+  - TYPE=integration RELEASE=kraken
+  - TYPE=compilation RELEASE=kraken
 
 script:
-  - docker run -di --name test -v /home/travis/build/uccross/skyhookdb-ceph:/ceph cephbuilder/ceph:${RELEASE}
-  - docker exec test /bin/bash -c "mkdir build && cd build && cmake .." >> /dev/null
-  - docker exec test /bin/bash -c "cd build && make -j${THREADS} ceph-osd osdc librados cls_tabular"
+  - cd ci && ./test_$TYPE.sh
