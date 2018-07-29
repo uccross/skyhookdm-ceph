@@ -81,6 +81,9 @@ static std::string comment_regex;
 static std::atomic<unsigned> result_count;
 static std::atomic<unsigned> rows_returned;
 
+// total number of rows processed, client side or server side (cls).
+static std::atomic<unsigned> nrows_processed;  
+
 struct AioState {
   ceph::bufferlist bl;
   librados::AioCompletion *c;
@@ -233,6 +236,7 @@ static void worker()
     dispatch_cond.notify_one();
 
     struct timing times = s->times;
+    uint64_t nrows_cls_processed = 0;
 
     ceph::bufferlist bl;
     if (use_cls) {
@@ -240,6 +244,7 @@ static void worker()
       try {
         ::decode(times.read_ns, it);
         ::decode(times.eval_ns, it);
+        ::decode(nrows_cls_processed, it);
         ::decode(bl, it);
       } catch (ceph::buffer::error&) {
         assert(0);
@@ -263,6 +268,12 @@ static void worker()
     const size_t num_rows = bl.length() / row_size;
     rows_returned += num_rows;
 
+    if (use_cls) {
+        nrows_processed += nrows_cls_processed;
+    } else {
+        nrows_processed += num_rows;
+    }
+      
     if (query == "a") {
       if (use_cls) {
         // if we are using cls then storage system returns the number of
@@ -401,7 +412,13 @@ static void worker()
           print_row(row);
           result_count++;
         }
-    } else {
+    } else if (query == "flatbuf") { // TODO: replace with our flatbuf reader
+        for (size_t rid = 0; rid < num_rows; rid++) {
+          const char *row = rows + rid * row_size;
+          print_row(row);
+          result_count++;
+        }
+    }else {
       assert(0);
     }
 
@@ -599,6 +616,11 @@ int main(int argc, char **argv)
     assert(!projection); // not supported
     std::cout << "select * from lineitem" << std::endl;
 
+  } else if (query == "flatbuf") {   // no processing required
+
+    assert(!projection); // not supported yet
+    std::cout << "select * from lineitem" << std::endl;
+
   } else {
     std::cerr << "invalid query: " << query << std::endl;
     exit(1);
@@ -606,6 +628,7 @@ int main(int argc, char **argv)
 
   result_count = 0;
   rows_returned = 0;
+  nrows_processed = 0;
 
   outstanding_ios = 0;
   stop = false;
@@ -695,10 +718,12 @@ int main(int argc, char **argv)
 
   if (query == "a" && use_cls) {
     std::cout << "total result row count: " << result_count
-      << " / -1" << std::endl;
+      << " / -1" << "; nrows_processed=" << nrows_processed 
+      << std::endl;
   } else {
     std::cout << "total result row count: " << result_count
-      << " / " << rows_returned << std::endl;
+      << " / " << rows_returned  << "; nrows_processed=" << nrows_processed
+      << std::endl;
   }
 
   if (logfile.length()) {

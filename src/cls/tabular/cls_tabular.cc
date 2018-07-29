@@ -178,6 +178,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   bufferlist bl;
+  uint64_t rows_processed = 0;  // represents rows considered during processing
 
   // track the bufferlist read time (read_ns) vs. the processing time (eval_ns)
   uint64_t read_ns = 0;
@@ -192,21 +193,15 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   uint64_t eval_ns_start = getns();
-  
-  // fastpath (select *) query,  we just copy data directly out.
-  if(op.query == "fastpath") { 
-      uint64_t eval_ns = 0;
-      // store timings and original data into output  BL
-      ::encode(read_ns, *out);
-      ::encode(eval_ns, *out);
-      ::encode(bl, *out);
-      return 0;
-  }
-  
+
   // our test data is fixed size per col and uses tpch lineitem schema.
   const size_t row_size = 141;
   const char *rows = bl.c_str();
   const size_t num_rows = bl.length() / row_size;
+  
+  if (op.query != "flatbuf") {  // flatbuf will have its own row counter.
+    rows_processed = num_rows;
+  }
 
   bufferlist result_bl;  // result set to be returned to client.
   result_bl.reserve(bl.length());
@@ -433,6 +428,11 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         }
       }
     }
+  } else if (op.query == "fastpath") { // just copy data directly out.
+      result_bl.append(bl);
+  } else if (op.query == "flatbuf") { // TODO: replace with our flatbuf reader.
+      result_bl.append(bl);
+      rows_processed = num_rows;  // TODO: count of actual rows touched.
   } else {
     return -EINVAL;
   }
@@ -441,6 +441,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   // store timings and result set into output BL
   ::encode(read_ns, *out);
   ::encode(eval_ns, *out);
+  ::encode(rows_processed, *out);
   ::encode(result_bl, *out);
 
   return 0;
