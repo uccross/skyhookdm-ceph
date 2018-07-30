@@ -1,0 +1,1 @@
+bin/run-query --num-objs 10 --pool rbd --query c --extended-price 21168.23 --use-cls

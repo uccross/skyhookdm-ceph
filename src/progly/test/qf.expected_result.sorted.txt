@@ -1,0 +1,17 @@
+17516.7|2656|1|741225600|0.02|10|s nag regularly about the deposits. slyly
+19559.8|7909|3|760924800|0.01|10|p after the regularly even requests. caref
+23300.6|9445|1|889142400|0.06|22|ackages. regularly ironic deposits cajol
+28908.2|9732|3|797558400|0.08|20|lly. regularly even excuses cajole furi
+36177.2|9952|2|706406400|0.03|20|requests. regularly
+40314.5|8674|2|859161600|0.08|25|s are regularly
+43370.5|9634|2|893116800|0|25|fully regularly regular courts. depos
+46742.2|8294|1|718761600|0.08|33|e regularly quickly final escapades. s
+49884.9|8995|6|804211200|0.01|49|the regularly bold dependencies
+56170.1|8038|1|723254400|0.05|48|ckages wake. regularly final f
+65744|3872|6|852163200|0.07|40|nts? regularly ironic ex
+69192.8|2178|3|858556800|0|40|foxes are slowly regularly specia
+71354|9925|6|699321600|0.03|40|le regularly final asymptotes
+73953.6|7330|5|900460800|0.02|42|refully express foxes wake regularly. blit
+86063.7|7462|4|799459200|0.08|46|along the regularly ironic deposits. q
+select * from lineitem where l_comment ilike '%regularly%'
+total result row count: 15 / 10000

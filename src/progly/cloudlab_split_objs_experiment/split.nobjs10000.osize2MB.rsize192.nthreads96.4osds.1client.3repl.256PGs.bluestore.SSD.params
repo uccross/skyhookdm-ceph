@@ -1,0 +1,6 @@
+row-size: 192
+obj-size: 2097216
+num-objs: 10000
+rows/obj: 10923
+seq-start: 0
+seq-end: 10000

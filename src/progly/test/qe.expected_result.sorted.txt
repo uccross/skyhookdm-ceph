@@ -1,0 +1,20 @@
+13716.6|3169|1|757728000|0.01|12|regular d
+17370.9|8582|3|758505600|0.08|18|s sleep fluffily special, regular foxe
+24474|9860|5|758332800|0.03|15|. regular pearls u
+26867.1|256|1|758332800|0.09|22|ke quickly ironic, ironic deposits. reg
+26892.8|7457|1|757900800|0.05|19|ideas poach carefully
+28594.1|1825|4|757987200|0.05|23|wake express, even r
+28895.8|4612|2|758073600|0.1|17|equests haggle carefully silent excus
+29995.6|5863|2|758419200|0.09|21|atelets nag blithely furi
+30446.9|1732|6|757900800|0.01|16|ix carefully at the furiously regular pac
+31271.6|229|1|758246400|0.02|20|le. instructions use across the quickly fin
+31616.9|1699|2|758332800|0.07|17|haggle blithely slyly
+35937.9|2339|1|757814400|0.03|22|furiously above
+3677.62|1028|1|758160000|0.09|2|s alongside of the regular asymptotes sleep
+4652.52|7681|1|757900800|0.04|4|thely along the fur
+7420.63|1861|1|758505600|0.08|7|s foxes. slyly
+8736.96|70|1|758332800|0.03|8|ggle. carefully pending dependenc
+9135.63|8933|2|757728000|0.06|9|mise slyly afte
+9447.54|195|1|758073600|0.04|6|y, even deposits haggle carefully. bli
+select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 758678400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 24
+total result row count: 18 / 10000

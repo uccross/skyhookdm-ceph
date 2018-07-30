@@ -679,6 +679,9 @@ add_subdirectory(lua)
 # rados object classes
 add_subdirectory(cls)
 
+# re2 lib used by skyhookdb-cls 
+add_subdirectory(re2)
+
 # RADOS client/library
 add_subdirectory(osdc)
 
@@ -891,6 +894,9 @@ target_link_libraries(ceph-mds mds ${CMAKE_DL_LIBS} global-static common
 install(TARGETS ceph-mds DESTINATION bin)
 
 add_subdirectory(erasure-code)
+
+# skyhookdb client driver app
+add_subdirectory(progly)
 
 # Support/Tools
 if(WITH_TESTS)

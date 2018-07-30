@@ -1,0 +1,17 @@
+"Dstat 0.7.2 CSV output"
+"Author:","Dag Wieers <dag@wieers.com>",,,,"URL:","http://dag.wieers.com/home-made/dstat/"
+"Host:","osd1.skyhook-2osds.skyhook-pg0.wisc.cloudlab.us",,,,"User:","jlefevre"
+"Cmdline:","dstat -av --epoch --integer --noheaders --output 2osds.dstat-osd1.log 5",,,,"Date:","25 Apr 2017 15:02:01 CDT"
+
+"total cpu usage",,,,,,"dsk/total",,"net/total",,"paging",,"system",,"procs",,,"memory usage",,,,"paging",,"dsk/total",,"system",,"total cpu usage",,,,,,"epoch"
+"usr","sys","idl","wai","hiq","siq","read","writ","recv","send","in","out","int","csw","run","blk","new","used","buff","cach","free","in","out","read","writ","int","csw","usr","sys","idl","wai","hiq","siq","epoch"
+
+
+"Host:","osd1.skyhook-2osds.skyhook-pg0.wisc.cloudlab.us",,,,"User:","jlefevre"
+"Cmdline:","dstat -av --epoch --integer --noheaders --output 2osds.dstat-osd1.log 5",,,,"Date:","25 Apr 2017 15:08:55 CDT"
+
+"total cpu usage",,,,,,"dsk/total",,"net/total",,"paging",,"system",,"procs",,,"memory usage",,,,"paging",,"dsk/total",,"system",,"total cpu usage",,,,,,"epoch"
+"usr","sys","idl","wai","hiq","siq","read","writ","recv","send","in","out","int","csw","run","blk","new","used","buff","cach","free","in","out","read","writ","int","csw","usr","sys","idl","wai","hiq","siq","epoch"
+0.010,0.0,99.985,0.005,0.0,0.0,0.0,2457.600,1925.800,20547.600,0.0,0.0,110.600,116.200,0.0,0.0,0.0,5173063680.0,1703936.0,70391775232.0,93213650944.0,0.0,0.0,0.0,2457.600,110.600,116.200,0.015,0.0,99.980,0.005,0.0,0.0,1493166325.535,
+6.043,10.009,83.933,0.0,0.0,0.015,0.0,0.0,291462.200,248924.200,0.0,0.0,9836.600,12371.600,8.200,0.0,0.0,5259882496.0,1703936.0,70391775232.0,93126832128.0,0.0,0.0,0.0,0.0,9841.200,12373.800,6.043,10.024,83.917,0.0,0.0,0.015,1493166330.535,
+4.781,8.275,86.909,0.010,0.0,0.025,0.0,2457.600,238032.800,210935.800,0.0,0.0,8020.0,10010.600,3.800,0.0,0.0,5187653632.0,1712128.0,70391775232.0,93199052800.0,0.0,0.0,0.0,2457.600,8015.400,10008.400,4.776,8.261,86.928,0.010,0.0,0.025,1493166335.535,

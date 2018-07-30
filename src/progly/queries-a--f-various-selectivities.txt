@@ -1,0 +1,146 @@
+# These are the values that we can use for our first cloudlab experiments
+# simply in order to show the value of pushing down work into the storage.
+# First is the selectivity
+# Second is the PostgreSQL syntax
+# Third is the current skyhook-ceph syntax
+#
+# Query d can use an index if the query is first run with the 
+# --build-index flag
+#
+# To run, just change the bin/run-query values below for:
+# --num_objs
+# --pool
+#
+# Additional flags could be added for:
+# --use-cls
+# --projection
+# --use-index
+# --others?
+#
+#
+# ========
+# QUERY: a
+# count with range
+# ========
+#
+# selectivity 1105/1000000 = 0.1%
+# select * from lineitem1m where l_extendedprice > 99000.0;
+bin/run-query --num-objs 10 --pool rbd --query a --extended-price 99000.0
+#
+# selectivity 10058/1000000 = 1%
+# select * from lineitem1m where l_extendedprice > 91400.0;
+bin/run-query --num-objs 10 --pool rbd --query a --extended-price 91400.0
+#
+# selectivity 100452/1000000 = 10%
+# select * from lineitem1m where l_extendedprice > 71000.0;
+bin/run-query --num-objs 10 --pool rbd --query a --extended-price 71000.0
+#
+# selectivity 200822/1000000 = 20%
+# select * from lineitem1m where l_extendedprice > 59500.0;
+bin/run-query --num-objs 10 --pool rbd --query a --extended-price 59500.0
+#
+# selectivity 503747/1000000 = 50%
+# select * from lineitem1m where l_extendedprice > 36500.0;
+bin/run-query --num-objs 10 --pool rbd --query a --extended-price 36500.0
+#
+# selectivity 1000000/1000000 = 100%
+# select * from lineitem1m where l_extendedprice > 1.0;
+bin/run-query --num-objs 10 --pool rbd --query a --extended-price 1.0
+#
+#
+# ========
+# QUERY: b
+# range
+# ========
+#
+# selectivity 1105/1000000 = 0.1%
+# select * from lineitem1m where l_extendedprice > 99000.0;
+bin/run-query --num-objs 10 --pool rbd --query b --extended-price 99000.0
+#
+# selectivity 10058/1000000 = 1%
+# select * from lineitem1m where l_extendedprice > 91400.0;
+bin/run-query --num-objs 10 --pool rbd --query b --extended-price 91400.0
+#
+# selectivity 100452/1000000 = 10%
+# select * from lineitem1m where l_extendedprice > 71000.0;
+bin/run-query --num-objs 10 --pool rbd --query b --extended-price 71000.0
+#
+# selectivity 200822/1000000 = 20%
+# select * from lineitem1m where l_extendedprice > 59500.0;
+bin/run-query --num-objs 10 --pool rbd --query b --extended-price 59500.0
+#
+# selectivity 503747/1000000 = 50%
+# select * from lineitem1m where l_extendedprice > 36500.0;
+bin/run-query --num-objs 10 --pool rbd --query b --extended-price 36500.0
+#
+# selectivity 1000000/1000000 = 100%
+# select * from lineitem1m where l_extendedprice > 1.0;
+bin/run-query --num-objs 10 --pool rbd --query b --extended-price 1.0
+#
+#
+# ========
+# QUERY: c
+# equality predicate
+# ========
+#
+# selectivity 2/1000000 <= 0.01%
+# select * from lineitem1m where l_extendedprice =21168.23;
+bin/run-query --num-objs 10 --pool rbd --query c --extended-price 21168.23
+#
+#
+# ========
+# QUERY: d
+# equality predicate on 2 cols + compound index on those cols 
+# (i.e. the primary key index for lineitem table).
+# ========
+#
+# selectivity 1/1000000 = this should be a unique row
+# select * from lineitem1m where l_orderkey=5 and l_linenumber=3;
+bin/run-query --num-objs 10 --pool rbd --query d --order-key 5 --line-number 3
+#
+#
+# ========
+# QUERY: e
+# several range predicates
+# ========
+#
+# selectivity 1098/1000000 = 0.1%
+# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '01-07-1994' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 757900800 --discount-low 0.001 --discount-high 5 --quantity 100
+#
+# selectivity 10197/1000000 = 1%
+# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '01-31-1994' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 759974400 --discount-low 0.001 --discount-high 5 --quantity 100
+#
+# selectivity 50278/1000000 = 5%
+# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '05-16-1994' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 769046400 --discount-low 0.001 --discount-high 5 --quantity 100
+#
+# selectivity 100525/1000000 = 10%
+# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '09-25-1994' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 780451200 --discount-low 0.001 --discount-high 5 --quantity 100
+#
+# selectivity 250842/1000000 = 25%
+# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '10-25-1995' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 814579200 --discount-low 0.001 --discount-high 5 --quantity 100
+#
+# selectivity 499985/1000000 = 50%
+# select * from lineitem1m where l_shipdate >= '01-04-1994' and l_shipdate < '08-16-1997' and l_discount> 0.001 and l_discount < 5 and l_quantity < 100;
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 871689600 --discount-low 0.001 --discount-high 5 --quantity 100
+#
+#
+# ========
+# QUERY: f
+# regex text search
+# ========
+#
+# selectivity 10801/1000000 = 1%
+# select * from lineitem1m where l_comment ilike '%ave%';
+bin/run-query --num-objs 10 --pool rbd --query f --comment_regex ave
+#
+# selectivity 100810/1000000 = 10%
+# select * from lineitem1m where l_comment ilike '%uriously%';
+bin/run-query --num-objs 10 --pool rbd --query f --comment_regex uriously
+
+ 
+

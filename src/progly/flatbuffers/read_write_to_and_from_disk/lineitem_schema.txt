@@ -1,0 +1,17 @@
+orderkey linenumber
+0 1 orderkey
+1 1 partkey
+2 1 suppkey
+3 1 linenumber
+4 2 quantity
+5 2 extendedprice
+6 2 discount
+7 2 tax
+8 3 returnflag
+9 3 linestatus
+10 4 shipdate
+11 4 commitdate
+12 4 receipdate
+13 5 shipinstruct
+14 5 shipmode
+15 5 comment

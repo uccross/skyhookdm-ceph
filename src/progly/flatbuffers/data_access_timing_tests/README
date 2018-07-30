@@ -1,0 +1,22 @@
+Implementation Details
+----------------------
+
+1. Open a csv file and read a line
+2. Parse the line into data fields
+3. Convert and format fields into appropriate data types
+4. Build the following containers using our sample row:
+	- single row flatbuffer
+	- multirow flatbuffer
+	- single row flexbuffer (map-based)
+	- single row flexbuffer (vector-based)
+	- multirow flatbuffer of flexbuffer (vector-based) rows
+5. Use gettimeofday() to start timing data access
+
+loop for n = 100,000 runs
+6. Access one of the following:
+	- entire row of data
+	- individual fields within row
+endloop
+
+7. Stop timing
+8. Average the time by dividing by n (number of runs) 

@@ -1,0 +1,10 @@
+add_executable(run-query run-query.cc)
+target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-query DESTINATION bin)
+
+install(PROGRAMS filtering.sh DESTINATION bin
+    RENAME tabular-filtering.sh)
+
+install(PROGRAMS convert-tpch-tables.py DESTINATION bin)
+install(PROGRAMS rados-store-glob.sh DESTINATION bin)

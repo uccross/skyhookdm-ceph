@@ -1,0 +1,39 @@
+This test runs successfully on postgres 9.6 installed on ubuntu, with database user 'postgres'.
+
+It also assumes there are 2 separate storage devices, with at least 400GB each.
+/dev/sda4 # an hdd
+/dev/sdc  # an ssd
+
+It assumes those dirs are owned by OS user 'postgres' who also has sudo privileges.
+
+It assumes there is a table.csv data file from our tpch lineitem table, csv of various sizes,
+located on the hdd storage device below; the expected names of the data files are below and 
+can be changed if needed in the COPY commands at the end of the file: create.ddl.
+'/mnt/sda4/data/lineitem-10M-rows.tbl'
+'/mnt/sda4/data/lineitem-100M-rows.tbl'
+'/mnt/sda4/data/lineitem-1B-rows.tbl'
+
+Running the create.ddl file with psql will create the tablespaces and tables and copy data into the tables.
+
+Further details are in the create.ddl file.
+
+After the tables are loaded, copy these files to the run dir:
+all queries files (q*)
+pg-bench.sh
+runscript.sh
+
+The runscript should be invoked by OS user 'postgres' with sudo as follows:
+sudo sh runscript.sh <tablename>
+
+This will run a loop of each query (q*) 3x, on tablename (e.g., lineitem1bssd).
+For additional table names please see those listed in create.ddl
+
+runscript will output a pgresults-t-q.log file for each table/query name combination.
+
+Inside this log file are the explain plans for each query, the settings for parallel query
+SHOW force_parallel_mode;   SHOW max_parallel_workers_per_gather; SHOW max_worker_processes;
+which each query (q*) sets to "off", 30, and 32 respectively given cloudlab machine #cores available are 40.
+
+The execution time for each query is reported in seconds and appears on log lines of the form:
+result: table=lineitem1bssd query=qa.10pct.sql time=00453.359213326
+

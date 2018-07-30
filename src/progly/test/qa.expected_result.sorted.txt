@@ -1,0 +1,2 @@
+select count(*) from lineitem where l_extendedprice > 99000
+total result row count: 14 / 10000

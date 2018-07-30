@@ -1,0 +1,12 @@
+The goal of these experiments was to determine the costs to split objs into smaller objs, given that we may want to migrate data between storage nodes dynamically given workload characteristics and skew.
+
+For elasticity, we need to grow and shrink the storage cluster size.
+
+We can rely on the storage to automatically redistribute data objects as nodes are added/removed.  
+
+The question we explored is whether it is more costly to write+index small objs vs. larger, hence here we examine the storage costs to split different sizes, numbers, and replication factors for objects.
+
+However, given an obj split creates a new obj (new oid), we saw earlier (store-index objs) the cost to store+index varys with the number and size of objects.
+
+This experiment examines the cost to split objects, given that we may want to split into smaller objects before growing/shrinking the storage cluster, which may result in lower obj redistribution costs.
+

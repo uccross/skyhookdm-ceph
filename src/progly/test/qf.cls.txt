@@ -1,0 +1,1 @@
+bin/run-query --num-objs 10 --pool rbd --query f --comment_regex regularly --use-cls

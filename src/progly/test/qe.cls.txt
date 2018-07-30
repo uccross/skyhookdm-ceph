@@ -1,0 +1,1 @@
+bin/run-query --num-objs 10 --pool rbd --query e --ship-date-low 757641600 --ship-date-high 758678400 --discount-low 0.001 --discount-high 5 --quantity 24 --use-cls

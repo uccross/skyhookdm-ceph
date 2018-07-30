@@ -1,0 +1,1 @@
+./bin/run-query --num-objs 10 --pool rbd --query a --extended-price 99000.0 --use-cls
