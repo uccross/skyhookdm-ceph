@@ -280,13 +280,13 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       uint64_t key = ((uint64_t)op.order_key) << 32;
       key |= (uint32_t)op.line_number; 
       const std::string strkey = u64tostr(key);
-
+        
       // key lookup in omap to get the row offset
       bufferlist row_offset_bl;
       int ret = cls_cxx_map_get_val(hctx, strkey, &row_offset_bl);
       if (ret < 0 && ret != -ENOENT) {
         CLS_ERR("cant read map val index %d", ret);
-        return ret;
+        return ret;  
       }
 
       if (ret >= 0) {  // found key
@@ -298,7 +298,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           CLS_ERR("ERR cant decode index entry");
           return -EIO;
         }
-
+       
         size_t size;
         int ret = cls_cxx_stat(hctx, &size, NULL);
         if (ret < 0) {
@@ -332,7 +332,27 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         } else {
           result_bl.append(row, row_size);
         }
-      }
+      }   
+
+    // Count the num_keys stored in our index.
+    // Not free but for now used as sanity check count, and currently
+    // makes the simplifying assumption of unique keys, one per row.
+    // TODO: is there a less expensive way to count just the number of keys 
+    // for a particular index in this object, perhaps prefix-based count?
+    std::set<string> keys;
+    bool more = true;
+    const char *start_after = "\0";
+    uint64_t max_to_get = keys.max_size();
+      
+     // TODO: sort/ordering needed to continue properly from start_after  
+    while (more) { 
+        ret = cls_cxx_map_get_keys(hctx, start_after, max_to_get, &keys, &more);
+        if (ret < 0 ) {
+            CLS_ERR("cant read keys in index %d", ret);
+            return ret; 
+        }
+        rows_processed += keys.size();  
+    }
 
     } else {  // no index, look for matching row(s) and extract key cols.
       if (op.projection) {
