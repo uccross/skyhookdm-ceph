@@ -1,4 +1,4 @@
-add_executable(run-query run-query.cc)
+add_executable(run-query run-query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
 target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
 install(TARGETS run-query DESTINATION bin)

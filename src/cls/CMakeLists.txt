@@ -270,7 +270,7 @@ if(WITH_EMBEDDED)
 endif()
 
 # skyhookdb cls_tabular
-add_library(cls_tabular SHARED tabular/cls_tabular.cc)
+add_library(cls_tabular SHARED tabular/cls_tabular.cc tabular/cls_tabular_utils.cc)
 target_link_libraries(cls_tabular re2)
 set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_tabular DESTINATION ${cls_dir})

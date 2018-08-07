@@ -18,6 +18,7 @@
 #include <boost/program_options.hpp>
 #include "include/rados/librados.hpp"
 #include "cls/tabular/cls_tabular.h"
+#include "cls/tabular/cls_tabular_utils.h"
 #include "re2/re2.h"
 
 namespace po = boost::program_options;
@@ -150,6 +151,17 @@ static void print_row(const char *row)
   print_lock.unlock();
 }
 
+static void print_fb(Tables::sky_root_header *root)
+{
+    if (quiet)
+        return;
+
+    print_lock.lock();
+    Tables::printSkyRootHeader(root); 
+    Tables::printSkyRows(root); 
+    print_lock.unlock();
+}
+
 /*
  *
  */
@@ -236,15 +248,15 @@ static void worker()
     dispatch_cond.notify_one();
 
     struct timing times = s->times;
-    uint64_t nrows_cls_processed = 0;
-
+    uint64_t nrows_server_processed = 0;
+    
     ceph::bufferlist bl;
     if (use_cls) {
       ceph::bufferlist::iterator it = s->bl.begin();
       try {
         ::decode(times.read_ns, it);
         ::decode(times.eval_ns, it);
-        ::decode(nrows_cls_processed, it);
+        ::decode(nrows_server_processed, it);
         ::decode(bl, it);
       } catch (ceph::buffer::error&) {
         assert(0);
@@ -255,171 +267,210 @@ static void worker()
 
     // data is now all in bl
     delete s;
-
+    
     uint64_t eval2_start = getns();
 
-    // apply the query
-    size_t row_size;
-    if (projection && use_cls)
-      row_size = 8;
-    else
-      row_size = 141;
-    const char *rows = bl.c_str();
-    const size_t num_rows = bl.length() / row_size;
-    rows_returned += num_rows;
-
-    if (use_cls) {
-        nrows_processed += nrows_cls_processed;
-    } else {
-        nrows_processed += num_rows;
-    }
-      
-    if (query == "a") {
-      if (use_cls) {
-        // if we are using cls then storage system returns the number of
-        // matching rows rather than the actual rows. so we patch up the
-        // results to the presentation of the results is correct.
-        size_t matching_rows;
-        ceph::bufferlist::iterator it = bl.begin();
-        ::decode(matching_rows, it);
-        result_count += matching_rows;
-      } else {
-        if (projection && use_cls) {
-          result_count += num_rows;
+    if (query == "flatbuf") {
+        /* TODO: replace with our flatbuf reader.
+         * Extract flatbufs from bl in a loop here, 
+         * since multiple flatbufs can be contained in an object's bl.
+         * We need to add/encode offsets to the cls ou*t bl. 
+         * For now assume one flatbuf per bl.
+         */
+        
+        int val = 0;    // just to test scope, can be removed.
+        dummyfunc(val);  
+        
+        // print the headers here for sanity check only, can be removed.
+        Tables::sky_root_header *root = Tables::getSkyRootHeader(bl.c_str(), bl.length());
+        print_fb(root);
+        //Tables::printSkyRootHeader(root); 
+        //Tables::printSkyRows(bl.c_str(), bl.length()); 
+        
+        // local counter to accumulate nrows in all flatbuffers received.
+        rows_returned += root->nrows;
+        
+        if (use_cls) {
+            /* Server side processing already done.
+             * TODO: perform any further client-side processing required here,
+             * such as possibly aggregate global ops here (e.g., count/sort) 
+             * then convert rows to valid db tuple format.
+             */
+            
+            // count of nrows processed/considered by storage server
+            nrows_processed += nrows_server_processed;
+            
+            // server has already applied its predicates, so count all rows 
+            // here that pass after applying the remaining global ops.
+            result_count += root->nrows;  
+            
         } else {
-          for (size_t rid = 0; rid < num_rows; rid++) {
-            const char *row = rows + rid * row_size;
-            const char *vptr = row + extended_price_field_offset;
-            const double val = *(const double*)vptr;
-            if (val > extended_price) {
-              result_count++;
-              // when a predicate passes, add some extra work
-              add_extra_row_cost(extra_row_cost);
+            // read and perform all flatbuf rows processing here in the client.
+            // client will process all rows here.
+            nrows_processed += root->nrows;
+            
+            // TODO: after processing here...
+            // add matching rows to our result counter.
+            result_count += root->nrows;  
+        }
+    } else {  
+        // our older query processing code below...
+        // apply the query
+        size_t row_size;
+        if (projection && use_cls)
+          row_size = 8;
+        else
+          row_size = 141;
+        const char *rows = bl.c_str();
+        const size_t num_rows = bl.length() / row_size;
+        rows_returned += num_rows;
+        
+        if (use_cls) 
+            nrows_processed += nrows_server_processed;
+        else 
+            nrows_processed += num_rows;
+
+        if (query == "a") {
+          if (use_cls) {
+            // if we are using cls then storage system returns the number of
+            // matching rows rather than the actual rows. so we patch up the
+            // results to the presentation of the results is correct.
+            size_t matching_rows;
+            ceph::bufferlist::iterator it = bl.begin();
+            ::decode(matching_rows, it);
+            result_count += matching_rows;
+          } else {
+            if (projection && use_cls) {
+              result_count += num_rows;
+            } else {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                const char *vptr = row + extended_price_field_offset;
+                const double val = *(const double*)vptr;
+                if (val > extended_price) {
+                  result_count++;
+                  // when a predicate passes, add some extra work
+                  add_extra_row_cost(extra_row_cost);
+                }
+              }
             }
           }
-        }
-      }
-    } else if (query == "b") {
-      if (projection && use_cls) {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-      } else {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          const char *vptr = row + extended_price_field_offset;
-          const double val = *(const double*)vptr;
-          if (val > extended_price) {
-            print_row(row);
-            result_count++;
-            add_extra_row_cost(extra_row_cost);
-          }
-        }
-      }
-    } else if (query == "c") {
-      if (projection && use_cls) {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-      } else {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          const char *vptr = row + extended_price_field_offset;
-          const double val = *(const double*)vptr;
-          if (val == extended_price) {
-            print_row(row);
-            result_count++;
-            add_extra_row_cost(extra_row_cost);
-          }
-        }
-      }
-    } else if (query == "d") {
-      if (projection && use_cls) {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-      } else {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          const char *vptr = row + order_key_field_offset;
-          const int order_key_val = *(const int*)vptr;
-          if (order_key_val == order_key) {
-            const char *vptr = row + line_number_field_offset;
-            const int line_number_val = *(const int*)vptr;
-            if (line_number_val == line_number) {
+        } else if (query == "b") {
+          if (projection && use_cls) {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
               print_row(row);
               result_count++;
-              add_extra_row_cost(extra_row_cost);
             }
-          }
-        }
-      }
-    } else if (query == "e") {
-      if (projection && use_cls) {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-      } else {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-
-          const int shipdate_val = *((const int *)(row + shipdate_field_offset));
-          if (shipdate_val >= ship_date_low && shipdate_val < ship_date_high) {
-            const double discount_val = *((const double *)(row + discount_field_offset));
-            if (discount_val > discount_low && discount_val < discount_high) {
-              const double quantity_val = *((const double *)(row + quantity_field_offset));
-              if (quantity_val < quantity) {
+          } else {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              const char *vptr = row + extended_price_field_offset;
+              const double val = *(const double*)vptr;
+              if (val > extended_price) {
                 print_row(row);
                 result_count++;
                 add_extra_row_cost(extra_row_cost);
               }
             }
           }
-        }
-      }
-    } else if (query == "f") {
-      if (projection && use_cls) {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-      } else {
-        RE2 re(comment_regex);
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          const char *cptr = row + comment_field_offset;
-          const std::string comment_val = string_ncopy(cptr,
-              comment_field_length);
-          if (RE2::PartialMatch(comment_val, re)) {
-            print_row(row);
-            result_count++;
-            add_extra_row_cost(extra_row_cost);
+        } else if (query == "c") {
+          if (projection && use_cls) {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              print_row(row);
+              result_count++;
+            }
+          } else {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              const char *vptr = row + extended_price_field_offset;
+              const double val = *(const double*)vptr;
+              if (val == extended_price) {
+                print_row(row);
+                result_count++;
+                add_extra_row_cost(extra_row_cost);
+              }
+            }
           }
+        } else if (query == "d") {
+          if (projection && use_cls) {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              print_row(row);
+              result_count++;
+            }
+          } else {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              const char *vptr = row + order_key_field_offset;
+              const int order_key_val = *(const int*)vptr;
+              if (order_key_val == order_key) {
+                const char *vptr = row + line_number_field_offset;
+                const int line_number_val = *(const int*)vptr;
+                if (line_number_val == line_number) {
+                  print_row(row);
+                  result_count++;
+                  add_extra_row_cost(extra_row_cost);
+                }
+              }
+            }
+          }
+        } else if (query == "e") {
+          if (projection && use_cls) {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              print_row(row);
+              result_count++;
+            }
+          } else {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+
+              const int shipdate_val = *((const int *)(row + shipdate_field_offset));
+              if (shipdate_val >= ship_date_low && shipdate_val < ship_date_high) {
+                const double discount_val = *((const double *)(row + discount_field_offset));
+                if (discount_val > discount_low && discount_val < discount_high) {
+                  const double quantity_val = *((const double *)(row + quantity_field_offset));
+                  if (quantity_val < quantity) {
+                    print_row(row);
+                    result_count++;
+                    add_extra_row_cost(extra_row_cost);
+                  }
+                }
+              }
+            }
+          }
+        } else if (query == "f") {
+          if (projection && use_cls) {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              print_row(row);
+              result_count++;
+            }
+          } else {
+            RE2 re(comment_regex);
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              const char *cptr = row + comment_field_offset;
+              const std::string comment_val = string_ncopy(cptr,
+                  comment_field_length);
+              if (RE2::PartialMatch(comment_val, re)) {
+                print_row(row);
+                result_count++;
+                add_extra_row_cost(extra_row_cost);
+              }
+            }
+          }
+        } else if (query == "fastpath") {
+            for (size_t rid = 0; rid < num_rows; rid++) {
+              const char *row = rows + rid * row_size;
+              print_row(row);
+              result_count++;
+            }
+        } else {
+          assert(0);
         }
-      }
-    } else if (query == "fastpath") {
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-    } else if (query == "flatbuf") { // TODO: replace with our flatbuf reader
-        for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;
-          print_row(row);
-          result_count++;
-        }
-    }else {
-      assert(0);
     }
 
     times.eval2_ns = getns() - eval2_start;
