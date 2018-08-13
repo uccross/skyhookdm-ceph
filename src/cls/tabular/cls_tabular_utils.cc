@@ -8,6 +8,7 @@
 *
 */
 
+#include "cls_tabular_utils.h"
 
 #include <errno.h>
 #include <string>
@@ -15,98 +16,81 @@
 #include <boost/lexical_cast.hpp>
 #include <time.h>
 #include "include/types.h"
+
 #include "objclass/objclass.h"
+
 #include "cls_tabular.h"
-#include "cls_tabular_utils.h"
 #include "flatbuffers/flexbuffers.h"
 #include "skyhookv1_generated.h"
 
-void dummyfunc(int val) 
-{
-    std::cout << std::endl;
-}
+namespace Tables {
 
-/* 
- * Extracts the schema format (cols/types) from the base schema string. 
- * Used for both the Table's current schema and the query's return schema
- * TODO: remove from top level fb and store in omap to better support 
- *             schema evolution.
- */ 
-int Tables::getSchemaFormat(std::string schema_string, vector<col_info>& cols) 
-{
+int extractSchema(vector<struct col_info> &schema, string& schema_string) {
 
-	// Parse Schema string for Composite Key
-    vector<std::string> lines = delimStringSplit(schema_string, '\n');
-    if(lines.size() < 1) {
-      return -1;
+    vector<std::string> elems;
+    boost::split(elems, schema_string, boost::is_any_of("\n"),
+            boost::token_compress_on);
+
+    // assume schema has at least one col
+    if (elems.size() < 1)
+        return 1;
+
+    for (vector<string>::iterator it = elems.begin(); it != elems.end(); ++it) {
+
+        vector<std::string> s;
+        boost::split(s, *it, boost::is_any_of(" "), boost::token_compress_on);
+
+        // expected num of items in our col_info struct
+        if (s.size() != 4)
+            return 1;
+
+        struct col_info c = col_info(s[0], s[1], s[2], s[3]);
+        schema.push_back(c);
     }
-    
-	// Extract compositeKey (this is the partitioning key)
-    // currently storate as the first line in a schema string.
-	vector<string> compositeKey;
-	compositeKey = delimStringSplit(lines.at(0),' ');
-
-	// Extract col nums/Data Types
-	for (unsigned int i = 1; i < lines.size(); i++) {
-        vector<string> vals = delimStringSplit(lines.at(i), ' ');
-        col_info c = {atoi(vals[0].c_str()), atoi(vals[1].c_str()), vals[2]};
-        cols.push_back(c);
-	}
-	
-	return 0;
+    return 0;
 }
 
-inline std::vector<std::string> Tables::delimStringSplit(const std::string &s, char delim) 
+void printSkyRootHeader(sky_root_header *root)
 {
-	std::istringstream ss(s);
-	std::string item;
-	std::vector<std::string> tokens;
-	while(getline(ss, item, delim)) {
-		tokens.push_back(item);
-	}
-	return tokens;
+    cout<<"\n[ROOT HEADER]"<<endl;
+    cout<<"skyhook version: "<<root->skyhook_version<<endl;
+    cout<<"schema version: "<<root->schema_version<<endl;
+    cout<<"table name: "<<root->table_name<<endl;
+    cout<<"schema: "<<root->schema<<endl;
+    cout<<"delete vector: [";
+    for(int i=0;i< (int)root->delete_vec.size();i++) {
+        cout<<(int)root->delete_vec[i];
+        if(i != (int)root->delete_vec.size()-1 )
+            cout<<", ";
+    }
+    cout<<"]"<<endl;
+    cout<<"row offset: "<<root->rows_offset<<endl;
+    cout<<"nrows: "<<root->nrows<<endl;
+    cout<<endl;
 }
 
-void Tables::printSkyRootHeader(sky_root_header *root)
+void printSkyRows(sky_root_header *root)
 {
-    
-	cout<<"\n[ROOT HEADER]"<<endl;
-	cout<<"skyhook version: "<<root->skyhook_version<<endl;
-	cout<<"schema version: "<<root->schema_version<<endl;
-	cout<<"table name: "<<root->table_name<<endl;
-	cout<<"schema: "<<root->schema<<endl;
-	cout<<"delete vector: [";
-	for(int i=0;i< (int)root->delete_vec.size();i++) {
-		cout<<(int)root->delete_vec[i];
-		if(i != (int)root->delete_vec.size()-1 )
-			cout<<", ";
-	}
-	cout<<"]"<<endl;
-	cout<<"row offset: "<<root->rows_offset<<endl;
-	cout<<"nrows: "<<root->nrows<<endl;
-	cout<<endl;
-}
-
-void Tables::printSkyRows(sky_root_header *root)
-{
-    /* TODO: use our flatbuf row reader from 
+    /* TODO: use our flatbuf row reader from
      * src/progly/flatbuffers/read_write_flatbuffs
      */
-    std::cout << std::endl << "TODO:extract and print rows here." << std::endl;
+    cout << "\nTODO:extract and print rows here." << endl;
 }
 
-Tables::sky_root_header* Tables::getSkyRootHeader(const char* fb, size_t fb_size)
+sky_root_header* getSkyRootHeader(const char* fb, size_t fb_size)
 {
     auto table = GetTable(fb);
     sky_root_header *r = new sky_root_header();
-	r->skyhook_version = table->skyhook_version();
-	r->schema_version = table->schema_version();
-	r->table_name = table->table_name()->str();
-	r->schema = table->schema()->str();
-	auto root_delete_vec = table->delete_vector();
-	for(int i=0;i<(int)root_delete_vec->size();i++)
-		r->delete_vec.push_back(root_delete_vec->Get(i));
-	r->nrows = table->nrows();
+    r->skyhook_version = table->skyhook_version();
+    r->schema_version = table->schema_version();
+    r->table_name = table->table_name()->str();
+    r->schema = table->schema()->str();
+    auto root_delete_vec = table->delete_vector();
+    for(int i=0;i<(int)root_delete_vec->size();i++)
+        r->delete_vec.push_back(root_delete_vec->Get(i));
+    r->nrows = table->nrows();
 
     return r;
 }
+
+} // end namespace Tables
