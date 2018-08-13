@@ -203,10 +203,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
          * will need to unpack flatbufs from bl in a loop since multiple
          * fb's per bl, we may want to store offsets of each fb in omap
          */ 
-      
-        int val = 0;
-        dummyfunc(val);   // for scoping only, can be removed.
-      
+
         // TODO: count of actual rows considered/processed.
         Tables::sky_root_header *root = Tables::getSkyRootHeader(bl.c_str(), bl.length());
         rows_processed += root->nrows;
