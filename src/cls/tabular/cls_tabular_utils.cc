@@ -14,6 +14,7 @@
 #include <string>
 #include <sstream>
 #include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 #include <time.h>
 #include "include/types.h"
 
@@ -31,27 +32,35 @@ int extractSchema(vector<struct col_info> &schema, string& schema_string) {
     boost::split(elems, schema_string, boost::is_any_of("\n"),
             boost::token_compress_on);
 
-    // assume schema has at least one col
+    // assume schema string contains at least one col's info
     if (elems.size() < 1)
-        return 1;
+        return TablesErrCodes::EmptySchema;
 
     for (vector<string>::iterator it = elems.begin(); it != elems.end(); ++it) {
 
-        vector<std::string> s;
-        boost::split(s, *it, boost::is_any_of(" "), boost::token_compress_on);
+        vector<std::string> col_data;  // each col string describes one col structure
+        std::string col_info_string = *it;
+        boost::trim(col_info_string);
+
+        // ignore empty strings after trimming, due to above boost split.
+        if (col_info_string.length() < 4)
+            continue;
+
+        boost::split(col_data, col_info_string, boost::is_any_of(" "),
+                boost::token_compress_on);
 
         // expected num of items in our col_info struct
-        if (s.size() != 4)
-            return 1;
+        if (col_data.size() != 4)
+            return TablesErrCodes::BadColInfoFormat;
 
-        struct col_info c = col_info(s[0], s[1], s[2], s[3]);
-        schema.push_back(c);
+        const struct col_info ci(col_data[0], col_data[1], col_data[2],
+                col_data[3]);
+        schema.push_back(ci);
     }
     return 0;
 }
 
-void printSkyRootHeader(sky_root_header *root)
-{
+void printSkyRootHeader(sky_root_header *root){
     cout<<"\n[ROOT HEADER]"<<endl;
     cout<<"skyhook version: "<<root->skyhook_version<<endl;
     cout<<"schema version: "<<root->schema_version<<endl;
@@ -69,12 +78,16 @@ void printSkyRootHeader(sky_root_header *root)
     cout<<endl;
 }
 
-void printSkyRows(sky_root_header *root)
-{
-    /* TODO: use our flatbuf row reader from
-     * src/progly/flatbuffers/read_write_flatbuffs
-     */
+void printSkyRows(const char* fb, size_t fb_size,
+        vector<struct col_info> &schema) {
+
     cout << "\nTODO:extract and print rows here." << endl;
+
+    // print col header
+    for (vector<struct col_info>::iterator it = schema.begin(); it != schema.end(); ++it) {
+        cout << " | " << (*it).name;
+    }
+    cout << endl;
 }
 
 sky_root_header* getSkyRootHeader(const char* fb, size_t fb_size)

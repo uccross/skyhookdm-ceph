@@ -23,6 +23,13 @@
 
 namespace Tables {
 
+enum TablesErrCodes {
+    EmptySchema = 1,
+    BadColInfoFormat,
+    BadColInfoConversion,
+    UnsupportedFbDataType
+};
+
 typedef flatbuffers::FlatBufferBuilder fbBuilder;
 typedef flatbuffers::FlatBufferBuilder* fbb;
 typedef flexbuffers::Builder flxBuilder;
@@ -59,12 +66,12 @@ const int offset_to_nullbits_vec = 6;
 const int offset_to_data = 8;
 
 enum FbDataType {
-    FbTypeInt = 1,
+    FbTypeInt = 1,  // note: must start at 1
     FbTypeDouble,
     FbTypeChar,
     FbTypeDate,
     FbTypeString,
-    FbType_LAST  // note: this should always appear last in list.
+    FbType_LAST  // note: must appear last for bounds check
 };
 
 // used for each col in our schema def
@@ -73,25 +80,25 @@ struct col_info {
     int type;
     bool is_key;
     std::string name;
+
     col_info(int i, int t, bool b, std::string n) :
             id(i),
             type(t),
             is_key(b),
-            name(n) { assert (type < FbType_LAST); }  // verify type is valid
+            name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
+
     col_info(std::string i, std::string t, std::string b, std::string n) :
             id(atoi(i.c_str())),
             type(atoi(t.c_str())),
             is_key(b[0]=='1'),
-            name(n) { assert (type < FbType_LAST); }  // verify type is valid
+            name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
 };
 
-/*
- * TODO: this should be stored in omap of this object
- * format of table's schema and query's return schema must be same.
- * used to populate col_info struct
- * format: col_id, col_type, col_is_key, col_name
- */
-const std::string schema_string = " \
+// TODO: the schema be stored in omap of the object, since it applies to all
+// flatbuffers it contains, since all flatbufs in the object are updated
+// atomically during any schema change
+// format: col_id, col_type, col_is_key, col_name
+const std::string lineitem_test_schema_string = " \
     0 1 1 orderkey \n\
     1 1 0 partkey \n\
     2 1 0 suppkey \n\
@@ -107,16 +114,16 @@ const std::string schema_string = " \
     12 4 0 receipdate \n\
     13 5 0 shipinstruct \n\
     14 5 0 shipmode \n\
-    15 5 0 comment \n\n\
+    15 5 0 comment \n\
     ";
 
 void printSkyRootHeader(sky_root_header *root);
-void printSkyRows(Tables::sky_root_header *root);
+void printSkyRows(const char* fb, size_t fb_size,
+        vector<struct col_info> &schema);
 sky_root_header* getSkyRootHeader(const char * fb, size_t fb_size);
 int getSchemaFormat(std::string schema_string, vector<col_info>& cols);
 inline std::vector<std::string> delimStringSplit(const std::string &s, char delim);
-string extractSchema(vector<int> &, vector<int> &, string&);
-
+int extractSchema(vector<struct col_info> &schema, string &schema_string);
 } // end namespace Tables
 
 #endif

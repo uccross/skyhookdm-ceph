@@ -83,7 +83,7 @@ static std::atomic<unsigned> result_count;
 static std::atomic<unsigned> rows_returned;
 
 // total number of rows processed, client side or server side (cls).
-static std::atomic<unsigned> nrows_processed;  
+static std::atomic<unsigned> nrows_processed;
 
 struct AioState {
   ceph::bufferlist bl;
@@ -151,14 +151,15 @@ static void print_row(const char *row)
   print_lock.unlock();
 }
 
-static void print_fb(Tables::sky_root_header *root)
+static void print_fb(const char *fb, size_t fb_size, vector<Tables::col_info> &schema)
 {
     if (quiet)
         return;
 
     print_lock.lock();
-    Tables::printSkyRootHeader(root); 
-    Tables::printSkyRows(root); 
+    Tables::sky_root_header *root = Tables::getSkyRootHeader(fb, fb_size);
+    Tables::printSkyRootHeader(root);
+    Tables::printSkyRows(fb, fb_size, schema);
     print_lock.unlock();
 }
 
@@ -249,7 +250,7 @@ static void worker()
 
     struct timing times = s->times;
     uint64_t nrows_server_processed = 0;
-    
+
     ceph::bufferlist bl;
     if (use_cls) {
       ceph::bufferlist::iterator it = s->bl.begin();
@@ -267,53 +268,57 @@ static void worker()
 
     // data is now all in bl
     delete s;
-    
+
     uint64_t eval2_start = getns();
 
     if (query == "flatbuf") {
         /* TODO: replace with our flatbuf reader.
-         * Extract flatbufs from bl in a loop here, 
+         * Extract flatbufs from bl in a loop here,
          * since multiple flatbufs can be contained in an object's bl.
-         * We need to add/encode offsets to the cls ou*t bl. 
+         * We need to add/encode offsets to the cls ou*t bl.
          * For now assume one flatbuf per bl.
          */
-        
-        int val = 0;    // just to test scope, can be removed.
-        dummyfunc(val);  
-        
+        const char* fb = bl.c_str();
+        size_t fb_size = bl.length();
+
         // print the headers here for sanity check only, can be removed.
-        Tables::sky_root_header *root = Tables::getSkyRootHeader(bl.c_str(), bl.length());
-        print_fb(root);
-        //Tables::printSkyRootHeader(root); 
-        //Tables::printSkyRows(bl.c_str(), bl.length()); 
-        
+        Tables::sky_root_header *root = Tables::getSkyRootHeader(fb, fb_size);
+
         // local counter to accumulate nrows in all flatbuffers received.
         rows_returned += root->nrows;
-        
+
         if (use_cls) {
             /* Server side processing already done.
              * TODO: perform any further client-side processing required here,
-             * such as possibly aggregate global ops here (e.g., count/sort) 
+             * such as possibly aggregate global ops here (e.g., count/sort)
              * then convert rows to valid db tuple format.
              */
-            
+
             // count of nrows processed/considered by storage server
             nrows_processed += nrows_server_processed;
-            
-            // server has already applied its predicates, so count all rows 
+
+            // server has already applied its predicates, so count all rows
             // here that pass after applying the remaining global ops.
-            result_count += root->nrows;  
-            
+            result_count += root->nrows;
+
         } else {
             // read and perform all flatbuf rows processing here in the client.
             // client will process all rows here.
             nrows_processed += root->nrows;
-            
+
             // TODO: after processing here...
             // add matching rows to our result counter.
-            result_count += root->nrows;  
+            result_count += root->nrows;
+
+            vector<struct Tables::col_info> schema;
+            std::string schema_string = Tables::lineitem_test_schema_string;
+            int ret = Tables::extractSchema(schema, schema_string);
+            assert(ret!=Tables::TablesErrCodes::EmptySchema);
+            assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+            print_fb(fb, fb_size, schema);
+
         }
-    } else {  
+    } else {
         // our older query processing code below...
         // apply the query
         size_t row_size;
@@ -324,10 +329,10 @@ static void worker()
         const char *rows = bl.c_str();
         const size_t num_rows = bl.length() / row_size;
         rows_returned += num_rows;
-        
-        if (use_cls) 
+
+        if (use_cls)
             nrows_processed += nrows_server_processed;
-        else 
+        else
             nrows_processed += num_rows;
 
         if (query == "a") {
@@ -769,7 +774,7 @@ int main(int argc, char **argv)
 
   if (query == "a" && use_cls) {
     std::cout << "total result row count: " << result_count
-      << " / -1" << "; nrows_processed=" << nrows_processed 
+      << " / -1" << "; nrows_processed=" << nrows_processed
       << std::endl;
   } else {
     std::cout << "total result row count: " << result_count
