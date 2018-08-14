@@ -14,7 +14,6 @@
 #include <string>
 #include <sstream>
 #include <boost/lexical_cast.hpp>
-#include <boost/algorithm/string.hpp>
 #include <time.h>
 #include "include/types.h"
 
@@ -26,6 +25,7 @@
 
 namespace Tables {
 
+// schema string expects the format cls_tabular_utils.h lineitem_test_schema
 int extractSchema(vector<struct col_info> &schema, string& schema_string) {
 
     vector<std::string> elems;
@@ -53,8 +53,9 @@ int extractSchema(vector<struct col_info> &schema, string& schema_string) {
         if (col_data.size() != 4)
             return TablesErrCodes::BadColInfoFormat;
 
-        const struct col_info ci(col_data[0], col_data[1], col_data[2],
-                col_data[3]);
+        std::string name = col_data[3];
+        boost::trim(name);
+        const struct col_info ci(col_data[0], col_data[1], col_data[2], name);
         schema.push_back(ci);
     }
     return 0;
@@ -81,13 +82,12 @@ void printSkyRootHeader(sky_root_header *root){
 void printSkyRows(const char* fb, size_t fb_size,
         vector<struct col_info> &schema) {
 
-    cout << "\nTODO:extract and print rows here." << endl;
-
     // print col header
     for (vector<struct col_info>::iterator it = schema.begin(); it != schema.end(); ++it) {
         cout << " | " << (*it).name;
     }
     cout << endl;
+    cout << "\nTODO: print row data here based on schema above." << endl;
 }
 
 sky_root_header* getSkyRootHeader(const char* fb, size_t fb_size)

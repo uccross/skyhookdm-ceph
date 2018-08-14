@@ -16,6 +16,7 @@
 
 #include <boost/algorithm/string/classification.hpp> // Include boost::for is_any_of
 #include <boost/algorithm/string/split.hpp> // Include for boost::split
+#include <boost/algorithm/string.hpp> // include for boost::trim
 
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
@@ -94,10 +95,10 @@ struct col_info {
             name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
 };
 
-// TODO: the schema be stored in omap of the object, since it applies to all
-// flatbuffers it contains, since all flatbufs in the object are updated
-// atomically during any schema change
-// format: col_id, col_type, col_is_key, col_name
+// TODO: the schema be stored in omap of the object, because it applies to all
+// flatbuffers it contains, and all flatbufs in the object are updated
+// atomically during any schema change so they always reflect the same schema.
+// format: "col_id col_type col_is_key col_name \n"
 const std::string lineitem_test_schema_string = " \
     0 1 1 orderkey \n\
     1 1 0 partkey \n\
