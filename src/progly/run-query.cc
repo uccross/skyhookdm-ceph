@@ -157,9 +157,7 @@ static void print_fb(const char *fb, size_t fb_size, vector<Tables::col_info> &s
         return;
 
     print_lock.lock();
-    Tables::sky_root_header *root = Tables::getSkyRootHeader(fb, fb_size);
-    Tables::printSkyRootHeader(root);
-    Tables::printSkyRows(fb, fb_size, schema);
+    Tables::printSkyFb(fb, fb_size, schema);
     print_lock.unlock();
 }
 

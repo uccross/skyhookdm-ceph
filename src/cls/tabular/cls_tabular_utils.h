@@ -53,6 +53,7 @@ typedef struct {
     int64_t RID;
     vector<uint64_t> nullbits;
     int data_offset;
+    flexbuffers::Vector* dataptr;
 } sky_row_header;
 
 const int offset_to_skyhook_version = 4;
@@ -118,10 +119,15 @@ const std::string lineitem_test_schema_string = " \
     15 5 0 comment \n\
     ";
 
-void printSkyRootHeader(sky_root_header *root);
-void printSkyRows(const char* fb, size_t fb_size,
+sky_root_header* getSkyRootHeader(const char *fb, size_t fb_size);
+sky_row_header* getSkyRowHeader(const Tables::Row *rec);
+
+void printSkyRootHeader(sky_root_header *r);
+void printSkyRowHeader(sky_row_header *r);
+
+void printSkyFb(const char* fb, size_t fb_size,
         vector<struct col_info> &schema);
-sky_root_header* getSkyRootHeader(const char * fb, size_t fb_size);
+
 int getSchemaFormat(std::string schema_string, vector<col_info>& cols);
 inline std::vector<std::string> delimStringSplit(const std::string &s, char delim);
 int extractSchema(vector<struct col_info> &schema, string &schema_string);
