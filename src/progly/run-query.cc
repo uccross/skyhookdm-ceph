@@ -280,10 +280,10 @@ static void worker()
         size_t fb_size = bl.length();
 
         // print the headers here for sanity check only, can be removed.
-        Tables::sky_root_header *root = Tables::getSkyRootHeader(fb, fb_size);
+        Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
 
         // local counter to accumulate nrows in all flatbuffers received.
-        rows_returned += root->nrows;
+        rows_returned += root.nrows;
 
         if (use_cls) {
             /* Server side processing already done.
@@ -297,16 +297,16 @@ static void worker()
 
             // server has already applied its predicates, so count all rows
             // here that pass after applying the remaining global ops.
-            result_count += root->nrows;
+            result_count += root.nrows;
 
         } else {
             // read and perform all flatbuf rows processing here in the client.
             // client will process all rows here.
-            nrows_processed += root->nrows;
+            nrows_processed += root.nrows;
 
             // TODO: after processing here...
             // add matching rows to our result counter.
-            result_count += root->nrows;
+            result_count += root.nrows;
 
             vector<struct Tables::col_info> schema;
             std::string schema_string = Tables::lineitem_test_schema_string;

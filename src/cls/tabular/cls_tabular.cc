@@ -194,31 +194,31 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   uint64_t eval_ns_start = getns();
-  
+
   bufferlist result_bl;  // result set to be returned to client.
   result_bl.reserve(bl.length());
-  
-    if (op.query == "flatbuf") {  
+
+    if (op.query == "flatbuf") {
         /* TODO: add our flatbuf reader and processor here,
          * will need to unpack flatbufs from bl in a loop since multiple
          * fb's per bl, we may want to store offsets of each fb in omap
-         */ 
+         */
 
         // TODO: count of actual rows considered/processed.
-        Tables::sky_root_header *root = Tables::getSkyRootHeader(bl.c_str(), bl.length());
-        rows_processed += root->nrows;
-        
+        Tables::sky_root_header root = Tables::getSkyRootHeader(bl.c_str(), bl.length());
+        rows_processed += root.nrows;
+
         // for now just pass through the original, no processing yet.
         result_bl.append(bl);
   }
   else {
-      
+
       // our test data is fixed size per col and uses tpch lineitem schema.
       const size_t row_size = 141;
       const char *rows = bl.c_str();
       const size_t num_rows = bl.length() / row_size;
       rows_processed = num_rows;
-      
+
       const size_t order_key_field_offset = 0;
       const size_t line_number_field_offset = 12;
       const size_t quantity_field_offset = 16;
@@ -235,7 +235,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           const char *vptr = row + extended_price_field_offset;  // offset to col
           const double val = *(const double*)vptr;  // extract data as col type
           if (val > op.extended_price) {  // apply filter
-            result_count++;  // counter of matching rows for this count(*) query 
+            result_count++;  // counter of matching rows for this count(*) query
             // when a predicate passes, add some extra work
             add_extra_row_cost(op.extra_row_cost);
           }
@@ -289,17 +289,17 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         }
       } else if (op.query == "d") {// point query on primary key (orderkey,linenum)
         if (op.use_index) {  // if we have previously built an index on the PK.
-          // create the requested composite key from the op struct 
+          // create the requested composite key from the op struct
           uint64_t key = ((uint64_t)op.order_key) << 32;
-          key |= (uint32_t)op.line_number; 
+          key |= (uint32_t)op.line_number;
           const std::string strkey = u64tostr(key);
-            
+
           // key lookup in omap to get the row offset
           bufferlist row_offset_bl;
           int ret = cls_cxx_map_get_val(hctx, strkey, &row_offset_bl);
           if (ret < 0 && ret != -ENOENT) {
             CLS_ERR("cant read map val index %d", ret);
-            return ret;  
+            return ret;
           }
 
           if (ret >= 0) {  // found key
@@ -311,7 +311,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
               CLS_ERR("ERR cant decode index entry");
               return -EIO;
             }
-           
+
             size_t size;
             int ret = cls_cxx_stat(hctx, &size, NULL);
             if (ret < 0) {
@@ -324,7 +324,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             }
 
             // read just the row
-            bufferlist bl;  
+            bufferlist bl;
             ret = cls_cxx_read(hctx, row_offset, row_size, &bl);
             if (ret < 0) {
               CLS_ERR("ERROR: reading obj %d", ret);
@@ -337,7 +337,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             }
 
             const char *row = bl.c_str();
-            
+
             // add to result set.
             if (op.projection) {
               result_bl.append(row + order_key_field_offset, 4);
@@ -345,26 +345,26 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             } else {
               result_bl.append(row, row_size);
             }
-          }   
+          }
 
         // Count the num_keys stored in our index.
         // Not free but for now used as sanity check count, and currently
         // makes the simplifying assumption of unique keys, one per row.
-        // TODO: is there a less expensive way to count just the number of keys 
+        // TODO: is there a less expensive way to count just the number of keys
         // for a particular index in this object, perhaps prefix-based count?
         std::set<string> keys;
         bool more = true;
         const char *start_after = "\0";
         uint64_t max_to_get = keys.max_size();
-          
-         // TODO: sort/ordering needed to continue properly from start_after  
-        while (more) { 
+
+         // TODO: sort/ordering needed to continue properly from start_after
+        while (more) {
             ret = cls_cxx_map_get_keys(hctx, start_after, max_to_get, &keys, &more);
             if (ret < 0 ) {
                 CLS_ERR("cant read keys in index %d", ret);
-                return ret; 
+                return ret;
             }
-            rows_processed += keys.size();  
+            rows_processed += keys.size();
         }
 
         } else {  // no index, look for matching row(s) and extract key cols.
@@ -388,7 +388,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
               const char *row = rows + rid * row_size;
               const char *vptr = row + order_key_field_offset;
               const int order_key_val = *(const int*)vptr;
-              if (order_key_val == op.order_key) { 
+              if (order_key_val == op.order_key) {
                 const char *vptr = row + line_number_field_offset;
                 const int line_number_val = *(const int*)vptr;
                 if (line_number_val == op.line_number) {
@@ -467,7 +467,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         return -EINVAL;
       }
   }
-  
+
   uint64_t eval_ns = getns() - eval_ns_start;
   // store timings and result set into output BL
   ::encode(read_ns, *out);

@@ -35,26 +35,46 @@ typedef flatbuffers::FlatBufferBuilder fbBuilder;
 typedef flatbuffers::FlatBufferBuilder* fbb;
 typedef flexbuffers::Builder flxBuilder;
 typedef vector<uint8_t> delete_vector;
-typedef vector<flatbuffers::Offset<Row>> rows_vector;
+typedef vector<uint64_t> nullbits_vector;
+typedef vector<flatbuffers::Offset<Row>> row_offsets_vector;
+typedef vector<const Row*> rows_vector;
+typedef flexbuffers::Vector flx_vector;
 
 // the root table header contains db/table level metadata only
-typedef struct {
-    int skyhook_version;
+struct root_table {
+    const int skyhook_version;
     int schema_version;
     string table_name;
     string schema;
     delete_vector delete_vec;
-    int rows_offset;
+    const rows_vector rows;
     int nrows;
-} sky_root_header;
+
+    root_table(int skyver, int schmver, std::string tblname, std::string schm,
+                delete_vector d, rows_vector r, int n) :
+        skyhook_version(skyver),
+        schema_version(schmver),
+        table_name(tblname),
+        schema(schm),
+        delete_vec(d),
+        rows(r),
+        nrows(n) {};
+
+};
+typedef struct root_table sky_root_header;
 
 // the row table header contains row level metdata only
-typedef struct {
-    int64_t RID;
-    vector<uint64_t> nullbits;
-    int data_offset;
-    flexbuffers::Vector* dataptr;
-} sky_row_header;
+struct row_table {
+    const int64_t RID;
+    nullbits_vector nullbits;
+    const flexbuffers::Reference data;
+
+    row_table(int64_t rid, nullbits_vector n, flexbuffers::Reference  d) :
+        RID(rid),
+        nullbits(n),
+        data(d) {};
+};
+typedef struct row_table sky_row_header;
 
 const int offset_to_skyhook_version = 4;
 const int offset_to_schema_version = 6;
@@ -119,8 +139,8 @@ const std::string lineitem_test_schema_string = " \
     15 5 0 comment \n\
     ";
 
-sky_root_header* getSkyRootHeader(const char *fb, size_t fb_size);
-sky_row_header* getSkyRowHeader(const Tables::Row *rec);
+sky_root_header getSkyRootHeader(const char *fb, size_t fb_size);
+sky_row_header getSkyRowHeader(const Tables::Row *rec);
 
 void printSkyRootHeader(sky_root_header *r);
 void printSkyRowHeader(sky_row_header *r);
