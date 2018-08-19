@@ -62,8 +62,8 @@ int extractSchema(vector<struct col_info> &schema, string& schema_string) {
 }
 
 void printSkyRootHeader(sky_root_header &r) {
-    cout << "\n[ROOT HEADER]"<< endl;
-    cout << "skyhook version: "<< r.skyhook_version << endl;
+    cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< endl;
+    cout << "skyhookdb version: "<< r.skyhook_version << endl;
     cout << "schema version: "<< r.schema_version << endl;
     cout << "table name: "<< r.table_name << endl;
     cout << "schema: "<< r.schema << endl;
@@ -80,16 +80,16 @@ void printSkyRootHeader(sky_root_header &r) {
 
 void printSkyRowHeader(sky_row_header &r) {
 
-    cout << "\n[ROW HEADER]" << endl;
+    cout << "\n\n[SKYHOOKDB ROW HEADER (flatbuf)]" << endl;
     cout << "RID: "<< r.RID << endl;
 
     std::string bitstring = "";
     int64_t val = 0;
+    uint64_t bit = 0;
     for(int j = 0; j < (int)r.nullbits.size(); j++) {
         val = r.nullbits.at(j);
         for (uint64_t k=0; k < 8 * sizeof(r.nullbits.at(j)); k++) {
             uint64_t mask =  1 << k;
-            uint64_t bit = 0;
             ((val&mask)>0) ? bit=1 : bit=0;
             bitstring.append(std::to_string(bit));
         }
@@ -97,7 +97,6 @@ void printSkyRowHeader(sky_row_header &r) {
         cout << endl;
         bitstring.clear();
     }
-    cout << endl;
 }
 
 // parent print function for skyhook flatbuffer data layout
@@ -108,23 +107,78 @@ void printSkyFb(const char* fb, size_t fb_size,
     sky_root_header skyroot = Tables::getSkyRootHeader(fb, fb_size);
     printSkyRootHeader(skyroot);
 
+    // print col metadata (only names for now).
+    cout  << "Flabuffer schema for the following rows:" << endl;
+    for (vector<struct col_info>::iterator it = schema.begin();
+            it != schema.end(); ++it) {
+        cout << " | " << (*it).name;
+        if ((*it).is_key) cout << "(key)";
+    }
+
     // get row table ptrs
 	const flatbuffers::Vector<flatbuffers::Offset<Row>>* recs = \
             GetTable(fb)->rows();
 
     // print row metadata
     for (int i = 0; i < skyroot.nrows; i++) {
+
+        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+
         sky_row_header skyrow = getSkyRowHeader(recs->Get(i));
         printSkyRowHeader(skyrow);
-    }
 
-    // print col metadata (only names for now).
-    for (vector<struct col_info>::iterator it = schema.begin();
+        cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << endl;
+        // for each col in schema, print it.
+        for (vector<struct col_info>::iterator it = schema.begin();
             it != schema.end(); ++it) {
-        cout << " | " << (*it).name;
+
+            cout << "|";
+
+            // check if col val is null (bitwise check on each vector val)
+            int nullbit_vec_idx = (*it).id / (8*sizeof(skyrow.nullbits.at(0)));
+            int col_bitmask = 1 << (*it).id;
+            if ((col_bitmask & skyrow.nullbits.at(nullbit_vec_idx)) != 0)  {
+                cout << "NULL";
+                continue;
+            }
+
+            // if not null, print the col val based on its col type
+            // TODO: add bounds check for col.id < flxbuf max index
+            switch ((*it).type) {
+                case FbTypeInt: {
+                    int val = skyrow.data.AsVector()[(*it).id].AsInt32();
+                    cout << val;
+                    break;
+                }
+                case FbTypeDouble: {
+                    double val = skyrow.data.AsVector()[(*it).id].AsDouble();
+                    cout << val;
+                    break;
+                }
+                case FbTypeChar: {
+                    int8_t val = skyrow.data.AsVector()[(*it).id].AsInt8();
+                    cout <<  static_cast<char>(val);
+                    break;
+                }
+                case FbTypeDate: {
+                    string date = skyrow.data.AsVector()[(*it).id].AsString().str();
+                    cout << date;
+                    break;
+                }
+                case FbTypeString: {
+                    string s = skyrow.data.AsVector()[(*it).id].AsString().str();
+                    cout << s;
+                    break;
+                }
+                default: {
+                    // This is for other enum types for aggregations, e.g. SUM, MAX, MIN....
+                    break;
+                }
+            }
+        }
+        cout << "|";
     }
     cout << endl;
-    cout << "\nTODO: print row data here based on schema." << endl;
 }
 
 sky_root_header getSkyRootHeader(const char *fb, size_t fb_size) {
