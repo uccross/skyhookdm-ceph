@@ -101,42 +101,46 @@ struct col_info {
     int id;
     int type;
     bool is_key;
+    bool nullable;
     std::string name;
 
-    col_info(int i, int t, bool b, std::string n) :
+    col_info(int i, int t, bool key, bool nulls, std::string n) :
             id(i),
             type(t),
-            is_key(b),
+            is_key(key),
+            nullable(nulls),
             name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
 
-    col_info(std::string i, std::string t, std::string b, std::string n) :
+    col_info(std::string i, std::string t, std::string key, std::string nulls,
+             std::string n) :
             id(atoi(i.c_str())),
             type(atoi(t.c_str())),
-            is_key(b[0]=='1'),
+            is_key(key[0]=='1'),
+            nullable(nulls[0]=='1'),
             name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
 };
 
 // TODO: the schema be stored in omap of the object, because it applies to all
 // flatbuffers it contains, and all flatbufs in the object are updated
 // atomically during any schema change so they always reflect the same schema.
-// format: "col_id col_type col_is_key col_name \n"
+// format: "col_id col_type col_is_key nullable col_name \n"
 const std::string lineitem_test_schema_string = " \
-    0 1 1 orderkey \n\
-    1 1 0 partkey \n\
-    2 1 0 suppkey \n\
-    3 1 1 linenumber \n\
-    4 2 0 quantity \n\
-    5 2 0 extendedprice \n\
-    6 2 0 discount \n\
-    7 2 0 tax \n\
-    8 3 0 returnflag \n\
-    9 3 0 linestatus \n\
-    10 4 0 shipdate \n\
-    11 4 0 commitdate \n\
-    12 4 0 receipdate \n\
-    13 5 0 shipinstruct \n\
-    14 5 0 shipmode \n\
-    15 5 0 comment \n\
+    0 1 1 0 orderkey \n\
+    1 1 0 1 partkey \n\
+    2 1 0 1 suppkey \n\
+    3 1 1 0 linenumber \n\
+    4 2 0 1 quantity \n\
+    5 2 0 1 extendedprice \n\
+    6 2 0 1 discount \n\
+    7 2 0 1 tax \n\
+    8 3 0 1 returnflag \n\
+    9 3 0 1 linestatus \n\
+    10 4 0 1 shipdate \n\
+    11 4 0 1 commitdate \n\
+    12 4 0 1 receipdate \n\
+    13 5 0 1 shipinstruct \n\
+    14 5 0 1 shipmode \n\
+    15 5 0 1 comment \n\
     ";
 
 sky_root_header getSkyRootHeader(const char *fb, size_t fb_size);

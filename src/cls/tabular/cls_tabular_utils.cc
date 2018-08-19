@@ -43,19 +43,20 @@ int extractSchema(vector<struct col_info> &schema, string& schema_string) {
         boost::trim(col_info_string);
 
         // ignore empty strings after trimming, due to above boost split.
-        if (col_info_string.length() < 4)
+        if (col_info_string.length() < 5)
             continue;
 
         boost::split(col_data, col_info_string, boost::is_any_of(" "),
                 boost::token_compress_on);
 
         // expected num of items in our col_info struct
-        if (col_data.size() != 4)
+        if (col_data.size() != 5)
             return TablesErrCodes::BadColInfoFormat;
 
-        std::string name = col_data[3];
+        std::string name = col_data[4];
         boost::trim(name);
-        const struct col_info ci(col_data[0], col_data[1], col_data[2], name);
+        const struct col_info ci(col_data[0], col_data[1], col_data[2],
+                                 col_data[3], name);
         schema.push_back(ci);
     }
     return 0;
@@ -113,6 +114,7 @@ void printSkyFb(const char* fb, size_t fb_size,
             it != schema.end(); ++it) {
         cout << " | " << (*it).name;
         if ((*it).is_key) cout << "(key)";
+        if (!(*it).nullable) cout << "(NOT NULL)";
     }
 
     // get row table ptrs
@@ -135,16 +137,19 @@ void printSkyFb(const char* fb, size_t fb_size,
             cout << "|";
 
             // check if col val is null (bitwise check on each vector val)
-            int nullbit_vec_idx = (*it).id / (8*sizeof(skyrow.nullbits.at(0)));
-            int col_bitmask = 1 << (*it).id;
-            if ((col_bitmask & skyrow.nullbits.at(nullbit_vec_idx)) != 0)  {
-                cout << "NULL";
-                continue;
+            if ((*it).nullable) {
+                int nullbit_vec_idx = (*it).id / (8*sizeof(skyrow.nullbits.at(0)));
+                int col_bitmask = 1 << (*it).id;
+                if ((col_bitmask & skyrow.nullbits.at(nullbit_vec_idx)) != 0)  {
+                    cout << "NULL";
+                    continue;
+                }
             }
 
-            // if not null, print the col val based on its col type
+            // print the col val based on its col type
             // TODO: add bounds check for col.id < flxbuf max index
             switch ((*it).type) {
+
                 case FbTypeInt: {
                     int val = skyrow.data.AsVector()[(*it).id].AsInt32();
                     cout << val;
@@ -171,7 +176,8 @@ void printSkyFb(const char* fb, size_t fb_size,
                     break;
                 }
                 default: {
-                    // This is for other enum types for aggregations, e.g. SUM, MAX, MIN....
+                    // This is for other enum types for aggregations,
+                    // e.g. SUM, MAX, MIN....
                     break;
                 }
             }
