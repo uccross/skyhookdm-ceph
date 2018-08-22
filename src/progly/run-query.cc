@@ -161,9 +161,6 @@ static void print_fb(const char *fb, size_t fb_size, vector<Tables::col_info> &s
     print_lock.unlock();
 }
 
-/*
- *
- */
 static const size_t order_key_field_offset = 0;
 static const size_t line_number_field_offset = 12;
 static const size_t quantity_field_offset = 16;
@@ -213,7 +210,7 @@ static void worker_build_index(librados::IoCtx *ioctx)
   ioctx->close();
 }
 
-// busy loop work
+// busy loop work to simulate high cpu cost ops
 volatile uint64_t __tabular_x;
 static void add_extra_row_cost(uint64_t cost)
 {
@@ -248,20 +245,32 @@ static void worker()
 
     struct timing times = s->times;
     uint64_t nrows_server_processed = 0;
+    uint64_t fb_len = 0;
 
     ceph::bufferlist bl;
+
     if (use_cls) {
-      ceph::bufferlist::iterator it = s->bl.begin();
-      try {
-        ::decode(times.read_ns, it);
-        ::decode(times.eval_ns, it);
-        ::decode(nrows_server_processed, it);
-        ::decode(bl, it);
+      try {  // this is the return bl format from cls_tabular processing
+            ceph::bufferlist::iterator it = s->bl.begin();
+            ::decode(times.read_ns, it);
+            ::decode(times.eval_ns, it);
+            ::decode(nrows_server_processed, it);
+            ::decode(fb_len, it);
+            ::decode(bl, it);
       } catch (ceph::buffer::error&) {
-        assert(0);
+            int decode_failed_runquery_cls = 0;
+            assert(decode_failed_runquery_cls);
       }
-    } else {
-      bl = s->bl;
+
+    }  else {  // this is the default bl format for skyhook objs
+        ceph::bufferlist::iterator it = s->bl.begin();
+        try {
+            ::decode(fb_len, it);
+            ::decode(bl, it);
+        } catch (ceph::buffer::error&) {
+            int decode_failed_runquery_noncls = 0;
+            assert(decode_failed_runquery_noncls);
+        }
     }
 
     // data is now all in bl
@@ -273,7 +282,7 @@ static void worker()
         /* TODO: replace with our flatbuf reader.
          * Extract flatbufs from bl in a loop here,
          * since multiple flatbufs can be contained in an object's bl.
-         * We need to add/encode offsets to the cls ou*t bl.
+         * We need to add/encode offsets to the cls out bl.
          * For now assume one flatbuf per bl.
          */
         const char* fb = bl.c_str();
@@ -284,6 +293,12 @@ static void worker()
 
         // local counter to accumulate nrows in all flatbuffers received.
         rows_returned += root.nrows;
+        vector<struct Tables::col_info> schema;
+        std::string schema_string = Tables::lineitem_test_schema_string;
+        int ret = Tables::extractSchema(schema, schema_string);
+        assert(ret!=Tables::TablesErrCodes::EmptySchema);
+        assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+        print_fb(fb, fb_size, schema);
 
         if (use_cls) {
             /* Server side processing already done.
@@ -299,6 +314,7 @@ static void worker()
             // here that pass after applying the remaining global ops.
             result_count += root.nrows;
 
+
         } else {
             // read and perform all flatbuf rows processing here in the client.
             // client will process all rows here.
@@ -307,14 +323,6 @@ static void worker()
             // TODO: after processing here...
             // add matching rows to our result counter.
             result_count += root.nrows;
-
-            vector<struct Tables::col_info> schema;
-            std::string schema_string = Tables::lineitem_test_schema_string;
-            int ret = Tables::extractSchema(schema, schema_string);
-            assert(ret!=Tables::TablesErrCodes::EmptySchema);
-            assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
-            print_fb(fb, fb_size, schema);
-
         }
     } else {
         // our older query processing code below...

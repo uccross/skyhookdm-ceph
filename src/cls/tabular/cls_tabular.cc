@@ -179,11 +179,36 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   bufferlist bl;
-  uint64_t rows_processed = 0;  // represents rows considered during processing
+
+  // represents total rows considered during processing, including those
+  // skipped by using an index or other filtering, this should match the
+  // total rows stored or indexed in the object.
+  uint64_t rows_processed = 0;
+
+  // len of a flatbuf, preceeds each flatbuf data within an obj.
+  uint64_t fb_len = 0;
 
   // track the bufferlist read time (read_ns) vs. the processing time (eval_ns)
   uint64_t read_ns = 0;
-  if (op.query != "d" || !op.use_index) {
+
+  if (op.query == "flatbuf") {
+    bufferlist tmpbl;
+    uint64_t start = getns();
+    int ret = cls_cxx_read(hctx, 0, 0, &tmpbl);  // read entire object of n rows.
+    if (ret < 0) {
+      CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+      return ret;
+    }
+    read_ns = getns() - start;
+    try {
+        bufferlist::iterator it = tmpbl.begin();
+        ::decode(fb_len, it);
+        ::decode(bl, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: decoding flabuf len flatbuf from BL");
+        return -EINVAL;
+    }
+  } else if (op.query != "d" || !op.use_index) {
     uint64_t start = getns();
     int ret = cls_cxx_read(hctx, 0, 0, &bl);  // read entire object of n rows.
     if (ret < 0) {
@@ -210,8 +235,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
         // for now just pass through the original, no processing yet.
         result_bl.append(bl);
-  }
-  else {
+        fb_len = result_bl.length();
+  } else {
 
       // our test data is fixed size per col and uses tpch lineitem schema.
       const size_t row_size = 141;
@@ -469,10 +494,12 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   }
 
   uint64_t eval_ns = getns() - eval_ns_start;
+
   // store timings and result set into output BL
   ::encode(read_ns, *out);
   ::encode(eval_ns, *out);
   ::encode(rows_processed, *out);
+  ::encode(fb_len, *out);
   ::encode(result_bl, *out);
 
   return 0;
