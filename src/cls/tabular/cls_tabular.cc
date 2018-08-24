@@ -178,65 +178,65 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     return -EINVAL;
   }
 
-  bufferlist bl;
-
   // represents total rows considered during processing, including those
   // skipped by using an index or other filtering, this should match the
   // total rows stored or indexed in the object.
   uint64_t rows_processed = 0;
 
-  // len of a flatbuf, preceeds each flatbuf data within an obj.
-  uint64_t fb_len = 0;
-
   // track the bufferlist read time (read_ns) vs. the processing time (eval_ns)
   uint64_t read_ns = 0;
-
-  if (op.query == "flatbuf") {
-    bufferlist tmpbl;
-    uint64_t start = getns();
-    int ret = cls_cxx_read(hctx, 0, 0, &tmpbl);  // read entire object of n rows.
-    if (ret < 0) {
-      CLS_ERR("ERROR: reading flatbuf obj %d", ret);
-      return ret;
-    }
-    read_ns = getns() - start;
-    try {
-        bufferlist::iterator it = tmpbl.begin();
-        ::decode(fb_len, it);
-        ::decode(bl, it);
-    } catch (const buffer::error &err) {
-        CLS_ERR("ERROR: decoding flabuf len flatbuf from BL");
-        return -EINVAL;
-    }
-  } else if (op.query != "d" || !op.use_index) {
-    uint64_t start = getns();
-    int ret = cls_cxx_read(hctx, 0, 0, &bl);  // read entire object of n rows.
-    if (ret < 0) {
-      CLS_ERR("ERROR: reading obj %d", ret);
-      return ret;
-    }
-    read_ns = getns() - start;
-  }
-
-  uint64_t eval_ns_start = getns();
+  uint64_t eval_ns_start = 0;
 
   bufferlist result_bl;  // result set to be returned to client.
-  result_bl.reserve(bl.length());
 
     if (op.query == "flatbuf") {
-        /* TODO: add our flatbuf reader and processor here,
-         * will need to unpack flatbufs from bl in a loop since multiple
-         * fb's per bl, we may want to store offsets of each fb in omap
-         */
 
-        // TODO: count of actual rows considered/processed.
-        Tables::sky_root_header root = Tables::getSkyRootHeader(bl.c_str(), bl.length());
-        rows_processed += root.nrows;
+        bufferlist b;
+        uint64_t start = getns();
+        int ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object of n rows.
+        if (ret < 0) {
+          CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+          return ret;
+        }
+        read_ns = getns() - start;
 
-        // for now just pass through the original, no processing yet.
-        result_bl.append(bl);
-        fb_len = result_bl.length();
-  } else {
+        // decode and process each bl (contains 1 flatbuf) in a loop.
+        eval_ns_start = getns();
+        ceph::bufferlist::iterator it = b.begin();
+        while (it.get_remaining() > 0) {
+            bufferlist bl;
+            try {
+                ::decode(bl, it);  // unpack the next bl (flatbuf)
+            } catch (const buffer::error &err) {
+                CLS_ERR("ERROR: decoding flatbuf from BL");
+                return -EINVAL;
+            }
+
+            const char* fb = bl.c_str();
+            size_t fb_size = bl.length();
+
+            Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
+            rows_processed += root.nrows;
+
+            bufferlist ans;
+            ans.append(fb, fb_size);  // just pass through w/o processing now.
+            ::encode(ans, result_bl);
+        }
+    } else {
+      // older processing here.
+      bufferlist bl;
+      if (op.query != "d" || !op.use_index) {
+        uint64_t start = getns();
+        int ret = cls_cxx_read(hctx, 0, 0, &bl);  // read entire object of n rows.
+        if (ret < 0) {
+          CLS_ERR("ERROR: reading obj %d", ret);
+          return ret;
+        }
+        read_ns = getns() - start;
+      }
+      result_bl.reserve(bl.length());
+
+      eval_ns_start = getns();
 
       // our test data is fixed size per col and uses tpch lineitem schema.
       const size_t row_size = 141;
@@ -499,9 +499,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   ::encode(read_ns, *out);
   ::encode(eval_ns, *out);
   ::encode(rows_processed, *out);
-  ::encode(fb_len, *out);
   ::encode(result_bl, *out);
-
   return 0;
 }
 

@@ -245,86 +245,104 @@ static void worker()
 
     struct timing times = s->times;
     uint64_t nrows_server_processed = 0;
-    uint64_t fb_len = 0;
-
-    ceph::bufferlist bl;
-
-    if (use_cls) {
-      try {  // this is the return bl format from cls_tabular processing
-            ceph::bufferlist::iterator it = s->bl.begin();
-            ::decode(times.read_ns, it);
-            ::decode(times.eval_ns, it);
-            ::decode(nrows_server_processed, it);
-            ::decode(fb_len, it);
-            ::decode(bl, it);
-      } catch (ceph::buffer::error&) {
-            int decode_failed_runquery_cls = 0;
-            assert(decode_failed_runquery_cls);
-      }
-
-    }  else {  // this is the default bl format for skyhook objs
-        ceph::bufferlist::iterator it = s->bl.begin();
-        try {
-            ::decode(fb_len, it);
-            ::decode(bl, it);
-        } catch (ceph::buffer::error&) {
-            int decode_failed_runquery_noncls = 0;
-            assert(decode_failed_runquery_noncls);
-        }
-    }
-
-    // data is now all in bl
-    delete s;
-
     uint64_t eval2_start = getns();
 
     if (query == "flatbuf") {
-        /* TODO: replace with our flatbuf reader.
-         * Extract flatbufs from bl in a loop here,
-         * since multiple flatbufs can be contained in an object's bl.
-         * We need to add/encode offsets to the cls out bl.
-         * For now assume one flatbuf per bl.
-         */
-        const char* fb = bl.c_str();
-        size_t fb_size = bl.length();
 
-        // print the headers here for sanity check only, can be removed.
-        Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
+        // librados read will return the original obj, which is a seq of bls.
+        // cls read will return some stats and a seq of bls.
 
-        // local counter to accumulate nrows in all flatbuffers received.
-        rows_returned += root.nrows;
-        vector<struct Tables::col_info> schema;
-        std::string schema_string = Tables::lineitem_test_schema_string;
-        int ret = Tables::extractSchema(schema, schema_string);
-        assert(ret!=Tables::TablesErrCodes::EmptySchema);
-        assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
-        print_fb(fb, fb_size, schema);
+        bufferlist wrapped_bls;   // to store the seq of bls.
 
+        // first extract the top-level statistics encoded during cls processing
         if (use_cls) {
-            /* Server side processing already done.
-             * TODO: perform any further client-side processing required here,
-             * such as possibly aggregate global ops here (e.g., count/sort)
-             * then convert rows to valid db tuple format.
-             */
-
-            // count of nrows processed/considered by storage server
+            try {
+                ceph::bufferlist::iterator it = s->bl.begin();
+                ::decode(times.read_ns, it);
+                ::decode(times.eval_ns, it);
+                ::decode(nrows_server_processed, it);
+                ::decode(wrapped_bls, it);  // contains a seq of encoded bls.
+            } catch (ceph::buffer::error&) {
+                int decode_runquery_cls = 0;
+                assert(decode_runquery_cls);
+            }
             nrows_processed += nrows_server_processed;
-
-            // server has already applied its predicates, so count all rows
-            // here that pass after applying the remaining global ops.
-            result_count += root.nrows;
-
-
         } else {
-            // read and perform all flatbuf rows processing here in the client.
-            // client will process all rows here.
-            nrows_processed += root.nrows;
-
-            // TODO: after processing here...
-            // add matching rows to our result counter.
-            result_count += root.nrows;
+            wrapped_bls = s->bl;  // contains a seq of encoded bls.
         }
+
+        // decode and process each bl (contains 1 flatbuf) in a loop.
+        ceph::bufferlist::iterator it = wrapped_bls.begin();
+        while (it.get_remaining() > 0) {
+            ceph::bufferlist bl;
+            try {
+                ::decode(bl, it);  // unpack the next bl (flatbuf)
+            } catch (ceph::buffer::error&) {
+                int decode_runquery_noncls = 0;
+                assert(decode_runquery_noncls);
+            }
+
+            const char* fb = bl.c_str();
+            size_t fb_size = bl.length();
+
+            // print the headers here for sanity check only, can be removed.
+            Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
+
+            // local counter to accumulate nrows in all flatbuffers received.
+            rows_returned += root.nrows;
+            vector<struct Tables::col_info> schema;
+            std::string schema_string = Tables::lineitem_test_schema_string;
+            int ret = Tables::extractSchema(schema, schema_string);
+            assert(ret!=Tables::TablesErrCodes::EmptySchema);
+            assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+            print_fb(fb, fb_size, schema);
+
+            if (use_cls) {
+                /* Server side processing already done.
+                 * TODO: perform any further client-side processing required here,
+                 * such as possibly aggregate global ops here (e.g., count/sort)
+                 * then convert rows to valid db tuple format.
+                 */
+
+                // server has already applied its predicates, so count all rows
+                // here that pass after applying the remaining global ops.
+                result_count += root.nrows;
+
+
+            } else {
+                // read and perform all flatbuf rows processing here in the client.
+                // client will process all rows here.
+                nrows_processed += root.nrows;
+
+                // TODO: after processing here...
+                // add matching rows to our result counter.
+                result_count += root.nrows;
+            }
+        } // endloop of processing sequence of encoded bls
+
+        delete s;  // we're done processing all of the bls contained within
+
     } else {
+
+        ceph::bufferlist bl;
+        // if it was a cls read, then first unpack some of the cls processing stats
+        if (use_cls) {
+            try {
+                ceph::bufferlist::iterator it = s->bl.begin();
+                ::decode(times.read_ns, it);
+                ::decode(times.eval_ns, it);
+                ::decode(nrows_server_processed, it);
+            } catch (ceph::buffer::error&) {
+                int decode_runquery_cls = 0;
+                assert(decode_runquery_cls);
+            }
+        } else {
+            bl = s->bl;
+        }
+
+        // data is now all in bl
+        delete s;
+
         // our older query processing code below...
         // apply the query
         size_t row_size;
