@@ -270,6 +270,7 @@ static void worker()
         } else {
             wrapped_bls = s->bl;  // contains a seq of encoded bls.
         }
+        delete s;  // we're done processing all of the bls contained within
 
         // decode and process each bl (contains 1 flatbuf) in a loop.
         ceph::bufferlist::iterator it = wrapped_bls.begin();
@@ -298,7 +299,7 @@ static void worker()
             print_fb(fb, fb_size, schema);
 
             if (use_cls) {
-                /* Server side processing already done.
+                /* Server side processing already done at this point.
                  * TODO: perform any further client-side processing required here,
                  * such as possibly aggregate global ops here (e.g., count/sort)
                  * then convert rows to valid db tuple format.
@@ -308,19 +309,15 @@ static void worker()
                 // here that pass after applying the remaining global ops.
                 result_count += root.nrows;
 
-
             } else {
                 // read and perform all flatbuf rows processing here in the client.
                 // client will process all rows here.
                 nrows_processed += root.nrows;
 
-                // TODO: after processing here...
                 // add matching rows to our result counter.
                 result_count += root.nrows;
             }
         } // endloop of processing sequence of encoded bls
-
-        delete s;  // we're done processing all of the bls contained within
 
     } else {
 
