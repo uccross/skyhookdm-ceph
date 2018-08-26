@@ -31,50 +31,14 @@ enum TablesErrCodes {
     UnsupportedFbDataType
 };
 
-typedef flatbuffers::FlatBufferBuilder fbBuilder;
-typedef flatbuffers::FlatBufferBuilder* fbb;
-typedef flexbuffers::Builder flxBuilder;
-typedef vector<uint8_t> delete_vector;
-typedef vector<uint64_t> nullbits_vector;
-typedef vector<flatbuffers::Offset<Row>> row_offsets_vector;
-typedef vector<const Row*> rows_vector;
-typedef flexbuffers::Vector flx_vector;
-
-// the root table header contains db/table level metadata only
-struct root_table {
-    const int skyhook_version;
-    int schema_version;
-    string table_name;
-    string schema;
-    delete_vector delete_vec;
-    const rows_vector rows;
-    int nrows;
-
-    root_table(int skyver, int schmver, std::string tblname, std::string schm,
-                delete_vector d, rows_vector r, int n) :
-        skyhook_version(skyver),
-        schema_version(schmver),
-        table_name(tblname),
-        schema(schm),
-        delete_vec(d),
-        rows(r),
-        nrows(n) {};
-
+enum FbDataType {
+    FbTypeInt = 1,  // note: must start at 1
+    FbTypeDouble,
+    FbTypeChar,
+    FbTypeDate,
+    FbTypeString,
+    FbType_LAST  // note: must appear last for bounds check
 };
-typedef struct root_table sky_root_header;
-
-// the row table header contains row level metdata only
-struct row_table {
-    const int64_t RID;
-    nullbits_vector nullbits;
-    const flexbuffers::Reference data;
-
-    row_table(int64_t rid, nullbits_vector n, flexbuffers::Reference  d) :
-        RID(rid),
-        nullbits(n),
-        data(d) {};
-};
-typedef struct row_table sky_row_header;
 
 const int offset_to_skyhook_version = 4;
 const int offset_to_schema_version = 6;
@@ -87,14 +51,6 @@ const int offset_to_RID = 4;
 const int offset_to_nullbits_vec = 6;
 const int offset_to_data = 8;
 
-enum FbDataType {
-    FbTypeInt = 1,  // note: must start at 1
-    FbTypeDouble,
-    FbTypeChar,
-    FbTypeDate,
-    FbTypeString,
-    FbType_LAST  // note: must appear last for bounds check
-};
 
 // used for each col in our schema def
 struct col_info {
@@ -112,13 +68,66 @@ struct col_info {
             name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
-             std::string n) :
+            std::string n) :
             id(atoi(i.c_str())),
             type(atoi(t.c_str())),
             is_key(key[0]=='1'),
             nullable(nulls[0]=='1'),
             name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
+
+    std::string toString() {
+        return ( "   " +
+            std::to_string(id) + " " +
+            std::to_string(type) + " " +
+            std::to_string(is_key) + " " +
+            std::to_string(nullable) + " " +
+            name + "   ");}
 };
+
+typedef vector<struct col_info> schema;
+
+// the below are used in our root table
+typedef vector<uint8_t> delete_vector;
+typedef const flatbuffers::Vector<flatbuffers::Offset<Row>>* row_offs;
+
+// the below are used in our row table
+typedef vector<uint64_t> nullbits_vector;
+
+// the root table header contains db/table level metadata only
+struct root_table {
+    const int skyhook_version;
+    int schema_version;
+    string table_name;
+    string schema;
+    delete_vector delete_vec;
+    row_offs offs;
+    uint32_t nrows;
+
+    root_table(int skyver, int schmver, std::string tblname, std::string schm,
+                delete_vector d, row_offs ro, uint32_t n) :
+        skyhook_version(skyver),
+        schema_version(schmver),
+        table_name(tblname),
+        schema(schm),
+        delete_vec(d),
+        offs(ro),
+        nrows(n) {};
+
+};
+typedef struct root_table sky_root_header;
+
+// the row table header contains row level metdata only
+struct row_table {
+    const int64_t RID;
+    nullbits_vector nullbits;
+    const flexbuffers::Reference data;
+
+    row_table(int64_t rid, nullbits_vector n, flexbuffers::Reference  d) :
+        RID(rid),
+        nullbits(n),
+        data(d) {};
+};
+typedef struct row_table sky_row_header;
 
 // TODO: the schema be stored in omap of the object, because it applies to all
 // flatbuffers it contains, and all flatbufs in the object are updated
@@ -143,6 +152,14 @@ const std::string lineitem_test_schema_string = " \
     15 5 0 1 comment \n\
     ";
 
+const std::string lineitem_test_project_schema_string = " \
+    0 1 1 0 orderkey \n\
+    1 1 0 1 partkey \n\
+    3 1 1 0 linenumber \n\
+    4 2 0 1 quantity \n\
+    5 2 0 1 extendedprice \n\
+    ";
+
 sky_root_header getSkyRootHeader(const char *fb, size_t fb_size);
 sky_row_header getSkyRowHeader(const Tables::Row *rec);
 
@@ -153,8 +170,14 @@ void printSkyFb(const char* fb, size_t fb_size,
         vector<struct col_info> &schema);
 
 int getSchemaFormat(std::string schema_string, vector<col_info>& cols);
-inline std::vector<std::string> delimStringSplit(const std::string &s, char delim);
+//inline std::vector<std::string> delimStringSplit(const std::string &s, char delim);
 int extractSchema(vector<struct col_info> &schema, string &schema_string);
+int process_fb(flatbuffers::FlatBufferBuilder &flatb,
+                      schema &schema_in,
+                      schema &schema_out,
+                      const char *fb,
+                      const size_t fb_size);
+
 } // end namespace Tables
 
 #endif

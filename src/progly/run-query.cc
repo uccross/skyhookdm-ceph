@@ -291,12 +291,7 @@ static void worker()
 
             // local counter to accumulate nrows in all flatbuffers received.
             rows_returned += root.nrows;
-            vector<struct Tables::col_info> schema;
-            std::string schema_string = Tables::lineitem_test_schema_string;
-            int ret = Tables::extractSchema(schema, schema_string);
-            assert(ret!=Tables::TablesErrCodes::EmptySchema);
-            assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
-            print_fb(fb, fb_size, schema);
+
 
             if (use_cls) {
                 /* Server side processing already done at this point.
@@ -309,6 +304,16 @@ static void worker()
                 // here that pass after applying the remaining global ops.
                 result_count += root.nrows;
 
+                Tables::schema schema_out;
+                std::string ss;
+                if (projection)
+                    ss = Tables::lineitem_test_project_schema_string;
+                else
+                    ss = Tables::lineitem_test_schema_string;
+                int ret = Tables::extractSchema(schema_out, ss);
+                assert(ret!=Tables::TablesErrCodes::EmptySchema);
+                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                print_fb(fb, fb_size, schema_out);
             } else {
                 // read and perform all flatbuf rows processing here in the client.
                 // client will process all rows here.
@@ -316,6 +321,28 @@ static void worker()
 
                 // add matching rows to our result counter.
                 result_count += root.nrows;
+
+                // schema in is always that of the obj, pertains to all fbs within.
+                Tables::schema schema_in;
+                std::string ss;
+                ss = Tables::lineitem_test_schema_string;
+                int ret = Tables::extractSchema(schema_in, ss);
+                assert(ret!=Tables::TablesErrCodes::EmptySchema);
+                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+
+                // schema out is the query op's (view) schema
+                Tables::schema schema_out;
+                if (projection)
+                    ss = Tables::lineitem_test_project_schema_string;
+                else
+                    ss = Tables::lineitem_test_schema_string;
+
+                ret = Tables::extractSchema(schema_out, ss);
+                assert(ret!=Tables::TablesErrCodes::EmptySchema);
+                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+
+                flatbuffers::FlatBufferBuilder flatb(1024);  // pre-alloc size
+                print_fb(fb, fb_size, schema_out);
             }
         } // endloop of processing sequence of encoded bls
 
@@ -539,7 +566,7 @@ int main(int argc, char **argv)
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
-		("pool", po::value<std::string>(&pool)->required(), "pool")
+    ("pool", po::value<std::string>(&pool)->required(), "pool")
     ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
@@ -695,8 +722,21 @@ int main(int argc, char **argv)
 
   } else if (query == "flatbuf") {   // no processing required
 
-    assert(!projection); // not supported yet
-    std::cout << "select * from lineitem" << std::endl;
+    std::string projected_cols;
+    if (projection) {
+        Tables::schema schema_out;
+        std::string ss = Tables::lineitem_test_project_schema_string;
+        int ret = Tables::extractSchema(schema_out, ss);
+        assert(ret!=Tables::TablesErrCodes::EmptySchema);
+        assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+        for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
+            projected_cols.append((*it).name + ", ");
+        }
+    } else {
+        projected_cols.append(" * ");
+    }
+
+    std::cout << "select " << projected_cols << " from lineitem" << std::endl;
 
   } else {
     std::cerr << "invalid query: " << query << std::endl;
