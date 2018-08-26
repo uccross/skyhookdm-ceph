@@ -292,7 +292,6 @@ static void worker()
             // local counter to accumulate nrows in all flatbuffers received.
             rows_returned += root.nrows;
 
-
             if (use_cls) {
                 /* Server side processing already done at this point.
                  * TODO: perform any further client-side processing required here,
@@ -310,9 +309,7 @@ static void worker()
                     ss = Tables::lineitem_test_project_schema_string;
                 else
                     ss = Tables::lineitem_test_schema_string;
-                int ret = Tables::extractSchema(schema_out, ss);
-                assert(ret!=Tables::TablesErrCodes::EmptySchema);
-                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                Tables::getSchema(schema_out, ss);
                 print_fb(fb, fb_size, schema_out);
             } else {
                 // read and perform all flatbuf rows processing here in the client.
@@ -326,9 +323,7 @@ static void worker()
                 Tables::schema_vec schema_in;
                 std::string ss;
                 ss = Tables::lineitem_test_schema_string;
-                int ret = Tables::extractSchema(schema_in, ss);
-                assert(ret!=Tables::TablesErrCodes::EmptySchema);
-                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                Tables::getSchema(schema_in, ss);
 
                 // schema out is the query op's (view) schema
                 Tables::schema_vec schema_out;
@@ -336,9 +331,7 @@ static void worker()
                     ss = Tables::lineitem_test_project_schema_string;
                 else
                     ss = Tables::lineitem_test_schema_string;
-                ret = Tables::extractSchema(schema_out, ss);
-                assert(ret!=Tables::TablesErrCodes::EmptySchema);
-                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                Tables::getSchema(schema_out, ss);
                 print_fb(fb, fb_size, schema_out);
             }
         } // endloop of processing sequence of encoded bls
@@ -723,9 +716,7 @@ int main(int argc, char **argv)
     if (projection) {
         Tables::schema_vec schema_out;
         std::string ss = Tables::lineitem_test_project_schema_string;
-        int ret = Tables::extractSchema(schema_out, ss);
-        assert(ret!=Tables::TablesErrCodes::EmptySchema);
-        assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+        Tables::getSchema(schema_out, ss);
         for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
             projected_cols.append((*it).name + ", ");
         }

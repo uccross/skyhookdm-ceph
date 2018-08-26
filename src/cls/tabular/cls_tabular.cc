@@ -204,25 +204,18 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         // once per obj, before we start unpacking the fbs.
         // TODO: schema_in should come from omap,  schema_out should come
         // from our fdw query api.
-        std::string s;
+        std::string ss;
 
-        // schema in is always that of the obj, pertains to all fbs within.
+        // schema_in is the table's current schema
         Tables::schema_vec schema_in;
-        s = Tables::lineitem_test_schema_string;
-        ret = Tables::extractSchema(schema_in, s);
-        assert(ret!=Tables::TablesErrCodes::EmptySchema);
-        assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+        ss = Tables::lineitem_test_schema_string;
+        Tables::getSchema(schema_in, ss);
 
-        // schema out is the query op's (view) schema
+        // schema out is the query schema
         Tables::schema_vec schema_out;
-        if (op.projection)
-            s = Tables::lineitem_test_project_schema_string;
-        else
-            s = Tables::lineitem_test_schema_string;
-
-        ret = Tables::extractSchema(schema_out, s);
-        assert(ret!=Tables::TablesErrCodes::EmptySchema);
-        assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+        if (op.projection) ss= Tables::lineitem_test_project_schema_string;
+        else  ss = Tables::lineitem_test_schema_string;
+        Tables::getSchema(schema_out, ss);
 
         // decode and process each bl (contains 1 flatbuf) in a loop.
         eval_ns_start = getns();

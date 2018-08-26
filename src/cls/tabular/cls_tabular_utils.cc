@@ -119,8 +119,18 @@ int processSkyFb(flatbuffers::FlatBufferBuilder &flatbldr,
     return 0;  // TODO use ret error codes
 }
 
-// schema string expects the format cls_tabular_utils.h lineitem_test_schema
-int extractSchema(vector<struct col_info> &schema, string& schema_string) {
+// obtain the schema of the table or the query
+void getSchema(schema_vec &schema, std::string schema_str) {
+
+    // TODO: don't use a string, get from omap or the obj directly.
+    int ret = extractSchemaFromString(schema, schema_str);
+
+    assert(ret!=TablesErrCodes::EmptySchema);
+    assert(ret!=TablesErrCodes::BadColInfoFormat);
+}
+
+// schema string expects the format in cls_tabular_utils.h lineitem_test_schema
+int extractSchemaFromString(vector<struct col_info> &schema, string& schema_string) {
 
     vector<std::string> elems;
     boost::split(elems, schema_string, boost::is_any_of("\n"),

@@ -177,8 +177,9 @@ void printSkyRowHeader(sky_row_header *r);
 void printSkyFb(const char* fb, size_t fb_size,
                 vector<struct col_info> &schema);
 
-int getSchemaFormat(std::string schema_string, vector<col_info>& cols);
-int extractSchema(vector<struct col_info> &schema, string &schema_string);
+void getSchema(schema_vec &schema, std::string schema_str);
+int extractSchemaFromString(vector<struct col_info> &schema,
+                            string &schema_string);
 
 // for proj, select(TODO), fastpath(TODO), aggregations(TODO), build return fb
 int processSkyFb(
