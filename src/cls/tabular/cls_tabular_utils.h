@@ -31,13 +31,15 @@ enum TablesErrCodes {
     UnsupportedFbDataType
 };
 
-enum FbDataType {
-    FbTypeInt = 1,  // note: must start at 1
-    FbTypeDouble,
-    FbTypeChar,
-    FbTypeDate,
-    FbTypeString,
-    FbType_LAST  // note: must appear last for bounds check
+// skyhookdb data types, as supported by underlying data format
+// TODO:  add more types supported natively by flatbuffers
+enum SkyDataType {
+    SkyTypeInt = 1,  // note: must start at 1
+    SkyTypeDouble,
+    SkyTypeChar,
+    SkyTypeDate,
+    SkyTypeString,
+    SkyType_LAST  // note: must appear last for bounds check
 };
 
 const int offset_to_skyhook_version = 4;
@@ -51,40 +53,38 @@ const int offset_to_RID = 4;
 const int offset_to_nullbits_vec = 6;
 const int offset_to_data = 8;
 
-
-// used for each col in our schema def
+// col metadata used for the schema
 struct col_info {
-    int id;
+    int idx;
     int type;
     bool is_key;
     bool nullable;
     std::string name;
 
     col_info(int i, int t, bool key, bool nulls, std::string n) :
-            id(i),
-            type(t),
-            is_key(key),
-            nullable(nulls),
-            name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
+        idx(i),
+        type(t),
+        is_key(key),
+        nullable(nulls),
+        name(n) {assert(type > 0 && type < SkyDataType::SkyType_LAST );}
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
-            std::string n) :
-            id(atoi(i.c_str())),
-            type(atoi(t.c_str())),
-            is_key(key[0]=='1'),
-            nullable(nulls[0]=='1'),
-            name(n) {assert(type > 0 && type < FbDataType::FbType_LAST );}
+        std::string n) :
+        idx(atoi(i.c_str())),
+        type(atoi(t.c_str())),
+        is_key(key[0]=='1'),
+        nullable(nulls[0]=='1'),
+        name(n) {assert(type > 0 && type < SkyDataType::SkyType_LAST );}
 
     std::string toString() {
         return ( "   " +
-            std::to_string(id) + " " +
+            std::to_string(idx) + " " +
             std::to_string(type) + " " +
             std::to_string(is_key) + " " +
             std::to_string(nullable) + " " +
             name + "   ");}
 };
-
-typedef vector<struct col_info> schema;
+typedef vector<struct col_info> schema_vec;
 
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
@@ -92,8 +92,10 @@ typedef const flatbuffers::Vector<flatbuffers::Offset<Row>>* row_offs;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
+typedef flexbuffers::Reference row_data_ref;
 
-// the root table header contains db/table level metadata only
+// skyhookdb root metadata, refering to a (sub)partition of rows
+// abstracts a partition from its underlying data format/layout
 struct root_table {
     const int skyhook_version;
     int schema_version;
@@ -104,7 +106,7 @@ struct root_table {
     uint32_t nrows;
 
     root_table(int skyver, int schmver, std::string tblname, std::string schm,
-                delete_vector d, row_offs ro, uint32_t n) :
+               delete_vector d, row_offs ro, uint32_t n) :
         skyhook_version(skyver),
         schema_version(schmver),
         table_name(tblname),
@@ -116,23 +118,23 @@ struct root_table {
 };
 typedef struct root_table sky_root_header;
 
-// the row table header contains row level metdata only
+// skyhookdb row metadata and row data, wraps a row of data
+// abstracts a row from its underlying data format/layout
 struct row_table {
     const int64_t RID;
     nullbits_vector nullbits;
-    const flexbuffers::Reference data;
+    const row_data_ref data;
 
-    row_table(int64_t rid, nullbits_vector n, flexbuffers::Reference  d) :
+    row_table(int64_t rid, nullbits_vector n, row_data_ref  d) :
         RID(rid),
         nullbits(n),
         data(d) {};
 };
 typedef struct row_table sky_row_header;
 
-// TODO: the schema be stored in omap of the object, because it applies to all
-// flatbuffers it contains, and all flatbufs in the object are updated
-// atomically during any schema change so they always reflect the same schema.
-// format: "col_id col_type col_is_key nullable col_name \n"
+// a test schema for the tpch lineitem table.
+// format: "col_idx col_type col_is_key nullable col_name \n"
+// note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_schema_string = " \
     0 1 1 0 orderkey \n\
     1 1 0 1 partkey \n\
@@ -152,6 +154,9 @@ const std::string lineitem_test_schema_string = " \
     15 5 0 1 comment \n\
     ";
 
+// a test schema for procection over the tpch lineitem table.
+// format: "col_idx col_type col_is_key nullable col_name \n"
+// note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_project_schema_string = " \
     0 1 1 0 orderkey \n\
     1 1 0 1 partkey \n\
@@ -160,6 +165,9 @@ const std::string lineitem_test_project_schema_string = " \
     5 2 0 1 extendedprice \n\
     ";
 
+// these extract the current data format (flatbuf) into the skyhookdb
+// root table and row table data structure defined above, abstracting
+// skyhookdb data partitions design from the underlying data format.
 sky_root_header getSkyRootHeader(const char *fb, size_t fb_size);
 sky_row_header getSkyRowHeader(const Tables::Row *rec);
 
@@ -167,16 +175,18 @@ void printSkyRootHeader(sky_root_header *r);
 void printSkyRowHeader(sky_row_header *r);
 
 void printSkyFb(const char* fb, size_t fb_size,
-        vector<struct col_info> &schema);
+                vector<struct col_info> &schema);
 
 int getSchemaFormat(std::string schema_string, vector<col_info>& cols);
-//inline std::vector<std::string> delimStringSplit(const std::string &s, char delim);
 int extractSchema(vector<struct col_info> &schema, string &schema_string);
-int process_fb(flatbuffers::FlatBufferBuilder &flatb,
-                      schema &schema_in,
-                      schema &schema_out,
-                      const char *fb,
-                      const size_t fb_size);
+
+// for proj, select(TODO), fastpath(TODO), aggregations(TODO), build return fb
+int processSkyFb(
+        flatbuffers::FlatBufferBuilder &flatb,
+        schema_vec &schema_in,
+        schema_vec &schema_out,
+        const char *fb,
+        const size_t fb_size);
 
 } // end namespace Tables
 

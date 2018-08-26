@@ -25,15 +25,12 @@
 
 namespace Tables {
 
-int process_fb(flatbuffers::FlatBufferBuilder &flatb,
-                      schema &schema_in,
-                      schema &schema_out,
+int processSkyFb(flatbuffers::FlatBufferBuilder &flatbldr,
+                      schema_vec &schema_in,
+                      schema_vec &schema_out,
                       const char *fb,
                       const size_t fb_size)
 {
-
-    // Setup the return root flatbuffer builder
-    //flatbuffers::FlatBufferBuilder flatb(1024);  // pre-alloc size
     Tables::delete_vector dead_rows;
     std::vector<flatbuffers::Offset<Tables::Row>> offs;
     Tables::sky_root_header skyroot = Tables::getSkyRootHeader(fb, fb_size);
@@ -45,48 +42,47 @@ int process_fb(flatbuffers::FlatBufferBuilder &flatb,
 
         Tables::sky_row_header skyrow = getSkyRowHeader(skyroot.offs->Get(i));
         auto row = skyrow.data.AsVector();
-        flexbuffers::Builder *flexb = new flexbuffers::Builder();
-        flexb->Vector([&]() {
-            //for (uint32_t j = 0; j < schema_out.size(); j++) {
-            for (auto it = schema_out.begin(); it!=schema_out.end(); ++it) {
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flexbldr->Vector([&]() {
 
-                //Tables::col_info col = schema_out.at(j);
+            // iter over the output schema, locating it within the input schema.
+            for (schema_vec::iterator it = schema_out.begin(); it!=schema_out.end(); ++it) {
                 Tables::col_info col = *it;
-                if (col.id < 0) {
+                if (col.idx < 0) {
                     // A negative col id # means not in original schema
                     // Do some processing (SUM, COUNT, etc)
                 } else {
 
                     switch(col.type) {
-                    case Tables::FbTypeInt: {
-                        int value = row[col.id].AsInt32();
-                        flexb->Int(value);
+                    case Tables::SkyTypeInt: {
+                        int value = row[col.idx].AsInt32();
+                        flexbldr->Int(value);
                         break;
                     }
-                    case Tables::FbTypeDouble: {
-                        double value = row[col.id].AsDouble();
-                        flexb->Double(value);
+                    case Tables::SkyTypeDouble: {
+                        double value = row[col.idx].AsDouble();
+                        flexbldr->Double(value);
                         break;
                     }
-                    case Tables::FbTypeChar: {
-                        int8_t value = row[col.id].AsInt8();
-                        flexb->Int(value);
+                    case Tables::SkyTypeChar: {
+                        int8_t value = row[col.idx].AsInt8();
+                        flexbldr->Int(value);
                         break;
                     }
-                    case Tables::FbTypeDate: {
-                        string s = row[col.id].AsString().str();
-                        flexb->String(s);
+                    case Tables::SkyTypeDate: {
+                        string s = row[col.idx].AsString().str();
+                        flexbldr->String(s);
                         break;
                     }
-                    case Tables::FbTypeString: {
-                        string s = row[col.id].AsString().str();
-                        flexb->String(s);
+                    case Tables::SkyTypeString: {
+                        string s = row[col.idx].AsString().str();
+                        flexbldr->String(s);
                         break;
                     }
                     default: {
                         // This is for other enum types for aggregations,
                         // e.g. SUM, MAX, MIN....
-                        flexb->String("EMPTY");
+                        flexbldr->String("EMPTY");
                         break;
                     }}
                 }
@@ -94,17 +90,17 @@ int process_fb(flatbuffers::FlatBufferBuilder &flatb,
         });
 
         // finalize the flexbuf row data
-        flexb->Finish();
+        flexbldr->Finish();
 
         // build the return row flatbuf that contains our row data flexbuf
-        auto row_data = flatb.CreateVector(flexb->GetBuffer());
-        auto nullbits = flatb.CreateVector(skyrow.nullbits);  // TODO: update nullbits
-        flatbuffers::Offset<Tables::Row> row_off = Tables::CreateRow(flatb, skyrow.RID, nullbits, row_data);
+        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        auto nullbits = flatbldr.CreateVector(skyrow.nullbits);  // TODO: update nullbits
+        flatbuffers::Offset<Tables::Row> row_off = Tables::CreateRow(flatbldr, skyrow.RID, nullbits, row_data);
 
         // Continue building the root flatbuf's dead vector and rowOffsets vector
         dead_rows.push_back(0);
         offs.push_back(row_off);
-        delete flexb;
+        delete flexbldr;
     }
 
     // Build the root table info
@@ -112,14 +108,14 @@ int process_fb(flatbuffers::FlatBufferBuilder &flatb,
     for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
         schema_str.append((*it).toString() + "\n");
     }
-    auto table_name = flatb.CreateString(skyroot.table_name);
-    auto ret_schema = flatb.CreateString(schema_str);
-    auto delete_v = flatb.CreateVector(dead_rows);
-    auto rows_v = flatb.CreateVector(offs);
-    auto tableOffset = CreateTable(flatb, skyroot.skyhook_version,
+    auto table_name = flatbldr.CreateString(skyroot.table_name);
+    auto ret_schema = flatbldr.CreateString(schema_str);
+    auto delete_v = flatbldr.CreateVector(dead_rows);
+    auto rows_v = flatbldr.CreateVector(offs);
+    auto tableOffset = CreateTable(flatbldr, skyroot.skyhook_version,
         skyroot.schema_version, table_name, ret_schema,
         delete_v, rows_v, offs.size());
-    flatb.Finish(tableOffset);
+    flatbldr.Finish(tableOffset);
     return 0;  // TODO use ret error codes
 }
 
@@ -200,7 +196,7 @@ void printSkyRowHeader(sky_row_header &r) {
 
 // parent print function for skyhook flatbuffer data layout
 void printSkyFb(const char* fb, size_t fb_size,
-        schema &sch) {
+        schema_vec &sch) {
 
     // get root table ptr
     sky_root_header skyroot = Tables::getSkyRootHeader(fb, fb_size);
@@ -208,7 +204,7 @@ void printSkyFb(const char* fb, size_t fb_size,
 
     // print col metadata (only names for now).
     cout  << "Flatbuffer schema for the following rows:" << endl;
-    for (schema::iterator it = sch.begin(); it != sch.end(); ++it) {
+    for (schema_vec::iterator it = sch.begin(); it != sch.end(); ++it) {
         cout << " | " << (*it).name;
         if ((*it).is_key) cout << "(key)";
         if (!(*it).nullable) cout << "(NOT NULL)";
@@ -232,8 +228,8 @@ void printSkyFb(const char* fb, size_t fb_size,
             // check our nullbit vector
             if (col.nullable) {
                 bool is_null = false;
-                int pos = col.id / (8*sizeof(skyrow.nullbits.at(0)));
-                int col_bitmask = 1 << col.id;
+                int pos = col.idx / (8*sizeof(skyrow.nullbits.at(0)));
+                int col_bitmask = 1 << col.idx;
                 if ((col_bitmask & skyrow.nullbits.at(pos)) != 0)  {
                     is_null =true;
                 }
@@ -252,27 +248,27 @@ void printSkyFb(const char* fb, size_t fb_size,
             cout << "|";
             switch (col.type) {
 
-                case FbTypeInt: {
+                case SkyTypeInt: {
                     int val = row[j].AsInt32();
                     cout << val;
                     break;
                 }
-                case FbTypeDouble: {
+                case SkyTypeDouble: {
                     double val = row[j].AsDouble();
                     cout << val;
                     break;
                 }
-                case FbTypeChar: {
+                case SkyTypeChar: {
                     int8_t val = row[j].AsInt8();
                     cout <<  static_cast<char>(val);
                     break;
                 }
-                case FbTypeDate: {
+                case SkyTypeDate: {
                     std::string date = row[j].AsString().str();
                     cout << date;
                     break;
                 }
-                case FbTypeString: {
+                case SkyTypeString: {
                     std::string s = row[j].AsString().str();
                     cout << s;
                     break;

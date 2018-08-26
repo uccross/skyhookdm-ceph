@@ -304,7 +304,7 @@ static void worker()
                 // here that pass after applying the remaining global ops.
                 result_count += root.nrows;
 
-                Tables::schema schema_out;
+                Tables::schema_vec schema_out;
                 std::string ss;
                 if (projection)
                     ss = Tables::lineitem_test_project_schema_string;
@@ -323,7 +323,7 @@ static void worker()
                 result_count += root.nrows;
 
                 // schema in is always that of the obj, pertains to all fbs within.
-                Tables::schema schema_in;
+                Tables::schema_vec schema_in;
                 std::string ss;
                 ss = Tables::lineitem_test_schema_string;
                 int ret = Tables::extractSchema(schema_in, ss);
@@ -331,17 +331,14 @@ static void worker()
                 assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
 
                 // schema out is the query op's (view) schema
-                Tables::schema schema_out;
+                Tables::schema_vec schema_out;
                 if (projection)
                     ss = Tables::lineitem_test_project_schema_string;
                 else
                     ss = Tables::lineitem_test_schema_string;
-
                 ret = Tables::extractSchema(schema_out, ss);
                 assert(ret!=Tables::TablesErrCodes::EmptySchema);
                 assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
-
-                flatbuffers::FlatBufferBuilder flatb(1024);  // pre-alloc size
                 print_fb(fb, fb_size, schema_out);
             }
         } // endloop of processing sequence of encoded bls
@@ -724,7 +721,7 @@ int main(int argc, char **argv)
 
     std::string projected_cols;
     if (projection) {
-        Tables::schema schema_out;
+        Tables::schema_vec schema_out;
         std::string ss = Tables::lineitem_test_project_schema_string;
         int ret = Tables::extractSchema(schema_out, ss);
         assert(ret!=Tables::TablesErrCodes::EmptySchema);

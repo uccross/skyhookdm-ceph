@@ -207,14 +207,14 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         std::string s;
 
         // schema in is always that of the obj, pertains to all fbs within.
-        Tables::schema schema_in;
+        Tables::schema_vec schema_in;
         s = Tables::lineitem_test_schema_string;
         ret = Tables::extractSchema(schema_in, s);
         assert(ret!=Tables::TablesErrCodes::EmptySchema);
         assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
 
         // schema out is the query op's (view) schema
-        Tables::schema schema_out;
+        Tables::schema_vec schema_out;
         if (op.projection)
             s = Tables::lineitem_test_project_schema_string;
         else
@@ -240,15 +240,15 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             size_t fb_size = bl.length();
 
             Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
-            flatbuffers::FlatBufferBuilder flatb(1024);  // pre-alloc size
-            process_fb(flatb, schema_in, schema_out, fb, fb_size);
+            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
+            processSkyFb(flatbldr, schema_in, schema_out, fb, fb_size);
             rows_processed += root.nrows;
-            const char *buf = reinterpret_cast<char*>(flatb.GetBufferPointer());
-            int bufsz = flatb.GetSize();
+            const char *processed_fb = reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+            int bufsz = flatbldr.GetSize();
 
             // add this processed fb to our sequence of bls
             bufferlist ans;
-            ans.append(buf, bufsz);
+            ans.append(processed_fb, bufsz);
             ::encode(ans, result_bl);
         }
     } else {
