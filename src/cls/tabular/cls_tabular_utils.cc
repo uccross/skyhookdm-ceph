@@ -23,34 +23,56 @@
 #include "flatbuffers/flexbuffers.h"
 #include "skyhookv1_generated.h"
 
+
 namespace Tables {
 
-int processSkyFb(flatbuffers::FlatBufferBuilder &flatbldr,
-                      schema_vec &schema_in,
-                      schema_vec &schema_out,
-                      const char *fb,
-                      const size_t fb_size)
+int processSkyFb(
+    flatbuffers::FlatBufferBuilder &flatbldr,
+    schema_vec &schema_in,
+    schema_vec &schema_out,
+    const char *fb,
+    const size_t fb_size,
+    std::string &errmsg)
 {
+    int errcode = 0;
     Tables::delete_vector dead_rows;
     std::vector<flatbuffers::Offset<Tables::Row>> offs;
     Tables::sky_root_header skyroot = Tables::getSkyRootHeader(fb, fb_size);
 
+    // identify the max col idx, to prevent flexbuf vector oob error
+    int col_idx_max, col_idx_min;
+    col_idx_max = col_idx_min = -1;
+    for (auto it=schema_in.begin(); it!=schema_in.end(); ++it) {
+        if ((*it).idx > col_idx_max)
+            col_idx_max = (*it).idx;
+    }
+
     // build the flexbuf for each row's data
-    for (uint32_t i = 0; i < skyroot.nrows; i++) {
+    for (uint32_t i = 0; i < skyroot.nrows && !errcode; i++) {
 
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
-        Tables::sky_row_header skyrow = getSkyRowHeader(skyroot.offs->Get(i));
+        sky_row_header skyrow = getSkyRowHeader(skyroot.offs->Get(i));
         auto row = skyrow.data.AsVector();
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flexbldr->Vector([&]() {
 
             // iter over the output schema, locating it within the input schema.
-            for (schema_vec::iterator it = schema_out.begin(); it!=schema_out.end(); ++it) {
+            for (auto it=schema_out.begin(); it!=schema_out.end() && !errcode; ++it) {
+
                 Tables::col_info col = *it;
-                if (col.idx < 0) {
+                if (col.idx < col_idx_min || col.idx > col_idx_max) {
+                    errcode = TablesErrCodes::RequestedColIndexOOB;
+                    errmsg.append("ERROR processSkyFb(): table=" +
+                            skyroot.table_name + "; rid=" +
+                            std::to_string(skyrow.RID) + " col.idx=" +
+                            std::to_string(col.idx) + " OOB.");
+
+                } else if (col.idx < 0) {
+
                     // A negative col id # means not in original schema
                     // Do some processing (SUM, COUNT, etc)
+
                 } else {
 
                     switch(col.type) {
@@ -80,30 +102,34 @@ int processSkyFb(flatbuffers::FlatBufferBuilder &flatbldr,
                         break;
                     }
                     default: {
-                        // This is for other enum types for aggregations,
-                        // e.g. SUM, MAX, MIN....
-                        flexbldr->String("EMPTY");
+                        errcode = TablesErrCodes::UnsupportedSkyDataType;
+                        errmsg.append("ERROR processSkyFb(): table=" +
+                                skyroot.table_name + "; rid=" +
+                                std::to_string(skyrow.RID) + " col.type=" +
+                                std::to_string(col.type) +
+                                " UnsupportedSkyDataType.");
                         break;
                     }}
                 }
             }
         });
 
-        // finalize the flexbuf row data
+        // finalize the DATA flexbuf
         flexbldr->Finish();
 
-        // build the return row flatbuf that contains our row data flexbuf
+        // build the return ROW flatbuf that contains our row data flexbuf
         auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
         auto nullbits = flatbldr.CreateVector(skyrow.nullbits);  // TODO: update nullbits
-        flatbuffers::Offset<Tables::Row> row_off = Tables::CreateRow(flatbldr, skyrow.RID, nullbits, row_data);
+        flatbuffers::Offset<Tables::Row> row_off = \
+                Tables::CreateRow(flatbldr, skyrow.RID, nullbits, row_data);
 
-        // Continue building the root flatbuf's dead vector and rowOffsets vector
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vector
         dead_rows.push_back(0);
         offs.push_back(row_off);
-        delete flexbldr;
     }
 
-    // Build the root table info
+    // build the return ROOT flatbuf
     std::string schema_str;
     for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
         schema_str.append((*it).toString() + "\n");
@@ -115,8 +141,12 @@ int processSkyFb(flatbuffers::FlatBufferBuilder &flatbldr,
     auto tableOffset = CreateTable(flatbldr, skyroot.skyhook_version,
         skyroot.schema_version, table_name, ret_schema,
         delete_v, rows_v, offs.size());
+
+    // NOTE: fb may be incomplete, but we need to finish it else fb assert fail
+    // hence we always return a valid fb and must catch ret error code upstream
     flatbldr.Finish(tableOffset);
-    return 0;  // TODO use ret error codes
+
+    return errcode;
 }
 
 // obtain the schema of the table or the query
@@ -146,15 +176,19 @@ int extractSchemaFromString(vector<struct col_info> &schema, string& schema_stri
         std::string col_info_string = *it;
         boost::trim(col_info_string);
 
+        // expected num of metadata items in our Tables::col_info struct
+        uint32_t col_metadata_items = 5;
+
         // ignore empty strings after trimming, due to above boost split.
-        if (col_info_string.length() < 5)
+        // expected len of at least n items with n-1 spaces
+        uint32_t col_info_string_min_len = (2*col_metadata_items) - 1;
+        if (col_info_string.length() < col_info_string_min_len)
             continue;
 
         boost::split(col_data, col_info_string, boost::is_any_of(" "),
                 boost::token_compress_on);
 
-        // expected num of items in our col_info struct
-        if (col_data.size() != 5)
+        if (col_data.size() != col_metadata_items)
             return TablesErrCodes::BadColInfoFormat;
 
         std::string name = col_data[4];

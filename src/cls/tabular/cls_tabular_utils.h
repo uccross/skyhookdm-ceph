@@ -28,7 +28,8 @@ enum TablesErrCodes {
     EmptySchema = 1,
     BadColInfoFormat,
     BadColInfoConversion,
-    UnsupportedFbDataType
+    UnsupportedSkyDataType,
+    RequestedColIndexOOB
 };
 
 // skyhookdb data types, as supported by underlying data format
@@ -55,11 +56,11 @@ const int offset_to_data = 8;
 
 // col metadata used for the schema
 struct col_info {
-    int idx;
-    int type;
-    bool is_key;
-    bool nullable;
-    std::string name;
+    const int idx;
+    const int type;
+    const bool is_key;
+    const bool nullable;
+    const std::string name;
 
     col_info(int i, int t, bool key, bool nulls, std::string n) :
         idx(i),
@@ -178,7 +179,7 @@ void printSkyFb(const char* fb, size_t fb_size,
                 vector<struct col_info> &schema);
 
 void getSchema(schema_vec &schema, std::string schema_str);
-int extractSchemaFromString(vector<struct col_info> &schema,
+int extractSchemaFromString(schema_vec &schema,
                             string &schema_string);
 
 // for proj, select(TODO), fastpath(TODO), aggregations(TODO), build return fb
@@ -187,7 +188,8 @@ int processSkyFb(
         schema_vec &schema_in,
         schema_vec &schema_out,
         const char *fb,
-        const size_t fb_size);
+        const size_t fb_size,
+        std::string &errmsg);
 
 } // end namespace Tables
 

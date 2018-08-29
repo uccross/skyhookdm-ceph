@@ -304,39 +304,57 @@ static void worker()
                 result_count += root.nrows;
 
                 Tables::schema_vec schema_out;
-                std::string ss;
                 if (projection)
-                    ss = Tables::lineitem_test_project_schema_string;
+                    Tables::getSchema(schema_out, Tables::lineitem_test_project_schema_string);
                 else
-                    ss = Tables::lineitem_test_schema_string;
-                Tables::getSchema(schema_out, ss);
+                    Tables::getSchema(schema_out, Tables::lineitem_test_schema_string);
                 print_fb(fb, fb_size, schema_out);
             } else {
-                // read and perform all flatbuf rows processing here in the client.
-                // client will process all rows here.
+                // perform any extra project/select/agg if needed.
+                bool more_processing = false;
+                const char *fb_out;
+                size_t fb_out_size;
+                Tables::schema_vec schema_out;
                 nrows_processed += root.nrows;
 
-                // add matching rows to our result counter.
-                result_count += root.nrows;
-
-                // schema in is always that of the obj, pertains to all fbs within.
+                // set the input schema (current schema of the fb)
                 Tables::schema_vec schema_in;
-                std::string ss;
-                ss = Tables::lineitem_test_schema_string;
-                Tables::getSchema(schema_in, ss);
+                Tables::getSchema(schema_in, Tables::lineitem_test_schema_string);
 
-                // schema out is the query op's (view) schema
-                Tables::schema_vec schema_out;
-                if (projection)
-                    ss = Tables::lineitem_test_project_schema_string;
-                else
-                    ss = Tables::lineitem_test_schema_string;
-                Tables::getSchema(schema_out, ss);
-                print_fb(fb, fb_size, schema_out);
+                // set the output schema
+                if (projection) {
+                    more_processing = true;
+                    Tables::getSchema(schema_out, Tables::lineitem_test_project_schema_string);
+                }
+                else {
+                    Tables::getSchema(schema_out, Tables::lineitem_test_schema_string);
+                }
+
+                if (!more_processing) {  // nothing left to do here.
+                    fb_out = fb;
+                    fb_out_size = fb_size;
+                    result_count += root.nrows;
+                } else {
+                    flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
+                    std::string errmsg;
+                    bool processedOK = true;
+                    int ret = Tables::processSkyFb(flatbldr, schema_in, schema_out, fb, fb_size, errmsg);
+                    if (ret != 0) {
+                        processedOK = false;
+                        std::cerr << "ERROR: run-query: "<< errmsg << endl;
+                        std::cerr << "ERROR: processing flatbuf, Tables::ErrCodes=" << ret << endl;
+                        assert(processedOK);
+                    }
+                    fb_out = reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                    fb_out_size = flatbldr.GetSize();
+                    Tables::sky_root_header skyroot = Tables::getSkyRootHeader(fb_out, fb_out_size);
+                    result_count += skyroot.nrows;
+                }
+                print_fb(fb_out, fb_out_size, schema_out);
             }
         } // endloop of processing sequence of encoded bls
 
-    } else {
+    } else {   // older processing code below
 
         ceph::bufferlist bl;
         // if it was a cls read, then first unpack some of the cls processing stats

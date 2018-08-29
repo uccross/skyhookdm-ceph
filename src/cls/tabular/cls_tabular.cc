@@ -234,9 +234,16 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
             Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
             flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
-            processSkyFb(flatbldr, schema_in, schema_out, fb, fb_size);
+            std::string errmsg;
+            ret = Tables::processSkyFb(flatbldr, schema_in, schema_out, fb, fb_size, errmsg);
+            if (ret != 0) {
+                CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
+                CLS_ERR("ERROR: processing flatbuf, Tables::ErrCodes:%d", ret);
+                return -1;
+            }
             rows_processed += root.nrows;
-            const char *processed_fb = reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+            const char *processed_fb = \
+                reinterpret_cast<char*>(flatbldr.GetBufferPointer());
             int bufsz = flatbldr.GetSize();
 
             // add this processed fb to our sequence of bls
