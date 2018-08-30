@@ -84,6 +84,8 @@ struct col_info {
             std::to_string(is_key) + " " +
             std::to_string(nullable) + " " +
             name + "   ");}
+
+    bool compareName(std::string colname) {return (colname==name)?true:false;}
 };
 typedef vector<struct col_info> schema_vec;
 
@@ -174,15 +176,15 @@ sky_row_header getSkyRowHeader(const Tables::Row *rec);
 
 void printSkyRootHeader(sky_root_header *r);
 void printSkyRowHeader(sky_row_header *r);
+void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
 
-void printSkyFb(const char* fb, size_t fb_size,
-                vector<struct col_info> &schema);
+void getSchemaFromProjectCols(schema_vec &ret_schema,
+                              schema_vec &current_schema,
+                              std::string project_col_names);
+int getSchemaFromSchemaString(schema_vec &schema, std::string schema_string);
+std::string getSchemaStrFromSchema(schema_vec schema);
 
-void getSchema(schema_vec &schema, std::string schema_str);
-int extractSchemaFromString(schema_vec &schema,
-                            string &schema_string);
-
-// for proj, select(TODO), fastpath(TODO), aggregations(TODO), build return fb
+// for proj, select(TODO), fastpath, aggregations(TODO), build return fb
 int processSkyFb(
         flatbuffers::FlatBufferBuilder &flatb,
         schema_vec &schema_in,

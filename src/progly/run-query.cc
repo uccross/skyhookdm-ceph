@@ -68,7 +68,7 @@ struct timing {
 
 static std::vector<timing> timings;
 
-// query parameters
+// query parameters to be encoded into query_op struct
 static double extended_price;
 static int order_key;
 static int line_number;
@@ -78,6 +78,9 @@ static double discount_low;
 static double discount_high;
 static double quantity;
 static std::string comment_regex;
+static std::string table_schema_str;
+static std::string query_schema_str;
+static bool fastpath;
 
 static std::atomic<unsigned> result_count;
 static std::atomic<unsigned> rows_returned;
@@ -250,7 +253,7 @@ static void worker()
     if (query == "flatbuf") {
 
         // librados read will return the original obj, which is a seq of bls.
-        // cls read will return some stats and a seq of bls.
+        // cls read will return an obj with some stats and a seq of bls.
 
         bufferlist wrapped_bls;   // to store the seq of bls.
 
@@ -283,19 +286,20 @@ static void worker()
                 assert(decode_runquery_noncls);
             }
 
+            // get our data as contiguous bytes before accessing as flatbuf
             const char* fb = bl.c_str();
             size_t fb_size = bl.length();
-
-            // print the headers here for sanity check only, can be removed.
-            Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
+            Tables::sky_root_header root = \
+                    Tables::getSkyRootHeader(fb, fb_size);
 
             // local counter to accumulate nrows in all flatbuffers received.
             rows_returned += root.nrows;
 
+            int ret = 0;
             if (use_cls) {
                 /* Server side processing already done at this point.
-                 * TODO: perform any further client-side processing required here,
-                 * such as possibly aggregate global ops here (e.g., count/sort)
+                 * TODO: any further client-side processing required here,
+                 * such as possibly aggregate global ops here (e.g.,count/sort)
                  * then convert rows to valid db tuple format.
                  */
 
@@ -304,10 +308,9 @@ static void worker()
                 result_count += root.nrows;
 
                 Tables::schema_vec schema_out;
-                if (projection)
-                    Tables::getSchema(schema_out, Tables::lineitem_test_project_schema_string);
-                else
-                    Tables::getSchema(schema_out, Tables::lineitem_test_schema_string);
+                ret = getSchemaFromSchemaString(schema_out, query_schema_str);
+                assert(ret!=Tables::TablesErrCodes::EmptySchema);
+                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
                 print_fb(fb, fb_size, schema_out);
             } else {
                 // perform any extra project/select/agg if needed.
@@ -319,15 +322,16 @@ static void worker()
 
                 // set the input schema (current schema of the fb)
                 Tables::schema_vec schema_in;
-                Tables::getSchema(schema_in, Tables::lineitem_test_schema_string);
+                ret = getSchemaFromSchemaString(schema_in, table_schema_str);
+                assert(ret!=Tables::TablesErrCodes::EmptySchema); // TODO errs
+                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                ret = getSchemaFromSchemaString(schema_out, query_schema_str);
+                assert(ret!=Tables::TablesErrCodes::EmptySchema);
+                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
 
                 // set the output schema
                 if (projection) {
                     more_processing = true;
-                    Tables::getSchema(schema_out, Tables::lineitem_test_project_schema_string);
-                }
-                else {
-                    Tables::getSchema(schema_out, Tables::lineitem_test_schema_string);
                 }
 
                 if (!more_processing) {  // nothing left to do here.
@@ -335,19 +339,23 @@ static void worker()
                     fb_out_size = fb_size;
                     result_count += root.nrows;
                 } else {
-                    flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
+                    flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                     std::string errmsg;
                     bool processedOK = true;
-                    int ret = Tables::processSkyFb(flatbldr, schema_in, schema_out, fb, fb_size, errmsg);
+                    ret = processSkyFb(flatbldr, schema_in, schema_out,
+                                       fb, fb_size, errmsg);
                     if (ret != 0) {
                         processedOK = false;
-                        std::cerr << "ERROR: run-query: "<< errmsg << endl;
-                        std::cerr << "ERROR: processing flatbuf, Tables::ErrCodes=" << ret << endl;
+                        std::cerr << "ERROR: run-query() processing flatbuf: "
+                                  << errmsg << endl;
+                        std::cerr << "ERROR: Tables::ErrCodes=" << ret << endl;
                         assert(processedOK);
                     }
-                    fb_out = reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                    fb_out = reinterpret_cast<char*>(
+                            flatbldr.GetBufferPointer());
                     fb_out_size = flatbldr.GetSize();
-                    Tables::sky_root_header skyroot = Tables::getSkyRootHeader(fb_out, fb_out_size);
+                    Tables::sky_root_header skyroot = \
+                            Tables::getSkyRootHeader(fb_out, fb_out_size);
                     result_count += skyroot.nrows;
                 }
                 print_fb(fb_out, fb_out_size, schema_out);
@@ -357,7 +365,7 @@ static void worker()
     } else {   // older processing code below
 
         ceph::bufferlist bl;
-        // if it was a cls read, then first unpack some of the cls processing stats
+        // if it was a cls read, first unpack some of the cls processing stats
         if (use_cls) {
             try {
                 ceph::bufferlist::iterator it = s->bl.begin();
@@ -570,6 +578,13 @@ int main(int argc, char **argv)
   std::string logfile;
   int qdepth;
   std::string dir;
+  std::string projected_col_names_default = "*";
+  std::string projected_col_names;  // provided by the client/user or default
+  Tables::schema_vec current_schema;  // current schema of the table
+  bool apply_predicates = false;  // TODO
+
+  // TODO: get actual table name and schema from the db client
+  int ret = getSchemaFromSchemaString(current_schema, Tables::lineitem_test_schema_string);
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -598,6 +613,7 @@ int main(int argc, char **argv)
     ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
+    ("project-col-names", po::value<std::string>(&projected_col_names)->default_value(projected_col_names_default), "projected col names, as csv list")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -621,7 +637,7 @@ int main(int argc, char **argv)
   librados::Rados cluster;
   cluster.init(NULL);
   cluster.conf_read_file(NULL);
-  int ret = cluster.connect();
+  ret = cluster.connect();
   checkret(ret, 0);
 
   // open pool
@@ -730,19 +746,34 @@ int main(int argc, char **argv)
 
   } else if (query == "flatbuf") {   // no processing required
 
-    std::string projected_cols;
-    if (projection) {
-        Tables::schema_vec schema_out;
-        std::string ss = Tables::lineitem_test_project_schema_string;
-        Tables::getSchema(schema_out, ss);
-        for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
-            projected_cols.append((*it).name + ", ");
-        }
+    // the queryop schema string will be either the full current schema or projected schema.
+    // set the query schema and check if proj&select
+
+    Tables::schema_vec query_schema;
+    boost::trim(projected_col_names);
+
+    if (projected_col_names == projected_col_names_default) {
+
+        // the query schema is identical to the current schema
+        for (auto it=current_schema.begin(); it!=current_schema.end(); ++it)
+            query_schema.push_back(*it);
+
+        // treat as fastpath query, only if no project and no select
+        if (!apply_predicates)
+            fastpath = true;
+
     } else {
-        projected_cols.append(" * ");
+        projection = true;
+        Tables::getSchemaFromProjectCols(query_schema, current_schema, projected_col_names);
+        assert(query_schema.size() != 0);
     }
 
-    std::cout << "select " << projected_cols << " from lineitem" << std::endl;
+    table_schema_str = getSchemaStrFromSchema(current_schema);
+    query_schema_str = getSchemaStrFromSchema(query_schema);
+
+    std::cout << "select " << projected_col_names << " from lineitem" << std::endl;
+    cout << "table_schema_str=\n" << table_schema_str << endl;
+    cout << "query_schema_str=\n" << query_schema_str << endl;
 
   } else {
     std::cerr << "invalid query: " << query << std::endl;
@@ -752,6 +783,7 @@ int main(int argc, char **argv)
   result_count = 0;
   rows_returned = 0;
   nrows_processed = 0;
+  fastpath |= false;
 
   outstanding_ios = 0;
   stop = false;
@@ -794,6 +826,12 @@ int main(int argc, char **argv)
         op.comment_regex = comment_regex;
         op.use_index = use_index;
         op.projection = projection;
+        op.fastpath = fastpath;
+
+        // this is set above during user input err checking
+        op.table_schema_str = table_schema_str;
+        op.query_schema_str = query_schema_str;
+
         op.extra_row_cost = extra_row_cost;
         ceph::bufferlist inbl;
         ::encode(op, inbl);

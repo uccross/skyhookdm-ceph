@@ -149,26 +149,53 @@ int processSkyFb(
     return errcode;
 }
 
-// obtain the schema of the table or the query
-void getSchema(schema_vec &schema, std::string schema_str) {
+// simple converstion from schema to its str representation.
+std::string getSchemaStrFromSchema(schema_vec schema) {
+    std::string s;
+    for (auto it = schema.begin(); it != schema.end(); ++it)
+        s.append((*it).toString() + "\n");
+    return s;
+}
 
-    // TODO: don't use a string, get from omap or the obj directly.
-    int ret = extractSchemaFromString(schema, schema_str);
 
-    assert(ret!=TablesErrCodes::EmptySchema);
-    assert(ret!=TablesErrCodes::BadColInfoFormat);
+void getSchemaFromProjectCols(schema_vec &ret_schema,
+                              schema_vec &current_schema,
+                              std::string project_col_names) {
+
+    boost::trim(project_col_names);
+    if (project_col_names == "*") {
+        for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
+            ret_schema.push_back(*it);
+        }
+    }
+    else {
+        vector<std::string> cols;
+        boost::split(cols, project_col_names, boost::is_any_of(","),
+                boost::token_compress_on);
+
+        // build return schema elems in order of colnames provided.
+        for (auto it = cols.begin(); it != cols.end(); ++it) {
+            for (auto it2 = current_schema.begin(); it2!=current_schema.end();++it2) {
+                if ((*it2).compareName(*it))
+                    ret_schema.push_back(*it2);
+            }
+        }
+    }
 }
 
 // schema string expects the format in cls_tabular_utils.h lineitem_test_schema
-int extractSchemaFromString(vector<struct col_info> &schema, string& schema_string) {
+int getSchemaFromSchemaString(schema_vec &schema, std::string schema_string) {
 
     vector<std::string> elems;
     boost::split(elems, schema_string, boost::is_any_of("\n"),
             boost::token_compress_on);
 
     // assume schema string contains at least one col's info
-    if (elems.size() < 1)
+    if (elems.size() < 1) {
+        std::cerr << "ERROR: getSchemaFromSchemaString, Tables::ErrCodes="
+                      << TablesErrCodes::EmptySchema << endl;
         return TablesErrCodes::EmptySchema;
+    }
 
     for (vector<string>::iterator it = elems.begin(); it != elems.end(); ++it) {
 
@@ -188,8 +215,11 @@ int extractSchemaFromString(vector<struct col_info> &schema, string& schema_stri
         boost::split(col_data, col_info_string, boost::is_any_of(" "),
                 boost::token_compress_on);
 
-        if (col_data.size() != col_metadata_items)
+        if (col_data.size() != col_metadata_items) {
+            std::cerr << "ERROR: getSchemaFromSchemaString, Tables::ErrCodes="
+                          << TablesErrCodes::BadColInfoFormat << endl;
             return TablesErrCodes::BadColInfoFormat;
+        }
 
         std::string name = col_data[4];
         boost::trim(name);

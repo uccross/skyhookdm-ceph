@@ -199,57 +199,58 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           return ret;
         }
         read_ns = getns() - start;
-
-        // get the inbound (current schema) and outbound (query) schema,
-        // once per obj, before we start unpacking the fbs.
-        // TODO: schema_in should come from omap,  schema_out should come
-        // from our fdw query api.
-        std::string ss;
-
-        // schema_in is the table's current schema
-        Tables::schema_vec schema_in;
-        ss = Tables::lineitem_test_schema_string;
-        Tables::getSchema(schema_in, ss);
-
-        // schema out is the query schema
-        Tables::schema_vec schema_out;
-        if (op.projection) ss= Tables::lineitem_test_project_schema_string;
-        else  ss = Tables::lineitem_test_schema_string;
-        Tables::getSchema(schema_out, ss);
-
-        // decode and process each bl (contains 1 flatbuf) in a loop.
         eval_ns_start = getns();
-        ceph::bufferlist::iterator it = b.begin();
-        while (it.get_remaining() > 0) {
-            bufferlist bl;
-            try {
-                ::decode(bl, it);  // unpack the next bl (flatbuf)
-            } catch (const buffer::error &err) {
-                CLS_ERR("ERROR: decoding flatbuf from BL");
-                return -EINVAL;
+
+        if (op.fastpath == true) {
+            result_bl = b;
+            // note fastpath will not increment any rows_processed
+        } else {
+            // get the inbound (current schema) and outbound (query) schema,
+            // once per obj, before we start unpacking the fbs.
+
+            // schema_in is the table's current schema
+            Tables::schema_vec schema_in;
+            ret = Tables::getSchemaFromSchemaString(schema_in, op.table_schema_str);
+
+            // schema_out is the query schema
+            Tables::schema_vec schema_out;
+            Tables::getSchemaFromSchemaString(schema_out, op.query_schema_str);
+
+            // decode and process each bl (contains 1 flatbuf) in a loop.
+            ceph::bufferlist::iterator it = b.begin();
+            while (it.get_remaining() > 0) {
+                bufferlist bl;
+                try {
+                    ::decode(bl, it);  // unpack the next bl (flatbuf)
+                } catch (const buffer::error &err) {
+                    CLS_ERR("ERROR: decoding flatbuf from BL");
+                    return -EINVAL;
+                }
+
+                // get our data as contiguous bytes before accessing as flatbuf
+                const char* fb = bl.c_str();
+                size_t fb_size = bl.length();
+
+                Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
+                flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
+                std::string errmsg;
+                ret = Tables::processSkyFb(flatbldr, schema_in, schema_out,
+                                           fb, fb_size, errmsg);
+                if (ret != 0) {
+                    CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
+                    CLS_ERR("ERROR: processing flatbuf, Tables::ErrCodes:%d", ret);
+                    return -1;
+                }
+                rows_processed += root.nrows;
+                const char *processed_fb = \
+                    reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                int bufsz = flatbldr.GetSize();
+
+                // add this processed fb to our sequence of bls
+                bufferlist ans;
+                ans.append(processed_fb, bufsz);
+                ::encode(ans, result_bl);
             }
-
-            const char* fb = bl.c_str();
-            size_t fb_size = bl.length();
-
-            Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
-            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
-            std::string errmsg;
-            ret = Tables::processSkyFb(flatbldr, schema_in, schema_out, fb, fb_size, errmsg);
-            if (ret != 0) {
-                CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                CLS_ERR("ERROR: processing flatbuf, Tables::ErrCodes:%d", ret);
-                return -1;
-            }
-            rows_processed += root.nrows;
-            const char *processed_fb = \
-                reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-            int bufsz = flatbldr.GetSize();
-
-            // add this processed fb to our sequence of bls
-            bufferlist ans;
-            ans.append(processed_fb, bufsz);
-            ::encode(ans, result_bl);
         }
     } else {
       // older processing here.

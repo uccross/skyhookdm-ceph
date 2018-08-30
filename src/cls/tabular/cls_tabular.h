@@ -14,8 +14,8 @@
 #include "include/types.h"
 
 /*
- * Stores the query request parameters.  This is encoded by the client and 
- * decoded by server (osd node) for query processing. 
+ * Stores the query request parameters.  This is encoded by the client and
+ * decoded by server (osd node) for query processing.
  */
 struct query_op {
   // query name
@@ -33,6 +33,9 @@ struct query_op {
   std::string comment_regex;
   bool use_index;
   bool projection;
+  bool fastpath;
+  std::string table_schema_str;
+  std::string query_schema_str;
   uint64_t extra_row_cost;
 
   query_op() {}
@@ -51,6 +54,9 @@ struct query_op {
     ::encode(comment_regex, bl);
     ::encode(use_index, bl);
     ::encode(projection, bl);
+    ::encode(fastpath, bl);
+    ::encode(table_schema_str, bl);
+    ::encode(query_schema_str, bl);
     // serialize the field into bufferlist to be sent over the wire
     ::encode(extra_row_cost, bl);
     ENCODE_FINISH(bl);
@@ -70,6 +76,9 @@ struct query_op {
     ::decode(comment_regex, bl);
     ::decode(use_index, bl);
     ::decode(projection, bl);
+    ::decode(fastpath, bl);
+    ::decode(table_schema_str, bl);
+    ::decode(query_schema_str, bl);
     // deserialize the field from the bufferlist into this struct
     ::decode(extra_row_cost, bl);
     DECODE_FINISH(bl);
