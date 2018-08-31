@@ -32,8 +32,8 @@ before_install:
   - sudo apt-get -o Dpkg::Options::="--force-confnew" install -y docker-ce
 
 env:
-  - TYPE=integration RELEASE=kraken
-  - TYPE=compilation RELEASE=kraken
+  - TYPE=integration RELEASE=luminous
+  - TYPE=compilation RELEASE=luminous
 
 script:
   - cd ci && ./test_$TYPE.sh
