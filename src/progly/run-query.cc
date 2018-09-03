@@ -372,6 +372,7 @@ static void worker()
                 ::decode(times.read_ns, it);
                 ::decode(times.eval_ns, it);
                 ::decode(nrows_server_processed, it);
+                ::decode(bl, it);
             } catch (ceph::buffer::error&) {
                 int decode_runquery_cls = 0;
                 assert(decode_runquery_cls);
