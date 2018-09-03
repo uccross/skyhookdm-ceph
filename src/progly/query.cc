@@ -9,39 +9,8 @@
 */
 
 
-#include <iostream>
-#include <thread>
-#include <atomic>
 #include <fstream>
-#include <algorithm>
-#include <condition_variable>
-#include <boost/program_options.hpp>
-#include "include/rados/librados.hpp"
-#include "cls/tabular/cls_tabular.h"
-#include "cls/tabular/cls_tabular_utils.h"
-#include "re2/re2.h"
-
-namespace po = boost::program_options;
-
-static inline uint64_t __getns(clockid_t clock)
-{
-  struct timespec ts;
-  int ret = clock_gettime(clock, &ts);
-  assert(ret == 0);
-  return (((uint64_t)ts.tv_sec) * 1000000000ULL) + ts.tv_nsec;
-}
-
-static inline uint64_t getns()
-{
-  return __getns(CLOCK_MONOTONIC);
-}
-
-#define checkret(r,v) do { \
-  if (r != v) { \
-    fprintf(stderr, "error %d/%s\n", r, strerror(-r)); \
-    assert(0); \
-    exit(1); \
-  } } while (0)
+#include "query.h"
 
 static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   const char* copyupto = std::find(buffer, buffer + buffer_size, 0);
@@ -50,62 +19,48 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
 
 static std::mutex print_lock;
 
-static bool quiet;
-static bool use_cls;
-static std::string query;
-static bool use_index;
-static bool projection;
-static uint32_t build_index_batch_size;
-static uint64_t extra_row_cost;
+bool quiet;
+bool use_cls;
+std::string query;
+bool use_index;
+bool projection;
+uint32_t build_index_batch_size;
+uint64_t extra_row_cost;
 
-struct timing {
-  uint64_t dispatch;
-  uint64_t response;
-  uint64_t read_ns;
-  uint64_t eval_ns;
-  uint64_t eval2_ns;
-};
-
-static std::vector<timing> timings;
+std::vector<timing> timings;
 
 // query parameters to be encoded into query_op struct
-static double extended_price;
-static int order_key;
-static int line_number;
-static int ship_date_low;
-static int ship_date_high;
-static double discount_low;
-static double discount_high;
-static double quantity;
-static std::string comment_regex;
-static std::string table_schema_str;
-static std::string query_schema_str;
-static bool fastpath;
+double extended_price;
+int order_key;
+int line_number;
+int ship_date_low;
+int ship_date_high;
+double discount_low;
+double discount_high;
+double quantity;
+std::string comment_regex;
+std::string table_schema_str;
+std::string query_schema_str;
+bool fastpath;
 
-static std::atomic<unsigned> result_count;
-static std::atomic<unsigned> rows_returned;
+std::atomic<unsigned> result_count;
+std::atomic<unsigned> rows_returned;
 
 // total number of rows processed, client side or server side (cls).
-static std::atomic<unsigned> nrows_processed;
-
-struct AioState {
-  ceph::bufferlist bl;
-  librados::AioCompletion *c;
-  timing times;
-};
+std::atomic<unsigned> nrows_processed;
 
 // rename work_lock
-static int outstanding_ios;
-static std::vector<std::string> target_objects;
-static std::list<AioState*> ready_ios;
+int outstanding_ios;
+std::vector<std::string> target_objects;
+std::list<AioState*> ready_ios;
 
-static std::mutex dispatch_lock;
-static std::condition_variable dispatch_cond;
+std::mutex dispatch_lock;
+std::condition_variable dispatch_cond;
 
-static std::mutex work_lock;
-static std::condition_variable work_cond;
+std::mutex work_lock;
+std::condition_variable work_cond;
 
-static bool stop;
+bool stop;
 
 static void print_row(const char *row)
 {
@@ -192,7 +147,7 @@ static void worker_test_par(librados::IoCtx *ioctx, int i, uint64_t iters,
   }
 }
 
-static void worker_build_index(librados::IoCtx *ioctx)
+void worker_build_index(librados::IoCtx *ioctx)
 {
   while (true) {
     work_lock.lock();
@@ -222,7 +177,7 @@ static void add_extra_row_cost(uint64_t cost)
   }
 }
 
-static void worker()
+void worker()
 {
   std::unique_lock<std::mutex> lock(work_lock);
   while (true) {
@@ -555,7 +510,7 @@ static void worker()
  * 2. put io on work queue
  * 3. wake-up a worker
  */
-static void handle_cb(librados::completion_t cb, void *arg)
+void handle_cb(librados::completion_t cb, void *arg)
 {
   AioState *s = (AioState*)arg;
   s->times.response = getns();
@@ -568,340 +523,4 @@ static void handle_cb(librados::completion_t cb, void *arg)
   work_lock.unlock();
 
   work_cond.notify_one();
-}
-
-int main(int argc, char **argv)
-{
-  std::string pool;
-  unsigned num_objs;
-  int wthreads;
-  bool build_index;
-  std::string logfile;
-  int qdepth;
-  std::string dir;
-  std::string projected_col_names_default = "*";
-  std::string projected_col_names;  // provided by the client/user or default
-  Tables::schema_vec current_schema;  // current schema of the table
-  bool apply_predicates = false;  // TODO
-
-  // TODO: get actual table name and schema from the db client
-  int ret = getSchemaFromSchemaString(current_schema, Tables::lineitem_test_schema_string);
-
-  po::options_description gen_opts("General options");
-  gen_opts.add_options()
-    ("help,h", "show help message")
-    ("pool", po::value<std::string>(&pool)->required(), "pool")
-    ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
-    ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
-    ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
-    ("query", po::value<std::string>(&query)->required(), "query name")
-    ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
-    ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
-    ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
-    ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
-    ("projection", po::bool_switch(&projection)->default_value(false), "projection")
-    ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
-    ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
-    ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
-    ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
-    // query parameters
-    ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
-    ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
-    ("line-number", po::value<int>(&line_number)->default_value(0.0), "line number")
-    ("ship-date-low", po::value<int>(&ship_date_low)->default_value(-9999), "ship date low")
-    ("ship-date-high", po::value<int>(&ship_date_high)->default_value(-9999), "ship date high")
-    ("discount-low", po::value<double>(&discount_low)->default_value(-9999.0), "discount low")
-    ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
-    ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
-    ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
-    ("project-col-names", po::value<std::string>(&projected_col_names)->default_value(projected_col_names_default), "projected col names, as csv list")
-  ;
-
-  po::options_description all_opts("Allowed options");
-  all_opts.add(gen_opts);
-
-  po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, all_opts), vm);
-
-  if (vm.count("help")) {
-    std::cout << all_opts << std::endl;
-    return 1;
-  }
-
-  po::notify(vm);
-
-  assert(num_objs > 0);
-  assert(wthreads > 0);
-  assert(qdepth > 0);
-
-  // connect to rados
-  librados::Rados cluster;
-  cluster.init(NULL);
-  cluster.conf_read_file(NULL);
-  ret = cluster.connect();
-  checkret(ret, 0);
-
-  // open pool
-  librados::IoCtx ioctx;
-  ret = cluster.ioctx_create(pool.c_str(), ioctx);
-  checkret(ret, 0);
-
-  timings.reserve(num_objs);
-
-  // generate the names of the objects to process
-  for (unsigned oidx = 0; oidx < num_objs; oidx++) {
-    std::stringstream oid_ss;
-    oid_ss << "obj." << oidx;
-    const std::string oid = oid_ss.str();
-    target_objects.push_back(oid);
-  }
-
-  if (dir == "fwd") {
-    std::reverse(std::begin(target_objects),
-        std::end(target_objects));
-  } else if (dir == "bwd") {
-    // initial order
-  } else if (dir == "rnd") {
-    std::random_shuffle(std::begin(target_objects),
-        std::end(target_objects));
-  } else {
-    assert(0);
-  }
-
-  // build index for query "d"
-  if (build_index) {
-    std::vector<std::thread> threads;
-    for (int i = 0; i < wthreads; i++) {
-      auto ioctx = new librados::IoCtx;
-      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-      checkret(ret, 0);
-      threads.push_back(std::thread(worker_build_index, ioctx));
-    }
-
-    for (auto& thread : threads) {
-      thread.join();
-    }
-
-    return 0;
-  }
-
-  /*
-   * sanity check queries against provided parameters
-   */
-  if (query == "a") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select count(*) from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  } else if (query == "b") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  } else if (query == "c") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice = "
-      << extended_price << std::endl;
-
-  } else if (query == "d") {
-
-    if (use_index)
-      assert(use_cls);
-
-    assert(order_key != 0);
-    assert(line_number != 0);
-    std::cout << "select * from from lineitem where l_orderkey = "
-      << order_key << " and l_linenumber = " << line_number << std::endl;
-
-  } else if (query == "e") {
-
-    assert(!use_index); // not supported
-    assert(ship_date_low != -9999);
-    assert(ship_date_high != -9999);
-    assert(discount_low != -9999.0);
-    assert(discount_high != -9999.0);
-    assert(quantity != 0.0);
-    std::cout << "select * from lineitem where l_shipdate >= "
-      << ship_date_low << " and l_shipdate < " << ship_date_high
-      << " and l_discount > " << discount_low << " and l_discount < "
-      << discount_high << " and l_quantity < " << quantity << std::endl;
-
-  } else if (query == "f") {
-
-    assert(!use_index); // not supported
-    assert(comment_regex != "");
-    std::cout << "select * from lineitem where l_comment ilike '%"
-      << comment_regex << "%'" << std::endl;
-
-  } else if (query == "fastpath") {   // no processing required
-
-    assert(!use_index); // not supported
-    assert(!projection); // not supported
-    std::cout << "select * from lineitem" << std::endl;
-
-  } else if (query == "flatbuf") {   // no processing required
-
-    // the queryop schema string will be either the full current schema or projected schema.
-    // set the query schema and check if proj&select
-
-    Tables::schema_vec query_schema;
-    boost::trim(projected_col_names);
-
-    if (projected_col_names == projected_col_names_default) {
-
-        // the query schema is identical to the current schema
-        for (auto it=current_schema.begin(); it!=current_schema.end(); ++it)
-            query_schema.push_back(*it);
-
-        // treat as fastpath query, only if no project and no select
-        if (!apply_predicates)
-            fastpath = true;
-
-    } else {
-        projection = true;
-        Tables::getSchemaFromProjectCols(query_schema, current_schema, projected_col_names);
-        assert(query_schema.size() != 0);
-    }
-
-    table_schema_str = getSchemaStrFromSchema(current_schema);
-    query_schema_str = getSchemaStrFromSchema(query_schema);
-
-    std::cout << "select " << projected_col_names << " from lineitem" << std::endl;
-    cout << "table_schema_str=\n" << table_schema_str << endl;
-    cout << "query_schema_str=\n" << query_schema_str << endl;
-
-  } else {
-    std::cerr << "invalid query: " << query << std::endl;
-    exit(1);
-  }
-
-  result_count = 0;
-  rows_returned = 0;
-  nrows_processed = 0;
-  fastpath |= false;
-
-  outstanding_ios = 0;
-  stop = false;
-
-  // start worker threads
-  std::vector<std::thread> threads;
-  for (int i = 0; i < wthreads; i++) {
-    threads.push_back(std::thread(worker));
-  }
-
-  std::unique_lock<std::mutex> lock(dispatch_lock);
-  while (true) {
-    while (outstanding_ios < qdepth) {
-      // get an object to process
-      if (target_objects.empty())
-        break;
-      std::string oid = target_objects.back();
-      target_objects.pop_back();
-      lock.unlock();
-
-      // dispatch an io request
-      AioState *s = new AioState;
-      s->c = librados::Rados::aio_create_completion(
-          s, NULL, handle_cb);
-
-      memset(&s->times, 0, sizeof(s->times));
-      s->times.dispatch = getns();
-
-      if (use_cls) {
-        query_op op;
-        op.query = query;
-        op.extended_price = extended_price;
-        op.order_key = order_key;
-        op.line_number = line_number;
-        op.ship_date_low = ship_date_low;
-        op.ship_date_high = ship_date_high;
-        op.discount_low = discount_low;
-        op.discount_high = discount_high;
-        op.quantity = quantity;
-        op.comment_regex = comment_regex;
-        op.use_index = use_index;
-        op.projection = projection;
-        op.fastpath = fastpath;
-
-        // this is set above during user input err checking
-        op.table_schema_str = table_schema_str;
-        op.query_schema_str = query_schema_str;
-
-        op.extra_row_cost = extra_row_cost;
-        ceph::bufferlist inbl;
-        ::encode(op, inbl);
-        int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "query_op", inbl, &s->bl);
-        checkret(ret, 0);
-      } else {
-        int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
-        checkret(ret, 0);
-      }
-
-      lock.lock();
-      outstanding_ios++;
-    }
-    if (target_objects.empty())
-      break;
-    dispatch_cond.wait(lock);
-  }
-  lock.unlock();
-
-  // drain any still-in-flight operations
-  while (true) {
-    lock.lock();
-    if (outstanding_ios == 0) {
-      lock.unlock();
-      break;
-    }
-    lock.unlock();
-    std::cout << "draining ios: " << outstanding_ios << " remaining" << std::endl;
-    sleep(1);
-  }
-
-  // wait for all the workers to stop
-  work_lock.lock();
-  stop = true;
-  work_lock.unlock();
-  work_cond.notify_all();
-
-  // the threads will exit when all the objects are processed
-  for (auto& thread : threads) {
-    thread.join();
-  }
-
-  ioctx.close();
-
-  if (query == "a" && use_cls) {
-    std::cout << "total result row count: " << result_count
-      << " / -1" << "; nrows_processed=" << nrows_processed
-      << std::endl;
-  } else {
-    std::cout << "total result row count: " << result_count
-      << " / " << rows_returned  << "; nrows_processed=" << nrows_processed
-      << std::endl;
-  }
-
-  if (logfile.length()) {
-    std::ofstream out;
-    out.open(logfile, std::ios::trunc);
-    out << "dispatch,response,read_ns,eval_ns,eval2_ns" << std::endl;
-    for (const auto& time : timings) {
-      out <<
-        time.dispatch << "," <<
-        time.response << "," <<
-        time.read_ns << "," <<
-        time.eval_ns << "," <<
-        time.eval2_ns << std::endl;
-    }
-    out.close();
-  }
-
-  return 0;
 }
