@@ -193,7 +193,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
         bufferlist b;
         uint64_t start = getns();
-        int ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object of n rows.
+        int ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
         if (ret < 0) {
           CLS_ERR("ERROR: reading flatbuf obj %d", ret);
           return ret;
@@ -210,11 +210,15 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
             // schema_in is the table's current schema
             Tables::schema_vec schema_in;
-            ret = Tables::getSchemaFromSchemaString(schema_in, op.table_schema_str);
+            Tables::schemaFromString(schema_in, op.table_schema_str);
 
             // schema_out is the query schema
             Tables::schema_vec schema_out;
-            Tables::getSchemaFromSchemaString(schema_out, op.query_schema_str);
+            Tables::schemaFromString(schema_out, op.query_schema_str);
+
+            // predicates to be applied, if any
+            Tables::predicate_vec preds;
+            Tables::predsFromString(preds, schema_in, op.predicate_str);
 
             // decode and process each bl (contains 1 flatbuf) in a loop.
             ceph::bufferlist::iterator it = b.begin();
@@ -231,14 +235,15 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 const char* fb = bl.c_str();
                 size_t fb_size = bl.length();
 
-                Tables::sky_root_header root = Tables::getSkyRootHeader(fb, fb_size);
-                flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc size
+                Tables::sky_root_header root = \
+                        Tables::getSkyRootHeader(fb, fb_size);
+                flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
                 std::string errmsg;
                 ret = Tables::processSkyFb(flatbldr, schema_in, schema_out,
-                                           fb, fb_size, errmsg);
+                                           preds, fb, fb_size, errmsg);
                 if (ret != 0) {
                     CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                    CLS_ERR("ERROR: processing flatbuf, Tables::ErrCodes:%d", ret);
+                    CLS_ERR("ERROR: TablesErrCodes::%d", ret);
                     return -1;
                 }
                 rows_processed += root.nrows;
@@ -257,7 +262,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       bufferlist bl;
       if (op.query != "d" || !op.use_index) {
         uint64_t start = getns();
-        int ret = cls_cxx_read(hctx, 0, 0, &bl);  // read entire object of n rows.
+        int ret = cls_cxx_read(hctx, 0, 0, &bl);  // read entire object.
         if (ret < 0) {
           CLS_ERR("ERROR: reading obj %d", ret);
           return ret;

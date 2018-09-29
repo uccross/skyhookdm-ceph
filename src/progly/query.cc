@@ -41,6 +41,7 @@ double quantity;
 std::string comment_regex;
 std::string table_schema_str;
 std::string query_schema_str;
+std::string predicate_str;
 bool fastpath;
 
 std::atomic<unsigned> result_count;
@@ -109,7 +110,8 @@ static void print_row(const char *row)
   print_lock.unlock();
 }
 
-static void print_fb(const char *fb, size_t fb_size, vector<Tables::col_info> &schema)
+static void print_fb(const char *fb, size_t fb_size,
+                     vector<Tables::col_info> &schema)
 {
     if (quiet)
         return;
@@ -263,31 +265,24 @@ void worker()
                 result_count += root.nrows;
 
                 Tables::schema_vec schema_out;
-                ret = getSchemaFromSchemaString(schema_out, query_schema_str);
-                assert(ret!=Tables::TablesErrCodes::EmptySchema);
-                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                schemaFromString(schema_out, query_schema_str);
                 print_fb(fb, fb_size, schema_out);
             } else {
                 // perform any extra project/select/agg if needed.
                 bool more_processing = false;
                 const char *fb_out;
                 size_t fb_out_size;
-                Tables::schema_vec schema_out;
                 nrows_processed += root.nrows;
 
-                // set the input schema (current schema of the fb)
+                // set the in (current schema of the fb) and out (query) schema
                 Tables::schema_vec schema_in;
-                ret = getSchemaFromSchemaString(schema_in, table_schema_str);
-                assert(ret!=Tables::TablesErrCodes::EmptySchema); // TODO errs
-                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
-                ret = getSchemaFromSchemaString(schema_out, query_schema_str);
-                assert(ret!=Tables::TablesErrCodes::EmptySchema);
-                assert(ret!=Tables::TablesErrCodes::BadColInfoFormat);
+                Tables::schema_vec schema_out;
+                Tables::predicate_vec preds;
+                schemaFromString(schema_in, table_schema_str);
+                schemaFromString(schema_out, query_schema_str);
+                predsFromString(preds, schema_in, predicate_str);
 
-                // set the output schema
-                if (projection) {
-                    more_processing = true;
-                }
+                if (projection || preds.size() > 0) more_processing = true;
 
                 if (!more_processing) {  // nothing left to do here.
                     fb_out = fb;
@@ -298,7 +293,7 @@ void worker()
                     std::string errmsg;
                     bool processedOK = true;
                     ret = processSkyFb(flatbldr, schema_in, schema_out,
-                                       fb, fb_size, errmsg);
+                                       preds, fb, fb_size, errmsg);
                     if (ret != 0) {
                         processedOK = false;
                         std::cerr << "ERROR: run-query() processing flatbuf: "

@@ -36,6 +36,7 @@ struct query_op {
   bool fastpath;
   std::string table_schema_str;
   std::string query_schema_str;
+  std::string predicate_str;
   uint64_t extra_row_cost;
 
   query_op() {}
@@ -57,6 +58,7 @@ struct query_op {
     ::encode(fastpath, bl);
     ::encode(table_schema_str, bl);
     ::encode(query_schema_str, bl);
+    ::encode(predicate_str, bl);
     // serialize the field into bufferlist to be sent over the wire
     ::encode(extra_row_cost, bl);
     ENCODE_FINISH(bl);
@@ -79,6 +81,7 @@ struct query_op {
     ::decode(fastpath, bl);
     ::decode(table_schema_str, bl);
     ::decode(query_schema_str, bl);
+    ::decode(predicate_str, bl);
     // deserialize the field from the bufferlist into this struct
     ::decode(extra_row_cost, bl);
     DECODE_FINISH(bl);

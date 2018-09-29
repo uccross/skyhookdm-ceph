@@ -74,6 +74,7 @@ extern double quantity;
 extern std::string comment_regex;
 extern std::string table_schema_str;
 extern std::string query_schema_str;
+extern std::string predicate_str;
 extern bool fastpath;
 
 extern std::atomic<unsigned> result_count;

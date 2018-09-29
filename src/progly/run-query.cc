@@ -23,13 +23,40 @@ int main(int argc, char **argv)
   std::string logfile;
   int qdepth;
   std::string dir;
-  std::string projected_col_names_default = "*";
-  std::string projected_col_names;  // provided by the client/user or default
-  Tables::schema_vec current_schema;  // current schema of the table
-  bool apply_predicates = false;  // TODO
 
-  // TODO: get actual table name and schema from the db client
-  int ret = getSchemaFromSchemaString(current_schema, Tables::lineitem_test_schema_string);
+  std::string select_preds_str_default = Tables::SELECT_DEFAULT;
+  std::string project_cols_str_default = Tables::PROJECT_DEFAULT;
+  std::string schema_str_default = Tables::lineitem_test_schema_string;
+  std::string select_preds_str;   // provided by client app
+  std::string project_cols_str;  // provided by client app
+  std::string schema_str;  // provided by client app
+
+  // TODO: get actual schema from the db client.
+  schema_str = schema_str_default;
+
+  // set the table's current schema
+  Tables::schema_vec current_schema;
+  schemaFromString(current_schema, schema_str);
+
+  // help menu messages for select and project
+  std::string project_help_msg = "projected col names as csv list";
+  std::stringstream ss;
+  ss << " where 'op' is one of: "
+     << "lt, gt, eq, neq, leq, geq, like, in, between, "
+     << "logical_and, logical_or, logical_not, logical_nor, logical_xor, "
+     << "bitwise_and, bitwise_or";
+  std::string oplist = ss.str();
+  ss.clear();
+  ss.str(std::string());
+  ss << "<"
+     << "colname" << Tables::PRED_DELIM_INNER
+     << "op" << Tables::PRED_DELIM_INNER
+     << "value" << Tables::PRED_DELIM_OUTER
+     << "colname" << Tables::PRED_DELIM_INNER
+     << "op" << Tables::PRED_DELIM_INNER
+     << "value" << Tables::PRED_DELIM_OUTER
+     << "...>" << oplist;
+  std::string select_help_msg = ss.str();
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -58,7 +85,8 @@ int main(int argc, char **argv)
     ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
-    ("project-col-names", po::value<std::string>(&projected_col_names)->default_value(projected_col_names_default), "projected col names, as csv list")
+    ("project", po::value<std::string>(&project_cols_str)->default_value(project_cols_str_default), project_help_msg.c_str())
+    ("select", po::value<std::string>(&select_preds_str)->default_value(select_preds_str_default), select_help_msg.c_str())
   ;
 
   po::options_description all_opts("Allowed options");
@@ -82,7 +110,7 @@ int main(int argc, char **argv)
   librados::Rados cluster;
   cluster.init(NULL);
   cluster.conf_read_file(NULL);
-  ret = cluster.connect();
+  int ret = cluster.connect();
   checkret(ret, 0);
 
   // open pool
@@ -191,34 +219,43 @@ int main(int argc, char **argv)
 
   } else if (query == "flatbuf") {   // no processing required
 
-    // the queryop schema string will be either the full current schema or projected schema.
+    // the queryop schema string will be either the full current schema
+    // or the query's projected schema.
     // set the query schema and check if proj&select
 
     Tables::schema_vec query_schema;
-    boost::trim(projected_col_names);
+    Tables::predicate_vec preds;
+    Tables::predsFromString(preds, current_schema, select_preds_str);
+    boost::trim(project_cols_str);
+    boost::trim(project_cols_str_default);
 
-    if (projected_col_names == projected_col_names_default) {
+    // check for select *
+    if (project_cols_str == project_cols_str_default) {
 
         // the query schema is identical to the current schema
         for (auto it=current_schema.begin(); it!=current_schema.end(); ++it)
             query_schema.push_back(*it);
 
-        // treat as fastpath query, only if no project and no select
-        if (!apply_predicates)
+        // treat as fastpath query if no project and no select predicates
+        if (preds.size() == 0)
             fastpath = true;
 
     } else {
         projection = true;
-        Tables::getSchemaFromProjectCols(query_schema, current_schema, projected_col_names);
+        Tables::schemaFromProjectColsString(query_schema, current_schema,
+                                            project_cols_str);
         assert(query_schema.size() != 0);
     }
 
-    table_schema_str = getSchemaStrFromSchema(current_schema);
-    query_schema_str = getSchemaStrFromSchema(query_schema);
+    // to be shipped to cls via query_op struct.
+    table_schema_str = schemaToString(current_schema);
+    query_schema_str = schemaToString(query_schema);
+    predicate_str = predsToString(preds, current_schema);
 
-    std::cout << "select " << projected_col_names << " from lineitem" << std::endl;
-    cout << "table_schema_str=\n" << table_schema_str << endl;
-    cout << "query_schema_str=\n" << query_schema_str << endl;
+    // cleanup tmp vars
+    for (auto it=preds.begin();it!=preds.end();++it)
+        delete (*it);
+    preds.clear();
 
   } else {
     std::cerr << "invalid query: " << query << std::endl;
@@ -273,9 +310,10 @@ int main(int argc, char **argv)
         op.projection = projection;
         op.fastpath = fastpath;
 
-        // this is set above during user input err checking
+        // these are set above during user input err checking
         op.table_schema_str = table_schema_str;
         op.query_schema_str = query_schema_str;
+        op.predicate_str = predicate_str;
 
         op.extra_row_cost = extra_row_cost;
         ceph::bufferlist inbl;
