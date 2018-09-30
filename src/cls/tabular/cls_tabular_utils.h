@@ -98,6 +98,16 @@ enum SkyOpType {
     SkyOpTypeLAST
 };
 
+const int offset_to_skyhook_version = 4;
+const int offset_to_schema_version = 6;
+const int offset_to_table_name = 8;
+const int offset_to_schema = 10;
+const int offset_to_delete_vec = 12;
+const int offset_to_rows_vec = 14;
+const int offset_to_nrows = 16;
+const int offset_to_RID = 4;
+const int offset_to_nullbits_vec = 6;
+const int offset_to_data = 8;
 const std::string PRED_DELIM_OUTER = ";";
 const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
@@ -121,7 +131,6 @@ class PredicateBase
 {
 public:
     virtual ~PredicateBase() {}
-    virtual std::string name() { return "PredicateBase"; }
     virtual int colIdx() = 0;  // to check info via base ptr before dynm cast
     virtual int colType() = 0;
     virtual int opType() = 0;
@@ -187,21 +196,20 @@ public:
                         (std::is_same<T, char>::value) == true)
                         && (
                         col_type==SkyDataTypeString ||
-                        col_type==SkyDataTypeChar));
+                        col_type==SkyDataTypeChar ||
+                        col_type==SkyDataTypeUChar));
                     break;
 
                 // MEMBERSHIP (collections)
                 case in:
                 case not_in:
                     assert(((std::is_same<T, std::vector<T>>::value) == true));
-                    assert (true); // TODO: op not yet defined.
+                    assert (TablesErrCodes::OpNotImplemented==0); // TODO
                     break;
 
                 // DATE (SQL)
                 case between:
-                    assert ((SkyOpType::between &&
-                             TablesErrCodes::OpNotImplemented) == 0);
-                    assert (true);  // TODO: op not yet defined.
+                    assert (TablesErrCodes::OpNotImplemented==0);  // TODO
                     break;
 
                 // LOGICAL
@@ -234,8 +242,7 @@ public:
 
                 // FALL THROUGH OP not recognized
                 default:
-                    assert (((op_type>0 && op_type<SkyOpTypeLAST) &&
-                              TablesErrCodes::OpNotRecognized) == 0);
+                    assert (TablesErrCodes::OpNotRecognized==0);
                     break;
             }
 
@@ -252,30 +259,17 @@ public:
         col_idx(p.col_idx),
         col_type(p.col_type),
         op_type(p.op_type),
-        value(p.value.val) {regx = p.regx;}
+        value(p.value.val) {regx = new re2::RE2(p.regx->pattern());}
 
-    ~TypedPredicate() { }
+    ~TypedPredicate() {if (regx) delete regx;}
     TypedPredicate& getThis() {return *this;}
     const TypedPredicate& getThis() const {return *this;}
-
-    virtual std::string name() { return "TypedPredicate"; }
     virtual int colIdx() {return col_idx;}
     virtual int colType() {return col_type;}
     virtual int opType() {return op_type;}
-    inline T getVal() {return value.val;}
-    inline const re2::RE2* getRegex() {return regx;}
+    T getVal() {return value.val;}
+    const re2::RE2* getRegex() {return regx;}
 };
-
-const int offset_to_skyhook_version = 4;
-const int offset_to_schema_version = 6;
-const int offset_to_table_name = 8;
-const int offset_to_schema = 10;
-const int offset_to_delete_vec = 12;
-const int offset_to_rows_vec = 14;
-const int offset_to_nrows = 16;
-const int offset_to_RID = 4;
-const int offset_to_nullbits_vec = 6;
-const int offset_to_data = 8;
 
 // col metadata used for the schema
 struct col_info {
@@ -313,7 +307,7 @@ struct col_info {
 typedef vector<struct col_info> schema_vec;
 
 inline
-bool compareCi(const struct col_info& l, const struct col_info& r) {
+bool compareColInfo(const struct col_info& l, const struct col_info& r) {
     return (
         (l.idx==r.idx) &&
         (l.type==r.type) &&
@@ -373,9 +367,9 @@ typedef struct row_table sky_row_header;
 // format: "col_idx col_type col_is_key nullable col_name \n"
 // note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_schema_string = " \
-    0 " +  std::to_string(SkyDataTypeInt32) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SkyDataTypeInt16) + " 0 1 partkey \n\
-    2 " +  std::to_string(SkyDataTypeInt8) + " 0 1 suppkey \n\
+    0 " +  std::to_string(SkyDataTypeInt64) + " 1 0 orderkey \n\
+    1 " +  std::to_string(SkyDataTypeInt32) + " 0 1 partkey \n\
+    2 " +  std::to_string(SkyDataTypeInt32) + " 0 1 suppkey \n\
     3 " +  std::to_string(SkyDataTypeInt64) + " 1 0 linenumber \n\
     4 " +  std::to_string(SkyDataTypeFloat) + " 0 1 quantity \n\
     5 " +  std::to_string(SkyDataTypeFloat) + " 0 1 extendedprice \n\
@@ -395,8 +389,8 @@ const std::string lineitem_test_schema_string = " \
 // format: "col_idx col_type col_is_key nullable col_name \n"
 // note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_project_schema_string = " \
-    0 " +  std::to_string(SkyDataTypeInt32) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SkyDataTypeInt16) + " 0 1 partkey \n\
+    0 " +  std::to_string(SkyDataTypeInt64) + " 1 0 orderkey \n\
+    1 " +  std::to_string(SkyDataTypeInt32) + " 0 1 partkey \n\
     3 " +  std::to_string(SkyDataTypeInt64) + " 1 0 linenumber \n\
     4 " +  std::to_string(SkyDataTypeDouble) + " 0 1 quantity \n\
     5 " +  std::to_string(SkyDataTypeDouble) + " 0 1 extendedprice \n\
@@ -408,18 +402,24 @@ const std::string lineitem_test_project_schema_string = " \
 sky_root_header getSkyRootHeader(const char *fb, size_t fb_size);
 sky_row_header getSkyRowHeader(const Tables::Row *rec);
 
+// print functions (debug only)
 void printSkyRootHeader(sky_root_header *r);
 void printSkyRowHeader(sky_row_header *r);
 void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
 
+// convert provided schema to/from internal representation
 void schemaFromProjectColsString(schema_vec &ret_schema,
-                             schema_vec &current_schema,
-                             std::string project_col_names);
+                                 schema_vec &current_schema,
+                                 std::string project_col_names);
 void schemaFromString(schema_vec &schema, std::string schema_string);
 std::string schemaToString(schema_vec schema);
+
+// convert provided predicates to/from internal representation
 void predsFromString(predicate_vec &preds,  schema_vec &schema,
                      std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
+
+// convert provided ops to/from internal representation (simple enums)
 int skyOpTypeFromString(std::string s);
 std::string skyOpTypeToString(int op);
 
