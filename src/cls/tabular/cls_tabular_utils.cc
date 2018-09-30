@@ -830,6 +830,12 @@ bool compare(const int64_t& val1, const int64_t& val2, const int& op) {
         case ne: return val1 != val2;
         case leq: return val1 <= val2;
         case geq: return val1 >= val2;
+        case logical_or: return val1 || val2;  // for predicate chaining
+        case logical_and: return val1 && val2;
+        case logical_not: return !val1 && !val2;  // not either, i.e., nor
+        case logical_nor: return !(val1 || val2);
+        case logical_nand: return !(val1 && val2);
+        case logical_xor: return (val1 || val2) && (val1 != val2);
         case bitwise_and: return val1 & val2;
         case bitwise_or: return val1 | val2;
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
@@ -845,6 +851,12 @@ bool compare(const uint64_t& val1, const uint64_t& val2, const int& op) {
         case ne: return val1 != val2;
         case leq: return val1 <= val2;
         case geq: return val1 >= val2;
+        case logical_or: return val1 || val2;  // for predicate chaining
+        case logical_and: return val1 && val2;
+        case logical_not: return !val1 && !val2;  // not either, i.e., nor
+        case logical_nor: return !(val1 || val2);
+        case logical_nand: return !(val1 && val2);
+        case logical_xor: return (val1 || val2) && (val1 != val2);
         case bitwise_and: return val1 & val2;
         case bitwise_or: return val1 | val2;
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
@@ -867,12 +879,20 @@ bool compare(const double& val1, const double& val2, const int& op) {
 
 bool compare(const bool& val1, const bool& val2, const int& op) {
     switch (op) {
+        case lt: return val1 < val2;
+        case gt: return val1 > val2;
+        case eq: return val1 == val2;
+        case ne: return val1 != val2;
+        case leq: return val1 <= val2;
+        case geq: return val1 >= val2;
         case logical_or: return val1 || val2;  // for predicate chaining
         case logical_and: return val1 && val2;
         case logical_not: return !val1 && !val2;  // not either, i.e., nor
         case logical_nor: return !(val1 || val2);
         case logical_nand: return !(val1 && val2);
         case logical_xor: return (val1 || val2) && (val1 != val2);
+        case bitwise_and: return val1 & val2;
+        case bitwise_or: return val1 | val2;
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
     }
     return false;  // should be unreachable

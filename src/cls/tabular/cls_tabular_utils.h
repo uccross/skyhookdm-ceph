@@ -261,7 +261,7 @@ public:
         op_type(p.op_type),
         value(p.value.val) {regx = new re2::RE2(p.regx->pattern());}
 
-    ~TypedPredicate() {if (regx) delete regx;}
+    ~TypedPredicate() {/*if (regx) delete regx;*/}
     TypedPredicate& getThis() {return *this;}
     const TypedPredicate& getThis() const {return *this;}
     virtual int colIdx() {return col_idx;}
