@@ -134,6 +134,7 @@ public:
     virtual int colIdx() = 0;  // to check info via base ptr before dynm cast
     virtual int colType() = 0;
     virtual int opType() = 0;
+    virtual bool isGlobal() = 0;
 };
 typedef std::vector<class PredicateBase*> predicate_vec;
 
@@ -144,6 +145,7 @@ private:
     const int col_idx;
     const int col_type;
     const int op_type;
+    const bool is_global;
     const PredicateValue<T> value;
     const re2::RE2* regx;
 
@@ -152,7 +154,10 @@ public:
         col_idx(idx),
         col_type(type),
         op_type(op),
+        is_global(op==add || op==sub || op==mul || op==div || op==min ||
+                  op==max || op==sum),
         value(val) {
+
             // ONLY VERIFY op type is valid for specified col type and value
             // type T, and compile regex if needed.
             switch (op_type) {
@@ -259,7 +264,8 @@ public:
         col_idx(p.col_idx),
         col_type(p.col_type),
         op_type(p.op_type),
-        value(p.value.val) {regx = new re2::RE2(p.regx->pattern());}
+        is_global(p.is_global),
+        value(p.value.val) { regx = new re2::RE2(p.regx->pattern()); }
 
     ~TypedPredicate() {/*if (regx) delete regx;*/}
     TypedPredicate& getThis() {return *this;}
@@ -267,6 +273,7 @@ public:
     virtual int colIdx() {return col_idx;}
     virtual int colType() {return col_type;}
     virtual int opType() {return op_type;}
+    virtual bool isGlobal() {return is_global;}
     T getVal() {return value.val;}
     const re2::RE2* getRegex() {return regx;}
 };
