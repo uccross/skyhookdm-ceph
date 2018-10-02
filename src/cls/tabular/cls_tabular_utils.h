@@ -77,6 +77,7 @@ enum SkyOpType {
     min,
     max,
     sum,
+    cnt,
     // LEXICAL (regex)
     like,
     // MEMBERSHIP (collections) (TODO)
@@ -113,13 +114,17 @@ const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
+const int COL_IDX_MIN = -1;  // defines the schema col idx for agg ops.
+const int COL_IDX_MAX = -2;
+const int COL_IDX_SUM = -3;
+const int COL_IDX_CNT = -4;
 
 // contains the value of a predicate to be applied
 template <class T>
 class PredicateValue
 {
 public:
-    const T val;
+    T val;
     PredicateValue(T v) : val(v) {};
     PredicateValue(const PredicateValue& rhs);
     PredicateValue& operator=(const PredicateValue& rhs);
@@ -134,7 +139,7 @@ public:
     virtual int colIdx() = 0;  // to check info via base ptr before dynm cast
     virtual int colType() = 0;
     virtual int opType() = 0;
-    virtual bool isGlobal() = 0;
+    virtual bool isGlobalAgg() = 0;
 };
 typedef std::vector<class PredicateBase*> predicate_vec;
 
@@ -145,18 +150,19 @@ private:
     const int col_idx;
     const int col_type;
     const int op_type;
-    const bool is_global;
-    const PredicateValue<T> value;
+    const bool is_global_agg;
     const re2::RE2* regx;
+    const PredicateValue<T> value;
+    PredicateValue<T> agg_value;
 
 public:
     TypedPredicate(int idx, int type, int op, const T& val) :
         col_idx(idx),
         col_type(type),
         op_type(op),
-        is_global(op==add || op==sub || op==mul || op==div || op==min ||
-                  op==max || op==sum),
-        value(val) {
+        is_global_agg(op==min || op==max || op==sum || op==cnt),
+        value(val),
+        agg_value(val) {
 
             // ONLY VERIFY op type is valid for specified col type and value
             // type T, and compile regex if needed.
@@ -175,6 +181,7 @@ public:
                 case min:
                 case max:
                 case sum:
+                case cnt:
                     assert (
                             std::is_arithmetic<T>::value
                             && (
@@ -264,18 +271,25 @@ public:
         col_idx(p.col_idx),
         col_type(p.col_type),
         op_type(p.op_type),
-        is_global(p.is_global),
-        value(p.value.val) { regx = new re2::RE2(p.regx->pattern()); }
+        is_global_agg(p.is_global_agg),
+        value(p.value.val),
+        agg_value(p.agg_value.val) {
+            regx = new re2::RE2(p.regx->pattern());
+        }
 
-    ~TypedPredicate() {/*if (regx) delete regx;*/}
+    ~TypedPredicate() { }
     TypedPredicate& getThis() {return *this;}
     const TypedPredicate& getThis() const {return *this;}
     virtual int colIdx() {return col_idx;}
     virtual int colType() {return col_type;}
     virtual int opType() {return op_type;}
-    virtual bool isGlobal() {return is_global;}
+    virtual bool isGlobalAgg() {return is_global_agg;}
     T getVal() {return value.val;}
     const re2::RE2* getRegex() {return regx;}
+    void updateAgg(int64_t amount) {agg_value.val=amount;}
+    void updateAgg(uint64_t amount) {agg_value.val=amount;}
+    void updateAgg(double amount) {agg_value.val=amount;}
+    T getAgg() {return agg_value.val;}
 };
 
 // col metadata used for the schema
@@ -291,7 +305,7 @@ struct col_info {
         type(t),
         is_key(key),
         nullable(nulls),
-        name(n) {assert(type > 0 && type < SkyDataType::SkyDataTypeLAST);}
+        name(n) {assert(type > 0 && type < SkyDataTypeLAST);}
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
         std::string n) :
@@ -299,7 +313,7 @@ struct col_info {
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
-        name(n) {assert(type > 0 && type < SkyDataType::SkyDataTypeLAST);}
+        name(n) {assert(type > 0 && type < SkyDataTypeLAST);}
 
     std::string toString() {
         return ( "   " +
@@ -379,8 +393,8 @@ const std::string lineitem_test_schema_string = " \
     2 " +  std::to_string(SkyDataTypeInt32) + " 0 1 suppkey \n\
     3 " +  std::to_string(SkyDataTypeInt64) + " 1 0 linenumber \n\
     4 " +  std::to_string(SkyDataTypeFloat) + " 0 1 quantity \n\
-    5 " +  std::to_string(SkyDataTypeFloat) + " 0 1 extendedprice \n\
-    6 " +  std::to_string(SkyDataTypeDouble) + " 0 1 discount \n\
+    5 " +  std::to_string(SkyDataTypeDouble) + " 0 1 extendedprice \n\
+    6 " +  std::to_string(SkyDataTypeFloat) + " 0 1 discount \n\
     7 " +  std::to_string(SkyDataTypeDouble) + " 0 1 tax \n\
     8 " +  std::to_string(SkyDataTypeChar) + " 0 1 returnflag \n\
     9 " +  std::to_string(SkyDataTypeChar) + " 0 1 linestatus \n\
@@ -399,7 +413,7 @@ const std::string lineitem_test_project_schema_string = " \
     0 " +  std::to_string(SkyDataTypeInt64) + " 1 0 orderkey \n\
     1 " +  std::to_string(SkyDataTypeInt32) + " 0 1 partkey \n\
     3 " +  std::to_string(SkyDataTypeInt64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SkyDataTypeDouble) + " 0 1 quantity \n\
+    4 " +  std::to_string(SkyDataTypeFloat) + " 0 1 quantity \n\
     5 " +  std::to_string(SkyDataTypeDouble) + " 0 1 extendedprice \n\
     ";
 
@@ -425,6 +439,7 @@ std::string schemaToString(schema_vec schema);
 void predsFromString(predicate_vec &preds,  schema_vec &schema,
                      std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
+std::string getPredValsString(PredicateBase* pb);  // jpl temp debug only
 
 // convert provided ops to/from internal representation (simple enums)
 int skyOpTypeFromString(std::string s);
@@ -432,13 +447,13 @@ std::string skyOpTypeToString(int op);
 
 // for proj, select, fastpath, aggregations(TODO), build return fb
 int processSkyFb(
-        flatbuffers::FlatBufferBuilder &flatb,
-        schema_vec &schema_in,
-        schema_vec &schema_out,
-        predicate_vec &preds,
-        const char *fb,
+        flatbuffers::FlatBufferBuilder& flatb,
+        schema_vec& schema_in,
+        schema_vec& schema_out,
+        predicate_vec& preds,
+        const char* fb,
         const size_t fb_size,
-        std::string &errmsg);
+        std::string& errmsg);
 
 inline
 bool applyPredicates(predicate_vec& pv, sky_row_header& row);
@@ -457,6 +472,16 @@ bool compare(const bool& val1, const bool& val2, const int& op);
 
 inline
 bool compare(const std::string& val1, const re2::RE2& regx, const int& op);
+
+inline
+int64_t computeAgg(const int64_t& val, const int64_t& oldval, const int& op);
+
+inline
+uint64_t computeAgg(const uint64_t& val, const uint64_t& oldval, const int& op);
+
+inline
+double computeAgg(const double& val, const double& oldval, const int& op);
+
 } // end namespace Tables
 
 #endif

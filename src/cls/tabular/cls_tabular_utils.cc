@@ -28,7 +28,7 @@
 namespace Tables {
 
 int processSkyFb(
-    flatbuffers::FlatBufferBuilder &flatbldr,
+    flatbuffers::FlatBufferBuilder& flatbldr,
     schema_vec& schema_in,
     schema_vec& schema_out,
     predicate_vec& preds,
@@ -51,6 +51,10 @@ int processSkyFb(
 
     bool project_all = std::equal (schema_in.begin(), schema_in.end(),
                                    schema_out.begin(), Tables::compareColInfo);
+
+    // build the flexbuf with computed aggregates, aggs are computed for
+    // each row that passes, and added to flexbuf after loop below.
+    bool encode_aggs = false;
 
     // build the flexbuf for each row's data
     for (uint32_t i = 0; i < skyroot.nrows && !errcode; i++) {
@@ -88,7 +92,9 @@ int processSkyFb(
                 } else if (col.idx < 0) {
 
                     // A negative col id # means not in original schema
-                    // Do some processing (SUM, COUNT, etc)
+                    // do not add any data to flexbldr here yet due to
+                    // ongoing processing above during applyPredicate
+                    encode_aggs = true;
 
                 } else {
 
@@ -164,6 +170,10 @@ int processSkyFb(
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
         dead_rows.push_back(0);
         offs.push_back(row_off);
+    }
+
+    if (encode_aggs) {
+        // TODO: add agg predicate values to flexbldr here
     }
 
     // build the return ROOT flatbuf
@@ -399,6 +409,39 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
     }
 }
 
+std::string getPredValsString(PredicateBase* pb) {  // jpl temp debug only.
+
+    std::string s("val=");
+    switch (pb->colType()) {
+
+        case SkyDataTypeInt64: {
+            TypedPredicate<int64_t>* p = \
+                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+            s.append(std::to_string(p->getVal()));
+            s.append("; agg_value=");
+            s.append(std::to_string(p->getAgg()));
+            break;
+        }
+        case SkyDataTypeFloat: {
+            TypedPredicate<float>* p = \
+                dynamic_cast<TypedPredicate<float>*>(pb);
+            s.append(std::to_string(p->getVal()));
+            s.append("; agg_value=");
+            s.append(std::to_string(p->getAgg()));
+            break;
+        }
+        case SkyDataTypeDouble: {
+            TypedPredicate<double>* p = \
+                dynamic_cast<TypedPredicate<double>*>(pb);
+            s.append(std::to_string(p->getVal()));
+            s.append("; agg_value=");
+            s.append(std::to_string(p->getAgg()));
+            break;
+        }
+    }
+    return s;
+}
+
 std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
     // output format:  "|orderkey,lt,5|comment,like,he|extendedprice,gt,2.01|"
     // where '|' and ',' are denoted as PRED_DELIM_OUTER and PRED_DELIM_INNER
@@ -513,6 +556,14 @@ int skyOpTypeFromString(std::string op) {
     else if (op=="ne") op_type = SkyOpType::ne;
     else if (op=="leq") op_type = SkyOpType::leq;
     else if (op=="geq") op_type = SkyOpType::geq;
+    else if (op=="add") op_type = SkyOpType::add;
+    else if (op=="sub") op_type = SkyOpType::sub;
+    else if (op=="mul") op_type = SkyOpType::mul;
+    else if (op=="div") op_type = SkyOpType::div;
+    else if (op=="min") op_type = SkyOpType::min;
+    else if (op=="max") op_type = SkyOpType::max;
+    else if (op=="sum") op_type = SkyOpType::sum;
+    else if (op=="cnt") op_type = SkyOpType::cnt;
     else if (op=="like") op_type = SkyOpType::like;
     else if (op=="in") op_type = SkyOpType::in;
     else if (op=="not_in") op_type = SkyOpType::not_in;
@@ -537,6 +588,14 @@ std::string skyOpTypeToString(int op) {
     else if (op==SkyOpType::ne) op_str = "ne";
     else if (op==SkyOpType::leq) op_str = "leq";
     else if (op==SkyOpType::geq) op_str = "geq";
+    else if (op==SkyOpType::add) op_str = "add";
+    else if (op==SkyOpType::sub) op_str = "sub";
+    else if (op==SkyOpType::mul) op_str = "mul";
+    else if (op==SkyOpType::div) op_str = "div";
+    else if (op==SkyOpType::min) op_str = "min";
+    else if (op==SkyOpType::max) op_str = "max";
+    else if (op==SkyOpType::sum) op_str = "sum";
+    else if (op==SkyOpType::cnt) op_str = "cnt";
     else if (op==SkyOpType::like) op_str = "like";
     else if (op==SkyOpType::in) op_str = "in";
     else if (op==SkyOpType::not_in) op_str = "not_in";
@@ -554,26 +613,26 @@ std::string skyOpTypeToString(int op) {
 }
 
 void printSkyRootHeader(sky_root_header &r) {
-    cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< endl;
-    cout << "skyhookdb version: "<< r.skyhook_version << endl;
-    cout << "schema version: "<< r.schema_version << endl;
-    cout << "table name: "<< r.table_name << endl;
-    cout << "schema: \n"<< r.schema << endl;
-    cout<< "delete vector: [";
+    std::cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< std::endl;
+    std::cout << "skyhookdb version: "<< r.skyhook_version << std::endl;
+    std::cout << "schema version: "<< r.schema_version << std::endl;
+    std::cout << "table name: "<< r.table_name << std::endl;
+    std::cout << "schema: \n"<< r.schema << std::endl;
+    std::cout << "delete vector: [";
     for (int i=0; i< (int)r.delete_vec.size(); i++) {
-        cout << (int)r.delete_vec[i];
+        std::cout << (int)r.delete_vec[i];
         if (i != (int)r.delete_vec.size()-1)
-            cout<<", ";
+            std::cout <<", ";
     }
-    cout << "]" << endl;
-    cout << "nrows: " << r.nrows << endl;
-    cout << endl;
+    std::cout << "]" << std::endl;
+    std::cout << "nrows: " << r.nrows << std::endl;
+    std::cout << std::endl;
 }
 
 void printSkyRowHeader(sky_row_header &r) {
 
-    cout << "\n\n[SKYHOOKDB ROW HEADER (flatbuf)]" << endl;
-    cout << "RID: "<< r.RID << endl;
+    std::cout << "\n\n[SKYHOOKDB ROW HEADER (flatbuf)]" << std::endl;
+    std::cout << "RID: "<< r.RID << std::endl;
 
     std::string bitstring = "";
     int64_t val = 0;
@@ -585,8 +644,9 @@ void printSkyRowHeader(sky_row_header &r) {
             ((val&mask)>0) ? bit=1 : bit=0;
             bitstring.append(std::to_string(bit));
         }
-        cout << "nullbits ["<< j << "]: val=" << val << ": bits=" << bitstring;
-        cout << endl;
+        std::cout << "nullbits ["<< j << "]: val=" << val << ": bits="
+                  << bitstring;
+        std::cout << std::endl;
         bitstring.clear();
     }
 }
@@ -599,11 +659,11 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
     printSkyRootHeader(skyroot);
 
     // print col metadata (only names for now).
-    cout  << "Flatbuffer schema for the following rows:" << endl;
+    std::cout  << "Flatbuffer schema for the following rows:" << std::endl;
     for (schema_vec::iterator it = sch.begin(); it != sch.end(); ++it) {
-        cout << " | " << (*it).name;
-        if ((*it).is_key) cout << "(key)";
-        if (!(*it).nullable) cout << "(NOT NULL)";
+        std::cout << " | " << (*it).name;
+        if ((*it).is_key) std::cout << "(key)";
+        if (!(*it).nullable) std::cout << "(NOT NULL)";
     }
 
     // print row metadata
@@ -616,7 +676,7 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
 
         auto row = skyrow.data.AsVector();
 
-        cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << endl;
+        std::cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << std::endl;
         for (uint32_t j = 0; j < sch.size(); j++ ) {
 
             col_info col = sch.at(j);
@@ -630,7 +690,7 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
                     is_null =true;
                 }
                 if (is_null) {
-                    cout << "|NULL|";
+                    std::cout << "|NULL|";
                     continue;
                 }
             }
@@ -641,30 +701,32 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
             // "schema" col.id refers to the col num in the table's schema,
             // which may not be the same as this flatbuf, which could contain
             // a different schema if it is a view/project etc.
-            cout << "|";
+            std::cout << "|";
             switch (col.type) {
-                case SkyDataTypeInt8: cout << row[j].AsInt8(); break;
-                case SkyDataTypeInt16: cout << row[j].AsInt16(); break;
-                case SkyDataTypeInt32: cout << row[j].AsInt32(); break;
-                case SkyDataTypeInt64: cout << row[j].AsInt64(); break;
-                case SkyDataTypeUInt8: cout << row[j].AsUInt8(); break;
-                case SkyDataTypeUInt16: cout << row[j].AsUInt16(); break;
-                case SkyDataTypeUInt32: cout << row[j].AsUInt32(); break;
-                case SkyDataTypeUInt64: cout << row[j].AsUInt64(); break;
-                case SkyDataTypeFloat: cout << row[j].AsFloat(); break;
-                case SkyDataTypeDouble: cout << row[j].AsDouble(); break;
-                case SkyDataTypeChar: cout <<
+                case SkyDataTypeInt8: std::cout << row[j].AsInt8(); break;
+                case SkyDataTypeInt16: std::cout << row[j].AsInt16(); break;
+                case SkyDataTypeInt32: std::cout << row[j].AsInt32(); break;
+                case SkyDataTypeInt64: std::cout << row[j].AsInt64(); break;
+                case SkyDataTypeUInt8: std::cout << row[j].AsUInt8(); break;
+                case SkyDataTypeUInt16: std::cout << row[j].AsUInt16(); break;
+                case SkyDataTypeUInt32: std::cout << row[j].AsUInt32(); break;
+                case SkyDataTypeUInt64: std::cout << row[j].AsUInt64(); break;
+                case SkyDataTypeFloat: std::cout << row[j].AsFloat(); break;
+                case SkyDataTypeDouble: std::cout << row[j].AsDouble(); break;
+                case SkyDataTypeChar: std::cout <<
                     std::string(1, row[j].AsInt8()); break;
-                case SkyDataTypeUChar: cout <<
+                case SkyDataTypeUChar: std::cout <<
                     std::string(1, row[j].AsUInt8()); break;
-                case SkyDataTypeDate: cout << row[j].AsString().str(); break;
-                case SkyDataTypeString: cout << row[j].AsString().str(); break;
+                case SkyDataTypeDate: std::cout <<
+                    row[j].AsString().str(); break;
+                case SkyDataTypeString: std::cout <<
+                    row[j].AsString().str(); break;
                 default: assert (TablesErrCodes::UnknownSkyDataType==0);
             }
         }
-        cout << "|";
+        std::cout << "|";
     }
-    cout << endl;
+    std::cout << std::endl;
 }
 
 sky_root_header getSkyRootHeader(const char *fb, size_t fb_size) {
@@ -708,70 +770,100 @@ bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
                 TypedPredicate<int8_t>* p = \
                         dynamic_cast<TypedPredicate<int8_t>*>(*it);
                 int64_t rowval = row[p->colIdx()].AsInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeInt16: {
                 TypedPredicate<int16_t>* p = \
                         dynamic_cast<TypedPredicate<int16_t>*>(*it);
                 int64_t rowval = row[p->colIdx()].AsInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeInt32: {
                 TypedPredicate<int32_t>* p = \
                         dynamic_cast<TypedPredicate<int32_t>*>(*it);
                 int64_t rowval = row[p->colIdx()].AsInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeInt64: {
                 TypedPredicate<int64_t>* p = \
                         dynamic_cast<TypedPredicate<int64_t>*>(*it);
                 int64_t rowval = row[p->colIdx()].AsInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeUInt8: {
                 TypedPredicate<uint8_t>* p = \
                         dynamic_cast<TypedPredicate<uint8_t>*>(*it);
                 uint64_t rowval = row[p->colIdx()].AsUInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeUInt16: {
                 TypedPredicate<uint16_t>* p = \
                         dynamic_cast<TypedPredicate<uint16_t>*>(*it);
                 uint64_t rowval = row[p->colIdx()].AsUInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeUInt32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
                 uint64_t rowval = row[p->colIdx()].AsUInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeUInt64: {
                 TypedPredicate<uint64_t>* p = \
                         dynamic_cast<TypedPredicate<uint64_t>*>(*it);
                 uint64_t rowval = row[p->colIdx()].AsUInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeFloat: {
                 TypedPredicate<float>* p= \
                         dynamic_cast<TypedPredicate<float>*>(*it);
                 float rowval = row[p->colIdx()].AsFloat();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeDouble: {
                 TypedPredicate<double>* p= \
                         dynamic_cast<TypedPredicate<double>*>(*it);
                 double rowval = row[p->colIdx()].AsDouble();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                else
+                    pass &= compare(rowval,p->getVal(),p->opType());
                 break;
             }
             case SkyDataTypeDate: {
@@ -836,8 +928,6 @@ bool compare(const int64_t& val1, const int64_t& val2, const int& op) {
         case logical_nor: return !(val1 || val2);
         case logical_nand: return !(val1 && val2);
         case logical_xor: return (val1 || val2) && (val1 != val2);
-        case bitwise_and: return val1 & val2;
-        case bitwise_or: return val1 | val2;
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
     }
     return false;  // should be unreachable
@@ -905,6 +995,45 @@ bool compare(const std::string& val1, const re2::RE2& regx, const int& op) {
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
     }
    return false;  // should be unreachable
+}
+
+int64_t computeAgg(const int64_t& val, const int64_t& oldval, const int& op) {
+
+    int64_t newval = oldval;
+    switch (op) {
+        case min: if (val < oldval) newval = val; break;
+        case max: if (val > oldval) newval = val; break;
+        case sum: newval += val; break;
+        case cnt: newval += 1; break;
+        default: assert (TablesErrCodes::OpNotImplemented);
+    }
+    return newval;
+}
+
+uint64_t computeAgg(const uint64_t& val, const uint64_t& oldval, const int& op) {
+
+    uint64_t newval = oldval;
+    switch (op) {
+        case min: if (val < oldval) newval = val; break;
+        case max: if (val > oldval) newval = val; break;
+        case sum: newval += val; break;
+        case cnt: newval += 1; break;
+        default: assert (TablesErrCodes::OpNotImplemented);
+    }
+    return newval;
+}
+
+double computeAgg(const double& val, const double& oldval, const int& op) {
+
+    double newval = oldval;
+    switch (op) {
+        case min: if (val < oldval) newval = val; break;
+        case max: if (val > oldval) newval = val; break;
+        case sum: newval += val; break;
+        case cnt: newval += 1; break;
+        default: assert (TablesErrCodes::OpNotImplemented);
+    }
+    return newval;
 }
 
 } // end namespace Tables
