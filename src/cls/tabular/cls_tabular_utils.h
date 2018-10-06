@@ -39,26 +39,32 @@ enum TablesErrCodes {
     OpNotImplemented,
 };
 
-// skyhookdb data types, as supported by underlying data format
-// TODO:  add more types supported natively by flatbuffers
+// skyhook data types, as supported by underlying data format
 enum SkyDataType {
-    SkyDataTypeInt8 = 1,  // note: must start at 1
-    SkyDataTypeInt16,
-    SkyDataTypeInt32,
-    SkyDataTypeInt64,
-    SkyDataTypeUInt8,
-    SkyDataTypeUInt16,
-    SkyDataTypeUInt32,
-    SkyDataTypeUInt64,
-    SkyDataTypeChar,
-    SkyDataTypeUChar,
-    SkyDataTypeBool,
-    SkyDataTypeFloat,
-    SkyDataTypeDouble,
-    SkyDataTypeDate,
-    SkyDataTypeString,
+    SKY_INT8 = 1,  // note: must start at 1
+    SKY_INT16,
+    SKY_INT32,
+    SKY_INT64,
+    SKY_UINT8,
+    SKY_UINT16,
+    SKY_UINT32,
+    SKY_UINT64,
+    SKY_CHAR,
+    SKY_UCHAR,
+    SKY_BOOL,
+    SKY_FLOAT,
+    SKY_DOUBLE,
+    SKY_DATE,
+    SKY_STRING,
+    SKY_BLOB,  // TODO
+    SKY_VECTOR_INT8,  // TODO
+    SKY_VECTOR_INT64,  // TODO
+    SKY_VECTOR_UINT8,  // TODO
+    SKY_VECTOR_UINT64,  // TODO
+    SKY_VECTOR_DOUBLE,  // TODO
+    SKY_VECTOR_STRING,  // TODO
     // NOTE: add new data types above LAST, for simple bounds checking.
-    SkyDataTypeLAST
+    SkyDataType_LAST
 };
 
 enum SkyOpType {
@@ -96,7 +102,7 @@ enum SkyOpType {
     bitwise_and,
     bitwise_or,
     // NOTE: add new op types above LAST, for simple bounds checking.
-    SkyOpTypeLAST
+    SkyOpType_LAST
 };
 
 const int offset_to_skyhook_version = 4;
@@ -185,19 +191,19 @@ public:
                     assert (
                             std::is_arithmetic<T>::value
                             && (
-                            col_type==SkyDataTypeInt8 ||
-                            col_type==SkyDataTypeInt16 ||
-                            col_type==SkyDataTypeInt32 ||
-                            col_type==SkyDataTypeInt64 ||
-                            col_type==SkyDataTypeUInt8 ||
-                            col_type==SkyDataTypeUInt16 ||
-                            col_type==SkyDataTypeUInt32 ||
-                            col_type==SkyDataTypeUInt64 ||
-                            col_type==SkyDataTypeBool ||
-                            col_type==SkyDataTypeChar ||
-                            col_type==SkyDataTypeUChar ||
-                            col_type==SkyDataTypeFloat ||
-                            col_type==SkyDataTypeDouble));
+                            col_type==SKY_INT8 ||
+                            col_type==SKY_INT16 ||
+                            col_type==SKY_INT32 ||
+                            col_type==SKY_INT64 ||
+                            col_type==SKY_UINT8 ||
+                            col_type==SKY_UINT16 ||
+                            col_type==SKY_UINT32 ||
+                            col_type==SKY_UINT64 ||
+                            col_type==SKY_BOOL ||
+                            col_type==SKY_CHAR ||
+                            col_type==SKY_UCHAR ||
+                            col_type==SKY_FLOAT ||
+                            col_type==SKY_DOUBLE));
                     break;
 
                 // LEXICAL (regex)
@@ -207,9 +213,9 @@ public:
                         (std::is_same<T, unsigned char>::value) == true ||
                         (std::is_same<T, char>::value) == true)
                         && (
-                        col_type==SkyDataTypeString ||
-                        col_type==SkyDataTypeChar ||
-                        col_type==SkyDataTypeUChar));
+                        col_type==SKY_STRING ||
+                        col_type==SKY_CHAR ||
+                        col_type==SKY_UCHAR));
                     break;
 
                 // MEMBERSHIP (collections)
@@ -232,17 +238,17 @@ public:
                 case logical_xor:
                 case logical_nand:
                     assert (std::is_integral<T>::value);  // includes bool+char
-                    assert (col_type==SkyDataTypeInt8 ||
-                            col_type==SkyDataTypeInt16 ||
-                            col_type==SkyDataTypeInt32 ||
-                            col_type==SkyDataTypeInt64 ||
-                            col_type==SkyDataTypeUInt8 ||
-                            col_type==SkyDataTypeUInt16 ||
-                            col_type==SkyDataTypeUInt32 ||
-                            col_type==SkyDataTypeUInt64 ||
-                            col_type==SkyDataTypeBool ||
-                            col_type==SkyDataTypeChar ||
-                            col_type==SkyDataTypeUChar);
+                    assert (col_type==SKY_INT8 ||
+                            col_type==SKY_INT16 ||
+                            col_type==SKY_INT32 ||
+                            col_type==SKY_INT64 ||
+                            col_type==SKY_UINT8 ||
+                            col_type==SKY_UINT16 ||
+                            col_type==SKY_UINT32 ||
+                            col_type==SKY_UINT64 ||
+                            col_type==SKY_BOOL ||
+                            col_type==SKY_CHAR ||
+                            col_type==SKY_UCHAR);
                     break;
 
                 // BITWISE
@@ -305,7 +311,7 @@ struct col_info {
         type(t),
         is_key(key),
         nullable(nulls),
-        name(n) {assert(type > 0 && type < SkyDataTypeLAST);}
+        name(n) {assert(type > 0 && type < SkyDataType_LAST);}
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
         std::string n) :
@@ -313,7 +319,7 @@ struct col_info {
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
-        name(n) {assert(type > 0 && type < SkyDataTypeLAST);}
+        name(n) {assert(type > 0 && type < SkyDataType_LAST);}
 
     std::string toString() {
         return ( "   " +
@@ -388,33 +394,33 @@ typedef struct row_table sky_row_header;
 // format: "col_idx col_type col_is_key nullable col_name \n"
 // note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_schema_string = " \
-    0 " +  std::to_string(SkyDataTypeInt64) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SkyDataTypeInt32) + " 0 1 partkey \n\
-    2 " +  std::to_string(SkyDataTypeInt32) + " 0 1 suppkey \n\
-    3 " +  std::to_string(SkyDataTypeInt64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SkyDataTypeFloat) + " 0 1 quantity \n\
-    5 " +  std::to_string(SkyDataTypeDouble) + " 0 1 extendedprice \n\
-    6 " +  std::to_string(SkyDataTypeFloat) + " 0 1 discount \n\
-    7 " +  std::to_string(SkyDataTypeDouble) + " 0 1 tax \n\
-    8 " +  std::to_string(SkyDataTypeChar) + " 0 1 returnflag \n\
-    9 " +  std::to_string(SkyDataTypeChar) + " 0 1 linestatus \n\
-    10 " +  std::to_string(SkyDataTypeDate) + " 0 1 shipdate \n\
-    11 " +  std::to_string(SkyDataTypeDate) + " 0 1 commitdate \n\
-    12 " +  std::to_string(SkyDataTypeDate) + " 0 1 receipdate \n\
-    13 " +  std::to_string(SkyDataTypeString) + " 0 1 shipinstruct \n\
-    14 " +  std::to_string(SkyDataTypeString) + " 0 1 shipmode \n\
-    15 " +  std::to_string(SkyDataTypeString) + " 0 1 comment \n\
+    0 " +  std::to_string(SKY_INT64) + " 1 0 orderkey \n\
+    1 " +  std::to_string(SKY_INT32) + " 0 1 partkey \n\
+    2 " +  std::to_string(SKY_INT32) + " 0 1 suppkey \n\
+    3 " +  std::to_string(SKY_INT64) + " 1 0 linenumber \n\
+    4 " +  std::to_string(SKY_FLOAT) + " 0 1 quantity \n\
+    5 " +  std::to_string(SKY_DOUBLE) + " 0 1 extendedprice \n\
+    6 " +  std::to_string(SKY_FLOAT) + " 0 1 discount \n\
+    7 " +  std::to_string(SKY_DOUBLE) + " 0 1 tax \n\
+    8 " +  std::to_string(SKY_CHAR) + " 0 1 returnflag \n\
+    9 " +  std::to_string(SKY_CHAR) + " 0 1 linestatus \n\
+    10 " +  std::to_string(SKY_DATE) + " 0 1 shipdate \n\
+    11 " +  std::to_string(SKY_DATE) + " 0 1 commitdate \n\
+    12 " +  std::to_string(SKY_DATE) + " 0 1 receipdate \n\
+    13 " +  std::to_string(SKY_STRING) + " 0 1 shipinstruct \n\
+    14 " +  std::to_string(SKY_STRING) + " 0 1 shipmode \n\
+    15 " +  std::to_string(SKY_STRING) + " 0 1 comment \n\
     ";
 
 // a test schema for procection over the tpch lineitem table.
 // format: "col_idx col_type col_is_key nullable col_name \n"
 // note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_project_schema_string = " \
-    0 " +  std::to_string(SkyDataTypeInt64) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SkyDataTypeInt32) + " 0 1 partkey \n\
-    3 " +  std::to_string(SkyDataTypeInt64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SkyDataTypeFloat) + " 0 1 quantity \n\
-    5 " +  std::to_string(SkyDataTypeDouble) + " 0 1 extendedprice \n\
+    0 " +  std::to_string(SKY_INT64) + " 1 0 orderkey \n\
+    1 " +  std::to_string(SKY_INT32) + " 0 1 partkey \n\
+    3 " +  std::to_string(SKY_INT64) + " 1 0 linenumber \n\
+    4 " +  std::to_string(SKY_FLOAT) + " 0 1 quantity \n\
+    5 " +  std::to_string(SKY_DOUBLE) + " 0 1 extendedprice \n\
     ";
 
 // these extract the current data format (flatbuf) into the skyhookdb
@@ -428,20 +434,20 @@ void printSkyRootHeader(sky_root_header *r);
 void printSkyRowHeader(sky_row_header *r);
 void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
 
-// convert provided schema to/from internal representation
+// convert provided schema to/from skyhook internal representation
 void schemaFromProjectColsString(schema_vec &ret_schema,
                                  schema_vec &current_schema,
                                  std::string project_col_names);
 void schemaFromString(schema_vec &schema, std::string schema_string);
 std::string schemaToString(schema_vec schema);
 
-// convert provided predicates to/from internal representation
+// convert provided predicates to/from skyhook internal representation
 void predsFromString(predicate_vec &preds,  schema_vec &schema,
                      std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
 std::string getPredValsString(PredicateBase* pb);  // jpl temp debug only
 
-// convert provided ops to/from internal representation (simple enums)
+// convert provided ops to/from internal skyhook representation (simple enums)
 int skyOpTypeFromString(std::string s);
 std::string skyOpTypeToString(int op);
 
