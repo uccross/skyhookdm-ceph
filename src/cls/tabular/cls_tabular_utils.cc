@@ -42,8 +42,7 @@ int processSkyFb(
     sky_root_header skyroot = getSkyRootHeader(fb, fb_size);
 
     // identify the max col idx, to prevent flexbuf vector oob error
-    int col_idx_max, col_idx_min;
-    col_idx_max = col_idx_min = -1;
+    int col_idx_max = -1;
     for (auto it=schema_in.begin(); it!=schema_in.end(); ++it) {
         if ((*it).idx > col_idx_max)
             col_idx_max = (*it).idx;
@@ -55,7 +54,10 @@ int processSkyFb(
     // build the flexbuf with computed aggregates, aggs are computed for
     // each row that passes, and added to flexbuf after loop below.
     bool encode_aggs = false;
+    if (hasAggPreds(preds)) encode_aggs = true;
+    bool encode_rows = !encode_aggs;
 
+    // check the preds and accumulat agg preds for each matching row or
     // build the flexbuf for each row's data
     for (uint32_t i = 0; i < skyroot.nrows && !errcode; i++) {
 
@@ -65,6 +67,7 @@ int processSkyFb(
         sky_row_header skyrow = getSkyRowHeader(skyroot.offs->Get(i));
         bool pass = applyPredicates(preds, skyrow);
         if (!pass) continue;  // skip non matching rows.
+        if (!encode_rows) continue;  // just accumulat aggs, encode later.
 
         if (project_all) {
             // TODO:  just pass through row table offset to root.offs, do not
@@ -82,19 +85,13 @@ int processSkyFb(
                       it!=schema_out.end() && !errcode; ++it) {
 
                 col_info col = *it;
-                if (col.idx < col_idx_min || col.idx > col_idx_max) {
+                if (col.idx < AGG_CNT or col.idx > col_idx_max) {
+                    //if (col.idx > -5) continue;  // valid agg
                     errcode = TablesErrCodes::RequestedColIndexOOB;
                     errmsg.append("ERROR processSkyFb(): table=" +
                             skyroot.table_name + "; rid=" +
                             std::to_string(skyrow.RID) + " col.idx=" +
                             std::to_string(col.idx) + " OOB.");
-
-                } else if (col.idx < 0) {
-
-                    // A negative col id # means not in original schema
-                    // do not add any data to flexbldr here yet due to
-                    // ongoing processing above during applyPredicate
-                    encode_aggs = true;
 
                 } else {
 
@@ -175,11 +172,68 @@ int processSkyFb(
         offs.push_back(row_off);
     }
 
-    if (encode_aggs) {
-        // TODO: add agg predicate values to flexbldr here
+    if (encode_aggs) { //  encode each pred agg into return flexbuf.
+        PredicateBase* pb;
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flexbldr->Vector([&]() {
+            for (auto itp=preds.begin();itp!=preds.end();++itp) {
+
+                // assumes preds appear in same order as return schema
+                if (!(*itp)->isGlobalAgg()) continue;
+                pb = *itp;
+                switch(pb->colType()) {  // encode agg data val into flexbuf
+                    case SKY_INT64: {
+                        TypedPredicate<int64_t>* p = \
+                        dynamic_cast<TypedPredicate<int64_t>*>(pb);
+                        int64_t agg_val = p->getAgg();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SKY_UINT64: {
+                        TypedPredicate<uint64_t>* p = \
+                        dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+                        uint64_t agg_val = p->getAgg();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SKY_FLOAT: {
+                        TypedPredicate<float>* p = \
+                        dynamic_cast<TypedPredicate<float>*>(pb);
+                        float agg_val = p->getAgg();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SKY_DOUBLE: {
+                        TypedPredicate<double>* p = \
+                        dynamic_cast<TypedPredicate<double>*>(pb);
+                        double agg_val = p->getAgg();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    default:  assert(UnsupportedAggDataType==0);
+                }
+            }
+        });
+        // finalize the row's projected data within our flexbuf
+        flexbldr->Finish();
+
+        // build the return ROW flatbuf that contains the flexbuf data
+        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
+        // assume no nullbits in the agg results.  ?
+        nullbits_vector nb(2,0);
+        auto nullbits = flatbldr.CreateVector(nb);
+        int RID = 0;
+        flatbuffers::Offset<Tables::Row> row_off = \
+                Tables::CreateRow(flatbldr, RID, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
     }
 
-    // build the return ROOT flatbuf
+    // now build the return ROOT flatbuf wrapper
     std::string schema_str;
     for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
         schema_str.append((*it).toString() + "\n");
@@ -442,38 +496,8 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
     }
 }
 
-std::string getPredValsString(PredicateBase* pb) {  // jpl temp debug only.
 
-    std::string s("val=");
-    switch (pb->colType()) {
 
-        case SKY_INT64: {
-            TypedPredicate<int64_t>* p = \
-                dynamic_cast<TypedPredicate<int64_t>*>(pb);
-            s.append(std::to_string(p->getVal()));
-            s.append("; agg_value=");
-            s.append(std::to_string(p->getAgg()));
-            break;
-        }
-        case SKY_FLOAT: {
-            TypedPredicate<float>* p = \
-                dynamic_cast<TypedPredicate<float>*>(pb);
-            s.append(std::to_string(p->getVal()));
-            s.append("; agg_value=");
-            s.append(std::to_string(p->getAgg()));
-            break;
-        }
-        case SKY_DOUBLE: {
-            TypedPredicate<double>* p = \
-                dynamic_cast<TypedPredicate<double>*>(pb);
-            s.append(std::to_string(p->getVal()));
-            s.append("; agg_value=");
-            s.append(std::to_string(p->getAgg()));
-            break;
-        }
-    }
-    return s;
-}
 
 std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
     // output format:  "|orderkey,lt,5|comment,like,he|extendedprice,gt,2.01|"
@@ -794,6 +818,13 @@ sky_row_header getSkyRowHeader(const Tables::Row* rec) {
     );
 }
 
+bool hasAggPreds(predicate_vec &preds) {
+    for (auto it=preds.begin(); it!=preds.end();++it)
+        if ((*it)->isGlobalAgg()) return true;
+    return false;
+}
+
+
 bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
 
     bool pass = true;
@@ -1046,41 +1077,38 @@ bool compare(const std::string& val1, const re2::RE2& regx, const int& op) {
 
 int64_t computeAgg(const int64_t& val, const int64_t& oldval, const int& op) {
 
-    int64_t newval = oldval;
     switch (op) {
-        case min: if (val < oldval) newval = val; break;
-        case max: if (val > oldval) newval = val; break;
-        case sum: newval += val; break;
-        case cnt: newval += 1; break;
+        case min: if (val < oldval) return val;
+        case max: if (val > oldval) return val;
+        case sum: return oldval + val;
+        case cnt: return oldval + 1;
         default: assert (TablesErrCodes::OpNotImplemented);
     }
-    return newval;
+    return oldval;
 }
 
 uint64_t computeAgg(const uint64_t& val, const uint64_t& oldval, const int& op) {
 
-    uint64_t newval = oldval;
     switch (op) {
-        case min: if (val < oldval) newval = val; break;
-        case max: if (val > oldval) newval = val; break;
-        case sum: newval += val; break;
-        case cnt: newval += 1; break;
+        case min: if (val < oldval) return val;
+        case max: if (val > oldval) return val;
+        case sum: return oldval + val;
+        case cnt: return oldval + 1;
         default: assert (TablesErrCodes::OpNotImplemented);
     }
-    return newval;
+    return oldval;
 }
 
 double computeAgg(const double& val, const double& oldval, const int& op) {
 
-    double newval = oldval;
     switch (op) {
-        case min: if (val < oldval) newval = val; break;
-        case max: if (val > oldval) newval = val; break;
-        case sum: newval += val; break;
-        case cnt: newval += 1; break;
+        case min: if (val < oldval) return val;
+        case max: if (val > oldval) return val;
+        case sum: return oldval + val;
+        case cnt: return oldval + 1;
         default: assert (TablesErrCodes::OpNotImplemented);
     }
-    return newval;
+    return oldval;
 }
 
 } // end namespace Tables

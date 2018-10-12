@@ -31,6 +31,7 @@ enum TablesErrCodes {
     BadColInfoFormat,
     BadColInfoConversion,
     UnsupportedSkyDataType,
+    UnsupportedAggDataType,
     UnknownSkyDataType,
     RequestedColIndexOOB,
     PredicateComparisonNotDefined,
@@ -56,6 +57,7 @@ enum SkyDataType {
     SKY_DOUBLE,
     SKY_DATE,
     SKY_STRING,
+    /*
     SKY_BLOB,  // TODO
     SKY_VECTOR_INT8,  // TODO
     SKY_VECTOR_INT64,  // TODO
@@ -63,8 +65,9 @@ enum SkyDataType {
     SKY_VECTOR_UINT64,  // TODO
     SKY_VECTOR_DOUBLE,  // TODO
     SKY_VECTOR_STRING,  // TODO
-    // NOTE: add new data types above LAST, for simple bounds checking.
-    SkyDataType_LAST
+    */
+    SkyDataType_FIRST = SKY_INT8,
+    SkyDataType_LAST = SKY_STRING,
 };
 
 enum SkyOpType {
@@ -101,8 +104,22 @@ enum SkyOpType {
     // BITWISE
     bitwise_and,
     bitwise_or,
-    // NOTE: add new op types above LAST, for simple bounds checking.
-    SkyOpType_LAST
+    SkyOpType_FIRST = lt,
+    SkyOpType_LAST = bitwise_or,
+};
+
+enum AggIdx {
+    AGG_MIN = -1,  // defines the schema idx for agg ops.
+    AGG_MAX = -2,
+    AGG_SUM = -3,
+    AGG_CNT = -4
+};
+
+const std::map<std::string, int> agg_idx_names = {
+    {"min", AGG_MIN},
+    {"max", AGG_MAX},
+    {"sum", AGG_SUM},
+    {"cnt", AGG_CNT}
 };
 
 const int offset_to_skyhook_version = 4;
@@ -120,10 +137,6 @@ const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
-const int COL_IDX_MIN = -1;  // defines the schema col idx for agg ops.
-const int COL_IDX_MAX = -2;
-const int COL_IDX_SUM = -3;
-const int COL_IDX_CNT = -4;
 
 // contains the value of a predicate to be applied
 template <class T>
@@ -159,7 +172,7 @@ private:
     const bool is_global_agg;
     const re2::RE2* regx;
     const PredicateValue<T> value;
-    PredicateValue<T> agg_value;
+    PredicateValue<T> agg_value;  // inits to same as value
 
 public:
     TypedPredicate(int idx, int type, int op, const T& val) :
@@ -292,9 +305,9 @@ public:
     virtual bool isGlobalAgg() {return is_global_agg;}
     T getVal() {return value.val;}
     const re2::RE2* getRegex() {return regx;}
-    void updateAgg(int64_t amount) {agg_value.val=amount;}
-    void updateAgg(uint64_t amount) {agg_value.val=amount;}
-    void updateAgg(double amount) {agg_value.val=amount;}
+    void updateAgg(int64_t newval) {agg_value.val = newval;}
+    void updateAgg(uint64_t newval) {agg_value.val = newval;}
+    void updateAgg(double newval) {agg_value.val = newval;}
     T getAgg() {return agg_value.val;}
 };
 
@@ -311,7 +324,7 @@ struct col_info {
         type(t),
         is_key(key),
         nullable(nulls),
-        name(n) {assert(type > 0 && type < SkyDataType_LAST);}
+        name(n) {assert(type >= SkyDataType_FIRST && type <= SkyDataType_LAST);}
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
         std::string n) :
@@ -319,7 +332,7 @@ struct col_info {
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
-        name(n) {assert(type > 0 && type < SkyDataType_LAST);}
+        name(n) {assert(type >= SkyDataType_FIRST && type <= SkyDataType_LAST);}
 
     std::string toString() {
         return ( "   " +
@@ -445,7 +458,8 @@ std::string schemaToString(schema_vec schema);
 void predsFromString(predicate_vec &preds,  schema_vec &schema,
                      std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
-std::string getPredValsString(PredicateBase* pb);  // jpl temp debug only
+
+bool hasAggPreds(predicate_vec &preds);
 
 // convert provided ops to/from internal skyhook representation (simple enums)
 int skyOpTypeFromString(std::string s);

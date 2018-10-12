@@ -252,6 +252,28 @@ int main(int argc, char **argv)
     query_schema_str = schemaToString(query_schema);
     predicate_str = predsToString(preds, current_schema);
 
+    // for aggs, set the query output schema correctly here.
+    // note output schema will be in same col order as agg preds specified
+    if (Tables::hasAggPreds(preds)) {
+        query_schema.clear();   // the new return schema will only have aggs
+        for (auto it=preds.begin();it!=preds.end();++it) {
+            Tables::PredicateBase* p = *it;
+            if (p->isGlobalAgg()) {
+                // build col info for agg pred type, append to new query schema
+                int agg_idx = Tables::agg_idx_names.at(
+                        Tables::skyOpTypeToString(p->opType()));
+                int agg_val_type = p->colType();
+                bool is_key=false;
+                bool nullable=false;
+                std::string agg_name = Tables::skyOpTypeToString(p->opType());
+                const struct Tables::col_info ci(agg_idx, agg_val_type,
+                                                 is_key, nullable, agg_name);
+                query_schema.push_back(ci);
+            }
+        }
+        query_schema_str = schemaToString(query_schema);
+    }
+
     // cleanup tmp vars
     for (auto it=preds.begin();it!=preds.end();++it)
         delete (*it);
