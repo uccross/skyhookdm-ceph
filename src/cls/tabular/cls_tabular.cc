@@ -26,6 +26,7 @@ CLS_NAME(tabular)
 cls_handle_t h_class;
 cls_method_handle_t h_query_op;
 cls_method_handle_t h_build_index;
+cls_method_handle_t h_build_sky_index;
 
 
 static inline uint64_t __getns(clockid_t clock)
@@ -75,6 +76,41 @@ static inline int strtou64(const std::string value, uint64_t *out)
   return 0;
 }
 
+static
+int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    uint32_t batch_size;
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(batch_size, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: decoding batch_size");
+        return -EINVAL;
+    }
+
+    // get the obj data, which contains a seq of fbs, each encoded as a bl
+    bufferlist bl;
+    int ret = cls_cxx_read(hctx, 0, 0, &bl);
+    if (ret < 0) {
+        CLS_ERR("ERROR: reading obj %d", ret);
+        return ret;
+    }
+
+    // points (logically) to the relevant row within the fb
+    std::map<std::string, bufferlist> val_idx;
+
+    // points (physically) to the fb containing the row
+    std::map<std::string, bufferlist> fb_idx;
+
+    // encode each of these to a bl for idx
+    struct idx_val_entry;
+    struct idx_fb_entry;
+
+    // TODO
+    // process each sky flatbuf and create idx entries for omap
+
+    return 0;
+}
 
 /*
  * Build an index from the primary key (orderkey,linenum), insert to omap.
@@ -549,4 +585,7 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "build_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_index, &h_build_index);
+
+    cls_register_cxx_method(h_class, "build_sky_index",
+      CLS_METHOD_RD | CLS_METHOD_WR, build_sky_index, &h_build_sky_index);
 }

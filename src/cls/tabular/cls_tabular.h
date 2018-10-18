@@ -89,4 +89,58 @@ struct query_op {
 };
 WRITE_CLASS_ENCODER(query_op)
 
+
+// omap entry for indexed fb metadata
+// key = fb sequence number
+// val = struct containing physical location of fb within obj
+// note that each fb is encoded as an independent bufferlist in the obj
+// and objs contain a sequence of fbs
+struct idx_fb_entry {
+    uint32_t off;  // byte offset within obj pointing to encoded fb
+    uint32_t len;  // fb size
+
+    idx_fb_entry() {}
+
+    void encode(bufferlist& bl) const {
+        ENCODE_START(1, 1, bl);
+        ::encode(off, bl);
+        ::encode(len, bl);
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(bufferlist::iterator& bl) {
+        DECODE_START(1, bl);
+        ::decode(off, bl);
+        ::decode(len, bl);
+        DECODE_FINISH(bl);
+    }
+};
+WRITE_CLASS_ENCODER(idx_fb_entry)
+
+// omap entry for indexed col value
+// key = column data value (may be composite of multiple cols)
+// val = struct containing to logical location of row within fb within obj
+struct idx_val_entry {
+    uint32_t fb_num;  // within obj containing seq of fbs
+    uint32_t row_num;  // idx into rows array within fb root[nrows]
+
+    idx_val_entry() {}
+
+    void encode(bufferlist& bl) const {
+        ENCODE_START(1, 1, bl);
+        ::encode(fb_num, bl);
+        ::encode(row_num, bl);
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(bufferlist::iterator& bl) {
+        DECODE_START(1, bl);
+        ::decode(fb_num, bl);
+        ::decode(row_num, bl);
+        DECODE_FINISH(bl);
+    }
+};
+WRITE_CLASS_ENCODER(idx_val_entry)
+
+
 #endif
