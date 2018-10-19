@@ -99,7 +99,7 @@ struct idx_fb_entry {
     uint32_t off;  // byte offset within obj pointing to encoded fb
     uint32_t len;  // fb size
 
-    idx_fb_entry() {}
+    idx_fb_entry(uint32_t o, uint32_t l) : off(o), len(l) { }
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);
@@ -124,7 +124,7 @@ struct idx_val_entry {
     uint32_t fb_num;  // within obj containing seq of fbs
     uint32_t row_num;  // idx into rows array within fb root[nrows]
 
-    idx_val_entry() {}
+    idx_val_entry(uint32_t fb, uint32_t row) : fb_num(fb), row_num(row) {}
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);

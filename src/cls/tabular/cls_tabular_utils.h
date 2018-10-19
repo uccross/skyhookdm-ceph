@@ -171,8 +171,7 @@ private:
     const int op_type;
     const bool is_global_agg;
     const re2::RE2* regx;
-    const PredicateValue<T> value;
-    PredicateValue<T> agg_value;  // inits to same as value
+    PredicateValue<T> value;
 
 public:
     TypedPredicate(int idx, int type, int op, const T& val) :
@@ -180,8 +179,7 @@ public:
         col_type(type),
         op_type(op),
         is_global_agg(op==min || op==max || op==sum || op==cnt),
-        value(val),
-        agg_value(val) {
+        value(val) {
 
             // ONLY VERIFY op type is valid for specified col type and value
             // type T, and compile regex if needed.
@@ -280,7 +278,7 @@ public:
             // compile regex
             std::string pattern;
             if (op_type == SkyOpType::like) {
-                pattern = this->getVal();  // force str type for regex
+                pattern = this->Val();  // force str type for regex
                 regx = new re2::RE2(pattern);
                 assert (regx->ok());
             }
@@ -291,8 +289,7 @@ public:
         col_type(p.col_type),
         op_type(p.op_type),
         is_global_agg(p.is_global_agg),
-        value(p.value.val),
-        agg_value(p.agg_value.val) {
+        value(p.value.val) {
             regx = new re2::RE2(p.regx->pattern());
         }
 
@@ -303,12 +300,9 @@ public:
     virtual int colType() {return col_type;}
     virtual int opType() {return op_type;}
     virtual bool isGlobalAgg() {return is_global_agg;}
-    T getVal() {return value.val;}
+    T Val() {return value.val;}
     const re2::RE2* getRegex() {return regx;}
-    void updateAgg(int64_t newval) {agg_value.val = newval;}
-    void updateAgg(uint64_t newval) {agg_value.val = newval;}
-    void updateAgg(double newval) {agg_value.val = newval;}
-    T getAgg() {return agg_value.val;}
+    void updateAgg(T newval) {value.val = newval;}
 };
 
 // col metadata used for the schema
@@ -493,15 +487,18 @@ bool compare(const bool& val1, const bool& val2, const int& op);
 inline
 bool compare(const std::string& val1, const re2::RE2& regx, const int& op);
 
-inline
-int64_t computeAgg(const int64_t& val, const int64_t& oldval, const int& op);
+template <typename T>
+T computeAgg(const T& val, const T& oldval, const int& op) {
 
-inline
-uint64_t computeAgg(const uint64_t& val, const uint64_t& oldval, const int& op);
-
-inline
-double computeAgg(const double& val, const double& oldval, const int& op);
-
+    switch (op) {
+        case min: if (val < oldval) return val;
+        case max: if (val > oldval) return val;
+        case sum: return oldval + val;
+        case cnt: return oldval + 1;
+        default: assert (TablesErrCodes::OpNotImplemented);
+    }
+    return oldval;
+}
 } // end namespace Tables
 
 #endif

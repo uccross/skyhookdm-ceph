@@ -184,29 +184,29 @@ int processSkyFb(
                 switch(pb->colType()) {  // encode agg data val into flexbuf
                     case SKY_INT64: {
                         TypedPredicate<int64_t>* p = \
-                        dynamic_cast<TypedPredicate<int64_t>*>(pb);
-                        int64_t agg_val = p->getAgg();
+                                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+                        int64_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
                     case SKY_UINT64: {
                         TypedPredicate<uint64_t>* p = \
-                        dynamic_cast<TypedPredicate<uint64_t>*>(pb);
-                        uint64_t agg_val = p->getAgg();
+                                dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+                        uint64_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
                     case SKY_FLOAT: {
                         TypedPredicate<float>* p = \
-                        dynamic_cast<TypedPredicate<float>*>(pb);
-                        float agg_val = p->getAgg();
+                                dynamic_cast<TypedPredicate<float>*>(pb);
+                        float agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
                     case SKY_DOUBLE: {
                         TypedPredicate<double>* p = \
-                        dynamic_cast<TypedPredicate<double>*>(pb);
-                        double agg_val = p->getAgg();
+                                dynamic_cast<TypedPredicate<double>*>(pb);
+                        double agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
@@ -496,9 +496,6 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
     }
 }
 
-
-
-
 std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
     // output format:  "|orderkey,lt,5|comment,like,he|extendedprice,gt,2.01|"
     // where '|' and ',' are denoted as PRED_DELIM_OUTER and PRED_DELIM_INNER
@@ -519,85 +516,85 @@ std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
                     case SKY_BOOL: {
                         TypedPredicate<bool>* p = \
                             dynamic_cast<TypedPredicate<bool>*>(*it_prd);
-                        val = std::string(1, p->getVal());
+                        val = std::string(1, p->Val());
                         break;
                     }
                     case SKY_INT8: {
                         TypedPredicate<int8_t>* p = \
                             dynamic_cast<TypedPredicate<int8_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_INT16: {
                         TypedPredicate<int16_t>* p = \
                             dynamic_cast<TypedPredicate<int16_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_INT32: {
                         TypedPredicate<int32_t>* p = \
                             dynamic_cast<TypedPredicate<int32_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_INT64: {
                         TypedPredicate<int64_t>* p = \
                             dynamic_cast<TypedPredicate<int64_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_UINT8: {
                         TypedPredicate<uint8_t>* p = \
                             dynamic_cast<TypedPredicate<uint8_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_UINT16: {
                         TypedPredicate<uint16_t>* p = \
                             dynamic_cast<TypedPredicate<uint16_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_UINT32: {
                         TypedPredicate<uint32_t>* p = \
                             dynamic_cast<TypedPredicate<uint32_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_UINT64: {
                         TypedPredicate<uint64_t>* p = \
                             dynamic_cast<TypedPredicate<uint64_t>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_CHAR: {
                         TypedPredicate<char>* p = \
                             dynamic_cast<TypedPredicate<char>*>(*it_prd);
-                        val = std::string(1, p->getVal());
+                        val = std::string(1, p->Val());
                         break;
                     }
                     case SKY_UCHAR: {
                         TypedPredicate<unsigned char>* p = \
                             dynamic_cast<TypedPredicate<unsigned char>*>(*it_prd);
-                        val = std::string(1, p->getVal());
+                        val = std::string(1, p->Val());
                         break;
                     }
                     case SKY_FLOAT: {
                         TypedPredicate<float>* p = \
                             dynamic_cast<TypedPredicate<float>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_DOUBLE: {
                         TypedPredicate<double>* p = \
                             dynamic_cast<TypedPredicate<double>*>(*it_prd);
-                        val = std::to_string(p->getVal());
+                        val = std::to_string(p->Val());
                         break;
                     }
                     case SKY_STRING: {
                         TypedPredicate<std::string>* p = \
                             dynamic_cast<TypedPredicate<std::string>*>(*it_prd);
-                        val = p->getVal();
+                        val = p->Val();
                         break;
                     }
                     default: assert (!val.empty());
@@ -841,114 +838,124 @@ bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
                 TypedPredicate<bool>* p = \
                         dynamic_cast<TypedPredicate<bool>*>(*it);
                 bool rowval = row[p->colIdx()].AsInt64();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                pass &= compare(rowval,p->Val(),p->opType());
                 break;
             }
             case SKY_INT8: {
                 TypedPredicate<int8_t>* p = \
                         dynamic_cast<TypedPredicate<int8_t>*>(*it);
-                int64_t rowval = row[p->colIdx()].AsInt64();
+                int8_t rowval = row[p->colIdx()].AsInt8();
+                int8_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<int64_t>(predval),p->opType());
                 break;
             }
             case SKY_INT16: {
                 TypedPredicate<int16_t>* p = \
                         dynamic_cast<TypedPredicate<int16_t>*>(*it);
-                int64_t rowval = row[p->colIdx()].AsInt64();
+                int16_t rowval = row[p->colIdx()].AsInt16();
+                int16_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<int64_t>(predval),p->opType());
                 break;
             }
             case SKY_INT32: {
                 TypedPredicate<int32_t>* p = \
                         dynamic_cast<TypedPredicate<int32_t>*>(*it);
-                int64_t rowval = row[p->colIdx()].AsInt64();
+                int32_t rowval = row[p->colIdx()].AsInt32();
+                int32_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<int64_t>(predval),p->opType());
                 break;
             }
             case SKY_INT64: {
                 TypedPredicate<int64_t>* p = \
                         dynamic_cast<TypedPredicate<int64_t>*>(*it);
                 int64_t rowval = row[p->colIdx()].AsInt64();
+                int64_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,predval,p->opType());
                 break;
             }
             case SKY_UINT8: {
                 TypedPredicate<uint8_t>* p = \
                         dynamic_cast<TypedPredicate<uint8_t>*>(*it);
-                uint64_t rowval = row[p->colIdx()].AsUInt64();
+                uint8_t rowval = row[p->colIdx()].AsUInt8();
+                uint8_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<uint64_t>(predval),p->opType());
                 break;
             }
             case SKY_UINT16: {
                 TypedPredicate<uint16_t>* p = \
                         dynamic_cast<TypedPredicate<uint16_t>*>(*it);
-                uint64_t rowval = row[p->colIdx()].AsUInt64();
+                uint16_t rowval = row[p->colIdx()].AsUInt16();
+                uint16_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<uint64_t>(predval),p->opType());
                 break;
             }
             case SKY_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
-                uint64_t rowval = row[p->colIdx()].AsUInt64();
+                uint32_t rowval = row[p->colIdx()].AsUInt32();
+                uint32_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<uint64_t>(predval),p->opType());
                 break;
             }
             case SKY_UINT64: {
                 TypedPredicate<uint64_t>* p = \
                         dynamic_cast<TypedPredicate<uint64_t>*>(*it);
                 uint64_t rowval = row[p->colIdx()].AsUInt64();
+                uint64_t predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,predval,p->opType());
                 break;
             }
             case SKY_FLOAT: {
                 TypedPredicate<float>* p= \
                         dynamic_cast<TypedPredicate<float>*>(*it);
                 float rowval = row[p->colIdx()].AsFloat();
+                float predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,static_cast<double>(predval),p->opType());
                 break;
             }
             case SKY_DOUBLE: {
                 TypedPredicate<double>* p= \
                         dynamic_cast<TypedPredicate<double>*>(*it);
                 double rowval = row[p->colIdx()].AsDouble();
+                double predval = p->Val();
                 if (p->isGlobalAgg())
-                    p->updateAgg(computeAgg(rowval,p->getAgg(),p->opType()));
+                    p->updateAgg(computeAgg(rowval,predval,p->opType()));
                 else
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    pass &= compare(rowval,predval,p->opType());
                 break;
             }
             case SKY_DATE: {
                 TypedPredicate<std::string>* p= \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
                 string rowval = row[p->colIdx()].AsString().str();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                pass &= compare(rowval,p->Val(),p->opType());
                 break;
             }
             case SKY_CHAR: {
@@ -956,12 +963,16 @@ bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
                         dynamic_cast<TypedPredicate<char>*>(*it);
                 if (p->opType() == SkyOpType::like) {  // regex on strings
                     std::string rowval = row[p->colIdx()].AsString().str();
-                    std::string predval = std::to_string(p->getVal());
+                    std::string predval = std::to_string(p->Val());
                     pass &= compare(rowval,predval,p->opType());
                 }
                 else {  // int val comparision
-                    int64_t rowval = row[p->colIdx()].AsInt64();
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    int8_t rowval = row[p->colIdx()].AsInt8();
+                    int8_t predval = p->Val();
+                    if (p->isGlobalAgg())
+                        p->updateAgg(computeAgg(rowval,predval,p->opType()));
+                    else
+                        pass &= compare(rowval,static_cast<int64_t>(predval),p->opType());
                 }
                 break;
             }
@@ -970,12 +981,16 @@ bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
                         dynamic_cast<TypedPredicate<unsigned char>*>(*it);
                 if (p->opType() == SkyOpType::like) { // regex on strings
                     std::string rowval = row[p->colIdx()].AsString().str();
-                    std::string predval = std::to_string(p->getVal());
+                    std::string predval = std::to_string(p->Val());
                     pass &= compare(rowval,predval,p->opType());
                 }
                 else {  // int val comparision
-                    uint64_t rowval = row[p->colIdx()].AsUInt64();
-                    pass &= compare(rowval,p->getVal(),p->opType());
+                    uint8_t rowval = row[p->colIdx()].AsUInt8();
+                    uint8_t predval = p->Val();
+                    if (p->isGlobalAgg())
+                        p->updateAgg(computeAgg(rowval,predval,p->opType()));
+                    else
+                        pass &= compare(rowval,static_cast<uint64_t>(predval),p->opType());
                 }
                 break;
             }
@@ -983,7 +998,7 @@ bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
                 TypedPredicate<std::string>* p= \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
                 string rowval = row[p->colIdx()].AsString().str();
-                pass &= compare(rowval,p->getVal(),p->opType());
+                pass &= compare(rowval,p->Val(),p->opType());
                 break;
             }
             default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
@@ -1075,40 +1090,5 @@ bool compare(const std::string& val1, const re2::RE2& regx, const int& op) {
    return false;  // should be unreachable
 }
 
-int64_t computeAgg(const int64_t& val, const int64_t& oldval, const int& op) {
-
-    switch (op) {
-        case min: if (val < oldval) return val;
-        case max: if (val > oldval) return val;
-        case sum: return oldval + val;
-        case cnt: return oldval + 1;
-        default: assert (TablesErrCodes::OpNotImplemented);
-    }
-    return oldval;
-}
-
-uint64_t computeAgg(const uint64_t& val, const uint64_t& oldval, const int& op) {
-
-    switch (op) {
-        case min: if (val < oldval) return val;
-        case max: if (val > oldval) return val;
-        case sum: return oldval + val;
-        case cnt: return oldval + 1;
-        default: assert (TablesErrCodes::OpNotImplemented);
-    }
-    return oldval;
-}
-
-double computeAgg(const double& val, const double& oldval, const int& op) {
-
-    switch (op) {
-        case min: if (val < oldval) return val;
-        case max: if (val > oldval) return val;
-        case sum: return oldval + val;
-        case cnt: return oldval + 1;
-        default: assert (TablesErrCodes::OpNotImplemented);
-    }
-    return oldval;
-}
 
 } // end namespace Tables
