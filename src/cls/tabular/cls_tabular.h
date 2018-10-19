@@ -11,6 +11,10 @@
 
 #ifndef CLS_TABULAR_H
 #define CLS_TABULAR_H
+
+#include "cls_tabular_utils.h"
+
+#include "include/types.h"
 #include "include/types.h"
 
 /*
@@ -31,13 +35,17 @@ struct query_op {
   double discount_high;
   double quantity;
   std::string comment_regex;
+
+  // execution hints
   bool use_index;
   bool projection;
   bool fastpath;
+  uint64_t extra_row_cost;
+
+  // supports genetic schema for skyhook flatbuffers
   std::string table_schema_str;
   std::string query_schema_str;
   std::string predicate_str;
-  uint64_t extra_row_cost;
 
   query_op() {}
 
@@ -142,5 +150,38 @@ struct idx_val_entry {
 };
 WRITE_CLASS_ENCODER(idx_val_entry)
 
+
+// to encode indexing op metadata into bl for build_sky_index()
+struct idx_op {
+    int col_idx;  // within current schema
+    int col_type;  // sky col type
+    bool unique;   // whether to replace or append vals
+    int batch_size;
+
+    idx_op(int idx, int type, bool unq, int batsz) :
+            col_idx(idx),
+            col_type(type),
+            unique(unq),
+            batch_size(batsz) {}
+
+    void encode(bufferlist& bl) const {
+        ENCODE_START(1, 1, bl);
+        ::encode(col_idx, bl);
+        ::encode(col_type, bl);
+        ::encode(unique, bl);
+        ::encode(batch_size, bl);
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(bufferlist::iterator& bl) {
+        DECODE_START(1, bl);
+        ::decode(col_idx, bl);
+        ::decode(col_type, bl);
+        ::decode(unique, bl);
+        ::decode(batch_size, bl);
+        DECODE_FINISH(bl);
+    }
+};
+WRITE_CLASS_ENCODER(idx_op)
 
 #endif
