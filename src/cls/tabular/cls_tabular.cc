@@ -79,10 +79,10 @@ static inline int strtou64(const std::string value, uint64_t *out)
 static
 int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    uint32_t batch_size;
+    idx_op op;
     try {
         bufferlist::iterator it = in->begin();
-        ::decode(batch_size, it);
+        ::decode(op, it);
     } catch (const buffer::error &err) {
         CLS_ERR("ERROR: decoding batch_size");
         return -EINVAL;

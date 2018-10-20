@@ -97,5 +97,6 @@ extern std::condition_variable work_cond;
 extern bool stop;
 
 void worker_build_index(librados::IoCtx *ioctx);
+void worker_build_sky_index(librados::IoCtx *ioctx, idx_op op);
 void worker();
 void handle_cb(librados::completion_t cb, void *arg);

@@ -170,6 +170,28 @@ void worker_build_index(librados::IoCtx *ioctx)
   ioctx->close();
 }
 
+void worker_build_sky_index(librados::IoCtx *ioctx, idx_op op)
+{
+  while (true) {
+    work_lock.lock();
+    if (target_objects.empty()) {
+      work_lock.unlock();
+      break;
+    }
+    std::string oid = target_objects.back();
+    target_objects.pop_back();
+    std::cout << "building index... " << oid << std::endl;
+    work_lock.unlock();
+
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "build_sky_index", inbl, outbl);
+    checkret(ret, 0);
+  }
+  ioctx->close();
+}
+
+
 // busy loop work to simulate high cpu cost ops
 volatile uint64_t __tabular_x;
 static void add_extra_row_cost(uint64_t cost)

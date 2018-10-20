@@ -20,6 +20,7 @@ int main(int argc, char **argv)
   unsigned num_objs;
   int wthreads;
   bool build_index;
+  bool build_sky_index;
   std::string logfile;
   int qdepth;
   std::string dir;
@@ -69,6 +70,7 @@ int main(int argc, char **argv)
     ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
     ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
+    ("build-sky-index", po::bool_switch(&build_sky_index)->default_value(false), "build skyhook index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
     ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
@@ -148,6 +150,31 @@ int main(int argc, char **argv)
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
       threads.push_back(std::thread(worker_build_index, ioctx));
+    }
+
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    return 0;
+  }
+
+  // build skyhook index over general flatbuf data
+  if (build_sky_index) {
+    // create the idx op info to be used by the workers when reading obj data
+    // TODO: support up to 2 cols; change to user-specified param, not lineitem
+    Tables::schema_vec v;
+    Tables::schemaFromProjectColsString(v, current_schema, "lineitem");
+    Tables::col_info ci = v.at(0);
+    idx_op op(ci.idx, ci.type, ci.is_key, build_index_batch_size);
+
+    // kick off the workers
+    std::vector<std::thread> threads;
+    for (int i = 0; i < wthreads; i++) {
+      auto ioctx = new librados::IoCtx;
+      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+      checkret(ret, 0);
+      threads.push_back(std::thread(worker_build_sky_index, ioctx, op));
     }
 
     for (auto& thread : threads) {
