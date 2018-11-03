@@ -20,7 +20,6 @@ int main(int argc, char **argv)
   unsigned num_objs;
   int wthreads;
   bool build_index;
-  bool build_sky_index;
   std::string logfile;
   int qdepth;
   std::string dir;
@@ -30,6 +29,7 @@ int main(int argc, char **argv)
   std::string schema_str_default = Tables::lineitem_test_schema_string;
   std::string select_preds_str;   // provided by client app
   std::string project_cols_str;  // provided by client app
+  std::string index_cols_str;  // provided by client app
   std::string schema_str;  // provided by client app
 
   // TODO: get actual schema from the db client.
@@ -40,7 +40,7 @@ int main(int argc, char **argv)
   schemaFromString(current_schema, schema_str);
 
   // help menu messages for select and project
-  std::string project_help_msg = "projected col names as csv list";
+  std::string project_help_msg = "col names as csv list";
   std::stringstream ss;
   ss << " where 'op' is one of: "
      << "lt, gt, eq, neq, leq, geq, like, in, between, "
@@ -70,7 +70,6 @@ int main(int argc, char **argv)
     ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
     ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
-    ("build-sky-index", po::bool_switch(&build_sky_index)->default_value(false), "build skyhook index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
     ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
@@ -87,6 +86,7 @@ int main(int argc, char **argv)
     ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
+    ("create-index", po::value<std::string>(&index_cols_str)->default_value(""), project_help_msg.c_str())
     ("project", po::value<std::string>(&project_cols_str)->default_value(project_cols_str_default), project_help_msg.c_str())
     ("select", po::value<std::string>(&select_preds_str)->default_value(select_preds_str_default), select_help_msg.c_str())
   ;
@@ -160,13 +160,26 @@ int main(int argc, char **argv)
   }
 
   // build skyhook index over general flatbuf data
-  if (build_sky_index) {
+    boost::trim(index_cols_str);
+    if (!index_cols_str.empty()) {
+
     // create the idx op info to be used by the workers when reading obj data
-    // TODO: support up to 2 cols; change to user-specified param, not lineitem
-    Tables::schema_vec v;
-    Tables::schemaFromProjectColsString(v, current_schema, "lineitem");
-    Tables::col_info ci = v.at(0);
-    idx_op op(ci.idx, ci.type, ci.is_key, build_index_batch_size);
+    Tables::schema_vec index_schema;
+    Tables::schemaFromColNames(index_schema, current_schema, index_cols_str);
+    if (index_schema.size() > Tables::MAX_IDX_COLS)
+        assert (Tables::BuildSkyIndexUnsupportedNumCols == 0);
+    bool unique_index = true;
+    for (auto it=index_schema.begin(); it!=index_schema.end(); ++it) {
+        Tables::col_info ci = *it;  // must be integral type
+        if (ci.type <= Tables::SKY_INT8 or ci.type >= Tables::SKY_BOOL)
+            assert (Tables::BuildSkyIndexUnsupportedColType == 0);
+        if (ci.idx <= Tables::AGG_MIN)
+            assert (Tables::BuildSkyIndexUnsupportedAggCol == 0);
+        unique_index &= (*it).is_key;
+    }
+    idx_op op(unique_index, build_index_batch_size,
+              Tables::schemaToString(index_schema));
+    cout << op.toString() << endl;
 
     // kick off the workers
     std::vector<std::thread> threads;
@@ -269,8 +282,8 @@ int main(int argc, char **argv)
 
     } else {
         projection = true;
-        Tables::schemaFromProjectColsString(query_schema, current_schema,
-                                            project_cols_str);
+        Tables::schemaFromColNames(query_schema, current_schema,
+                                   project_cols_str);
         assert(query_schema.size() != 0);
     }
 

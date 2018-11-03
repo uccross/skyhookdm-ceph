@@ -38,6 +38,13 @@ enum TablesErrCodes {
     PredicateRegexPatternNotSet,
     OpNotRecognized,
     OpNotImplemented,
+    BuildSkyIndexDecodeBlsErr,
+    BuildSkyIndexExtractFbErr,
+    BuildSkyIndexUnsupportedColType,
+    BuildSkyIndexColTypeNotImplemented,
+    BuildSkyIndexUnsupportedNumCols,
+    BuildSkyIndexUnsupportedAggCol,
+    BuildSkyIndexKeyCreationFailed
 };
 
 // skyhook data types, as supported by underlying data format
@@ -112,7 +119,8 @@ enum AggIdx {
     AGG_MIN = -1,  // defines the schema idx for agg ops.
     AGG_MAX = -2,
     AGG_SUM = -3,
-    AGG_CNT = -4
+    AGG_CNT = -4,
+    AGG_COL_IDX_MIN = AGG_CNT,
 };
 
 const std::map<std::string, int> agg_idx_names = {
@@ -137,6 +145,7 @@ const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
+const int MAX_IDX_COLS = 4;
 
 // contains the value of a predicate to be applied
 template <class T>
@@ -442,9 +451,9 @@ void printSkyRowHeader(sky_row_header *r);
 void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
 
 // convert provided schema to/from skyhook internal representation
-void schemaFromProjectColsString(schema_vec &ret_schema,
-                                 schema_vec &current_schema,
-                                 std::string project_col_names);
+void schemaFromColNames(schema_vec &ret_schema,
+                        schema_vec &current_schema,
+                        std::string project_col_names);
 void schemaFromString(schema_vec &schema, std::string schema_string);
 std::string schemaToString(schema_vec schema);
 

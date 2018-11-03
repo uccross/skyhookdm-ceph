@@ -100,7 +100,7 @@ WRITE_CLASS_ENCODER(query_op)
 
 // omap entry for indexed fb metadata
 // key = fb sequence number
-// val = struct containing physical location of fb within obj
+// val = this struct containing physical location of fb within obj
 // note that each fb is encoded as an independent bufferlist in the obj
 // and objs contain a sequence of fbs
 struct idx_fb_entry {
@@ -128,18 +128,23 @@ WRITE_CLASS_ENCODER(idx_fb_entry)
 
 // omap entry for indexed col value
 // key = column data value (may be composite of multiple cols)
-// val = struct containing to logical location of row within fb within obj
-struct idx_val_entry {
+// val = this struct containing to logical location of row within fb within obj
+struct idx_rec_entry {
     uint32_t fb_num;  // within obj containing seq of fbs
     uint32_t row_num;  // idx into rows array within fb root[nrows]
+    uint64_t rid;  // record id, for verification
 
-    idx_val_entry() {}
-    idx_val_entry(uint32_t fb, uint32_t row) : fb_num(fb), row_num(row) {}
+    idx_rec_entry() {}
+    idx_rec_entry(uint32_t fb, uint32_t row, uint64_t rec_id) :
+            fb_num(fb),
+            row_num(row),
+            rid(rec_id){}
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);
         ::encode(fb_num, bl);
         ::encode(row_num, bl);
+        ::encode(rid, bl);
         ENCODE_FINISH(bl);
     }
 
@@ -147,42 +152,49 @@ struct idx_val_entry {
         DECODE_START(1, bl);
         ::decode(fb_num, bl);
         ::decode(row_num, bl);
+        ::decode(rid, bl);
         DECODE_FINISH(bl);
     }
 };
-WRITE_CLASS_ENCODER(idx_val_entry)
+WRITE_CLASS_ENCODER(idx_rec_entry)
 
 
 // to encode indexing op metadata into bl for build_sky_index()
 struct idx_op {
-    int col_idx;  // within current schema
-    int col_type;  // sky col type
+
     bool unique;   // whether to replace or append vals
-    int batch_size;
+    uint32_t batch_size;  // num idx entries to store at once
+    std::string idx_schema_str;
 
     idx_op() {}
-    idx_op(int idx, int type, bool unq, int batsz) :
-            col_idx(idx),
-            col_type(type),
-            unique(unq),
-            batch_size(batsz) {}
+    idx_op(bool unq, int batsz, std::string schema_str) :
+        unique(unq),
+        batch_size(batsz),
+        idx_schema_str(schema_str) {}
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);
-        ::encode(col_idx, bl);
-        ::encode(col_type, bl);
         ::encode(unique, bl);
         ::encode(batch_size, bl);
+        ::encode(idx_schema_str, bl);
         ENCODE_FINISH(bl);
     }
 
     void decode(bufferlist::iterator& bl) {
+        std::string s;
         DECODE_START(1, bl);
-        ::decode(col_idx, bl);
-        ::decode(col_type, bl);
         ::decode(unique, bl);
         ::decode(batch_size, bl);
+        ::decode(idx_schema_str, bl);
         DECODE_FINISH(bl);
+    }
+
+    std::string toString() {
+        std::string s;
+        s.append("idx_op.unique=" + std::to_string(unique) + "\n");
+        s.append("idx_op.batch_size=" + std::to_string(batch_size) + "\n");
+        s.append("idx_op.idx_schema=\n" + idx_schema_str + "\n");
+        return s;
     }
 };
 WRITE_CLASS_ENCODER(idx_op)

@@ -79,35 +79,136 @@ static inline int strtou64(const std::string value, uint64_t *out)
 static
 int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+    // iterate over all fbs within an obj and create 2 indexes:
+    // 1. for each fb, create an omap entry with its fb_num and byte off (phys)
+    // 2. for each row of an fb, create a rec entry for the keycol(s) (logical)
+    // value and fb_num
+
+    const int ceph_bl_encoding_len = 4; // ?? seems to be an int
+    int fb_cnt = 0;
+
+    // points (physically) to the fb containing the row
+    // <"oid-fbseqnum",<idx_fb_entry>> i.e., <str_oid_fbseqnum, <off, len>>
+    std::map<std::string, bufferlist> fbs_index;
+
+    // points (logically) to the relevant row within the fb
+    // <"col(s)_val",<idx_val_entry>> i.e., <col_val, map::<fb_num, row_num>>
+    std::map<std::string, bufferlist> recs_index;
+
+    // extract the index op instructions from the input bl
     idx_op op;
     try {
         bufferlist::iterator it = in->begin();
         ::decode(op, it);
     } catch (const buffer::error &err) {
-        CLS_ERR("ERROR: decoding batch_size");
+        CLS_ERR("ERROR: cls_tabular:build_sky_idx: decoding idx_op");
         return -EINVAL;
     }
+    Tables::schema_vec idx_schema;
+    Tables::schemaFromString(idx_schema, op.idx_schema_str);
 
-    // get the obj data, which contains a seq of fbs, each encoded as a bl
-    bufferlist bl;
-    int ret = cls_cxx_read(hctx, 0, 0, &bl);
+    // obj contains one bl that itself wraps a seq of encoded bls of skyhook fb
+    bufferlist wrapped_bls;
+    int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
     if (ret < 0) {
-        CLS_ERR("ERROR: reading obj %d", ret);
+        CLS_ERR("ERROR: cls_tabular:build_sky_index: reading obj %d", ret);
         return ret;
     }
 
-    // points (logically) to the relevant row within the fb
-    std::map<std::string, bufferlist> val_idx;
+    // decode and process each bl (contains 1 flatbuf) in a loop.
+    uint64_t off = 0;
+    ceph::bufferlist::iterator it = wrapped_bls.begin();
+    uint64_t obj_len = it.get_remaining();
+    while (it.get_remaining() > 0) {
+        off = obj_len - it.get_remaining();
+        ceph::bufferlist bl;
+        try {
+            ::decode(bl, it);  // unpack the next bl (flatbuf)
+        } catch (ceph::buffer::error&) {
+            assert(Tables::BuildSkyIndexDecodeBlsErr==0);
+        }
 
-    // points (physically) to the fb containing the row
-    std::map<std::string, bufferlist> fb_idx;
+        // get our data as contiguous bytes before accessing as flatbuf
+        const char* fb = bl.c_str();
+        int fb_len = bl.length();
+        Tables::sky_root_header root_h = Tables::getSkyRootHeader(fb, fb_len);
 
-    // encode each of these to a bl for idx
-    struct idx_val_entry;
-    struct idx_fb_entry;
+        // create an idx_fb_entry for this fb's phys loc info.
+        uint64_t fb_seq_num = ++fb_cnt;  // TODO: should be root.fb_seq_num;
+        struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
+        bufferlist fb_bl;
+        ::encode(fb_ent, fb_bl);
+        fbs_index[u64tostr(fb_seq_num)] = fb_bl;
 
-    // TODO
-    // process each sky flatbuf and create idx entries for omap
+        // create a idx_rec_entry for the keycols of each row
+        for (uint32_t i = 0; i < root_h.nrows; i++) {
+
+            Tables::sky_row_header row_h = \
+                    Tables::getSkyRowHeader(root_h.offs->Get(i));
+            auto row = row_h.data.AsVector();
+
+            // create the index key from the schema cols
+            uint64_t key = 0;
+            std::string strkey;
+            for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
+                switch ((*it).type) {
+                    case Tables::SKY_INT8:
+                    case Tables::SKY_UINT8:
+                    case Tables::SKY_INT16:
+                    case Tables::SKY_UINT16:
+                    case Tables::SKY_INT32:
+                    case Tables::SKY_UINT32:
+                        if (!strkey.empty()) strkey += "-";
+                        key = row[(*it).idx].AsUInt64();
+                        strkey = u64tostr(key);
+                        break;
+                    case Tables::SKY_INT64:
+                    case Tables::SKY_UINT64:
+                        if (!strkey.empty()) strkey += "-";
+                        key = row[(*it).idx].AsUInt64();
+                        strkey += u64tostr(key);
+                        break;
+                    default:
+                        return Tables::BuildSkyIndexColTypeNotImplemented;
+                }
+            }
+
+            if (strkey.empty())
+                return Tables::BuildSkyIndexKeyCreationFailed;
+
+            // create the index val
+            struct idx_rec_entry rec_ent(fb_seq_num, i, row_h.RID);
+            bufferlist rec_bl;
+            ::encode(rec_ent, rec_bl);
+            recs_index[strkey] = rec_bl;  //  TODO: verify if non-unique key
+
+            // add keys in batches to minimize IOs
+            if (recs_index.size() > op.batch_size) {
+                int ret = cls_cxx_map_set_vals(hctx, &recs_index);
+                if (ret < 0) {
+                    CLS_ERR("error setting index entries %d", ret);
+                    return ret;
+                }
+                recs_index.clear();
+            }
+        }
+
+        // always add remaining recs to recs_index and fbs to fbs_index
+        int ret = cls_cxx_map_set_vals(hctx, &fbs_index);
+        if (ret < 0) {
+            CLS_ERR("error setting index fbs entries %d", ret);
+            return ret;
+        }
+        if (recs_index.size() > 0) {
+            int ret = cls_cxx_map_set_vals(hctx, &recs_index);
+            if (ret < 0) {
+                CLS_ERR("error setting index recs entries %d", ret);
+                return ret;
+            }
+        }
+    }  // end while decode wrapped_bls
+
+
 
     return 0;
 }

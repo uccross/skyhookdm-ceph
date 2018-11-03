@@ -85,8 +85,7 @@ int processSkyFb(
                       it!=schema_out.end() && !errcode; ++it) {
 
                 col_info col = *it;
-                if (col.idx < AGG_CNT or col.idx > col_idx_max) {
-                    //if (col.idx > -5) continue;  // valid agg
+                if (col.idx < AGG_COL_IDX_MIN or col.idx > col_idx_max) {
                     errcode = TablesErrCodes::RequestedColIndexOOB;
                     errmsg.append("ERROR processSkyFb(): table=" +
                             skyroot.table_name + "; rid=" +
@@ -262,19 +261,19 @@ std::string schemaToString(schema_vec schema) {
     return s;
 }
 
-void schemaFromProjectColsString(schema_vec &ret_schema,
-                                 schema_vec &current_schema,
-                                 std::string project_col_names) {
+void schemaFromColNames(schema_vec &ret_schema,
+                        schema_vec &current_schema,
+                        std::string col_names) {
 
-    boost::trim(project_col_names);
-    if (project_col_names == "*") {
+    boost::trim(col_names);
+    if (col_names == PROJECT_DEFAULT) {
         for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
             ret_schema.push_back(*it);
         }
     }
     else {
         vector<std::string> cols;
-        boost::split(cols, project_col_names, boost::is_any_of(","),
+        boost::split(cols, col_names, boost::is_any_of(","),
                      boost::token_compress_on);
 
         // build return schema elems in order of colnames provided.
@@ -337,7 +336,7 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
     boost::trim(preds_string);  // whitespace
     boost::trim_if(preds_string, boost::is_any_of(PRED_DELIM_OUTER));
 
-    if (preds_string.empty() || preds_string=="*") return;
+    if (preds_string.empty() || preds_string== SELECT_DEFAULT) return;
 
     vector<std::string> pred_items;
     boost::split(pred_items, preds_string, boost::is_any_of(PRED_DELIM_OUTER),
@@ -357,7 +356,7 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
         std::string val = select_descr.at(2);
 
         schema_vec s;  // this only has 1 col and only used to verify input
-        schemaFromProjectColsString(s, schema, colname);
+        schemaFromColNames(s, schema, colname);
         col_info ci = s.at(0);
         int op_type = skyOpTypeFromString(opname);
 
