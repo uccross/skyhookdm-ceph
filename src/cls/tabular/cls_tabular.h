@@ -97,7 +97,6 @@ struct query_op {
 };
 WRITE_CLASS_ENCODER(query_op)
 
-
 // omap entry for indexed fb metadata
 // key = fb sequence number
 // val = this struct containing physical location of fb within obj
@@ -122,6 +121,13 @@ struct idx_fb_entry {
         ::decode(off, bl);
         ::decode(len, bl);
         DECODE_FINISH(bl);
+    }
+
+    std::string toString() {
+        std::string s;
+        s.append("idx_fb_entry.off=" + std::to_string(off));
+        s.append("; idx_fb_entry.len=" + std::to_string(len));
+        return s;
     }
 };
 WRITE_CLASS_ENCODER(idx_fb_entry)
@@ -155,9 +161,16 @@ struct idx_rec_entry {
         ::decode(rid, bl);
         DECODE_FINISH(bl);
     }
+
+    std::string toString() {
+        std::string s;
+        s.append("idx_rec_entry.fb_num=" + std::to_string(fb_num));
+        s.append("; idx_rec_entry.row_num=" + std::to_string(row_num));
+        s.append("; idx_rec_entry.rid=" + std::to_string(rid));
+        return s;
+    }
 };
 WRITE_CLASS_ENCODER(idx_rec_entry)
-
 
 // to encode indexing op metadata into bl for build_sky_index()
 struct idx_op {
@@ -191,9 +204,9 @@ struct idx_op {
 
     std::string toString() {
         std::string s;
-        s.append("idx_op.unique=" + std::to_string(unique) + "\n");
-        s.append("idx_op.batch_size=" + std::to_string(batch_size) + "\n");
-        s.append("idx_op.idx_schema=\n" + idx_schema_str + "\n");
+        s.append("idx_op.unique=" + std::to_string(unique));
+        s.append("; idx_op.batch_size=" + std::to_string(batch_size));
+        s.append("; idx_op.idx_schema=\n" + idx_schema_str);
         return s;
     }
 };

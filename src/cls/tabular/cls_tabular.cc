@@ -138,7 +138,9 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
         bufferlist fb_bl;
         ::encode(fb_ent, fb_bl);
-        fbs_index[u64tostr(fb_seq_num)] = fb_bl;
+        std::string fbkey = u64tostr(fb_seq_num);
+        fbs_index[fbkey] = fb_bl;
+        //CLS_LOG(20,"fb-key=%s", (fbkey+"; "+fb_ent.toString()).c_str());
 
         // create a idx_rec_entry for the keycols of each row
         for (uint32_t i = 0; i < root_h.nrows; i++) {
@@ -149,66 +151,74 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
             // create the index key from the schema cols
             uint64_t key = 0;
-            std::string strkey;
+            std::string reckey;
             for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
+                if (!reckey.empty()) reckey += ":";
+                key = row[(*it).idx].AsUInt64();
+                std::string strkey = u64tostr(key);
+                int len = strkey.length();
                 switch ((*it).type) {
+                    case Tables::SKY_BOOL:
+                        reckey += strkey.substr(len-1,len);
+                        break;
+                    case Tables::SKY_CHAR:
+                    case Tables::SKY_UCHAR:
                     case Tables::SKY_INT8:
                     case Tables::SKY_UINT8:
+                        reckey += strkey.substr(len-3,len);
+                        break;
                     case Tables::SKY_INT16:
                     case Tables::SKY_UINT16:
+                        reckey += strkey.substr(len-5,len);
+                        break;
                     case Tables::SKY_INT32:
                     case Tables::SKY_UINT32:
-                        if (!strkey.empty()) strkey += "-";
-                        key = row[(*it).idx].AsUInt64();
-                        strkey = u64tostr(key);
-                        break;
+                        reckey += strkey.substr(len-10,len);
+                    break;
                     case Tables::SKY_INT64:
                     case Tables::SKY_UINT64:
-                        if (!strkey.empty()) strkey += "-";
-                        key = row[(*it).idx].AsUInt64();
-                        strkey += u64tostr(key);
-                        break;
+                        reckey += strkey.substr(0,len);
+                    break;
                     default:
                         return Tables::BuildSkyIndexColTypeNotImplemented;
                 }
             }
 
-            if (strkey.empty())
+            if (reckey.empty())
                 return Tables::BuildSkyIndexKeyCreationFailed;
 
             // create the index val
             struct idx_rec_entry rec_ent(fb_seq_num, i, row_h.RID);
             bufferlist rec_bl;
             ::encode(rec_ent, rec_bl);
-            recs_index[strkey] = rec_bl;  //  TODO: verify if non-unique key
+            recs_index[reckey] = rec_bl;  // TODO: verify if non-unique key
+            //CLS_LOG(20,"rec-key=%s",(reckey+";"+rec_ent.toString()).c_str());
 
             // add keys in batches to minimize IOs
             if (recs_index.size() > op.batch_size) {
-                int ret = cls_cxx_map_set_vals(hctx, &recs_index);
+                ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
                     CLS_ERR("error setting index entries %d", ret);
                     return ret;
                 }
                 recs_index.clear();
             }
-        }
-
-        // always add remaining recs to recs_index and fbs to fbs_index
-        int ret = cls_cxx_map_set_vals(hctx, &fbs_index);
-        if (ret < 0) {
-            CLS_ERR("error setting index fbs entries %d", ret);
-            return ret;
-        }
-        if (recs_index.size() > 0) {
-            int ret = cls_cxx_map_set_vals(hctx, &recs_index);
-            if (ret < 0) {
-                CLS_ERR("error setting index recs entries %d", ret);
-                return ret;
-            }
-        }
+        }  // end foreach row
     }  // end while decode wrapped_bls
 
-
+    // always add remaining recs to recs_index and fbs to fbs_index
+    ret = cls_cxx_map_set_vals(hctx, &fbs_index);
+    if (ret < 0) {
+        CLS_ERR("error setting index fbs entries %d", ret);
+        return ret;
+    }
+    if (recs_index.size() > 0) {
+        ret = cls_cxx_map_set_vals(hctx, &recs_index);
+        if (ret < 0) {
+            CLS_ERR("error setting index recs entries %d", ret);
+            return ret;
+        }
+    }
 
     return 0;
 }

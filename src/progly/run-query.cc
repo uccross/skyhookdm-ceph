@@ -164,21 +164,33 @@ int main(int argc, char **argv)
     if (!index_cols_str.empty()) {
 
     // create the idx op info to be used by the workers when reading obj data
-    Tables::schema_vec index_schema;
-    Tables::schemaFromColNames(index_schema, current_schema, index_cols_str);
-    if (index_schema.size() > Tables::MAX_IDX_COLS)
+    Tables::schema_vec idx_schema;
+    Tables::schemaFromColNames(idx_schema, current_schema, index_cols_str);
+    if (idx_schema.size() > Tables::MAX_IDX_COLS)
         assert (Tables::BuildSkyIndexUnsupportedNumCols == 0);
-    bool unique_index = true;
-    for (auto it=index_schema.begin(); it!=index_schema.end(); ++it) {
+    for (auto it=idx_schema.begin(); it!=idx_schema.end(); ++it) {
         Tables::col_info ci = *it;  // must be integral type
         if (ci.type <= Tables::SKY_INT8 or ci.type >= Tables::SKY_BOOL)
             assert (Tables::BuildSkyIndexUnsupportedColType == 0);
         if (ci.idx <= Tables::AGG_MIN)
             assert (Tables::BuildSkyIndexUnsupportedAggCol == 0);
-        unique_index &= (*it).is_key;
     }
+
+    // check if all keycols of current schema are present in index schema
+    bool unique_index = true;
+    for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
+        if ((*it).is_key) {
+            bool found = false;
+            for (auto it2=idx_schema.begin(); it2!=idx_schema.end(); ++it2) {
+                if ((*it).idx==(*it2).idx) found = true;
+            }
+            unique_index &= found;
+        }
+    }
+    assert (unique_index);  // only unique indexes currently supported
+
     idx_op op(unique_index, build_index_batch_size,
-              Tables::schemaToString(index_schema));
+              Tables::schemaToString(idx_schema));
     cout << op.toString() << endl;
 
     // kick off the workers
