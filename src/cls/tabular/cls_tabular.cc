@@ -48,33 +48,7 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   return std::string(buffer, copyupto);
 }
 
-/*
- * Convert integerto string for index/omap of primary key
- */
-static inline std::string u64tostr(uint64_t value)
-{
-  std::stringstream ss;
-  ss << std::setw(20) << std::setfill('0') << value;
-  return ss.str();
-}
 
-/*
- * Convert string into numeric value.
- */
-static inline int strtou64(const std::string value, uint64_t *out)
-{
-  uint64_t v;
-
-  try {
-    v = boost::lexical_cast<uint64_t>(value);
-  } catch (boost::bad_lexical_cast &) {
-    CLS_ERR("converting key into numeric value %s", value.c_str());
-    return -EIO;
-  }
-
-  *out = v;
-  return 0;
-}
 
 static
 int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
@@ -131,68 +105,51 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // get our data as contiguous bytes before accessing as flatbuf
         const char* fb = bl.c_str();
         int fb_len = bl.length();
-        Tables::sky_root_header root_h = Tables::getSkyRootHeader(fb, fb_len);
+        Tables::sky_root root = Tables::getSkyRoot(fb, fb_len);
 
         // create an idx_fb_entry for this fb's phys loc info.
+        // get current max fb_seq_num;
         uint64_t fb_seq_num = ++fb_cnt;  // TODO: should be root.fb_seq_num;
         struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
         bufferlist fb_bl;
         ::encode(fb_ent, fb_bl);
-        std::string fbkey = u64tostr(fb_seq_num);
+        std::string fbkey = Tables::u64tostr(fb_seq_num);
+        int len = fbkey.length();
+        fbkey = fbkey.substr(len-10, len);
         fbs_index[fbkey] = fb_bl;
         //CLS_LOG(20,"fb-key=%s", (fbkey+"; "+fb_ent.toString()).c_str());
 
         // create a idx_rec_entry for the keycols of each row
-        for (uint32_t i = 0; i < root_h.nrows; i++) {
+        for (uint32_t i = 0; i < root.nrows; i++) {
 
-            Tables::sky_row_header row_h = \
-                    Tables::getSkyRowHeader(root_h.offs->Get(i));
-            auto row = row_h.data.AsVector();
+            Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
+            auto row = rec.data.AsVector();
 
             // create the index key from the schema cols
-            uint64_t key = 0;
-            std::string reckey;
+            std::string strkey;
             for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
-                if (!reckey.empty()) reckey += ":";
-                key = row[(*it).idx].AsUInt64();
-                std::string strkey = u64tostr(key);
-                int len = strkey.length();
-                switch ((*it).type) {
-                    case Tables::SKY_BOOL:
-                        reckey += strkey.substr(len-1,len);
-                        break;
-                    case Tables::SKY_CHAR:
-                    case Tables::SKY_UCHAR:
-                    case Tables::SKY_INT8:
-                    case Tables::SKY_UINT8:
-                        reckey += strkey.substr(len-3,len);
-                        break;
-                    case Tables::SKY_INT16:
-                    case Tables::SKY_UINT16:
-                        reckey += strkey.substr(len-5,len);
-                        break;
-                    case Tables::SKY_INT32:
-                    case Tables::SKY_UINT32:
-                        reckey += strkey.substr(len-10,len);
-                    break;
-                    case Tables::SKY_INT64:
-                    case Tables::SKY_UINT64:
-                        reckey += strkey.substr(0,len);
-                    break;
-                    default:
-                        return Tables::BuildSkyIndexColTypeNotImplemented;
+                int ret = Tables::buildStrKey(row[(*it).idx].AsUInt64(),
+                                              (*it).type, strkey);
+                if (ret) {
+                    CLS_ERR("error buildStrKey for RID %ld entry," \
+                            "TablesErrCodes::%d", rec.RID, ret);
+                    return -1;
                 }
             }
 
-            if (reckey.empty())
-                return Tables::BuildSkyIndexKeyCreationFailed;
+            if (strkey.empty()) {
+                CLS_ERR("error key for RID %ld entry," \
+                        " TablesErrCodes::%d", rec.RID,
+                        Tables::BuildSkyIndexKeyCreationFailed);
+                return -1;
+            }
 
             // create the index val
-            struct idx_rec_entry rec_ent(fb_seq_num, i, row_h.RID);
+            struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
             bufferlist rec_bl;
             ::encode(rec_ent, rec_bl);
-            recs_index[reckey] = rec_bl;  // TODO: verify if non-unique key
-            //CLS_LOG(20,"rec-key=%s",(reckey+";"+rec_ent.toString()).c_str());
+            recs_index[strkey] = rec_bl;  // TODO: verify if non-unique key
+            //CLS_LOG(20,"rec-key=%s",(strkey+";"+rec_ent.toString()).c_str());
 
             // add keys in batches to minimize IOs
             if (recs_index.size() > op.batch_size) {
@@ -227,7 +184,8 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  * Build an index from the primary key (orderkey,linenum), insert to omap.
  * Index contains <k=primarykey, v=offset of row within BL>
  */
-static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static
+int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   uint32_t batch_size;
 
@@ -266,7 +224,7 @@ static int build_index(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     // key
     uint64_t key = ((uint64_t)order_key_val) << 32;
     key |= (uint32_t)line_number_val;
-    const std::string strkey = u64tostr(key);
+    const std::string strkey = Tables::u64tostr(key);
 
     // val
     bufferlist row_offset_bl;
@@ -382,8 +340,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 const char* fb = bl.c_str();
                 size_t fb_size = bl.length();
 
-                Tables::sky_root_header root = \
-                        Tables::getSkyRootHeader(fb, fb_size);
+                Tables::sky_root root = Tables::getSkyRoot(fb, fb_size);
                 flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
                 std::string errmsg;
                 ret = Tables::processSkyFb(flatbldr, schema_in, schema_out,
@@ -499,7 +456,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
           // create the requested composite key from the op struct
           uint64_t key = ((uint64_t)op.order_key) << 32;
           key |= (uint32_t)op.line_number;
-          const std::string strkey = u64tostr(key);
+          const std::string strkey = Tables::u64tostr(key);
 
           // key lookup in omap to get the row offset
           bufferlist row_offset_bl;

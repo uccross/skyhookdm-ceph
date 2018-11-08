@@ -39,7 +39,7 @@ int processSkyFb(
     int errcode = 0;
     delete_vector dead_rows;
     std::vector<flatbuffers::Offset<Tables::Row>> offs;
-    sky_root_header skyroot = getSkyRootHeader(fb, fb_size);
+    sky_root skyroot = getSkyRoot(fb, fb_size);
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
@@ -64,8 +64,8 @@ int processSkyFb(
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
         // apply predicates
-        sky_row_header skyrow = getSkyRowHeader(skyroot.offs->Get(i));
-        bool pass = applyPredicates(preds, skyrow);
+        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
+        bool pass = applyPredicates(preds, skyrec);
         if (!pass) continue;  // skip non matching rows.
         if (!encode_rows) continue;  // just accumulat aggs, encode later.
 
@@ -75,7 +75,7 @@ int processSkyFb(
         }
 
         // build the projection for this row.
-        auto row = skyrow.data.AsVector();
+        auto row = skyrec.data.AsVector();
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
         flexbldr->Vector([&]() {
@@ -89,7 +89,7 @@ int processSkyFb(
                     errcode = TablesErrCodes::RequestedColIndexOOB;
                     errmsg.append("ERROR processSkyFb(): table=" +
                             skyroot.table_name + "; rid=" +
-                            std::to_string(skyrow.RID) + " col.idx=" +
+                            std::to_string(skyrec.RID) + " col.idx=" +
                             std::to_string(col.idx) + " OOB.");
 
                 } else {
@@ -145,7 +145,7 @@ int processSkyFb(
                             errcode = TablesErrCodes::UnsupportedSkyDataType;
                             errmsg.append("ERROR processSkyFb(): table=" +
                                     skyroot.table_name + "; rid=" +
-                                    std::to_string(skyrow.RID) + " col.type=" +
+                                    std::to_string(skyrec.RID) + " col.type=" +
                                     std::to_string(col.type) +
                                     " UnsupportedSkyDataType.");
                         }
@@ -162,9 +162,9 @@ int processSkyFb(
         delete flexbldr;
 
         // TODO: update nullbits
-        auto nullbits = flatbldr.CreateVector(skyrow.nullbits);
+        auto nullbits = flatbldr.CreateVector(skyrec.nullbits);
         flatbuffers::Offset<Tables::Row> row_off = \
-                Tables::CreateRow(flatbldr, skyrow.RID, nullbits, row_data);
+                Tables::CreateRow(flatbldr, skyrec.RID, nullbits, row_data);
 
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
         dead_rows.push_back(0);
@@ -671,7 +671,7 @@ std::string skyOpTypeToString(int op) {
     return op_str;
 }
 
-void printSkyRootHeader(sky_root_header &r) {
+void printSkyRootHeader(sky_root &r) {
     std::cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< std::endl;
     std::cout << "skyhookdb version: "<< r.skyhook_version << std::endl;
     std::cout << "schema version: "<< r.schema_version << std::endl;
@@ -688,7 +688,7 @@ void printSkyRootHeader(sky_root_header &r) {
     std::cout << std::endl;
 }
 
-void printSkyRowHeader(sky_row_header &r) {
+void printSkyRecHeader(sky_rec &r) {
 
     std::cout << "\n\n[SKYHOOKDB ROW HEADER (flatbuf)]" << std::endl;
     std::cout << "RID: "<< r.RID << std::endl;
@@ -714,7 +714,7 @@ void printSkyRowHeader(sky_row_header &r) {
 void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
 
     // get root table ptr
-    sky_root_header skyroot = Tables::getSkyRootHeader(fb, fb_size);
+    sky_root skyroot = Tables::getSkyRoot(fb, fb_size);
     printSkyRootHeader(skyroot);
 
     // print col metadata (only names for now).
@@ -730,10 +730,10 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
 
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
-        sky_row_header skyrow = getSkyRowHeader(skyroot.offs->Get(i));
-        printSkyRowHeader(skyrow);
+        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
+        printSkyRecHeader(skyrec);
 
-        auto row = skyrow.data.AsVector();
+        auto row = skyrec.data.AsVector();
 
         std::cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << std::endl;
         for (uint32_t j = 0; j < sch.size(); j++ ) {
@@ -743,9 +743,9 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
             // check our nullbit vector
             if (col.nullable) {
                 bool is_null = false;
-                int pos = col.idx / (8*sizeof(skyrow.nullbits.at(0)));
+                int pos = col.idx / (8*sizeof(skyrec.nullbits.at(0)));
                 int col_bitmask = 1 << col.idx;
-                if ((col_bitmask & skyrow.nullbits.at(pos)) != 0)  {
+                if ((col_bitmask & skyrec.nullbits.at(pos)) != 0)  {
                     is_null =true;
                 }
                 if (is_null) {
@@ -789,11 +789,11 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
     std::cout << std::endl;
 }
 
-sky_root_header getSkyRootHeader(const char *fb, size_t fb_size) {
+sky_root getSkyRoot(const char *fb, size_t fb_size) {
 
     const Table* root = GetTable(fb);
 
-    return sky_root_header (
+    return sky_root (
             root->skyhook_version(),
             root->schema_version(),
             root->table_name()->str(),
@@ -805,9 +805,9 @@ sky_root_header getSkyRootHeader(const char *fb, size_t fb_size) {
     );
 }
 
-sky_row_header getSkyRowHeader(const Tables::Row* rec) {
+sky_rec getSkyRec(const Tables::Row* rec) {
 
-    return sky_row_header(
+    return sky_rec(
             rec->RID(),
             nullbits_vector (rec->nullbits()->begin(), rec->nullbits()->end()),
                              rec->data_flexbuffer_root()
@@ -821,7 +821,7 @@ bool hasAggPreds(predicate_vec &preds) {
 }
 
 
-bool applyPredicates(predicate_vec& pv, sky_row_header& row_h) {
+bool applyPredicates(predicate_vec& pv, sky_rec& row_h) {
 
     bool pass = true;
     auto row = row_h.data.AsVector();
@@ -1088,6 +1088,40 @@ bool compare(const std::string& val1, const re2::RE2& regx, const int& op) {
     }
    return false;  // should be unreachable
 }
+
+int buildStrKey(uint64_t data, int type, std::string& key) {
+    std::string data_str = Tables::u64tostr(data);
+    int len = data_str.length();
+    if (!key.empty()) key += ":";
+    switch (type) {
+        case Tables::SKY_BOOL:
+            key += data_str.substr(len-1, len);
+            break;
+        case Tables::SKY_CHAR:
+        case Tables::SKY_UCHAR:
+        case Tables::SKY_INT8:
+        case Tables::SKY_UINT8:
+            key += data_str.substr(len-3, len);
+            break;
+        case Tables::SKY_INT16:
+        case Tables::SKY_UINT16:
+            key += data_str.substr(len-5, len);
+            break;
+        case Tables::SKY_INT32:
+        case Tables::SKY_UINT32:
+            key += data_str.substr(len-10, len);
+        break;
+        case Tables::SKY_INT64:
+        case Tables::SKY_UINT64:
+            key += data_str.substr(0, len);
+        break;
+        default:
+            return TablesErrCodes::BuildSkyIndexColTypeNotImplemented;
+    }
+    if (key.empty()) return TablesErrCodes::BuildSkyIndexKeyCreationFailed;
+    return 0;
+}
+
 
 
 } // end namespace Tables

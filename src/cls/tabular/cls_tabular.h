@@ -15,7 +15,6 @@
 #include "cls_tabular_utils.h"
 
 #include "include/types.h"
-#include "include/types.h"
 
 /*
  * Stores the query request parameters.  This is encoded by the client and

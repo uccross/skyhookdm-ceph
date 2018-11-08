@@ -12,13 +12,18 @@
 #ifndef CLS_TABULAR_UTILS_H
 #define CLS_TABULAR_UTILS_H
 
+#include <string>
+#include <sstream>
 #include <type_traits>
 
 #include "include/types.h"
 #include <boost/algorithm/string/classification.hpp> // for boost::is_any_of
 #include <boost/algorithm/string/split.hpp> // for boost::split
 #include <boost/algorithm/string.hpp> // for boost::trim
+#include <boost/lexical_cast.hpp>
+
 #include "re2/re2.h"
+#include "objclass/objclass.h"
 
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
@@ -146,6 +151,35 @@ const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
 const int MAX_IDX_COLS = 4;
+
+
+/*
+ * Convert integer to string for index/omap of primary key
+ */
+static inline std::string u64tostr(uint64_t value)
+{
+  std::stringstream ss;
+  ss << std::setw(20) << std::setfill('0') << value;
+  return ss.str();
+}
+
+/*
+ * Convert string into numeric value.
+ */
+static inline int strtou64(const std::string value, uint64_t *out)
+{
+  uint64_t v;
+
+  try {
+    v = boost::lexical_cast<uint64_t>(value);
+  } catch (boost::bad_lexical_cast &) {
+    CLS_ERR("converting key into numeric value %s", value.c_str());
+    return -EIO;
+  }
+
+  *out = v;
+  return 0;
+}
 
 // contains the value of a predicate to be applied
 template <class T>
@@ -390,21 +424,21 @@ struct root_table {
         nrows(n) {};
 
 };
-typedef struct root_table sky_root_header;
+typedef struct root_table sky_root;
 
 // skyhookdb row metadata and row data, wraps a row of data
 // abstracts a row from its underlying data format/layout
-struct row_table {
+struct rec_table {
     const int64_t RID;
     nullbits_vector nullbits;
     const row_data_ref data;
 
-    row_table(int64_t rid, nullbits_vector n, row_data_ref d) :
+    rec_table(int64_t rid, nullbits_vector n, row_data_ref d) :
         RID(rid),
         nullbits(n),
         data(d) {};
 };
-typedef struct row_table sky_row_header;
+typedef struct rec_table sky_rec;
 
 // a test schema for the tpch lineitem table.
 // format: "col_idx col_type col_is_key nullable col_name \n"
@@ -442,12 +476,12 @@ const std::string lineitem_test_project_schema_string = " \
 // these extract the current data format (flatbuf) into the skyhookdb
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
-sky_root_header getSkyRootHeader(const char *fb, size_t fb_size);
-sky_row_header getSkyRowHeader(const Tables::Row *rec);
+sky_root getSkyRoot(const char *fb, size_t fb_size);
+sky_rec getSkyRec(const Tables::Row *rec);
 
 // print functions (debug only)
-void printSkyRootHeader(sky_root_header *r);
-void printSkyRowHeader(sky_row_header *r);
+void printSkyRoot(sky_root *r);
+void printSkyRec(sky_rec *r);
 void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
 
 // convert provided schema to/from skyhook internal representation
@@ -479,7 +513,7 @@ int processSkyFb(
         std::string& errmsg);
 
 inline
-bool applyPredicates(predicate_vec& pv, sky_row_header& row);
+bool applyPredicates(predicate_vec& pv, sky_rec& rec);
 
 inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);
@@ -508,6 +542,9 @@ T computeAgg(const T& val, const T& oldval, const int& op) {
     }
     return oldval;
 }
+
+int buildStrKey(uint64_t data, int type, std::string& key);
+
 } // end namespace Tables
 
 #endif

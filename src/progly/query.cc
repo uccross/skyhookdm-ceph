@@ -268,8 +268,7 @@ void worker()
             // get our data as contiguous bytes before accessing as flatbuf
             const char* fb = bl.c_str();
             size_t fb_size = bl.length();
-            Tables::sky_root_header root = \
-                    Tables::getSkyRootHeader(fb, fb_size);
+            Tables::sky_root root = Tables::getSkyRoot(fb, fb_size);
 
             // local counter to accumulate nrows in all flatbuffers received.
             rows_returned += root.nrows;
@@ -326,9 +325,9 @@ void worker()
                     fb_out = reinterpret_cast<char*>(
                             flatbldr.GetBufferPointer());
                     fb_out_size = flatbldr.GetSize();
-                    Tables::sky_root_header skyroot = \
-                            Tables::getSkyRootHeader(fb_out, fb_out_size);
-                    result_count += skyroot.nrows;
+                    Tables::sky_root root = Tables::getSkyRoot(fb_out,
+                                                               fb_out_size);
+                    result_count += root.nrows;
                 }
                 print_fb(fb_out, fb_out_size, schema_out);
             }
