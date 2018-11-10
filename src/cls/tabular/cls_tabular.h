@@ -16,6 +16,13 @@
 
 #include "include/types.h"
 
+
+enum SkyIdxType {
+    FB_IDX = 1,  // note: must start at 1
+    REC_IDX,
+    RID_IDX
+};
+
 /*
  * Stores the query request parameters.  This is encoded by the client and
  * decoded by server (osd node) for query processing.

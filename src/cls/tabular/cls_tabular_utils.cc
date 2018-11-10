@@ -34,12 +34,13 @@ int processSkyFb(
     predicate_vec& preds,
     const char* fb,
     const size_t fb_size,
-    std::string& errmsg)
+    std::string& errmsg,
+    std::vector<int> row_nums)
 {
     int errcode = 0;
     delete_vector dead_rows;
     std::vector<flatbuffers::Offset<Tables::Row>> offs;
-    sky_root skyroot = getSkyRoot(fb, fb_size);
+    sky_root root = getSkyRoot(fb, fb_size);
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
@@ -57,15 +58,25 @@ int processSkyFb(
     if (hasAggPreds(preds)) encode_aggs = true;
     bool encode_rows = !encode_aggs;
 
-    // check the preds and accumulat agg preds for each matching row or
-    // build the flexbuf for each row's data
-    for (uint32_t i = 0; i < skyroot.nrows && !errcode; i++) {
+    // create a vector that contains all of the row numbers to be read.
+    // row_nums may have been generated from an index lookup, else it defaults
+    // to empty vector which means we read all rows.
+    if (row_nums.empty()) {
+        row_nums.reserve(static_cast<size_t>(root.nrows));
+        std::iota(row_nums.begin(), row_nums.end(), 0);
+    }
 
-        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+    // 1. check the preds for passing
+    // 2a. accumulate agg preds (return flexbuf built after all rows) or
+    // 2b. build the return flatbuf inline below from each row's projection
+    for (auto it = row_nums.begin(); it != row_nums.end(); ++it) {
+
+        uint32_t row_num = *it;
+        if (root.delete_vec.at(row_num) == 1) continue;  // skip dead rows.
 
         // apply predicates
-        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
-        bool pass = applyPredicates(preds, skyrec);
+        sky_rec rec = getSkyRec(root.offs->Get(row_num));
+        bool pass = applyPredicates(preds, rec);
         if (!pass) continue;  // skip non matching rows.
         if (!encode_rows) continue;  // just accumulat aggs, encode later.
 
@@ -75,7 +86,7 @@ int processSkyFb(
         }
 
         // build the projection for this row.
-        auto row = skyrec.data.AsVector();
+        auto row = rec.data.AsVector();
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
         flexbldr->Vector([&]() {
@@ -88,8 +99,8 @@ int processSkyFb(
                 if (col.idx < AGG_COL_IDX_MIN or col.idx > col_idx_max) {
                     errcode = TablesErrCodes::RequestedColIndexOOB;
                     errmsg.append("ERROR processSkyFb(): table=" +
-                            skyroot.table_name + "; rid=" +
-                            std::to_string(skyrec.RID) + " col.idx=" +
+                            root.table_name + "; rid=" +
+                            std::to_string(rec.RID) + " col.idx=" +
                             std::to_string(col.idx) + " OOB.");
 
                 } else {
@@ -144,8 +155,8 @@ int processSkyFb(
                         default: {
                             errcode = TablesErrCodes::UnsupportedSkyDataType;
                             errmsg.append("ERROR processSkyFb(): table=" +
-                                    skyroot.table_name + "; rid=" +
-                                    std::to_string(skyrec.RID) + " col.type=" +
+                                    root.table_name + "; rid=" +
+                                    std::to_string(rec.RID) + " col.type=" +
                                     std::to_string(col.type) +
                                     " UnsupportedSkyDataType.");
                         }
@@ -162,9 +173,9 @@ int processSkyFb(
         delete flexbldr;
 
         // TODO: update nullbits
-        auto nullbits = flatbldr.CreateVector(skyrec.nullbits);
+        auto nullbits = flatbldr.CreateVector(rec.nullbits);
         flatbuffers::Offset<Tables::Row> row_off = \
-                Tables::CreateRow(flatbldr, skyrec.RID, nullbits, row_data);
+                Tables::CreateRow(flatbldr, rec.RID, nullbits, row_data);
 
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
         dead_rows.push_back(0);
@@ -175,7 +186,7 @@ int processSkyFb(
         PredicateBase* pb;
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flexbldr->Vector([&]() {
-            for (auto itp=preds.begin();itp!=preds.end();++itp) {
+            for (auto itp = preds.begin(); itp != preds.end(); ++itp) {
 
                 // assumes preds appear in same order as return schema
                 if (!(*itp)->isGlobalAgg()) continue;
@@ -237,12 +248,12 @@ int processSkyFb(
     for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
         schema_str.append((*it).toString() + "\n");
     }
-    auto table_name = flatbldr.CreateString(skyroot.table_name);
+    auto table_name = flatbldr.CreateString(root.table_name);
     auto ret_schema = flatbldr.CreateString(schema_str);
     auto delete_v = flatbldr.CreateVector(dead_rows);
     auto rows_v = flatbldr.CreateVector(offs);
-    auto tableOffset = CreateTable(flatbldr, skyroot.skyhook_version,
-        skyroot.schema_version, table_name, ret_schema,
+    auto tableOffset = CreateTable(flatbldr, root.skyhook_version,
+        root.schema_version, table_name, ret_schema,
         delete_v, rows_v, offs.size());
 
     // NOTE: the fb may be incomplete/empty, but must finish() else internal

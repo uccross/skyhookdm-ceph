@@ -48,8 +48,6 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   return std::string(buffer, copyupto);
 }
 
-
-
 static
 int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
@@ -61,13 +59,17 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     const int ceph_bl_encoding_len = 4; // ?? seems to be an int
     int fb_cnt = 0;
 
-    // points (physically) to the fb containing the row
+    // points (physically within the object) to the fb
     // <"oid-fbseqnum",<idx_fb_entry>> i.e., <str_oid_fbseqnum, <off, len>>
     std::map<std::string, bufferlist> fbs_index;
 
-    // points (logically) to the relevant row within the fb
+    // points (logically within the fb) to the relevant row with keyval
     // <"col(s)_val",<idx_val_entry>> i.e., <col_val, map::<fb_num, row_num>>
     std::map<std::string, bufferlist> recs_index;
+
+    /// points (logicallywithin the fb) to the relevant row with RID
+    // <"rid",<idx_val_entry>> i.e., <rid, map::<fb_num, row_num>>
+    std::map<std::string, bufferlist> rids_index;
 
     // extract the index op instructions from the input bl
     idx_op op;
@@ -155,24 +157,49 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             if (recs_index.size() > op.batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
-                    CLS_ERR("error setting index entries %d", ret);
+                    CLS_ERR("error setting records index entries %d", ret);
                     return ret;
                 }
                 recs_index.clear();
             }
+
+            strkey = Tables::u64tostr(rec.RID);
+            rids_index[strkey] = rec_bl;  // TODO: verify if non-unique key
+            CLS_LOG(20,"rid-key=%s",(strkey+";"+rec_ent.toString()).c_str());
+
+            // add keys in batches to minimize IOs
+            if (rids_index.size() > op.batch_size) {
+                ret = cls_cxx_map_set_vals(hctx, &rids_index);
+                if (ret < 0) {
+                    CLS_ERR("error setting RIDs index entries %d", ret);
+                    return ret;
+                }
+                rids_index.clear();
+            }
         }  // end foreach row
     }  // end while decode wrapped_bls
 
-    // always add remaining recs to recs_index and fbs to fbs_index
+    // always add fbs_index to omap
     ret = cls_cxx_map_set_vals(hctx, &fbs_index);
     if (ret < 0) {
-        CLS_ERR("error setting index fbs entries %d", ret);
+        CLS_ERR("error setting fbs index entries %d", ret);
         return ret;
     }
+
+    // add any remaining recs_index to omap
     if (recs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &recs_index);
         if (ret < 0) {
-            CLS_ERR("error setting index recs entries %d", ret);
+            CLS_ERR("error setting records index entries %d", ret);
+            return ret;
+        }
+    }
+
+    // add any remaining rids_index to omap
+    if (rids_index.size() > 0) {
+        ret = cls_cxx_map_set_vals(hctx, &rids_index);
+        if (ret < 0) {
+            CLS_ERR("error setting RIDs index entries %d", ret);
             return ret;
         }
     }

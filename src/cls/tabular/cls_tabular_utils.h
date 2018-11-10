@@ -510,7 +510,8 @@ int processSkyFb(
         predicate_vec& preds,
         const char* fb,
         const size_t fb_size,
-        std::string& errmsg);
+        std::string& errmsg,
+        std::vector<int> row_nums={});
 
 inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
