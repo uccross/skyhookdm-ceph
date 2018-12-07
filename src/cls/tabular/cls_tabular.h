@@ -17,12 +17,6 @@
 #include "include/types.h"
 
 
-enum SkyIdxType {
-    FB_IDX = 1,  // note: must start at 1
-    REC_IDX,
-    RID_IDX
-};
-
 /*
  * Stores the query request parameters.  This is encoded by the client and
  * decoded by server (osd node) for query processing.
@@ -103,9 +97,9 @@ struct query_op {
 };
 WRITE_CLASS_ENCODER(query_op)
 
-// omap entry for indexed fb metadata
+// omap entry for indexed fb metadata (physical loc info)
 // key = fb sequence number
-// val = this struct containing physical location of fb within obj
+// val =  struct containing physical location of fb within obj
 // note that each fb is encoded as an independent bufferlist in the obj
 // and objs contain a sequence of fbs
 struct idx_fb_entry {
@@ -138,9 +132,9 @@ struct idx_fb_entry {
 };
 WRITE_CLASS_ENCODER(idx_fb_entry)
 
-// omap entry for indexed col value
+// omap entry for indexed col value (logical loc info)
 // key = column data value (may be composite of multiple cols)
-// val = this struct containing to logical location of row within fb within obj
+// val = struct containing to logical location of row within fb within obj
 struct idx_rec_entry {
     uint32_t fb_num;  // within obj containing seq of fbs
     uint32_t row_num;  // idx into rows array within fb root[nrows]
@@ -180,21 +174,23 @@ WRITE_CLASS_ENCODER(idx_rec_entry)
 
 // to encode indexing op metadata into bl for build_sky_index()
 struct idx_op {
-
-    bool unique;   // whether to replace or append vals
-    uint32_t batch_size;  // num idx entries to store at once
+    bool idx_unique;   // whether to replace or append vals
+    uint32_t idx_batch_size;  // num idx entries to store at once
+    int idx_type;
     std::string idx_schema_str;
 
     idx_op() {}
-    idx_op(bool unq, int batsz, std::string schema_str) :
-        unique(unq),
-        batch_size(batsz),
+    idx_op(bool unq, int batsz, int index_type, std::string schema_str) :
+        idx_unique(unq),
+        idx_batch_size(batsz),
+        idx_type(index_type),
         idx_schema_str(schema_str) {}
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);
-        ::encode(unique, bl);
-        ::encode(batch_size, bl);
+        ::encode(idx_unique, bl);
+        ::encode(idx_batch_size, bl);
+        ::encode(idx_type, bl);
         ::encode(idx_schema_str, bl);
         ENCODE_FINISH(bl);
     }
@@ -202,17 +198,19 @@ struct idx_op {
     void decode(bufferlist::iterator& bl) {
         std::string s;
         DECODE_START(1, bl);
-        ::decode(unique, bl);
-        ::decode(batch_size, bl);
+        ::decode(idx_unique, bl);
+        ::decode(idx_batch_size, bl);
+        ::decode(idx_type, bl);
         ::decode(idx_schema_str, bl);
         DECODE_FINISH(bl);
     }
 
     std::string toString() {
         std::string s;
-        s.append("idx_op.unique=" + std::to_string(unique));
-        s.append("; idx_op.batch_size=" + std::to_string(batch_size));
-        s.append("; idx_op.idx_schema=\n" + idx_schema_str);
+        s.append("idx_op.idx_unique=" + std::to_string(idx_unique));
+        s.append("; idx_op.idx_batch_size=" + std::to_string(idx_batch_size));
+        s.append("; idx_op.idx_type=" + std::to_string(idx_type));
+        s.append("; idx_op.idx_schema_str=\n" + idx_schema_str);
         return s;
     }
 };

@@ -128,6 +128,14 @@ enum AggIdx {
     AGG_COL_IDX_MIN = AGG_CNT,
 };
 
+enum SkyIdxType
+{
+    IDX_FB,
+    IDX_RID,
+    IDX_REC,
+    IDX_TXT
+};
+
 const std::map<std::string, int> agg_idx_names = {
     {"min", AGG_MIN},
     {"max", AGG_MAX},
@@ -150,8 +158,11 @@ const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
-const int MAX_IDX_COLS = 4;
-
+const int IDX_MAX_NUM_COLS = 4;
+const std::string IDX_KEY_DELIM_MINR = "-";
+const std::string IDX_KEY_DELIM_MAJR = ":";
+const std::string IDX_KEY_COLS_DEFAULT = "*";
+const std::string SCHEMA_NAME_DEFAULT = "*";
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -408,7 +419,7 @@ struct root_table {
     const int skyhook_version;
     int schema_version;
     string table_name;
-    string schema;
+    string schema_name;
     delete_vector delete_vec;
     row_offs offs;
     uint32_t nrows;
@@ -418,7 +429,7 @@ struct root_table {
         skyhook_version(skyver),
         schema_version(schmver),
         table_name(tblname),
-        schema(schm),
+        schema_name(schm),
         delete_vec(d),
         offs(ro),
         nrows(n) {};
@@ -511,7 +522,7 @@ int processSkyFb(
         const char* fb,
         const size_t fb_size,
         std::string& errmsg,
-        std::vector<int> row_nums={});
+        const std::vector<int>& row_nums=std::vector<int>());
 
 inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
@@ -544,7 +555,8 @@ T computeAgg(const T& val, const T& oldval, const int& op) {
     return oldval;
 }
 
-int buildStrKey(uint64_t data, int type, std::string& key);
+std::string buildKeyPrefix(sky_root& r, int data_type, schema_vec scm);
+std::string buildKeyData(int data_type, uint64_t new_data);
 
 } // end namespace Tables
 

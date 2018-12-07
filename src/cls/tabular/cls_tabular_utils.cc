@@ -35,7 +35,7 @@ int processSkyFb(
     const char* fb,
     const size_t fb_size,
     std::string& errmsg,
-    std::vector<int> row_nums)
+    const std::vector<int>& row_nums)
 {
     int errcode = 0;
     delete_vector dead_rows;
@@ -58,34 +58,41 @@ int processSkyFb(
     if (hasAggPreds(preds)) encode_aggs = true;
     bool encode_rows = !encode_aggs;
 
-    // create a vector that contains all of the row numbers to be read.
-    // row_nums may have been generated from an index lookup, else it defaults
-    // to empty vector which means we read all rows.
-    if (row_nums.empty()) {
-        row_nums.reserve(static_cast<size_t>(root.nrows));
-        std::iota(row_nums.begin(), row_nums.end(), 0);
+    // determines if we process specific rows or all rows (default), since
+    // row_nums is optional parameter - default process all rows.
+    bool process_all_rows = true;
+    int nrows = root.nrows;
+    if (!row_nums.empty()) {
+        process_all_rows = false;  // process specified row numbers only
+        nrows = row_nums.size();
     }
 
     // 1. check the preds for passing
     // 2a. accumulate agg preds (return flexbuf built after all rows) or
     // 2b. build the return flatbuf inline below from each row's projection
-    for (auto it = row_nums.begin(); it != row_nums.end(); ++it) {
+    for (int i = 0; i < nrows; i++) {
 
-        uint32_t row_num = *it;
-        if (root.delete_vec.at(row_num) == 1) continue;  // skip dead rows.
+        // process row i or the specified row number
+        int rnum = 0;
+        if (process_all_rows) rnum = i;
+        else rnum = row_nums[i];
+
+         // skip dead rows.
+        if (root.delete_vec[rnum] == 1) continue;
 
         // apply predicates
-        sky_rec rec = getSkyRec(root.offs->Get(row_num));
+        sky_rec rec = getSkyRec(root.offs->Get(rnum));
         bool pass = applyPredicates(preds, rec);
+
         if (!pass) continue;  // skip non matching rows.
-        if (!encode_rows) continue;  // just accumulat aggs, encode later.
+        if (!encode_rows) continue;  // just continue accumulating agg preds.
 
         if (project_all) {
             // TODO:  just pass through row table offset to root.offs, do not
             // rebuild row table and flexbuf
         }
 
-        // build the projection for this row.
+        // build the return projection for this row.
         auto row = rec.data.AsVector();
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
@@ -618,7 +625,6 @@ std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
 }
 
 int skyOpTypeFromString(std::string op) {
-    boost::trim(op);
     int op_type = 0;
     if (op=="lt") op_type = SkyOpType::lt;
     else if (op=="gt") op_type = SkyOpType::gt;
@@ -687,7 +693,7 @@ void printSkyRootHeader(sky_root &r) {
     std::cout << "skyhookdb version: "<< r.skyhook_version << std::endl;
     std::cout << "schema version: "<< r.schema_version << std::endl;
     std::cout << "table name: "<< r.table_name << std::endl;
-    std::cout << "schema: \n"<< r.schema << std::endl;
+    std::cout << "schema_name: \n"<< r.schema_name << std::endl;
     std::cout << "delete vector: [";
     for (int i=0; i< (int)r.delete_vec.size(); i++) {
         std::cout << (int)r.delete_vec[i];
@@ -737,6 +743,7 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
     }
 
     // print row metadata
+    std::cout << "\nskyroot.nrows=" << skyroot.nrows << endl;
     for (uint32_t i = 0; i < skyroot.nrows; i++) {
 
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
@@ -832,10 +839,10 @@ bool hasAggPreds(predicate_vec &preds) {
 }
 
 
-bool applyPredicates(predicate_vec& pv, sky_rec& row_h) {
+bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
 
     bool pass = true;
-    auto row = row_h.data.AsVector();
+    auto row = rec.data.AsVector();
 
     for (auto it=pv.begin();it!=pv.end();++it) {
         if (!pass) break;
@@ -1100,39 +1107,77 @@ bool compare(const std::string& val1, const re2::RE2& regx, const int& op) {
    return false;  // should be unreachable
 }
 
-int buildStrKey(uint64_t data, int type, std::string& key) {
-    std::string data_str = Tables::u64tostr(data);
+std::string buildKeyData(int data_type, uint64_t new_data) {
+    std::string data_str = u64tostr(new_data);
     int len = data_str.length();
-    if (!key.empty()) key += ":";
-    switch (type) {
-        case Tables::SKY_BOOL:
-            key += data_str.substr(len-1, len);
+    int pos = 0;  // pos in u64string to get the minimum keychars for type
+    switch (data_type) {
+        case SKY_BOOL:
+            pos = len-1;
             break;
-        case Tables::SKY_CHAR:
-        case Tables::SKY_UCHAR:
-        case Tables::SKY_INT8:
-        case Tables::SKY_UINT8:
-            key += data_str.substr(len-3, len);
+        case SKY_CHAR:
+        case SKY_UCHAR:
+        case SKY_INT8:
+        case SKY_UINT8:
+            pos = len-3;
             break;
-        case Tables::SKY_INT16:
-        case Tables::SKY_UINT16:
-            key += data_str.substr(len-5, len);
+        case SKY_INT16:
+        case SKY_UINT16:
+            pos = len-5;
             break;
-        case Tables::SKY_INT32:
-        case Tables::SKY_UINT32:
-            key += data_str.substr(len-10, len);
-        break;
-        case Tables::SKY_INT64:
-        case Tables::SKY_UINT64:
-            key += data_str.substr(0, len);
-        break;
-        default:
-            return TablesErrCodes::BuildSkyIndexColTypeNotImplemented;
+        case SKY_INT32:
+        case SKY_UINT32:
+            pos = len-10;
+            break;
+        case SKY_INT64:
+        case SKY_UINT64:
+            pos = 0;
+            break;
     }
-    if (key.empty()) return TablesErrCodes::BuildSkyIndexKeyCreationFailed;
-    return 0;
+    return data_str.substr(pos, len);
 }
 
+std::string buildKeyPrefix(sky_root& r, int type, schema_vec scm) {
+
+    std::string idx_type_str;
+    std::string key_cols;
+    std::string schema_name = r.schema_name;
+    std::string table_name = r.table_name;
+
+    boost::trim(schema_name);
+    if (schema_name.empty())
+        schema_name = SCHEMA_NAME_DEFAULT;
+
+    switch (type) {
+        case IDX_FB:
+            idx_type_str = "IDX_FB";
+            key_cols = IDX_KEY_COLS_DEFAULT;
+            break;
+        case IDX_RID:
+            idx_type_str = "IDX_RID";
+            key_cols = IDX_KEY_COLS_DEFAULT;
+            break;
+        case IDX_REC:
+            idx_type_str = "IDX_REC";
+            for (unsigned i = 0; i < scm.size(); i++) {
+                if (i > 0) key_cols += Tables::IDX_KEY_DELIM_MINR;
+                key_cols += scm[i].name;
+            }
+            break;
+        default:
+            key_cols = IDX_KEY_COLS_DEFAULT;
+            idx_type_str = "IDX_UNK";
+    }
+
+    // TODO: this prefix should be encoded as a unique index number
+    // to minimize key length/redundancy across keys
+    return (
+        idx_type_str + IDX_KEY_DELIM_MAJR +
+        schema_name + IDX_KEY_DELIM_MINR +
+        table_name + IDX_KEY_DELIM_MAJR +
+        key_cols + IDX_KEY_DELIM_MAJR
+    );
+}
 
 
 } // end namespace Tables

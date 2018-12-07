@@ -48,27 +48,35 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   return std::string(buffer, copyupto);
 }
 
+/*
+ * Build a skyhook index, insert to omap.
+ * Index types are
+ * 1. fb_index: points (physically within the object) to the fb
+ *    <string fb_num, struct idx_fb_entry>
+ *    where fb_num is a sequence number of flatbufs within an obj
+ *
+ * 2. rec_index: points (logically within the fb) to the relevant row
+ *    <string rec-val, struct idx_rec_entry>
+ *    where rec-val is the col data value(s) or RID
+ *
+ */
 static
 int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     // iterate over all fbs within an obj and create 2 indexes:
-    // 1. for each fb, create an omap entry with its fb_num and byte off (phys)
-    // 2. for each row of an fb, create a rec entry for the keycol(s) (logical)
-    // value and fb_num
+    // 1. for each fb, create idx_fb_entry (physical fb offset)
+    // 2. for each row of an fb, create idx_rec_entry (logical row offset)
 
-    const int ceph_bl_encoding_len = 4; // ?? seems to be an int
-    int fb_cnt = 0;
+    // a ceph property encoding the len of each bl in front of the bl,
+    // seems to be an int32 currently.
+    const int ceph_bl_encoding_len = sizeof(int32_t);
+    int fb_seq_num = 0;  // TODO: get this from a stable counter.
 
-    // points (physically within the object) to the fb
-    // <"oid-fbseqnum",<idx_fb_entry>> i.e., <str_oid_fbseqnum, <off, len>>
+    std::string key_prefix;
+    std::string key_data_str;
+    std::string key;
     std::map<std::string, bufferlist> fbs_index;
-
-    // points (logically within the fb) to the relevant row with keyval
-    // <"col(s)_val",<idx_val_entry>> i.e., <col_val, map::<fb_num, row_num>>
     std::map<std::string, bufferlist> recs_index;
-
-    /// points (logicallywithin the fb) to the relevant row with RID
-    // <"rid",<idx_val_entry>> i.e., <rid, map::<fb_num, row_num>>
     std::map<std::string, bufferlist> rids_index;
 
     // extract the index op instructions from the input bl
@@ -99,111 +107,97 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         off = obj_len - it.get_remaining();
         ceph::bufferlist bl;
         try {
-            ::decode(bl, it);  // unpack the next bl (flatbuf)
+            ::decode(bl, it);  // unpack the next bl
         } catch (ceph::buffer::error&) {
             assert(Tables::BuildSkyIndexDecodeBlsErr==0);
         }
 
-        // get our data as contiguous bytes before accessing as flatbuf
         const char* fb = bl.c_str();
         int fb_len = bl.length();
         Tables::sky_root root = Tables::getSkyRoot(fb, fb_len);
 
-        // create an idx_fb_entry for this fb's phys loc info.
-        // get current max fb_seq_num;
-        uint64_t fb_seq_num = ++fb_cnt;  // TODO: should be root.fb_seq_num;
-        struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
+        // CREATE AN IDX_FB_ENTRY (done for IDX_REC and IDX_RID)
+        //
+        // get the key prefix and key_data: the fb sequence num
+        key_prefix = buildKeyPrefix(root, Tables::IDX_FB, idx_schema);
+        std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
+        int len = sqnum.length();
+        int pos = len - 10; //  get the minimum keychars for type, assumes int
+        key_data_str = sqnum.substr(pos, len);
+        //
+        // create the entry
         bufferlist fb_bl;
+        struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
         ::encode(fb_ent, fb_bl);
-        std::string fbkey = Tables::u64tostr(fb_seq_num);
-        int len = fbkey.length();
-        fbkey = fbkey.substr(len-10, len);
-        fbs_index[fbkey] = fb_bl;
-        //CLS_LOG(20,"fb-key=%s", (fbkey+"; "+fb_ent.toString()).c_str());
+        key = key_prefix + key_data_str;
+        fbs_index[key] = fb_bl;
+        //CLS_LOG(20,"key=%s",(key+";"+fb_ent.toString()).c_str());
 
-        // create a idx_rec_entry for the keycols of each row
-        for (uint32_t i = 0; i < root.nrows; i++) {
-
+        // CREATE IDX_REC/RID_ENT
+        //
+        // get the key prefix and key data: either the col vals or RID
+        key_prefix = buildKeyPrefix(root, op.idx_type, idx_schema);
+        for (uint32_t i = 0; i < root.nrows; i++) {  // key data for each row
+            key_data_str.clear();
             Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
-            auto row = rec.data.AsVector();
-
-            // create the index key from the schema cols
-            std::string strkey;
-            for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
-                int ret = Tables::buildStrKey(row[(*it).idx].AsUInt64(),
-                                              (*it).type, strkey);
-                if (ret) {
-                    CLS_ERR("error buildStrKey for RID %ld entry," \
-                            "TablesErrCodes::%d", rec.RID, ret);
-                    return -1;
+            if (op.idx_type == Tables::IDX_REC) {
+                auto row = rec.data.AsVector();
+                for (unsigned i = 0; i < idx_schema.size(); i++) {
+                    if (i > 0) key_data_str += Tables::IDX_KEY_DELIM_MINR;
+                    key_data_str += Tables::buildKeyData(
+                                            idx_schema[i].type,
+                                            row[idx_schema[i].idx].AsUInt64());
                 }
             }
-
-            if (strkey.empty()) {
-                CLS_ERR("error key for RID %ld entry," \
-                        " TablesErrCodes::%d", rec.RID,
-                        Tables::BuildSkyIndexKeyCreationFailed);
-                return -1;
+            else if (op.idx_type == Tables::IDX_RID) {
+                key_data_str = Tables::u64tostr(rec.RID);
             }
-
-            // create the index val
-            struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
+            //
+            // create the entry
             bufferlist rec_bl;
+            struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
             ::encode(rec_ent, rec_bl);
-            recs_index[strkey] = rec_bl;  // TODO: verify if non-unique key
-            //CLS_LOG(20,"rec-key=%s",(strkey+";"+rec_ent.toString()).c_str());
+            key = key_prefix + key_data_str;
+            recs_index[key] = rec_bl;
+            //CLS_LOG(20,"key=%s",(key+";"+rec_ent.toString()).c_str());
 
-            // add keys in batches to minimize IOs
-            if (recs_index.size() > op.batch_size) {
+            // write to omap in batches to minimize IOs
+            if (recs_index.size() > op.idx_batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
-                    CLS_ERR("error setting records index entries %d", ret);
+                    CLS_ERR("error setting recs index entries %d", ret);
                     return ret;
                 }
                 recs_index.clear();
             }
-
-            strkey = Tables::u64tostr(rec.RID);
-            rids_index[strkey] = rec_bl;  // TODO: verify if non-unique key
-            CLS_LOG(20,"rid-key=%s",(strkey+";"+rec_ent.toString()).c_str());
-
-            // add keys in batches to minimize IOs
-            if (rids_index.size() > op.batch_size) {
-                ret = cls_cxx_map_set_vals(hctx, &rids_index);
-                if (ret < 0) {
-                    CLS_ERR("error setting RIDs index entries %d", ret);
-                    return ret;
-                }
-                rids_index.clear();
-            }
         }  // end foreach row
+
+        // write to omap in batches to minimize IOs
+        if (fbs_index.size() > op.idx_batch_size) {
+            ret = cls_cxx_map_set_vals(hctx, &fbs_index);
+            if (ret < 0) {
+                CLS_ERR("error setting fbs index entries %d", ret);
+                return ret;
+            }
+            fbs_index.clear();
+        }
     }  // end while decode wrapped_bls
 
-    // always add fbs_index to omap
-    ret = cls_cxx_map_set_vals(hctx, &fbs_index);
-    if (ret < 0) {
-        CLS_ERR("error setting fbs index entries %d", ret);
-        return ret;
-    }
-
-    // add any remaining recs_index to omap
+    // add any remaining recs_index and fb_index to omap
     if (recs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &recs_index);
         if (ret < 0) {
-            CLS_ERR("error setting records index entries %d", ret);
+            CLS_ERR("error setting recs index entries %d", ret);
             return ret;
         }
     }
-
-    // add any remaining rids_index to omap
-    if (rids_index.size() > 0) {
-        ret = cls_cxx_map_set_vals(hctx, &rids_index);
+    if (fbs_index.size() > 0) {
+        ret = cls_cxx_map_set_vals(hctx, &fbs_index);
         if (ret < 0) {
-            CLS_ERR("error setting RIDs index entries %d", ret);
+            CLS_ERR("error setting fbs index entries %d", ret);
             return ret;
         }
     }
-
     return 0;
 }
 
@@ -422,8 +416,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       if (op.query == "a") {  // count query on extended_price col
         size_t result_count = 0;
         for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;  // offset to row
-          const char *vptr = row + extended_price_field_offset;  // offset to col
+          const char *row = rows + rid * row_size;  // row off
+          const char *vptr = row + extended_price_field_offset; // col off
           const double val = *(const double*)vptr;  // extract data as col type
           if (val > op.extended_price) {  // apply filter
             result_count++;  // counter of matching rows for this count(*) query
@@ -433,7 +427,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         }
         ::encode(result_count, result_bl);  // store count into our result set.
       } else if (op.query == "b") {  // range query on extended_price col
-        if (op.projection) {  // only add (orderkey,linenum) col data to result set
+        if (op.projection) {  // only add (orderkey,linenum) data to result set
           for (size_t rid = 0; rid < num_rows; rid++) {
             const char *row = rows + rid * row_size;
             const char *vptr = row + extended_price_field_offset;
@@ -478,7 +472,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             }
           }
         }
-      } else if (op.query == "d") {// point query on primary key (orderkey,linenum)
+      } else if (op.query == "d") {// point query on PK (orderkey,linenum)
         if (op.use_index) {  // if we have previously built an index on the PK.
           // create the requested composite key from the op struct
           uint64_t key = ((uint64_t)op.order_key) << 32;
@@ -681,6 +675,6 @@ void __cls_init()
   cls_register_cxx_method(h_class, "build_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_index, &h_build_index);
 
-    cls_register_cxx_method(h_class, "build_sky_index",
+  cls_register_cxx_method(h_class, "build_sky_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_sky_index, &h_build_sky_index);
 }

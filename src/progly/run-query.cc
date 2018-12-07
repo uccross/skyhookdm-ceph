@@ -59,6 +59,9 @@ int main(int argc, char **argv)
      << "...>" << oplist;
   std::string select_help_msg = ss.str();
 
+  std::string create_index_help_message = "To create index on RIDs only, specify '_IDX_RID_', else specify " + project_help_msg + ", currently only supported are unique indexes over integral columns, with max number of cols = " + std::to_string(Tables::IDX_MAX_NUM_COLS);
+
+
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
@@ -86,7 +89,7 @@ int main(int argc, char **argv)
     ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
-    ("create-index", po::value<std::string>(&index_cols_str)->default_value(""), project_help_msg.c_str())
+    ("create-index", po::value<std::string>(&index_cols_str)->default_value(""), create_index_help_message.c_str())
     ("project", po::value<std::string>(&project_cols_str)->default_value(project_cols_str_default), project_help_msg.c_str())
     ("select", po::value<std::string>(&select_preds_str)->default_value(select_preds_str_default), select_help_msg.c_str())
   ;
@@ -159,14 +162,21 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  // build skyhook index over general flatbuf data
+    // build skyhook index
     boost::trim(index_cols_str);
     if (!index_cols_str.empty()) {
+        Tables::SkyIdxType idx_type;
+        if (index_cols_str == "_IDX_RID_") {
+            idx_type = Tables::SkyIdxType::IDX_RID;
+        }
+        else {
+            idx_type = Tables::SkyIdxType::IDX_REC;
+        }
 
     // create the idx op info to be used by the workers when reading obj data
     Tables::schema_vec idx_schema;
     Tables::schemaFromColNames(idx_schema, current_schema, index_cols_str);
-    if (idx_schema.size() > Tables::MAX_IDX_COLS)
+    if (idx_schema.size() > Tables::IDX_MAX_NUM_COLS)
         assert (Tables::BuildSkyIndexUnsupportedNumCols == 0);
     for (auto it=idx_schema.begin(); it!=idx_schema.end(); ++it) {
         Tables::col_info ci = *it;  // must be integral type
@@ -178,20 +188,22 @@ int main(int argc, char **argv)
 
     // check if all keycols of current schema are present in index schema
     bool unique_index = true;
-    for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
-        if ((*it).is_key) {
-            bool found = false;
-            for (auto it2=idx_schema.begin(); it2!=idx_schema.end(); ++it2) {
-                if ((*it).idx==(*it2).idx) found = true;
+    if (idx_type == Tables::SkyIdxType::IDX_REC) {
+        for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
+            if (it->is_key) {   // keycol in table schema must appear in index.
+                bool keycol_present = false;
+                for (auto it2=idx_schema.begin(); it2!=idx_schema.end(); ++it2) {
+                    if (it->idx==it2->idx) keycol_present = true;
+                }
+                unique_index &= keycol_present;
             }
-            unique_index &= found;
+            if (!unique_index) break;
         }
     }
     assert (unique_index);  // only unique indexes currently supported
 
-    idx_op op(unique_index, build_index_batch_size,
+    idx_op op(unique_index, build_index_batch_size, idx_type,
               Tables::schemaToString(idx_schema));
-    cout << op.toString() << endl;
 
     // kick off the workers
     std::vector<std::thread> threads;
