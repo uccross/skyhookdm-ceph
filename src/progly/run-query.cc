@@ -167,10 +167,10 @@ int main(int argc, char **argv)
     if (!index_cols_str.empty()) {
         Tables::SkyIdxType idx_type;
         if (index_cols_str == "_IDX_RID_") {
-            idx_type = Tables::SkyIdxType::IDX_RID;
+            idx_type = Tables::SIT_IDX_RID;
         }
         else {
-            idx_type = Tables::SkyIdxType::IDX_REC;
+            idx_type = Tables::SIT_IDX_REC;
         }
 
     // create the idx op info to be used by the workers when reading obj data
@@ -180,15 +180,15 @@ int main(int argc, char **argv)
         assert (Tables::BuildSkyIndexUnsupportedNumCols == 0);
     for (auto it=idx_schema.begin(); it!=idx_schema.end(); ++it) {
         Tables::col_info ci = *it;  // must be integral type
-        if (ci.type <= Tables::SKY_INT8 or ci.type >= Tables::SKY_BOOL)
+        if (ci.type <= Tables::SDT_INT8 or ci.type >= Tables::SDT_BOOL)
             assert (Tables::BuildSkyIndexUnsupportedColType == 0);
-        if (ci.idx <= Tables::AGG_MIN)
+        if (ci.idx <= Tables::AGG_COL_LAST)
             assert (Tables::BuildSkyIndexUnsupportedAggCol == 0);
     }
 
     // check if all keycols of current schema are present in index schema
     bool unique_index = true;
-    if (idx_type == Tables::SkyIdxType::IDX_REC) {
+    if (idx_type == Tables::SIT_IDX_REC) {
         for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
             if (it->is_key) {   // keycol in table schema must appear in index.
                 bool keycol_present = false;
@@ -283,13 +283,15 @@ int main(int argc, char **argv)
 
   } else if (query == "flatbuf") {   // no processing required
 
+    using namespace Tables;
+
     // the queryop schema string will be either the full current schema
     // or the query's projected schema.
     // set the query schema and check if proj&select
 
-    Tables::schema_vec query_schema;
-    Tables::predicate_vec preds;
-    Tables::predsFromString(preds, current_schema, select_preds_str);
+    schema_vec query_schema;
+    predicate_vec preds;
+    predsFromString(preds, current_schema, select_preds_str);
     boost::trim(project_cols_str);
     boost::trim(project_cols_str_default);
 
@@ -306,7 +308,7 @@ int main(int argc, char **argv)
 
     } else {
         projection = true;
-        Tables::schemaFromColNames(query_schema, current_schema,
+        schemaFromColNames(query_schema, current_schema,
                                    project_cols_str);
         assert(query_schema.size() != 0);
     }
@@ -318,19 +320,20 @@ int main(int argc, char **argv)
 
     // for aggs, set the query output schema correctly here.
     // note output schema will be in same col order as agg preds specified
-    if (Tables::hasAggPreds(preds)) {
+    if (hasAggPreds(preds)) {
         query_schema.clear();   // the new return schema will only have aggs
-        for (auto it=preds.begin();it!=preds.end();++it) {
-            Tables::PredicateBase* p = *it;
+        query_schema.shrink_to_fit();
+        for (auto it = preds.begin(); it != preds.end(); ++it) {
+            PredicateBase* p = *it;
             if (p->isGlobalAgg()) {
                 // build col info for agg pred type, append to new query schema
                 int agg_idx = Tables::agg_idx_names.at(
-                        Tables::skyOpTypeToString(p->opType()));
+                        skyOpTypeToString(p->opType()));
                 int agg_val_type = p->colType();
                 bool is_key=false;
                 bool nullable=false;
-                std::string agg_name = Tables::skyOpTypeToString(p->opType());
-                const struct Tables::col_info ci(agg_idx, agg_val_type,
+                std::string agg_name = skyOpTypeToString(p->opType());
+                const struct col_info ci(agg_idx, agg_val_type,
                                                  is_key, nullable, agg_name);
                 query_schema.push_back(ci);
             }
@@ -339,9 +342,10 @@ int main(int argc, char **argv)
     }
 
     // cleanup tmp vars
-    for (auto it=preds.begin();it!=preds.end();++it)
+    for (auto it = preds.begin(); it != preds.end(); ++it)
         delete (*it);
     preds.clear();
+    preds.shrink_to_fit();
 
   } else {
     std::cerr << "invalid query: " << query << std::endl;

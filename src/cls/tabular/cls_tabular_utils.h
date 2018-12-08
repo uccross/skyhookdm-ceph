@@ -49,98 +49,100 @@ enum TablesErrCodes {
     BuildSkyIndexColTypeNotImplemented,
     BuildSkyIndexUnsupportedNumCols,
     BuildSkyIndexUnsupportedAggCol,
-    BuildSkyIndexKeyCreationFailed
+    BuildSkyIndexKeyCreationFailed,
+    RowIndexOOB,
 };
 
 // skyhook data types, as supported by underlying data format
 enum SkyDataType {
-    SKY_INT8 = 1,  // note: must start at 1
-    SKY_INT16,
-    SKY_INT32,
-    SKY_INT64,
-    SKY_UINT8,
-    SKY_UINT16,
-    SKY_UINT32,
-    SKY_UINT64,
-    SKY_CHAR,
-    SKY_UCHAR,
-    SKY_BOOL,
-    SKY_FLOAT,
-    SKY_DOUBLE,
-    SKY_DATE,
-    SKY_STRING,
+    SDT_INT8 = 1,  // note: must start at 1
+    SDT_INT16,
+    SDT_INT32,
+    SDT_INT64,
+    SDT_UINT8,
+    SDT_UINT16,
+    SDT_UINT32,
+    SDT_UINT64,
+    SDT_CHAR,
+    SDT_UCHAR,
+    SDT_BOOL,
+    SDT_FLOAT,
+    SDT_DOUBLE,
+    SDT_DATE,
+    SDT_STRING,
     /*
-    SKY_BLOB,  // TODO
-    SKY_VECTOR_INT8,  // TODO
-    SKY_VECTOR_INT64,  // TODO
-    SKY_VECTOR_UINT8,  // TODO
-    SKY_VECTOR_UINT64,  // TODO
-    SKY_VECTOR_DOUBLE,  // TODO
-    SKY_VECTOR_STRING,  // TODO
+    SDT_BLOB,  // TODO
+    SDT_VECTOR_INT8,  // TODO
+    SDT_VECTOR_INT64,  // TODO
+    SDT_VECTOR_UINT8,  // TODO
+    SDT_VECTOR_UINT64,  // TODO
+    SDT_VECTOR_DOUBLE,  // TODO
+    SDT_VECTOR_STRING,  // TODO
     */
-    SkyDataType_FIRST = SKY_INT8,
-    SkyDataType_LAST = SKY_STRING,
+    SDT_FIRST = SDT_INT8,
+    SDT_LAST = SDT_STRING,
 };
 
 enum SkyOpType {
     // ARITHMETIC COMPARISON
-    lt = 1,  // note: must start at 1
-    gt,
-    eq,
-    ne,
-    leq,
-    geq,
+    SOT_lt = 1,  // note: must start at 1
+    SOT_gt,
+    SOT_eq,
+    SOT_ne,
+    SOT_leq,
+    SOT_geq,
     // ARITHMETIC FUNCTIONS (TODO)
-    add,
-    sub,
-    mul,
-    div,
-    min,
-    max,
-    sum,
-    cnt,
+    SOT_add,
+    SOT_sub,
+    SOT_mul,
+    SOT_div,
+    SOT_min,
+    SOT_max,
+    SOT_sum,
+    SOT_cnt,
     // LEXICAL (regex)
-    like,
+    SOT_like,
     // MEMBERSHIP (collections) (TODO)
-    in,
-    not_in,
+    SOT_in,
+    SOT_not_in,
     // DATE (SQL)  (TODO)
-    between,
+    SOT_between,
     // LOGICAL
-    logical_or,
-    logical_and,
-    logical_not,
-    logical_nor,
-    logical_xor,
-    logical_nand,
+    SOT_logical_or,
+    SOT_logical_and,
+    SOT_logical_not,
+    SOT_logical_nor,
+    SOT_logical_xor,
+    SOT_logical_nand,
     // BITWISE
-    bitwise_and,
-    bitwise_or,
-    SkyOpType_FIRST = lt,
-    SkyOpType_LAST = bitwise_or,
+    SOT_bitwise_and,
+    SOT_bitwise_or,
+    SOT_FIRST = SOT_lt,
+    SOT_LAST = SOT_bitwise_or,
 };
 
-enum AggIdx {
-    AGG_MIN = -1,  // defines the schema idx for agg ops.
-    AGG_MAX = -2,
-    AGG_SUM = -3,
-    AGG_CNT = -4,
-    AGG_COL_IDX_MIN = AGG_CNT,
+enum AggColIdx {
+    AGG_COL_MIN = -1,  // defines the schema idx for agg ops.
+    AGG_COL_MAX = -2,
+    AGG_COL_SUM = -3,
+    AGG_COL_CNT = -4,
+    AGG_COL_FIRST = AGG_COL_MIN,
+    AGG_COL_LAST = AGG_COL_CNT,
 };
 
 enum SkyIdxType
 {
-    IDX_FB,
-    IDX_RID,
-    IDX_REC,
-    IDX_TXT
+    SIT_IDX_FB,
+    SIT_IDX_RID,
+    SIT_IDX_REC,
+    SIT_IDX_TXT
 };
 
 const std::map<std::string, int> agg_idx_names = {
-    {"min", AGG_MIN},
-    {"max", AGG_MAX},
-    {"sum", AGG_SUM},
-    {"cnt", AGG_CNT}
+    {"min", AGG_COL_MIN},
+    {"max", AGG_COL_MAX},
+    {"sum", AGG_COL_SUM},
+    {"cnt", AGG_COL_CNT}
 };
 
 const int offset_to_skyhook_version = 4;
@@ -232,93 +234,94 @@ public:
         col_idx(idx),
         col_type(type),
         op_type(op),
-        is_global_agg(op==min || op==max || op==sum || op==cnt),
+        is_global_agg(op==SOT_min || op==SOT_max ||
+                      op==SOT_sum || op==SOT_cnt),
         value(val) {
 
             // ONLY VERIFY op type is valid for specified col type and value
             // type T, and compile regex if needed.
             switch (op_type) {
                 // ARITHMETIC/COMPARISON
-                case lt:
-                case gt:
-                case eq:
-                case ne:
-                case leq:
-                case geq:
-                case add:
-                case sub:
-                case mul:
-                case div:
-                case min:
-                case max:
-                case sum:
-                case cnt:
+                case SOT_lt:
+                case SOT_gt:
+                case SOT_eq:
+                case SOT_ne:
+                case SOT_leq:
+                case SOT_geq:
+                case SOT_add:
+                case SOT_sub:
+                case SOT_mul:
+                case SOT_div:
+                case SOT_min:
+                case SOT_max:
+                case SOT_sum:
+                case SOT_cnt:
                     assert (
                             std::is_arithmetic<T>::value
                             && (
-                            col_type==SKY_INT8 ||
-                            col_type==SKY_INT16 ||
-                            col_type==SKY_INT32 ||
-                            col_type==SKY_INT64 ||
-                            col_type==SKY_UINT8 ||
-                            col_type==SKY_UINT16 ||
-                            col_type==SKY_UINT32 ||
-                            col_type==SKY_UINT64 ||
-                            col_type==SKY_BOOL ||
-                            col_type==SKY_CHAR ||
-                            col_type==SKY_UCHAR ||
-                            col_type==SKY_FLOAT ||
-                            col_type==SKY_DOUBLE));
+                            col_type==SDT_INT8 ||
+                            col_type==SDT_INT16 ||
+                            col_type==SDT_INT32 ||
+                            col_type==SDT_INT64 ||
+                            col_type==SDT_UINT8 ||
+                            col_type==SDT_UINT16 ||
+                            col_type==SDT_UINT32 ||
+                            col_type==SDT_UINT64 ||
+                            col_type==SDT_BOOL ||
+                            col_type==SDT_CHAR ||
+                            col_type==SDT_UCHAR ||
+                            col_type==SDT_FLOAT ||
+                            col_type==SDT_DOUBLE));
                     break;
 
                 // LEXICAL (regex)
-                case like:
+                case SOT_like:
                     assert ((
                         (std::is_same<T, std::string>::value) == true ||
                         (std::is_same<T, unsigned char>::value) == true ||
                         (std::is_same<T, char>::value) == true)
                         && (
-                        col_type==SKY_STRING ||
-                        col_type==SKY_CHAR ||
-                        col_type==SKY_UCHAR));
+                        col_type==SDT_STRING ||
+                        col_type==SDT_CHAR ||
+                        col_type==SDT_UCHAR));
                     break;
 
                 // MEMBERSHIP (collections)
-                case in:
-                case not_in:
+                case SOT_in:
+                case SOT_not_in:
                     assert(((std::is_same<T, std::vector<T>>::value) == true));
                     assert (TablesErrCodes::OpNotImplemented==0); // TODO
                     break;
 
                 // DATE (SQL)
-                case between:
+                case SOT_between:
                     assert (TablesErrCodes::OpNotImplemented==0);  // TODO
                     break;
 
                 // LOGICAL
-                case logical_or:
-                case logical_and:
-                case logical_not:
-                case logical_nor:
-                case logical_xor:
-                case logical_nand:
+                case SOT_logical_or:
+                case SOT_logical_and:
+                case SOT_logical_not:
+                case SOT_logical_nor:
+                case SOT_logical_xor:
+                case SOT_logical_nand:
                     assert (std::is_integral<T>::value);  // includes bool+char
-                    assert (col_type==SKY_INT8 ||
-                            col_type==SKY_INT16 ||
-                            col_type==SKY_INT32 ||
-                            col_type==SKY_INT64 ||
-                            col_type==SKY_UINT8 ||
-                            col_type==SKY_UINT16 ||
-                            col_type==SKY_UINT32 ||
-                            col_type==SKY_UINT64 ||
-                            col_type==SKY_BOOL ||
-                            col_type==SKY_CHAR ||
-                            col_type==SKY_UCHAR);
+                    assert (col_type==SDT_INT8 ||
+                            col_type==SDT_INT16 ||
+                            col_type==SDT_INT32 ||
+                            col_type==SDT_INT64 ||
+                            col_type==SDT_UINT8 ||
+                            col_type==SDT_UINT16 ||
+                            col_type==SDT_UINT32 ||
+                            col_type==SDT_UINT64 ||
+                            col_type==SDT_BOOL ||
+                            col_type==SDT_CHAR ||
+                            col_type==SDT_UCHAR);
                     break;
 
                 // BITWISE
-                case bitwise_and:
-                case bitwise_or:
+                case SOT_bitwise_and:
+                case SOT_bitwise_or:
                     assert (std::is_integral<T>::value);
                     assert (std::is_unsigned<T>::value);
                     break;
@@ -331,7 +334,7 @@ public:
 
             // compile regex
             std::string pattern;
-            if (op_type == SkyOpType::like) {
+            if (op_type == SOT_like) {
                 pattern = this->Val();  // force str type for regex
                 regx = new re2::RE2(pattern);
                 assert (regx->ok());
@@ -372,7 +375,7 @@ struct col_info {
         type(t),
         is_key(key),
         nullable(nulls),
-        name(n) {assert(type >= SkyDataType_FIRST && type <= SkyDataType_LAST);}
+        name(n) {assert(type >= SDT_FIRST && type <= SDT_LAST);}
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
         std::string n) :
@@ -380,7 +383,7 @@ struct col_info {
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
-        name(n) {assert(type >= SkyDataType_FIRST && type <= SkyDataType_LAST);}
+        name(n) {assert(type >= SDT_FIRST && type <= SDT_LAST);}
 
     std::string toString() {
         return ( "   " +
@@ -455,33 +458,33 @@ typedef struct rec_table sky_rec;
 // format: "col_idx col_type col_is_key nullable col_name \n"
 // note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_schema_string = " \
-    0 " +  std::to_string(SKY_INT64) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SKY_INT32) + " 0 1 partkey \n\
-    2 " +  std::to_string(SKY_INT32) + " 0 1 suppkey \n\
-    3 " +  std::to_string(SKY_INT64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SKY_FLOAT) + " 0 1 quantity \n\
-    5 " +  std::to_string(SKY_DOUBLE) + " 0 1 extendedprice \n\
-    6 " +  std::to_string(SKY_FLOAT) + " 0 1 discount \n\
-    7 " +  std::to_string(SKY_DOUBLE) + " 0 1 tax \n\
-    8 " +  std::to_string(SKY_CHAR) + " 0 1 returnflag \n\
-    9 " +  std::to_string(SKY_CHAR) + " 0 1 linestatus \n\
-    10 " +  std::to_string(SKY_DATE) + " 0 1 shipdate \n\
-    11 " +  std::to_string(SKY_DATE) + " 0 1 commitdate \n\
-    12 " +  std::to_string(SKY_DATE) + " 0 1 receipdate \n\
-    13 " +  std::to_string(SKY_STRING) + " 0 1 shipinstruct \n\
-    14 " +  std::to_string(SKY_STRING) + " 0 1 shipmode \n\
-    15 " +  std::to_string(SKY_STRING) + " 0 1 comment \n\
+    0 " +  std::to_string(SDT_INT64) + " 1 0 orderkey \n\
+    1 " +  std::to_string(SDT_INT32) + " 0 1 partkey \n\
+    2 " +  std::to_string(SDT_INT32) + " 0 1 suppkey \n\
+    3 " +  std::to_string(SDT_INT64) + " 1 0 linenumber \n\
+    4 " +  std::to_string(SDT_FLOAT) + " 0 1 quantity \n\
+    5 " +  std::to_string(SDT_DOUBLE) + " 0 1 extendedprice \n\
+    6 " +  std::to_string(SDT_FLOAT) + " 0 1 discount \n\
+    7 " +  std::to_string(SDT_DOUBLE) + " 0 1 tax \n\
+    8 " +  std::to_string(SDT_CHAR) + " 0 1 returnflag \n\
+    9 " +  std::to_string(SDT_CHAR) + " 0 1 linestatus \n\
+    10 " +  std::to_string(SDT_DATE) + " 0 1 shipdate \n\
+    11 " +  std::to_string(SDT_DATE) + " 0 1 commitdate \n\
+    12 " +  std::to_string(SDT_DATE) + " 0 1 receipdate \n\
+    13 " +  std::to_string(SDT_STRING) + " 0 1 shipinstruct \n\
+    14 " +  std::to_string(SDT_STRING) + " 0 1 shipmode \n\
+    15 " +  std::to_string(SDT_STRING) + " 0 1 comment \n\
     ";
 
 // a test schema for procection over the tpch lineitem table.
 // format: "col_idx col_type col_is_key nullable col_name \n"
 // note the col_idx always refers to the index in the table's current schema
 const std::string lineitem_test_project_schema_string = " \
-    0 " +  std::to_string(SKY_INT64) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SKY_INT32) + " 0 1 partkey \n\
-    3 " +  std::to_string(SKY_INT64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SKY_FLOAT) + " 0 1 quantity \n\
-    5 " +  std::to_string(SKY_DOUBLE) + " 0 1 extendedprice \n\
+    0 " +  std::to_string(SDT_INT64) + " 1 0 orderkey \n\
+    1 " +  std::to_string(SDT_INT32) + " 0 1 partkey \n\
+    3 " +  std::to_string(SDT_INT64) + " 1 0 linenumber \n\
+    4 " +  std::to_string(SDT_FLOAT) + " 0 1 quantity \n\
+    5 " +  std::to_string(SDT_DOUBLE) + " 0 1 extendedprice \n\
     ";
 
 // these extract the current data format (flatbuf) into the skyhookdb
@@ -513,7 +516,7 @@ bool hasAggPreds(predicate_vec &preds);
 int skyOpTypeFromString(std::string s);
 std::string skyOpTypeToString(int op);
 
-// for proj, select, fastpath, aggregations(TODO), build return fb
+// for proj, select, fastpath, aggregations: process data and build return fb
 int processSkyFb(
         flatbuffers::FlatBufferBuilder& flatb,
         schema_vec& schema_in,
@@ -522,7 +525,7 @@ int processSkyFb(
         const char* fb,
         const size_t fb_size,
         std::string& errmsg,
-        const std::vector<int>& row_nums=std::vector<int>());
+        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
 inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
@@ -546,10 +549,10 @@ template <typename T>
 T computeAgg(const T& val, const T& oldval, const int& op) {
 
     switch (op) {
-        case min: if (val < oldval) return val;
-        case max: if (val > oldval) return val;
-        case sum: return oldval + val;
-        case cnt: return oldval + 1;
+        case SOT_min: if (val < oldval) return val;
+        case SOT_max: if (val > oldval) return val;
+        case SOT_sum: return oldval + val;
+        case SOT_cnt: return oldval + 1;
         default: assert (TablesErrCodes::OpNotImplemented);
     }
     return oldval;

@@ -119,7 +119,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // CREATE AN IDX_FB_ENTRY (done for IDX_REC and IDX_RID)
         //
         // get the key prefix and key_data: the fb sequence num
-        key_prefix = buildKeyPrefix(root, Tables::IDX_FB, idx_schema);
+        key_prefix = buildKeyPrefix(root, Tables::SIT_IDX_FB, idx_schema);
         std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
         int len = sqnum.length();
         int pos = len - 10; //  get the minimum keychars for type, assumes int
@@ -140,7 +140,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         for (uint32_t i = 0; i < root.nrows; i++) {  // key data for each row
             key_data_str.clear();
             Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
-            if (op.idx_type == Tables::IDX_REC) {
+            if (op.idx_type == Tables::SIT_IDX_REC) {
                 auto row = rec.data.AsVector();
                 for (unsigned i = 0; i < idx_schema.size(); i++) {
                     if (i > 0) key_data_str += Tables::IDX_KEY_DELIM_MINR;
@@ -149,7 +149,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                             row[idx_schema[i].idx].AsUInt64());
                 }
             }
-            else if (op.idx_type == Tables::IDX_RID) {
+            else if (op.idx_type == Tables::SIT_IDX_RID) {
                 key_data_str = Tables::u64tostr(rec.RID);
             }
             //
@@ -317,6 +317,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
     if (op.query == "flatbuf") {
 
+        using namespace Tables;
+
         bufferlist b;
         uint64_t start = getns();
         int ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
@@ -335,16 +337,16 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             // once per obj, before we start unpacking the fbs.
 
             // schema_in is the table's current schema
-            Tables::schema_vec schema_in;
-            Tables::schemaFromString(schema_in, op.table_schema_str);
+            schema_vec schema_in;
+            schemaFromString(schema_in, op.table_schema_str);
 
             // schema_out is the query schema
-            Tables::schema_vec schema_out;
-            Tables::schemaFromString(schema_out, op.query_schema_str);
+            schema_vec schema_out;
+            schemaFromString(schema_out, op.query_schema_str);
 
             // predicates to be applied, if any
-            Tables::predicate_vec preds;
-            Tables::predsFromString(preds, schema_in, op.predicate_str);
+            predicate_vec preds;
+            predsFromString(preds, schema_in, op.predicate_str);
 
             // decode and process each bl (contains 1 flatbuf) in a loop.
             ceph::bufferlist::iterator it = b.begin();
@@ -361,11 +363,11 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 const char* fb = bl.c_str();
                 size_t fb_size = bl.length();
 
-                Tables::sky_root root = Tables::getSkyRoot(fb, fb_size);
+                sky_root root = Tables::getSkyRoot(fb, fb_size);
                 flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
                 std::string errmsg;
-                ret = Tables::processSkyFb(flatbldr, schema_in, schema_out,
-                                           preds, fb, fb_size, errmsg);
+                ret = processSkyFb(flatbldr, schema_in, schema_out, preds, fb,
+                                   fb_size, errmsg);
                 if (ret != 0) {
                     CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
                     CLS_ERR("ERROR: TablesErrCodes::%d", ret);

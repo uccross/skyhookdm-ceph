@@ -231,6 +231,8 @@ void worker()
 
     if (query == "flatbuf") {
 
+        using namespace Tables;
+
         // librados read will return the original obj, which is a seq of bls.
         // cls read will return an obj with some stats and a seq of bls.
 
@@ -268,7 +270,7 @@ void worker()
             // get our data as contiguous bytes before accessing as flatbuf
             const char* fb = bl.c_str();
             size_t fb_size = bl.length();
-            Tables::sky_root root = Tables::getSkyRoot(fb, fb_size);
+            sky_root root = Tables::getSkyRoot(fb, fb_size);
 
             // local counter to accumulate nrows in all flatbuffers received.
             rows_returned += root.nrows;
@@ -285,7 +287,7 @@ void worker()
                 // here that pass after applying the remaining global ops.
                 result_count += root.nrows;
 
-                Tables::schema_vec schema_out;
+                schema_vec schema_out;
                 schemaFromString(schema_out, query_schema_str);
                 print_fb(fb, fb_size, schema_out);
             } else {
@@ -296,9 +298,9 @@ void worker()
                 nrows_processed += root.nrows;
 
                 // set the in (current schema of the fb) and out (query) schema
-                Tables::schema_vec schema_in;
-                Tables::schema_vec schema_out;
-                Tables::predicate_vec preds;
+                schema_vec schema_in;
+                schema_vec schema_out;
+                predicate_vec preds;
                 schemaFromString(schema_in, table_schema_str);
                 schemaFromString(schema_out, query_schema_str);
                 predsFromString(preds, schema_in, predicate_str);
@@ -325,8 +327,7 @@ void worker()
                     fb_out = reinterpret_cast<char*>(
                             flatbldr.GetBufferPointer());
                     fb_out_size = flatbldr.GetSize();
-                    Tables::sky_root root = Tables::getSkyRoot(fb_out,
-                                                               fb_out_size);
+                    sky_root root = getSkyRoot(fb_out, fb_out_size);
                     result_count += root.nrows;
                 }
                 print_fb(fb_out, fb_out_size, schema_out);
