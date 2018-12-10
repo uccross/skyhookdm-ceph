@@ -35,14 +35,14 @@ struct query_op {
   double discount_high;
   double quantity;
   std::string comment_regex;
-
-  // execution hints
   bool use_index;
   bool projection;
-  bool fastpath;
+
   uint64_t extra_row_cost;
 
-  // supports genetic schema for skyhook flatbuffers
+  // flatbufs
+  bool fastpath;
+  bool query_index;
   std::string table_schema_str;
   std::string query_schema_str;
   std::string predicate_str;
@@ -64,6 +64,7 @@ struct query_op {
     ::encode(use_index, bl);
     ::encode(projection, bl);
     ::encode(fastpath, bl);
+    ::encode(query_index, bl);
     ::encode(table_schema_str, bl);
     ::encode(query_schema_str, bl);
     ::encode(predicate_str, bl);
@@ -87,6 +88,7 @@ struct query_op {
     ::decode(use_index, bl);
     ::decode(projection, bl);
     ::decode(fastpath, bl);
+    ::decode(query_index, bl);
     ::decode(table_schema_str, bl);
     ::decode(query_schema_str, bl);
     ::decode(predicate_str, bl);

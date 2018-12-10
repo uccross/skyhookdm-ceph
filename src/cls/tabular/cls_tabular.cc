@@ -119,7 +119,8 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // CREATE AN IDX_FB_ENTRY (done for IDX_REC and IDX_RID)
         //
         // get the key prefix and key_data: the fb sequence num
-        key_prefix = buildKeyPrefix(root, Tables::SIT_IDX_FB, idx_schema);
+        key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
+                                    root.table_name);
         std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
         int len = sqnum.length();
         int pos = len - 10; //  get the minimum keychars for type, assumes int
@@ -136,7 +137,19 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // CREATE IDX_REC/RID_ENT
         //
         // get the key prefix and key data: either the col vals or RID
-        key_prefix = buildKeyPrefix(root, op.idx_type, idx_schema);
+        if (op.idx_type == Tables::SIT_IDX_RID) {
+            key_prefix = buildKeyPrefix(Tables::SIT_IDX_RID, root.schema_name,
+                                        root.table_name);
+        }
+        else if (op.idx_type == Tables::SIT_IDX_REC) {
+            std::vector<std::string> keycols;
+            for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
+                keycols.push_back(it->name);
+            }
+            key_prefix = buildKeyPrefix(Tables::SIT_IDX_REC, root.schema_name,
+                                        root.table_name, keycols);
+
+        }
         for (uint32_t i = 0; i < root.nrows; i++) {  // key data for each row
             key_data_str.clear();
             Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
@@ -319,17 +332,18 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
         using namespace Tables;
 
+        int ret = 0;
         bufferlist b;
-        uint64_t start = getns();
-        int ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
-        if (ret < 0) {
-          CLS_ERR("ERROR: reading flatbuf obj %d", ret);
-          return ret;
-        }
-        read_ns = getns() - start;
-        eval_ns_start = getns();
 
         if (op.fastpath == true) {
+            uint64_t start = getns();
+            ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
+            if (ret < 0) {
+              CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+              return ret;
+            }
+            read_ns = getns() - start;
+            eval_ns_start = getns();
             result_bl = b;
             // note fastpath will not increment any rows_processed
         } else {
@@ -347,6 +361,48 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             // predicates to be applied, if any
             predicate_vec preds;
             predsFromString(preds, schema_in, op.predicate_str);
+
+            // lookup and read specific off for flatbuf with obj,
+            // and lookup row offs to pass into processFb()
+            if (op.query_index) {
+
+                // create key from pred
+                std::string keystr = "";
+                // TODO:  buildKeyPrefix(...);
+
+                // key lookup in omap to get the row offset
+                struct idx_rec_entry rec_ent;
+                struct idx_fb_entry fb_ent;
+                bufferlist bl;
+                ret = cls_cxx_map_get_val(hctx, keystr, &bl);
+                if (ret < 0 && ret != -ENOENT) {
+                    CLS_ERR("cant read map val index %d", ret);
+                    return ret;
+                }
+
+                // decode entry and read specified bl at off
+                // TODO: change this to offset specified in idx_fb_entry
+                uint64_t start = getns();
+                ret = cls_cxx_read(hctx, 0, 0, &b);
+                if (ret < 0) {
+                  CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+                  return ret;
+                }
+                read_ns = getns() - start;
+                eval_ns_start = getns();
+
+                // TODO: extract list of rows from idx_rec_entries
+
+            } else { // read entire object.
+                uint64_t start = getns();
+                ret = cls_cxx_read(hctx, 0, 0, &b);
+                if (ret < 0) {
+                  CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+                  return ret;
+                }
+                read_ns = getns() - start;
+                eval_ns_start = getns();
+            }
 
             // decode and process each bl (contains 1 flatbuf) in a loop.
             ceph::bufferlist::iterator it = b.begin();

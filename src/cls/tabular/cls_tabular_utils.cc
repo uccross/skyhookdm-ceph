@@ -1156,12 +1156,14 @@ std::string buildKeyData(int data_type, uint64_t new_data) {
     return data_str.substr(pos, len);
 }
 
-std::string buildKeyPrefix(sky_root& r, int type, schema_vec scm) {
+std::string buildKeyPrefix(
+        int type,
+        std::string schema_name,
+        std::string table_name,
+        std::vector<string> colnames) {
 
     std::string idx_type_str;
     std::string key_cols;
-    std::string schema_name = r.schema_name;
-    std::string table_name = r.table_name;
 
     boost::trim(schema_name);
     if (schema_name.empty())
@@ -1170,17 +1172,16 @@ std::string buildKeyPrefix(sky_root& r, int type, schema_vec scm) {
     switch (type) {
         case SIT_IDX_FB:
             idx_type_str = "IDX_FB";
-            key_cols = IDX_KEY_COLS_DEFAULT;
             break;
         case SIT_IDX_RID:
             idx_type_str = "IDX_RID";
-            key_cols = IDX_KEY_COLS_DEFAULT;
             break;
         case SIT_IDX_REC:
             idx_type_str = "IDX_REC";
-            for (unsigned i = 0; i < scm.size(); i++) {
+            // stitch the colnames together
+            for (unsigned i = 0; i < colnames.size(); i++) {
                 if (i > 0) key_cols += Tables::IDX_KEY_DELIM_MINR;
-                key_cols += scm[i].name;
+                key_cols += colnames[i];
             }
             break;
         default:

@@ -558,7 +558,11 @@ T computeAgg(const T& val, const T& oldval, const int& op) {
     return oldval;
 }
 
-std::string buildKeyPrefix(sky_root& r, int data_type, schema_vec scm);
+std::string buildKeyPrefix(
+        int data_type,
+        std::string schema_name,
+        std::string table_name,
+        std::vector<string> colnames={IDX_KEY_COLS_DEFAULT});
 std::string buildKeyData(int data_type, uint64_t new_data);
 
 } // end namespace Tables
