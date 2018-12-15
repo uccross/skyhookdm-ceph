@@ -50,6 +50,7 @@ enum TablesErrCodes {
     BuildSkyIndexUnsupportedNumCols,
     BuildSkyIndexUnsupportedAggCol,
     BuildSkyIndexKeyCreationFailed,
+    BuildSkyIndexColIndexOOB,
     RowIndexOOB,
 };
 
@@ -138,7 +139,7 @@ enum SkyIdxType
     SIT_IDX_TXT
 };
 
-const std::map<std::string, int> agg_idx_names = {
+const std::map<std::string, int> AGG_COL_IDX = {
     {"min", AGG_COL_MIN},
     {"max", AGG_COL_MAX},
     {"sum", AGG_COL_SUM},
@@ -160,11 +161,14 @@ const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
-const int IDX_MAX_NUM_COLS = 4;
+const int MAX_COLS_TABLE = 128; // depends upon nullbits vector size (skyroot)
+const int MAX_COLS_INDEX = 4;
 const std::string IDX_KEY_DELIM_MINR = "-";
 const std::string IDX_KEY_DELIM_MAJR = ":";
 const std::string IDX_KEY_COLS_DEFAULT = "*";
 const std::string SCHEMA_NAME_DEFAULT = "*";
+const std::string TABLE_NAME_DEFAULT = "*";
+const std::string RID_INDEX = "_RID_INDEX_";
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -375,7 +379,9 @@ struct col_info {
         type(t),
         is_key(key),
         nullable(nulls),
-        name(n) {assert(type >= SDT_FIRST && type <= SDT_LAST);}
+        name(n) {
+            assert(type >= SDT_FIRST && type <= SDT_LAST);
+        }
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
         std::string n) :
@@ -383,7 +389,16 @@ struct col_info {
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
-        name(n) {assert(type >= SDT_FIRST && type <= SDT_LAST);}
+        name(n) {
+            assert(type >= SDT_FIRST && type <= SDT_LAST);
+        }
+
+    col_info(const col_info& c) :
+        idx(c.idx),
+        type(c.type),
+        is_key(c.is_key),
+        nullable(c.nullable),
+        name(c.name) {}
 
     std::string toString() {
         return ( "   " +
@@ -393,7 +408,9 @@ struct col_info {
             std::to_string(nullable) + " " +
             name + "   ");}
 
-    bool compareName(std::string colname) {return (colname==name)?true:false;}
+    inline bool compareName(std::string colname) {
+        return (colname==name) ? true : false;
+    }
 };
 typedef vector<struct col_info> schema_vec;
 
@@ -454,37 +471,40 @@ struct rec_table {
 };
 typedef struct rec_table sky_rec;
 
+const std::string SCHEMA_FORMAT ( \
+        "\ncol_idx col_type is_key is_nullable name \\n" \
+        "\ncol_idx col_type is_key is_nullable name \\n" \
+        "\n ... \\n");
+
 // a test schema for the tpch lineitem table.
-// format: "col_idx col_type col_is_key nullable col_name \n"
+// format: "col_idx col_type is_key is_nullable name"
 // note the col_idx always refers to the index in the table's current schema
-const std::string lineitem_test_schema_string = " \
-    0 " +  std::to_string(SDT_INT64) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SDT_INT32) + " 0 1 partkey \n\
-    2 " +  std::to_string(SDT_INT32) + " 0 1 suppkey \n\
-    3 " +  std::to_string(SDT_INT64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SDT_FLOAT) + " 0 1 quantity \n\
-    5 " +  std::to_string(SDT_DOUBLE) + " 0 1 extendedprice \n\
-    6 " +  std::to_string(SDT_FLOAT) + " 0 1 discount \n\
-    7 " +  std::to_string(SDT_DOUBLE) + " 0 1 tax \n\
-    8 " +  std::to_string(SDT_CHAR) + " 0 1 returnflag \n\
-    9 " +  std::to_string(SDT_CHAR) + " 0 1 linestatus \n\
-    10 " +  std::to_string(SDT_DATE) + " 0 1 shipdate \n\
-    11 " +  std::to_string(SDT_DATE) + " 0 1 commitdate \n\
-    12 " +  std::to_string(SDT_DATE) + " 0 1 receipdate \n\
-    13 " +  std::to_string(SDT_STRING) + " 0 1 shipinstruct \n\
-    14 " +  std::to_string(SDT_STRING) + " 0 1 shipmode \n\
-    15 " +  std::to_string(SDT_STRING) + " 0 1 comment \n\
-    ";
+const std::string TEST_SCHEMA_STRING (" \
+    0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
+    1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
+    2 " +  std::to_string(SDT_INT32) + " 0 1 SUPPKEY \n\
+    3 " +  std::to_string(SDT_INT64) + " 1 0 LINENUMBER \n\
+    4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
+    5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
+    6 " +  std::to_string(SDT_FLOAT) + " 0 1 DISCOUNT \n\
+    7 " +  std::to_string(SDT_DOUBLE) + " 0 1 TAX \n\
+    8 " +  std::to_string(SDT_CHAR) + " 0 1 RETURNFLAG \n\
+    9 " +  std::to_string(SDT_CHAR) + " 0 1 LINESTATUS \n\
+    10 " +  std::to_string(SDT_DATE) + " 0 1 SHIPDATE \n\
+    11 " +  std::to_string(SDT_DATE) + " 0 1 COMMITDATE \n\
+    12 " +  std::to_string(SDT_DATE) + " 0 1 RECEIPDATE \n\
+    13 " +  std::to_string(SDT_STRING) + " 0 1 SHIPINSTRUCT \n\
+    14 " +  std::to_string(SDT_STRING) + " 0 1 SHIPMODE \n\
+    15 " +  std::to_string(SDT_STRING) + " 0 1 COMMENT \n\
+    ");
 
 // a test schema for procection over the tpch lineitem table.
-// format: "col_idx col_type col_is_key nullable col_name \n"
-// note the col_idx always refers to the index in the table's current schema
-const std::string lineitem_test_project_schema_string = " \
-    0 " +  std::to_string(SDT_INT64) + " 1 0 orderkey \n\
-    1 " +  std::to_string(SDT_INT32) + " 0 1 partkey \n\
-    3 " +  std::to_string(SDT_INT64) + " 1 0 linenumber \n\
-    4 " +  std::to_string(SDT_FLOAT) + " 0 1 quantity \n\
-    5 " +  std::to_string(SDT_DOUBLE) + " 0 1 extendedprice \n\
+const std::string TEST_SCHEMA_STRING_PROJECT = " \
+    0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
+    1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
+    3 " +  std::to_string(SDT_INT64) + " 1 0 LINENUMBER \n\
+    4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
+    5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     ";
 
 // these extract the current data format (flatbuf) into the skyhookdb
@@ -509,6 +529,8 @@ std::string schemaToString(schema_vec schema);
 void predsFromString(predicate_vec &preds,  schema_vec &schema,
                      std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
+std::vector<std::string> colnamesFromPreds(predicate_vec &preds,  schema_vec &schema);
+std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 
 bool hasAggPreds(predicate_vec &preds);
 
@@ -559,10 +581,10 @@ T computeAgg(const T& val, const T& oldval, const int& op) {
 }
 
 std::string buildKeyPrefix(
-        int data_type,
+        int idx_type,
         std::string schema_name,
         std::string table_name,
-        std::vector<string> colnames={IDX_KEY_COLS_DEFAULT});
+        std::vector<string> colnames=std::vector<string>());
 std::string buildKeyData(int data_type, uint64_t new_data);
 
 } // end namespace Tables

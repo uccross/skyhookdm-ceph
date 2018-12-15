@@ -39,10 +39,20 @@ double discount_low;
 double discount_high;
 double quantity;
 std::string comment_regex;
-std::string table_schema_str;
-std::string query_schema_str;
-std::string predicate_str;
+
+// query_op for flatbufs
 bool fastpath;
+bool index_read;
+bool index_create;
+int index_type;
+std::string db_schema;
+std::string table;
+std::string table_schema;
+Tables::schema_vec sky_tbl_schema;
+Tables::schema_vec sky_qry_schema;
+Tables::schema_vec sky_idx_schema;
+Tables::predicate_vec sky_qry_preds;
+Tables::predicate_vec sky_idx_preds;
 
 std::atomic<unsigned> result_count;
 std::atomic<unsigned> rows_returned;
@@ -287,9 +297,9 @@ void worker()
                 // here that pass after applying the remaining global ops.
                 result_count += root.nrows;
 
-                schema_vec schema_out;
-                schemaFromString(schema_out, query_schema_str);
-                print_fb(fb, fb_size, schema_out);
+               // schema_vec schema_out;
+                //schemaFromString(schema_out, query_schema);
+                print_fb(fb, fb_size, sky_qry_schema);
             } else {
                 // perform any extra project/select/agg if needed.
                 bool more_processing = false;
@@ -297,15 +307,7 @@ void worker()
                 size_t fb_out_size;
                 nrows_processed += root.nrows;
 
-                // set the in (current schema of the fb) and out (query) schema
-                schema_vec schema_in;
-                schema_vec schema_out;
-                predicate_vec preds;
-                schemaFromString(schema_in, table_schema_str);
-                schemaFromString(schema_out, query_schema_str);
-                predsFromString(preds, schema_in, predicate_str);
-
-                if (projection || preds.size() > 0) more_processing = true;
+                if (projection || sky_qry_preds.size() > 0) more_processing = true;
 
                 if (!more_processing) {  // nothing left to do here.
                     fb_out = fb;
@@ -315,8 +317,8 @@ void worker()
                     flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                     std::string errmsg;
                     bool processedOK = true;
-                    ret = processSkyFb(flatbldr, schema_in, schema_out,
-                                       preds, fb, fb_size, errmsg);
+                    ret = processSkyFb(flatbldr, sky_tbl_schema, sky_qry_schema,
+                                       sky_qry_preds, fb, fb_size, errmsg);
                     if (ret != 0) {
                         processedOK = false;
                         std::cerr << "ERROR: run-query() processing flatbuf: "
@@ -330,7 +332,7 @@ void worker()
                     sky_root root = getSkyRoot(fb_out, fb_out_size);
                     result_count += root.nrows;
                 }
-                print_fb(fb_out, fb_out_size, schema_out);
+                print_fb(fb_out, fb_out_size, sky_qry_schema);
             }
         } // endloop of processing sequence of encoded bls
 

@@ -72,10 +72,21 @@ extern double discount_low;
 extern double discount_high;
 extern double quantity;
 extern std::string comment_regex;
-extern std::string table_schema_str;
-extern std::string query_schema_str;
-extern std::string predicate_str;
+
+// query_op for flatbufs
 extern bool fastpath;
+extern bool index_create;
+extern bool index_read;
+extern int index_type;
+extern std::string db_schema;
+extern std::string table;
+extern std::string table_schema;
+extern Tables::schema_vec sky_tbl_schema;
+extern Tables::schema_vec sky_qry_schema;
+extern Tables::schema_vec sky_idx_schema;
+extern Tables::predicate_vec sky_qry_preds;
+extern Tables::predicate_vec sky_idx_preds;
+
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;

@@ -377,10 +377,12 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
         std::string colname = select_descr.at(0);
         std::string opname = select_descr.at(1);
         std::string val = select_descr.at(2);
+        boost::to_upper(colname);
 
-        schema_vec s;  // this only has 1 col and only used to verify input
-        schemaFromColNames(s, schema, colname);
-        col_info ci = s.at(0);
+        schema_vec sv;  // this only has 1 col and only used to verify input
+        schemaFromColNames(sv, schema, colname);
+        assert (sv.size() > 0);
+        col_info ci = sv.at(0);
         int op_type = skyOpTypeFromString(opname);
 
         switch (ci.type) {
@@ -515,7 +517,27 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
         std::move(agg_preds.begin(), agg_preds.end(),
                   std::inserter(preds, preds.end()));
         agg_preds.clear();
+        agg_preds.shrink_to_fit();
     }
+}
+std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
+                                           schema_vec &schema) {
+    std::vector<std::string> colnames;
+    for (auto it_prd=preds.begin(); it_prd!=preds.end(); ++it_prd) {
+        for (auto it_scm=schema.begin(); it_scm!=schema.end(); ++it_scm) {
+            if ((*it_prd)->colIdx() == it_scm->idx)
+                colnames.push_back(it_scm->name);
+        }
+    }
+    return colnames;
+}
+
+std::vector<std::string> colnamesFromSchema(schema_vec &schema) {
+    std::vector<std::string> colnames;
+    for (auto it = schema.begin(); it != schema.end(); ++it) {
+        colnames.push_back(it->name);
+    }
+    return colnames;
 }
 
 std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
@@ -837,12 +859,12 @@ sky_rec getSkyRec(const Tables::Row* rec) {
     );
 }
 
+
 bool hasAggPreds(predicate_vec &preds) {
     for (auto it=preds.begin(); it!=preds.end();++it)
         if ((*it)->isGlobalAgg()) return true;
     return false;
 }
-
 
 bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
 
@@ -1157,19 +1179,27 @@ std::string buildKeyData(int data_type, uint64_t new_data) {
 }
 
 std::string buildKeyPrefix(
-        int type,
+        int idx_type,
         std::string schema_name,
         std::string table_name,
         std::vector<string> colnames) {
 
-    std::string idx_type_str;
-    std::string key_cols;
-
     boost::trim(schema_name);
+    boost::trim(table_name);
+
+    std::string idx_type_str;
+    std::string key_cols_str;
+
     if (schema_name.empty())
         schema_name = SCHEMA_NAME_DEFAULT;
 
-    switch (type) {
+    if (table_name.empty())
+        table_name = TABLE_NAME_DEFAULT;
+
+    if (colnames.empty())
+        key_cols_str = IDX_KEY_COLS_DEFAULT;
+
+    switch (idx_type) {
         case SIT_IDX_FB:
             idx_type_str = "IDX_FB";
             break;
@@ -1180,12 +1210,11 @@ std::string buildKeyPrefix(
             idx_type_str = "IDX_REC";
             // stitch the colnames together
             for (unsigned i = 0; i < colnames.size(); i++) {
-                if (i > 0) key_cols += Tables::IDX_KEY_DELIM_MINR;
-                key_cols += colnames[i];
+                if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_MINR;
+                key_cols_str += colnames[i];
             }
             break;
         default:
-            key_cols = IDX_KEY_COLS_DEFAULT;
             idx_type_str = "IDX_UNK";
     }
 
@@ -1195,7 +1224,7 @@ std::string buildKeyPrefix(
         idx_type_str + IDX_KEY_DELIM_MAJR +
         schema_name + IDX_KEY_DELIM_MINR +
         table_name + IDX_KEY_DELIM_MAJR +
-        key_cols + IDX_KEY_DELIM_MAJR
+        key_cols_str + IDX_KEY_DELIM_MAJR
     );
 }
 

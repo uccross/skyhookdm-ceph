@@ -165,6 +165,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             else if (op.idx_type == Tables::SIT_IDX_RID) {
                 key_data_str = Tables::u64tostr(rec.RID);
             }
+
             //
             // create the entry
             bufferlist rec_bl;
@@ -307,7 +308,9 @@ static void add_extra_row_cost(uint64_t cost)
  */
 static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+  int ret = 0;
   query_op op;
+
   // extract the query op to get the query request params
   try {
     bufferlist::iterator it = in->begin();
@@ -331,9 +334,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     if (op.query == "flatbuf") {
 
         using namespace Tables;
-
-        int ret = 0;
-        bufferlist b;
+        bufferlist b;  // contains the data read.
 
         if (op.fastpath == true) {
             uint64_t start = getns();
@@ -352,29 +353,38 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
             // schema_in is the table's current schema
             schema_vec schema_in;
-            schemaFromString(schema_in, op.table_schema_str);
+            schemaFromString(schema_in, op.table_schema);
 
             // schema_out is the query schema
             schema_vec schema_out;
-            schemaFromString(schema_out, op.query_schema_str);
+            schemaFromString(schema_out, op.query_schema);
+
+            // index schema, should be empty if not op.index_read
+            schema_vec index_schema;
+            schemaFromString(index_schema, op.index_schema);
 
             // predicates to be applied, if any
-            predicate_vec preds;
-            predsFromString(preds, schema_in, op.predicate_str);
+            predicate_vec query_preds;
+            predsFromString(query_preds, schema_in, op.query_preds);
 
-            // lookup and read specific off for flatbuf with obj,
-            // and lookup row offs to pass into processFb()
-            if (op.query_index) {
+            // lookup row nums and correct flatbuf to pass into processFb()
+            if (op.index_read) {
+                std::string key;
 
-                // create key from pred
-                std::string keystr = "";
-                // TODO:  buildKeyPrefix(...);
+                // create record key
+                std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
+                std::string key_prefix = buildKeyPrefix(op.index_type,
+                                                        op.db_schema,
+                                                        op.table,
+                                                        index_cols);
+
 
                 // key lookup in omap to get the row offset
                 struct idx_rec_entry rec_ent;
                 struct idx_fb_entry fb_ent;
                 bufferlist bl;
-                ret = cls_cxx_map_get_val(hctx, keystr, &bl);
+                assert (!key.empty());
+                ret = cls_cxx_map_get_val(hctx, key, &bl);
                 if (ret < 0 && ret != -ENOENT) {
                     CLS_ERR("cant read map val index %d", ret);
                     return ret;
@@ -422,7 +432,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 sky_root root = Tables::getSkyRoot(fb, fb_size);
                 flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
                 std::string errmsg;
-                ret = processSkyFb(flatbldr, schema_in, schema_out, preds, fb,
+                ret = processSkyFb(flatbldr, schema_in, schema_out, query_preds, fb,
                                    fb_size, errmsg);
                 if (ret != 0) {
                     CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());

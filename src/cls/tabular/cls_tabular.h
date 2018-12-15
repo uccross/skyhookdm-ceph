@@ -22,10 +22,9 @@
  * decoded by server (osd node) for query processing.
  */
 struct query_op {
-  // query name
-  std::string query;
 
-  // query parameters (uses tpch lineitem schema)
+  // query parameters (old)
+  std::string query;   // query name
   double extended_price;
   int order_key;
   int line_number;
@@ -37,18 +36,23 @@ struct query_op {
   std::string comment_regex;
   bool use_index;
   bool projection;
-
   uint64_t extra_row_cost;
 
-  // flatbufs
+  // query parameters (new) flatbufs
   bool fastpath;
-  bool query_index;
-  std::string table_schema_str;
-  std::string query_schema_str;
-  std::string predicate_str;
+  bool index_read;
+  int index_type;
+  std::string db_schema;
+  std::string table;
+  std::string table_schema;
+  std::string query_schema;
+  std::string index_schema;
+  std::string query_preds;
+  std::string index_preds;
 
   query_op() {}
 
+  // serialize the fields into bufferlist to be sent over the wire
   void encode(bufferlist& bl) const {
     ENCODE_START(1, 1, bl);
     ::encode(query, bl);
@@ -63,16 +67,22 @@ struct query_op {
     ::encode(comment_regex, bl);
     ::encode(use_index, bl);
     ::encode(projection, bl);
-    ::encode(fastpath, bl);
-    ::encode(query_index, bl);
-    ::encode(table_schema_str, bl);
-    ::encode(query_schema_str, bl);
-    ::encode(predicate_str, bl);
-    // serialize the field into bufferlist to be sent over the wire
     ::encode(extra_row_cost, bl);
+    // flatbufs
+    ::encode(fastpath, bl);
+    ::encode(index_read, bl);
+    ::encode(index_type, bl);
+    ::encode(db_schema, bl);
+    ::encode(table, bl);
+    ::encode(table_schema, bl);
+    ::encode(query_schema, bl);
+    ::encode(index_schema, bl);
+    ::encode(query_preds, bl);
+    ::encode(index_preds, bl);
     ENCODE_FINISH(bl);
   }
 
+  // deserialize the fields from the bufferlist into this struct
   void decode(bufferlist::iterator& bl) {
     DECODE_START(1, bl);
     ::decode(query, bl);
@@ -87,13 +97,18 @@ struct query_op {
     ::decode(comment_regex, bl);
     ::decode(use_index, bl);
     ::decode(projection, bl);
-    ::decode(fastpath, bl);
-    ::decode(query_index, bl);
-    ::decode(table_schema_str, bl);
-    ::decode(query_schema_str, bl);
-    ::decode(predicate_str, bl);
-    // deserialize the field from the bufferlist into this struct
     ::decode(extra_row_cost, bl);
+    // flatbufs
+    ::decode(fastpath, bl);
+    ::decode(index_read, bl);
+    ::decode(index_type, bl);
+    ::decode(db_schema, bl);
+    ::decode(table, bl);
+    ::decode(table_schema, bl);
+    ::decode(query_schema, bl);
+    ::decode(index_schema, bl);
+    ::decode(query_preds, bl);
+    ::decode(index_preds, bl);
     DECODE_FINISH(bl);
   }
 };
