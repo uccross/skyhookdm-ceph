@@ -123,7 +123,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                     root.table_name);
         std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
         int len = sqnum.length();
-        int pos = len - 10; //  get the minimum keychars for type, assumes int
+        int pos = len - 10; //  get the minimum keychars for type, assume int32
         key_data_str = sqnum.substr(pos, len);
         //
         // create the entry
@@ -304,7 +304,119 @@ static void add_extra_row_cost(uint64_t cost)
 }
 
 /*
- * Primary method to process our test queries qa--qf
+ * Lookup matching records in omap, based on the index specified and the
+ * index predicates.  Set the idx_reads info vector with the corresponding
+ * flatbuf off/len and row numbers for each matching record.
+ */
+static
+int
+do_index_lookup(
+    cls_method_context_t hctx,
+    Tables::predicate_vec index_preds,
+    Tables::schema_vec index_schema,
+    std::string db_schema,
+    std::string table,
+    int index_type,
+    std::vector<struct Tables::index_read_info>& idx_reads) {
+
+    using namespace Tables;
+    int ret = 0;
+
+    // create record key
+    std::vector<std::string> keys;
+    std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
+    std::string key_prefix = buildKeyPrefix(index_type,
+                                            db_schema,
+                                            table,
+                                            index_cols);
+
+    // build up the key data portion from the idx pred vals.
+    std::string key_data;
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+        uint64_t val;
+        switch(index_preds[i]->colType()) {
+            case SDT_INT8:
+            case SDT_INT16:
+            case SDT_INT32:
+            case SDT_INT64: {
+                TypedPredicate<int64_t>* p = \
+                        dynamic_cast<TypedPredicate<int64_t>*>(index_preds[i]);
+                val = static_cast<uint64_t>(p->Val());
+                break;
+            }
+            default:
+                assert (BuildSkyIndexUnsupportedColType==0);
+        }
+        if (i > 0)
+            key_data += Tables::IDX_KEY_DELIM_MINR;
+        key_data += buildKeyData(index_preds[i]->colType(), val);
+    }
+    std::string key = key_prefix + key_data;
+    keys.push_back(key);
+
+    // lookup key in omap to get the row offset
+    if (!keys.empty()) {
+        for (unsigned i = 0; i < keys.size(); i++) {
+            struct idx_rec_entry rec_ent;
+            bufferlist bl;
+            ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
+            if (ret < 0 && ret != -ENOENT) {
+                CLS_ERR("cant read map val index rec for idx_rec key %d", ret);
+                return ret;
+            }
+            if (ret >= 0) {
+                try {
+                    bufferlist::iterator it = bl.begin();
+                    ::decode(rec_ent, it);
+                } catch (const buffer::error &err) {
+                    CLS_ERR("ERROR: decoding query idx_rec_ent");
+                    return -EINVAL;
+                }
+
+                // keep track of the specified row num for this record
+                std::vector<unsigned int> row_nums;
+                row_nums.push_back(rec_ent.row_num);
+
+                // now build the key to lookup the corresponding flatbuf entry
+                std::string key_prefix = buildKeyPrefix(SIT_IDX_FB,
+                                                        db_schema,
+                                                        table);
+                std::string key_data = buildKeyData(SDT_INT32, rec_ent.fb_num);
+                std::string key = key_prefix + key_data;
+                struct idx_fb_entry fb_ent;
+                bufferlist bl;
+                ret = cls_cxx_map_get_val(hctx, key, &bl);
+                if (ret < 0 && ret != -ENOENT) {
+                    CLS_ERR("cant read map val index for idx_fb_key, %d", ret);
+                    return ret;
+                }
+                if (ret >= 0) {
+                    try {
+                        bufferlist::iterator it = bl.begin();
+                        ::decode(fb_ent, it);
+                    } catch (const buffer::error &err) {
+                        CLS_ERR("ERROR: decoding query idx_fb_ent");
+                        return -EINVAL;
+                    }
+
+                    // TODO: set multiple row nums within flatbuf
+                    // TODO: set multiple flatbufs
+                    struct Tables::index_read_info read_info(rec_ent.fb_num,
+                                                             fb_ent.off,
+                                                             fb_ent.len,
+                                                             row_nums);
+                    idx_reads.push_back(read_info);
+                }
+            } else  {  // no rec found for key
+                // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
+            }
+        }
+    }
+    return 0;
+}
+
+/*
+ * Primary method to process queries (new:flatbufs, old:q_a thru q_f)
  */
 static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
@@ -319,10 +431,12 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     CLS_ERR("ERROR: decoding query op");
     return -EINVAL;
   }
+  std::string msg = op.toString();
+  std::replace(msg.begin(), msg.end(), '\n', ' ');
 
-  // represents total rows considered during processing, including those
-  // skipped by using an index or other filtering, this should match the
-  // total rows stored or indexed in the object.
+  // Represents total rows considered during processing, an index lookup may
+  // reduce this number, and a fastpath query will not process any rows, just
+  // blindly return them all.
   uint64_t rows_processed = 0;
 
   // track the bufferlist read time (read_ns) vs. the processing time (eval_ns)
@@ -334,8 +448,16 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
     if (op.query == "flatbuf") {
 
         using namespace Tables;
-        bufferlist b;  // contains the data read.
 
+        bufferlist b;  // to hold the obj data.
+
+        // specify rows to process in b, only if index lookup succeeds
+        // else this remains empty and we will process all rows by default.
+        std::vector<unsigned int> row_nums;
+
+        // fastpath means we skip processing rows and just return all rows,
+        // i.e., the entire obj
+        // NOTE: fastpath will not increment rows_processed since we do nothing
         if (op.fastpath == true) {
             uint64_t start = getns();
             ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
@@ -346,10 +468,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             read_ns = getns() - start;
             eval_ns_start = getns();
             result_bl = b;
-            // note fastpath will not increment any rows_processed
         } else {
-            // get the inbound (current schema) and outbound (query) schema,
-            // once per obj, before we start unpacking the fbs.
 
             // schema_in is the table's current schema
             schema_vec schema_in;
@@ -359,39 +478,50 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             schema_vec schema_out;
             schemaFromString(schema_out, op.query_schema);
 
-            // index schema, should be empty if not op.index_read
-            schema_vec index_schema;
-            schemaFromString(index_schema, op.index_schema);
-
             // predicates to be applied, if any
             predicate_vec query_preds;
             predsFromString(query_preds, schema_in, op.query_preds);
 
-            // lookup row nums and correct flatbuf to pass into processFb()
+            // lookup correct flatbuf and potentially set specific row nums
+            // to be processed next in processFb()
             if (op.index_read) {
-                std::string key;
 
-                // create record key
-                std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
-                std::string key_prefix = buildKeyPrefix(op.index_type,
-                                                        op.db_schema,
-                                                        op.table,
-                                                        index_cols);
+                // index schema, should be empty if not op.index_read
+                schema_vec index_schema;
+                schemaFromString(index_schema, op.index_schema);
 
+                // index predicates to be applied, if any
+                predicate_vec index_preds;
+                predsFromString(index_preds, schema_in, op.index_preds);
 
-                // key lookup in omap to get the row offset
-                struct idx_rec_entry rec_ent;
-                struct idx_fb_entry fb_ent;
-                bufferlist bl;
-                assert (!key.empty());
-                ret = cls_cxx_map_get_val(hctx, key, &bl);
-                if (ret < 0 && ret != -ENOENT) {
-                    CLS_ERR("cant read map val index %d", ret);
+                //hold result of index lookups
+                std::vector<struct index_read_info> idx_reads;
+
+                ret = do_index_lookup(hctx,
+                                      index_preds,
+                                      index_schema,
+                                      op.db_schema,
+                                      op.table,
+                                      op.index_type,
+                                      idx_reads);
+                if (ret < 0) {
+                    CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                     return ret;
                 }
 
-                // decode entry and read specified bl at off
-                // TODO: change this to offset specified in idx_fb_entry
+                // if index lookup succeeded, read specified bl at off
+                if (!idx_reads.empty()) {
+                    struct index_read_info rinfo = idx_reads.at(0);
+                    row_nums = rinfo.rnums;  // set rows to be processed
+                    uint64_t start = getns();
+                    ret = cls_cxx_read(hctx, rinfo.fb_off, rinfo.fb_len, &b);
+                    if (ret < 0) {
+                      CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+                      return ret;
+                    }
+                    read_ns = getns() - start;
+               }
+            } else { // just read entire object.
                 uint64_t start = getns();
                 ret = cls_cxx_read(hctx, 0, 0, &b);
                 if (ret < 0) {
@@ -399,22 +529,13 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                   return ret;
                 }
                 read_ns = getns() - start;
-                eval_ns_start = getns();
-
-                // TODO: extract list of rows from idx_rec_entries
-
-            } else { // read entire object.
-                uint64_t start = getns();
-                ret = cls_cxx_read(hctx, 0, 0, &b);
-                if (ret < 0) {
-                  CLS_ERR("ERROR: reading flatbuf obj %d", ret);
-                  return ret;
-                }
-                read_ns = getns() - start;
-                eval_ns_start = getns();
             }
 
-            // decode and process each bl (contains 1 flatbuf) in a loop.
+            // At this point b contains either the entire obj or
+            // only the flatbuf determined by index lookup above,
+            // so now we can decode and process each bl in b.
+            // NOTE: 1 bl contains exactly 1 flatbuf.
+            eval_ns_start = getns();
             ceph::bufferlist::iterator it = b.begin();
             while (it.get_remaining() > 0) {
                 bufferlist bl;
@@ -432,14 +553,24 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 sky_root root = Tables::getSkyRoot(fb, fb_size);
                 flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
                 std::string errmsg;
-                ret = processSkyFb(flatbldr, schema_in, schema_out, query_preds, fb,
-                                   fb_size, errmsg);
+                ret = processSkyFb(flatbldr,
+                                   schema_in,
+                                   schema_out,
+                                   query_preds,
+                                   fb,
+                                   fb_size,
+                                   errmsg,
+                                   row_nums);
+
                 if (ret != 0) {
                     CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
                     CLS_ERR("ERROR: TablesErrCodes::%d", ret);
                     return -1;
                 }
-                rows_processed += root.nrows;
+                if (op.index_read)
+                    rows_processed += row_nums.size();
+                else
+                    rows_processed += root.nrows;
                 const char *processed_fb = \
                     reinterpret_cast<char*>(flatbldr.GetBufferPointer());
                 int bufsz = flatbldr.GetSize();

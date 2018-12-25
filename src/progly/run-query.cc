@@ -24,11 +24,23 @@ int main(int argc, char **argv)
   int qdepth;
   std::string dir;
 
-  // tmp vars for client input before converting to skyhook structs
-  std::string cols_to_index;
-  std::string cols_to_project;
-  std::string preds_for_query;
-  std::string preds_for_index;
+  // user/client input, trimmed and encoded to skyhook structs for query_op
+  // defaults set below via boost::program_options
+  bool index_read;
+  bool index_create;
+  std::string db_schema;
+  std::string table;
+  std::string table_schema;
+  std::string query_schema;
+  std::string index_schema;
+  std::string query_preds;
+  std::string index_preds;
+  std::string index_cols;
+  std::string project_cols;
+
+  // set based upon program_options
+  int index_type = Tables::SIT_IDX_REC;
+  bool fastpath = false;
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -92,10 +104,10 @@ int main(int argc, char **argv)
     ("table-schema", po::value<std::string>(&table_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
-    ("index-cols", po::value<std::string>(&cols_to_index)->default_value(""), project_help_msg.c_str())
-    ("project-cols", po::value<std::string>(&cols_to_project)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
-    ("index-preds", po::value<std::string>(&preds_for_index)->default_value(""), select_help_msg.c_str())
-    ("select-preds", po::value<std::string>(&preds_for_query)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
+    ("index-cols", po::value<std::string>(&index_cols)->default_value(""), project_help_msg.c_str())
+    ("project-cols", po::value<std::string>(&project_cols)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
+    ("index-preds", po::value<std::string>(&index_preds)->default_value(""), select_help_msg.c_str())
+    ("select-preds", po::value<std::string>(&query_preds)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
   ;
 
   po::options_description all_opts("Allowed options");
@@ -235,25 +247,25 @@ int main(int argc, char **argv)
     boost::trim(db_schema);
     boost::trim(table);
     boost::trim(table_schema);
-    boost::trim(cols_to_index);
-    boost::trim(cols_to_project);
-    boost::trim(preds_for_query);
-    boost::trim(preds_for_index);
+    boost::trim(index_cols);
+    boost::trim(project_cols);
+    boost::trim(query_preds);
+    boost::trim(index_preds);
 
     boost::to_upper(db_schema);
     boost::to_upper(table);
-    boost::to_upper(cols_to_index);
-    boost::to_upper(cols_to_project);
+    boost::to_upper(index_cols);
+    boost::to_upper(project_cols);
 
     assert (!table.empty());
     assert (!db_schema.empty());
     if(index_create or index_read) {
-        assert (!cols_to_index.empty());
+        assert (!index_cols.empty());
         assert (use_cls);
     }
 
     // set the index type
-    if (cols_to_index == RID_INDEX)
+    if (index_cols == RID_INDEX)
         index_type = SIT_IDX_RID;
     else
         index_type = SIT_IDX_REC;
@@ -261,27 +273,27 @@ int main(int argc, char **argv)
     // below we convert user input to skyhook structures for error checking,
     // to be encoded into query_op or index_op structs.
 
-    // verify and set the table schema
+    // verify and set the table schema, needed to create other preds/schemas
     schemaFromString(sky_tbl_schema, table_schema);
 
     // verify and set the index schema
-    schemaFromColNames(sky_idx_schema, sky_tbl_schema, cols_to_index);
+    schemaFromColNames(sky_idx_schema, sky_tbl_schema, index_cols);
 
     // verify and set the query predicates
-    predsFromString(sky_qry_preds, sky_tbl_schema, preds_for_query);
+    predsFromString(sky_qry_preds, sky_tbl_schema, query_preds);
 
     // verify and set the index predicates
-    predsFromString(sky_idx_preds, sky_tbl_schema, preds_for_index);
+    predsFromString(sky_idx_preds, sky_tbl_schema, index_preds);
 
     // verify and set the query schema, check for select *
-    if (cols_to_project == PROJECT_DEFAULT) {
+    if (project_cols == PROJECT_DEFAULT) {
         for(auto it=sky_tbl_schema.begin();it!=sky_tbl_schema.end();++it) {
             col_info ci(*it);  // deep copy
             sky_qry_schema.push_back(ci);
         }
 
         // if project all cols and there are no selection preds, set fastpath
-        if (sky_qry_preds.size() == 0)
+        if (sky_qry_preds.size() == 0 and sky_idx_preds.size() == 0)
             fastpath = true;
 
     } else {
@@ -306,7 +318,19 @@ int main(int argc, char **argv)
         } else {
             schemaFromColNames(sky_qry_schema,
                                sky_tbl_schema,
-                               cols_to_project);
+                               project_cols);
+        }
+    }
+
+    if (index_read) {
+        if (sky_idx_preds.size() > MAX_COLS_INDEX)
+            assert (BuildSkyIndexUnsupportedNumCols == 0);
+        for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
+            if (sky_idx_preds[i]->opType() != SOT_eq) {
+                cerr << "Only equality predicates currently supported for "
+                     << "Skyhook indexes" << std::endl;
+                assert (SkyIndexUnsupportedOpType == 0);
+            }
         }
     }
 
@@ -345,6 +369,19 @@ int main(int argc, char **argv)
         assert (unique_index);  // only unique indexes currently supported
     }
 
+    // set all of the flatbuf info for our query op.
+    qop_fastpath = fastpath;
+    qop_index_read = index_read;
+    qop_index_create = index_create;
+    qop_index_type = index_type;
+    qop_db_schema = db_schema;
+    qop_table = table;
+    qop_table_schema = schemaToString(sky_tbl_schema);
+    qop_query_schema = schemaToString(sky_qry_schema);
+    qop_index_schema = schemaToString(sky_idx_schema);
+    qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
+    qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
+
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
@@ -356,7 +393,7 @@ int main(int argc, char **argv)
     idx_op op(true,
               build_index_batch_size,
               index_type,
-              Tables::schemaToString(sky_idx_schema));
+              qop_index_schema);
 
     // kick off the workers
     std::vector<std::thread> threads;
@@ -422,17 +459,17 @@ int main(int argc, char **argv)
         op.projection = projection;
         op.extra_row_cost = extra_row_cost;
         // flatbufs
-        op.fastpath = fastpath;
-        op.index_read = index_read;
-        op.index_type = index_type;
-        op.db_schema = db_schema;
-        op.table = table;
-        op.table_schema = Tables::schemaToString(sky_tbl_schema);
-        op.query_schema = Tables::schemaToString(sky_qry_schema);
-        op.index_schema = Tables::schemaToString(sky_idx_schema);
-        op.query_preds = Tables::predsToString(sky_qry_preds, sky_tbl_schema);
-        op.index_preds = Tables::predsToString(sky_idx_preds, sky_tbl_schema);
-
+        op.fastpath = qop_fastpath;
+        op.index_read = qop_index_read;
+        op.index_type = qop_index_type;
+        op.db_schema = qop_db_schema;
+        op.table = qop_table;
+        op.table_schema = qop_table_schema;
+        op.query_schema = qop_query_schema;
+        op.index_schema = qop_index_schema;
+        op.query_preds = qop_query_preds;
+        op.index_preds = qop_index_preds;
+        // cerr << "query_op:" << op.toString() << std::endl;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
         int ret = ioctx.aio_exec(oid, s->c,

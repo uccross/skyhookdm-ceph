@@ -16,7 +16,6 @@
 
 #include "include/types.h"
 
-
 /*
  * Stores the query request parameters.  This is encoded by the client and
  * decoded by server (osd node) for query processing.
@@ -110,6 +109,22 @@ struct query_op {
     ::decode(query_preds, bl);
     ::decode(index_preds, bl);
     DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("op:");
+    s.append(" .fastpath=" + std::to_string(fastpath));
+    s.append(" .index_read=" + std::to_string(index_read));
+    s.append(" .index_type=" + std::to_string(index_type));
+    s.append(" .db_schema=" + db_schema);
+    s.append(" .table=" + table);
+    s.append(" .table_schema=" + table_schema);
+    s.append(" .query_schema=" + query_schema);
+    s.append(" .index_schema=" + index_schema);
+    s.append(" .query_preds=" + query_preds);
+    s.append(" .index_preds=" + index_preds);
+    return s;
   }
 };
 WRITE_CLASS_ENCODER(query_op)

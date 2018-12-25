@@ -58,8 +58,8 @@ int processSkyFb(
     if (hasAggPreds(preds)) encode_aggs = true;
     bool encode_rows = !encode_aggs;
 
-    // determines if we process specific rows or all rows (default), since
-    // row_nums is optional parameter - default process all rows.
+    // determines if we process specific rows or all rows, since
+    // row_nums vector is optional parameter - default process all rows.
     bool process_all_rows = true;
     uint32_t nrows = root.nrows;
     if (!row_nums.empty()) {
@@ -1201,18 +1201,21 @@ std::string buildKeyPrefix(
 
     switch (idx_type) {
         case SIT_IDX_FB:
-            idx_type_str = "IDX_FB";
+            idx_type_str = SkyIdxTypeMap.at(SIT_IDX_FB);
             break;
         case SIT_IDX_RID:
-            idx_type_str = "IDX_RID";
+            idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_RID);
             break;
         case SIT_IDX_REC:
-            idx_type_str = "IDX_REC";
+            idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_REC);
             // stitch the colnames together
             for (unsigned i = 0; i < colnames.size(); i++) {
                 if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_MINR;
                 key_cols_str += colnames[i];
             }
+            break;
+        case SIT_IDX_TXT:
+            idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_TXT);
             break;
         default:
             idx_type_str = "IDX_UNK";

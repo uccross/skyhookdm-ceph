@@ -40,14 +40,20 @@ double discount_high;
 double quantity;
 std::string comment_regex;
 
-// query_op for flatbufs
-bool fastpath;
-bool index_read;
-bool index_create;
-int index_type;
-std::string db_schema;
-std::string table;
-std::string table_schema;
+// query_op params for flatbufs
+bool qop_fastpath;
+bool qop_index_read;
+bool qop_index_create;
+int qop_index_type;
+std::string qop_db_schema;
+std::string qop_table;
+std::string qop_table_schema;
+std::string qop_query_schema;
+std::string qop_index_schema;
+std::string qop_query_preds;
+std::string qop_index_preds;
+
+// to convert strings <=> skyhook data structs
 Tables::schema_vec sky_tbl_schema;
 Tables::schema_vec sky_qry_schema;
 Tables::schema_vec sky_idx_schema;
@@ -296,9 +302,6 @@ void worker()
                 // server has already applied its predicates, so count all rows
                 // here that pass after applying the remaining global ops.
                 result_count += root.nrows;
-
-               // schema_vec schema_out;
-                //schemaFromString(schema_out, query_schema);
                 print_fb(fb, fb_size, sky_qry_schema);
             } else {
                 // perform any extra project/select/agg if needed.

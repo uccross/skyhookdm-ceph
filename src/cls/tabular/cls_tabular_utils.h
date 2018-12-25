@@ -29,6 +29,9 @@
 #include "flatbuffers/flexbuffers.h"
 #include "skyhookv1_generated.h"
 
+
+
+
 namespace Tables {
 
 enum TablesErrCodes {
@@ -51,6 +54,7 @@ enum TablesErrCodes {
     BuildSkyIndexUnsupportedAggCol,
     BuildSkyIndexKeyCreationFailed,
     BuildSkyIndexColIndexOOB,
+    SkyIndexUnsupportedOpType,
     RowIndexOOB,
 };
 
@@ -122,6 +126,21 @@ enum SkyOpType {
     SOT_LAST = SOT_bitwise_or,
 };
 
+enum SkyIdxType
+{
+    SIT_IDX_FB,
+    SIT_IDX_RID,
+    SIT_IDX_REC,
+    SIT_IDX_TXT
+};
+
+const std::map<SkyIdxType, std::string> SkyIdxTypeMap = {
+    {SIT_IDX_FB, "IDX_FB"},
+    {SIT_IDX_RID, "IDX_RID"},
+    {SIT_IDX_REC, "IDX_REC"},
+    {SIT_IDX_TXT, "IDX_TXT"}
+};
+
 enum AggColIdx {
     AGG_COL_MIN = -1,  // defines the schema idx for agg ops.
     AGG_COL_MAX = -2,
@@ -129,14 +148,6 @@ enum AggColIdx {
     AGG_COL_CNT = -4,
     AGG_COL_FIRST = AGG_COL_MIN,
     AGG_COL_LAST = AGG_COL_CNT,
-};
-
-enum SkyIdxType
-{
-    SIT_IDX_FB,
-    SIT_IDX_RID,
-    SIT_IDX_REC,
-    SIT_IDX_TXT
 };
 
 const std::map<std::string, int> AGG_COL_IDX = {
@@ -471,12 +482,41 @@ struct rec_table {
 };
 typedef struct rec_table sky_rec;
 
+// holds the result of an index lookup, which is used to identify the
+// physical location of the flatbuf and its specified row numbers
+// to be processed by processFb().
+struct index_read_info {
+    const int fb_num;
+    const int fb_off;
+    const int fb_len;
+    const std::vector<unsigned int> rnums;
+
+    index_read_info(int fbnum, int fboff, int fblen,
+                             std::vector<unsigned int> rows) :
+        fb_num(fbnum),
+        fb_off(fboff),
+        fb_len(fblen),
+        rnums(rows) {};
+
+    std::string toString() {
+        std::string rows_str;
+        for (auto it = rnums.begin(); it != rnums.end(); ++it)
+            rows_str.append((std::to_string(*it) + ","));
+        std::string s;
+        s.append("index_read_info.fb_num=" + std::to_string(fb_num));
+        s.append("; index_read_info.fb_off=" + std::to_string(fb_off));
+        s.append("; index_read_info.fb_len=" + std::to_string(fb_len));
+        s.append("; index_read_info.rnums=" + rows_str);
+        return s;
+    }
+};
+
 const std::string SCHEMA_FORMAT ( \
         "\ncol_idx col_type is_key is_nullable name \\n" \
         "\ncol_idx col_type is_key is_nullable name \\n" \
         "\n ... \\n");
 
-// a test schema for the tpch lineitem table.
+// A test schema for the TPC-H lineitem table.
 // format: "col_idx col_type is_key is_nullable name"
 // note the col_idx always refers to the index in the table's current schema
 const std::string TEST_SCHEMA_STRING (" \
@@ -492,13 +532,13 @@ const std::string TEST_SCHEMA_STRING (" \
     9 " +  std::to_string(SDT_CHAR) + " 0 1 LINESTATUS \n\
     10 " +  std::to_string(SDT_DATE) + " 0 1 SHIPDATE \n\
     11 " +  std::to_string(SDT_DATE) + " 0 1 COMMITDATE \n\
-    12 " +  std::to_string(SDT_DATE) + " 0 1 RECEIPDATE \n\
+    12 " +  std::to_string(SDT_DATE) + " 0 1 RECEIPTDATE \n\
     13 " +  std::to_string(SDT_STRING) + " 0 1 SHIPINSTRUCT \n\
     14 " +  std::to_string(SDT_STRING) + " 0 1 SHIPMODE \n\
     15 " +  std::to_string(SDT_STRING) + " 0 1 COMMENT \n\
     ");
 
-// a test schema for procection over the tpch lineitem table.
+// A test schema for projection over the TPC-H lineitem table.
 const std::string TEST_SCHEMA_STRING_PROJECT = " \
     0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
     1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
@@ -529,7 +569,8 @@ std::string schemaToString(schema_vec schema);
 void predsFromString(predicate_vec &preds,  schema_vec &schema,
                      std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
-std::vector<std::string> colnamesFromPreds(predicate_vec &preds,  schema_vec &schema);
+std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
+                                           schema_vec &schema);
 std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 
 bool hasAggPreds(predicate_vec &preds);
@@ -588,5 +629,6 @@ std::string buildKeyPrefix(
 std::string buildKeyData(int data_type, uint64_t new_data);
 
 } // end namespace Tables
+
 
 #endif
