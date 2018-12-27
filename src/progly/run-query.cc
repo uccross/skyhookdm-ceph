@@ -11,6 +11,7 @@
 #include <fstream>
 #include <boost/program_options.hpp>
 #include "query.h"
+#include "cls/tabular/cls_split_utils.h"
 
 namespace po = boost::program_options;
 
@@ -23,6 +24,7 @@ int main(int argc, char **argv)
   std::string logfile;
   int qdepth;
   std::string dir;
+  std::string split_obj_arg;
 
   std::string select_preds_str_default = Tables::SELECT_DEFAULT;
   std::string project_cols_str_default = Tables::PROJECT_DEFAULT;
@@ -59,8 +61,16 @@ int main(int argc, char **argv)
      << "...>" << oplist;
   std::string select_help_msg = ss.str();
 
+  // split_obj_msg for help output
+  ss.clear();
+  ss.str(std::string());
+  ss << "(true/false) do object splitting" ;
+  std::string split_obj_arg_msg = ss.str();
+
   po::options_description gen_opts("General options");
   gen_opts.add_options()
+
+    // setup parameters
     ("help,h", "show help message")
     ("pool", po::value<std::string>(&pool)->required(), "pool")
     ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
@@ -76,6 +86,10 @@ int main(int argc, char **argv)
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
     ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
+
+    // split option
+    ("split", po::value<std::string>(&split_obj_arg)->default_value("nah"), split_obj_arg_msg.c_str())
+
     // query parameters
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -122,6 +136,7 @@ int main(int argc, char **argv)
 
   timings.reserve(num_objs);
 
+
   // generate the names of the objects to process
   for (unsigned oidx = 0; oidx < num_objs; oidx++) {
     std::stringstream oid_ss;
@@ -130,6 +145,7 @@ int main(int argc, char **argv)
     target_objects.push_back(oid);
   }
 
+  // why change the object order???
   if (dir == "fwd") {
     std::reverse(std::begin(target_objects),
         std::end(target_objects));
@@ -159,6 +175,7 @@ int main(int argc, char **argv)
     return 0;
   }
 
+  // ========================================================= //
   // build skyhook index over general flatbuf data
     boost::trim(index_cols_str);
     if (!index_cols_str.empty()) {
@@ -208,10 +225,13 @@ int main(int argc, char **argv)
 
     return 0;
   }
+  // build skyhook index over general flatbuf data
+  // ========================================================= //
 
-  /*
-   * sanity check queries against provided parameters
-   */
+  // ========================================================= //
+  //sanity check queries against provided parameters
+
+  // QUERY A
   if (query == "a") {
 
     assert(!use_index); // not supported
@@ -219,21 +239,30 @@ int main(int argc, char **argv)
     std::cout << "select count(*) from lineitem where l_extendedprice > "
       << extended_price << std::endl;
 
-  } else if (query == "b") {
+  }
+
+  // QUERY B
+  else if (query == "b") {
 
     assert(!use_index); // not supported
     assert(extended_price != 0.0);
     std::cout << "select * from lineitem where l_extendedprice > "
       << extended_price << std::endl;
 
-  } else if (query == "c") {
+  }
+
+  // QUERY C
+  else if (query == "c") {
 
     assert(!use_index); // not supported
     assert(extended_price != 0.0);
     std::cout << "select * from lineitem where l_extendedprice = "
       << extended_price << std::endl;
 
-  } else if (query == "d") {
+  } 
+
+  // QUERY D
+  else if (query == "d") {
 
     if (use_index)
       assert(use_cls);
@@ -243,7 +272,10 @@ int main(int argc, char **argv)
     std::cout << "select * from from lineitem where l_orderkey = "
       << order_key << " and l_linenumber = " << line_number << std::endl;
 
-  } else if (query == "e") {
+  }
+
+  // QUERY E
+  else if (query == "e") {
 
     assert(!use_index); // not supported
     assert(ship_date_low != -9999);
@@ -256,20 +288,29 @@ int main(int argc, char **argv)
       << " and l_discount > " << discount_low << " and l_discount < "
       << discount_high << " and l_quantity < " << quantity << std::endl;
 
-  } else if (query == "f") {
+  }
+
+  // QUERY F
+  else if (query == "f") {
 
     assert(!use_index); // not supported
     assert(comment_regex != "");
     std::cout << "select * from lineitem where l_comment ilike '%"
       << comment_regex << "%'" << std::endl;
 
-  } else if (query == "fastpath") {   // no processing required
+  }
+
+  // FASTPATH
+  else if (query == "fastpath") {   // no processing required
 
     assert(!use_index); // not supported
     assert(!projection); // not supported
     std::cout << "select * from lineitem" << std::endl;
 
-  } else if (query == "flatbuf") {   // no processing required
+  }
+
+  // FLATBUF
+  else if (query == "flatbuf") {   // no processing required
 
     // the queryop schema string will be either the full current schema
     // or the query's projected schema.
@@ -292,7 +333,10 @@ int main(int argc, char **argv)
         if (preds.size() == 0)
             fastpath = true;
 
-    } else {
+    } 
+
+    // query on attribute subset
+    else {
         projection = true;
         Tables::schemaFromColNames(query_schema, current_schema,
                                    project_cols_str);
@@ -331,10 +375,18 @@ int main(int argc, char **argv)
         delete (*it);
     preds.clear();
 
-  } else {
+  } 
+
+  else {
     std::cerr << "invalid query: " << query << std::endl;
     exit(1);
   }
+
+  // ^sanity check queries against provided parameters
+  // ========================================================= //
+
+  // ========================================================= //
+  // run the query
 
   result_count = 0;
   rows_returned = 0;
@@ -353,21 +405,39 @@ int main(int argc, char **argv)
   std::unique_lock<std::mutex> lock(dispatch_lock);
   while (true) {
     while (outstanding_ios < qdepth) {
+
+      // -------------------------------- //
       // get an object to process
+
+      // break execution if we processed all objects
       if (target_objects.empty())
         break;
       std::string oid = target_objects.back();
       target_objects.pop_back();
       lock.unlock();
 
+      // ^get an object to process
+      // -------------------------------- //
+
+      // -------------------------------- //
       // dispatch an io request
+
+      // struct AioState {
+      //   ceph::bufferlist bl;
+      //   librados::AioCompletion *c;
+      //   timing times;
+      // };
       AioState *s = new AioState;
-      s->c = librados::Rados::aio_create_completion(
-          s, NULL, handle_cb);
+      // gets an aio_completion
+      // s => a blank aiostate
+      // NULL => rados callback_t
+      // handle_cb => function for firing up a worker
+      s->c = librados::Rados::aio_create_completion( s, NULL, handle_cb);
 
       memset(&s->times, 0, sizeof(s->times));
       s->times.dispatch = getns();
 
+      // ???
       if (use_cls) {
         query_op op;
         op.query = query;
@@ -395,19 +465,41 @@ int main(int argc, char **argv)
         int ret = ioctx.aio_exec(oid, s->c,
             "tabular", "query_op", inbl, &s->bl);
         checkret(ret, 0);
-      } else {
+      }
+
+      // don't use cls
+      else {
+
+        // issue io request
+        // asynchronously read from the striped object at the specified offset.
+        // int aio_read(const std::string& soid, 
+        //              librados::AioCompletion *c, 
+        //              ceph::bufferlist *pbl, 
+        //              size_t len, 
+        //              uint64_t off);
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
         checkret(ret, 0);
+
       }
 
       lock.lock();
       outstanding_ios++;
     }
+
+    // check if appears twice?
     if (target_objects.empty())
       break;
     dispatch_cond.wait(lock);
   }
   lock.unlock();
+
+  // ^run the query
+  // ========================================================= //
+
+  // ========================================================= //
+  // post-processing
+
+  std::cout << "thing0" << std::endl ;
 
   // drain any still-in-flight operations
   while (true) {
@@ -421,11 +513,16 @@ int main(int argc, char **argv)
     sleep(1);
   }
 
+  std::cout << "thing1" << std::endl ;
+
   // wait for all the workers to stop
   work_lock.lock();
   stop = true;
   work_lock.unlock();
   work_cond.notify_all();
+
+  std::cout << "thing2" << std::endl ;
+  //return 0 ;
 
   // the threads will exit when all the objects are processed
   for (auto& thread : threads) {
@@ -458,6 +555,9 @@ int main(int argc, char **argv)
     }
     out.close();
   }
+
+  // ^post-processing
+  // ========================================================= //
 
   return 0;
 }
