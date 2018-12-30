@@ -274,16 +274,16 @@ int main(int argc, char **argv)
     // to be encoded into query_op or index_op structs.
 
     // verify and set the table schema, needed to create other preds/schemas
-    schemaFromString(sky_tbl_schema, table_schema);
+    sky_tbl_schema = schemaFromString(table_schema);
 
     // verify and set the index schema
-    schemaFromColNames(sky_idx_schema, sky_tbl_schema, index_cols);
+    sky_idx_schema = schemaFromColNames(sky_tbl_schema, index_cols);
 
     // verify and set the query predicates
-    predsFromString(sky_qry_preds, sky_tbl_schema, query_preds);
+   sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
 
     // verify and set the index predicates
-    predsFromString(sky_idx_preds, sky_tbl_schema, index_preds);
+    sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
 
     // verify and set the query schema, check for select *
     if (project_cols == PROJECT_DEFAULT) {
@@ -316,9 +316,7 @@ int main(int argc, char **argv)
                 }
             }
         } else {
-            schemaFromColNames(sky_qry_schema,
-                               sky_tbl_schema,
-                               project_cols);
+            sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols);
         }
     }
 

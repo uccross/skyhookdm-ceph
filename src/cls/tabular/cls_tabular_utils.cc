@@ -284,14 +284,14 @@ std::string schemaToString(schema_vec schema) {
     return s;
 }
 
-void schemaFromColNames(schema_vec &ret_schema,
-                        schema_vec &current_schema,
-                        std::string col_names) {
-
+schema_vec schemaFromColNames(schema_vec &current_schema,
+                              std::string col_names)
+{
+    schema_vec schema;
     boost::trim(col_names);
     if (col_names == PROJECT_DEFAULT) {
         for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
-            ret_schema.push_back(*it);
+            schema.push_back(*it);
         }
     }
     else {
@@ -304,16 +304,18 @@ void schemaFromColNames(schema_vec &ret_schema,
             for (auto it2=current_schema.begin();
                       it2!=current_schema.end(); ++it2) {
                 if (it2->compareName(*it))
-                    ret_schema.push_back(*it2);
+                    schema.push_back(*it2);
             }
         }
     }
+    return schema;
 }
 
 // schema string expects the format in cls_tabular_utils.h
 // see lineitem_test_schema
-void schemaFromString(schema_vec &schema, std::string schema_string) {
+schema_vec schemaFromString(std::string schema_string) {
 
+    schema_vec schema;
     vector<std::string> elems;
     boost::split(elems, schema_string, boost::is_any_of("\n"),
                  boost::token_compress_on);
@@ -349,17 +351,18 @@ void schemaFromString(schema_vec &schema, std::string schema_string) {
                                  col_data[3], name);
         schema.push_back(ci);
     }
+    return schema;
 }
 
-void predsFromString(predicate_vec &preds, schema_vec &schema,
-                     std::string preds_string) {
+predicate_vec predsFromString(schema_vec &schema, std::string preds_string) {
     // format:  ;colname,opname,value;colname,opname,value;...
     // e.g., ;orderkey,eq,5;comment,like,hello world;..
 
+    predicate_vec preds;
     boost::trim(preds_string);  // whitespace
     boost::trim_if(preds_string, boost::is_any_of(PRED_DELIM_OUTER));
 
-    if (preds_string.empty() || preds_string== SELECT_DEFAULT) return;
+    if (preds_string.empty() || preds_string== SELECT_DEFAULT) return preds;
 
     vector<std::string> pred_items;
     boost::split(pred_items, preds_string, boost::is_any_of(PRED_DELIM_OUTER),
@@ -379,8 +382,8 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
         std::string val = select_descr.at(2);
         boost::to_upper(colname);
 
-        schema_vec sv;  // this only has 1 col and only used to verify input
-        schemaFromColNames(sv, schema, colname);
+        // this only has 1 col and only used to verify input
+        schema_vec sv = schemaFromColNames(schema, colname);
         assert (sv.size() > 0);
         col_info ci = sv.at(0);
         int op_type = skyOpTypeFromString(opname);
@@ -519,7 +522,9 @@ void predsFromString(predicate_vec &preds, schema_vec &schema,
         agg_preds.clear();
         agg_preds.shrink_to_fit();
     }
+    return preds;
 }
+
 std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
                                            schema_vec &schema) {
     std::vector<std::string> colnames;

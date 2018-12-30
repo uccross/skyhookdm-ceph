@@ -88,8 +88,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         CLS_ERR("ERROR: cls_tabular:build_sky_idx: decoding idx_op");
         return -EINVAL;
     }
-    Tables::schema_vec idx_schema;
-    Tables::schemaFromString(idx_schema, op.idx_schema_str);
+    Tables::schema_vec idx_schema = Tables::schemaFromString(op.idx_schema_str);
 
     // obj contains one bl that itself wraps a seq of encoded bls of skyhook fb
     bufferlist wrapped_bls;
@@ -471,28 +470,23 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         } else {
 
             // schema_in is the table's current schema
-            schema_vec schema_in;
-            schemaFromString(schema_in, op.table_schema);
+            schema_vec schema_in = schemaFromString(op.table_schema);
 
             // schema_out is the query schema
-            schema_vec schema_out;
-            schemaFromString(schema_out, op.query_schema);
+            schema_vec schema_out = schemaFromString(op.query_schema);
 
             // predicates to be applied, if any
-            predicate_vec query_preds;
-            predsFromString(query_preds, schema_in, op.query_preds);
+            predicate_vec query_preds = predsFromString(schema_in, op.query_preds);
 
             // lookup correct flatbuf and potentially set specific row nums
             // to be processed next in processFb()
             if (op.index_read) {
 
                 // index schema, should be empty if not op.index_read
-                schema_vec index_schema;
-                schemaFromString(index_schema, op.index_schema);
+                schema_vec index_schema = schemaFromString(op.index_schema);
 
                 // index predicates to be applied, if any
-                predicate_vec index_preds;
-                predsFromString(index_preds, schema_in, op.index_preds);
+                predicate_vec index_preds = predsFromString(schema_in, op.index_preds);
 
                 //hold result of index lookups
                 std::vector<struct index_read_info> idx_reads;
