@@ -559,15 +559,13 @@ void printSkyRec(sky_rec *r);
 void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
 
 // convert provided schema to/from skyhook internal representation
-void schemaFromColNames(schema_vec &ret_schema,
-                        schema_vec &current_schema,
-                        std::string project_col_names);
-void schemaFromString(schema_vec &schema, std::string schema_string);
+schema_vec schemaFromColNames(schema_vec &current_schema,
+                              std::string project_col_names);
+schema_vec schemaFromString(std::string schema_string);
 std::string schemaToString(schema_vec schema);
 
 // convert provided predicates to/from skyhook internal representation
-void predsFromString(predicate_vec &preds,  schema_vec &schema,
-                     std::string preds_string);
+predicate_vec predsFromString(schema_vec &schema, std::string preds_string);
 std::string predsToString(predicate_vec &preds,  schema_vec &schema);
 std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
                                            schema_vec &schema);
