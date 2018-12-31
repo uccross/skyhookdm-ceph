@@ -482,21 +482,33 @@ struct rec_table {
 };
 typedef struct rec_table sky_rec;
 
-// holds the result of an index lookup, which is used to identify the
-// physical location of the flatbuf and its specified row numbers
-// to be processed by processFb().
-struct index_read_info {
-    const int fb_num;
-    const int fb_off;
-    const int fb_len;
-    const std::vector<unsigned int> rnums;
+// holds the result of a read to be done, resulting from an index lookup
+// regarding specific flatbufs+rows to be read or else a seq of all flatbufs
+// for which this struct is used to identify the physical location of the
+// flatbuf and its specified row numbers (default=all) to be processed.
+struct read_info {
+    int fb_num;
+    int fb_off;
+    int fb_len;
+    std::vector<unsigned int> rnums;  //default to empty to read all rows
 
-    index_read_info(int fbnum, int fboff, int fblen,
-                             std::vector<unsigned int> rows) :
+    read_info(int fbnum, int fboff, int fblen, std::vector<unsigned> rows) :
         fb_num(fbnum),
         fb_off(fboff),
         fb_len(fblen),
         rnums(rows) {};
+
+    read_info(const read_info& r) :
+        fb_num(r.fb_num),
+        fb_off(r.fb_off),
+        fb_len(r.fb_len),
+        rnums(r.rnums) {};
+
+    read_info() :
+        fb_num(),
+        fb_off(),
+        fb_len(),
+        rnums() {};
 
     std::string toString() {
         std::string rows_str;
