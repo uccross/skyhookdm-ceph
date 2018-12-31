@@ -435,45 +435,36 @@ do_index_lookup(
  */
 static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  int ret = 0;
-  query_op op;
+    int ret = 0;
+    uint64_t rows_processed = 0;
+    uint64_t read_ns = 0;
+    uint64_t eval_ns = 0;
+    bufferlist result_bl;  // result set to be returned to client.
+    query_op op;
 
-  // extract the query op to get the query request params
-  try {
-    bufferlist::iterator it = in->begin();
-    ::decode(op, it);
-  } catch (const buffer::error &err) {
-    CLS_ERR("ERROR: decoding query op");
-    return -EINVAL;
-  }
-  std::string msg = op.toString();
-  std::replace(msg.begin(), msg.end(), '\n', ' ');
-
-  // Represents total rows considered during processing, an index lookup may
-  // reduce this number, and a fastpath query will not process any rows, just
-  // blindly return them all.
-  uint64_t rows_processed = 0;
-
-  // track the bufferlist read time (read_ns) vs. the processing time (eval_ns)
-  uint64_t read_ns = 0;
-  uint64_t eval_ns_start = 0;
-
-  bufferlist result_bl;  // result set to be returned to client.
+    // extract the query op to get the query request params
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: decoding query op");
+        return -EINVAL;
+    }
+    std::string msg = op.toString();
+    std::replace(msg.begin(), msg.end(), '\n', ' ');
 
     if (op.query == "flatbuf") {
 
         using namespace Tables;
 
-        bufferlist b;  // to hold the obj data.
-
-        // specify rows to process in b, only if index lookup succeeds
-        // else this remains empty and we will process all rows by default.
-        std::vector<unsigned int> row_nums;
+        // hold result of index lookups or read all flatbufs
+        std::vector<struct read_info> reads;
 
         // fastpath means we skip processing rows and just return all rows,
         // i.e., the entire obj
         // NOTE: fastpath will not increment rows_processed since we do nothing
         if (op.fastpath == true) {
+            bufferlist b;  // to hold the obj data.
             uint64_t start = getns();
             ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
             if (ret < 0) {
@@ -481,7 +472,6 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
               return ret;
             }
             read_ns = getns() - start;
-            eval_ns_start = getns();
             result_bl = b;
         } else {
 
@@ -504,9 +494,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 // index predicates to be applied, if any
                 predicate_vec index_preds = predsFromString(schema_in, op.index_preds);
 
-                //hold result of index lookups
-                std::vector<struct read_info> reads;
-
+                // index lookup to set the read requests, if any rows match
                 ret = do_index_lookup(hctx,
                                       index_preds,
                                       index_schema,
@@ -518,36 +506,32 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                     CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                     return ret;
                 }
+            } else {
 
-                // if index lookup succeeded, read specified bl at off
-                if (!reads.empty()) {
-                    struct read_info rinfo = reads.at(0);
-                    row_nums = rinfo.rnums;  // set rows to be processed
-                    uint64_t start = getns();
-                    ret = cls_cxx_read(hctx, rinfo.fb_off, rinfo.fb_len, &b);
-                    if (ret < 0) {
-                      CLS_ERR("ERROR: reading flatbuf obj %d", ret);
-                      return ret;
-                    }
-                    read_ns = getns() - start;
-               }
-            } else { // just read entire object.
+                // just read entire object.
+                struct read_info ri(0, 0, 0, {});
+                reads.push_back(ri);
+            }
+
+            // now we can decode and process each bl in the obj, specified
+            // by each read request.
+            // NOTE: 1 bl contains exactly 1 flatbuf.
+            for (unsigned i = 0; i < reads.size(); i++) {
+
+                bufferlist b;
+                size_t off = reads[i].off;
+                size_t len = reads[i].len;
+                std::vector<unsigned int> row_nums = reads[i].rnums;
+
                 uint64_t start = getns();
-                ret = cls_cxx_read(hctx, 0, 0, &b);
+                ret = cls_cxx_read(hctx, off, len, &b);
                 if (ret < 0) {
                   CLS_ERR("ERROR: reading flatbuf obj %d", ret);
                   return ret;
                 }
-                read_ns = getns() - start;
-            }
+                read_ns += getns() - start;
 
-            // At this point b contains either the entire obj or
-            // only the flatbuf determined by index lookup above,
-            // so now we can decode and process each bl in b.
-            // NOTE: 1 bl contains exactly 1 flatbuf.
-
-            {
-                eval_ns_start = getns();
+                start = getns();
                 ceph::bufferlist::iterator it = b.begin();
                 while (it.get_remaining() > 0) {
                     bufferlist bl;
@@ -592,6 +576,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                     ans.append(processed_fb, bufsz);
                     ::encode(ans, result_bl);
                 }
+                eval_ns += getns() - start;
             }
         }
     } else {
@@ -608,7 +593,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       }
       result_bl.reserve(bl.length());
 
-      eval_ns_start = getns();
+      uint64_t start = getns();
 
       // our test data is fixed size per col and uses tpch lineitem schema.
       const size_t row_size = 141;
@@ -863,9 +848,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       } else {
         return -EINVAL;
       }
-  }
-
-  uint64_t eval_ns = getns() - eval_ns_start;
+      eval_ns += getns() - start;
+    }
 
   // store timings and result set into output BL
   ::encode(read_ns, *out);

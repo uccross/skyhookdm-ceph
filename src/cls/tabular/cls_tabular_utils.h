@@ -487,27 +487,30 @@ typedef struct rec_table sky_rec;
 // for which this struct is used to identify the physical location of the
 // flatbuf and its specified row numbers (default=all) to be processed.
 struct read_info {
-    int fb_num;
-    int fb_off;
-    int fb_len;
+    int fb_seq_num;
+    int off;
+    int len;
     std::vector<unsigned int> rnums;  //default to empty to read all rows
 
-    read_info(int fbnum, int fboff, int fblen, std::vector<unsigned> rows) :
-        fb_num(fbnum),
-        fb_off(fboff),
-        fb_len(fblen),
-        rnums(rows) {};
+    read_info(int _fb_seq_num,
+              int _off,
+              int _len,
+              std::vector<unsigned> _rnums) :
+        fb_seq_num(_fb_seq_num),
+        off(_off),
+        len(_len),
+        rnums(_rnums) {};
 
     read_info(const read_info& r) :
-        fb_num(r.fb_num),
-        fb_off(r.fb_off),
-        fb_len(r.fb_len),
+        fb_seq_num(r.fb_seq_num),
+        off(r.off),
+        len(r.len),
         rnums(r.rnums) {};
 
     read_info() :
-        fb_num(),
-        fb_off(),
-        fb_len(),
+        fb_seq_num(),
+        off(),
+        len(),
         rnums() {};
 
     std::string toString() {
@@ -515,9 +518,9 @@ struct read_info {
         for (auto it = rnums.begin(); it != rnums.end(); ++it)
             rows_str.append((std::to_string(*it) + ","));
         std::string s;
-        s.append("index_read_info.fb_num=" + std::to_string(fb_num));
-        s.append("; index_read_info.fb_off=" + std::to_string(fb_off));
-        s.append("; index_read_info.fb_len=" + std::to_string(fb_len));
+        s.append("index_read_info.fb_num=" + std::to_string(fb_seq_num));
+        s.append("; index_read_info.off=" + std::to_string(off));
+        s.append("; index_read_info.len=" + std::to_string(len));
         s.append("; index_read_info.rnums=" + rows_str);
         return s;
     }
