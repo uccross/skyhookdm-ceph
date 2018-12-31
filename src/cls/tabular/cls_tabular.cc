@@ -316,10 +316,16 @@ do_index_lookup(
     std::string db_schema,
     std::string table,
     int index_type,
-    std::vector<struct Tables::index_read_info>& idx_reads) {
+    std::vector<struct Tables::read_info>& idx_reads) {
 
     using namespace Tables;
     int ret = 0;
+
+    // for each fb_seq_num, a corresponding read_info struct to
+    // indicate the relevant rows within a given fb.
+    // fb_seq_num is used as key, so that subsequent reads will always be from
+    // a higher byte offset, if that matters.
+    std::map<int, struct read_info> reads;
 
     // create record key
     std::vector<std::string> keys;
@@ -398,19 +404,29 @@ do_index_lookup(
                         return -EINVAL;
                     }
 
-                    // TODO: set multiple row nums within flatbuf
-                    // TODO: set multiple flatbufs
-                    struct Tables::index_read_info read_info(rec_ent.fb_num,
-                                                             fb_ent.off,
-                                                             fb_ent.len,
-                                                             row_nums);
-                    idx_reads.push_back(read_info);
+                    // either add these row nums to the read_info struct for
+                    // the given fb, or create a new read_info for the given fb
+                    auto it = reads.find(rec_ent.fb_num);
+                    if (it != reads.end())
+                        it->second.rnums.insert(it->second.rnums.end(),
+                                                row_nums.begin(),
+                                                row_nums.end());
+                    else
+                        reads[rec_ent.fb_num] = \
+                            Tables::read_info(rec_ent.fb_num,
+                                                    fb_ent.off,
+                                                    fb_ent.len,
+                                                    row_nums);
                 }
             } else  {  // no rec found for key
                 // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
             }
         }
     }
+
+    // set all of the accumulated rows info per fb into the index reads vector
+    for (auto it = reads.begin(); it != reads.end(); ++it)
+        idx_reads.push_back(it->second);
     return 0;
 }
 
@@ -489,7 +505,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 predicate_vec index_preds = predsFromString(schema_in, op.index_preds);
 
                 //hold result of index lookups
-                std::vector<struct index_read_info> idx_reads;
+                std::vector<struct read_info> reads;
 
                 ret = do_index_lookup(hctx,
                                       index_preds,
@@ -497,15 +513,15 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                       op.db_schema,
                                       op.table,
                                       op.index_type,
-                                      idx_reads);
+                                      reads);
                 if (ret < 0) {
                     CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                     return ret;
                 }
 
                 // if index lookup succeeded, read specified bl at off
-                if (!idx_reads.empty()) {
-                    struct index_read_info rinfo = idx_reads.at(0);
+                if (!reads.empty()) {
+                    struct read_info rinfo = reads.at(0);
                     row_nums = rinfo.rnums;  // set rows to be processed
                     uint64_t start = getns();
                     ret = cls_cxx_read(hctx, rinfo.fb_off, rinfo.fb_len, &b);
@@ -529,50 +545,53 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             // only the flatbuf determined by index lookup above,
             // so now we can decode and process each bl in b.
             // NOTE: 1 bl contains exactly 1 flatbuf.
-            eval_ns_start = getns();
-            ceph::bufferlist::iterator it = b.begin();
-            while (it.get_remaining() > 0) {
-                bufferlist bl;
-                try {
-                    ::decode(bl, it);  // unpack the next bl (flatbuf)
-                } catch (const buffer::error &err) {
-                    CLS_ERR("ERROR: decoding flatbuf from BL");
-                    return -EINVAL;
+
+            {
+                eval_ns_start = getns();
+                ceph::bufferlist::iterator it = b.begin();
+                while (it.get_remaining() > 0) {
+                    bufferlist bl;
+                    try {
+                        ::decode(bl, it);  // unpack the next bl (flatbuf)
+                    } catch (const buffer::error &err) {
+                        CLS_ERR("ERROR: decoding flatbuf from BL");
+                        return -EINVAL;
+                    }
+
+                    // get our data as contiguous bytes before accessing as flatbuf
+                    const char* fb = bl.c_str();
+                    size_t fb_size = bl.length();
+
+                    sky_root root = Tables::getSkyRoot(fb, fb_size);
+                    flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+                    std::string errmsg;
+                    ret = processSkyFb(flatbldr,
+                                       schema_in,
+                                       schema_out,
+                                       query_preds,
+                                       fb,
+                                       fb_size,
+                                       errmsg,
+                                       row_nums);
+
+                    if (ret != 0) {
+                        CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
+                        CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                        return -1;
+                    }
+                    if (op.index_read)
+                        rows_processed += row_nums.size();
+                    else
+                        rows_processed += root.nrows;
+                    const char *processed_fb = \
+                        reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                    int bufsz = flatbldr.GetSize();
+
+                    // add this processed fb to our sequence of bls
+                    bufferlist ans;
+                    ans.append(processed_fb, bufsz);
+                    ::encode(ans, result_bl);
                 }
-
-                // get our data as contiguous bytes before accessing as flatbuf
-                const char* fb = bl.c_str();
-                size_t fb_size = bl.length();
-
-                sky_root root = Tables::getSkyRoot(fb, fb_size);
-                flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
-                std::string errmsg;
-                ret = processSkyFb(flatbldr,
-                                   schema_in,
-                                   schema_out,
-                                   query_preds,
-                                   fb,
-                                   fb_size,
-                                   errmsg,
-                                   row_nums);
-
-                if (ret != 0) {
-                    CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                    CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                    return -1;
-                }
-                if (op.index_read)
-                    rows_processed += row_nums.size();
-                else
-                    rows_processed += root.nrows;
-                const char *processed_fb = \
-                    reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                int bufsz = flatbldr.GetSize();
-
-                // add this processed fb to our sequence of bls
-                bufferlist ans;
-                ans.append(processed_fb, bufsz);
-                ::encode(ans, result_bl);
             }
         }
     } else {
