@@ -48,27 +48,35 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   return std::string(buffer, copyupto);
 }
 
+/*
+ * Build a skyhook index, insert to omap.
+ * Index types are
+ * 1. fb_index: points (physically within the object) to the fb
+ *    <string fb_num, struct idx_fb_entry>
+ *    where fb_num is a sequence number of flatbufs within an obj
+ *
+ * 2. rec_index: points (logically within the fb) to the relevant row
+ *    <string rec-val, struct idx_rec_entry>
+ *    where rec-val is the col data value(s) or RID
+ *
+ */
 static
 int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     // iterate over all fbs within an obj and create 2 indexes:
-    // 1. for each fb, create an omap entry with its fb_num and byte off (phys)
-    // 2. for each row of an fb, create a rec entry for the keycol(s) (logical)
-    // value and fb_num
+    // 1. for each fb, create idx_fb_entry (physical fb offset)
+    // 2. for each row of an fb, create idx_rec_entry (logical row offset)
 
-    const int ceph_bl_encoding_len = 4; // ?? seems to be an int
-    int fb_cnt = 0;
+    // a ceph property encoding the len of each bl in front of the bl,
+    // seems to be an int32 currently.
+    const int ceph_bl_encoding_len = sizeof(int32_t);
+    int fb_seq_num = 0;  // TODO: get this from a stable counter.
 
-    // points (physically within the object) to the fb
-    // <"oid-fbseqnum",<idx_fb_entry>> i.e., <str_oid_fbseqnum, <off, len>>
+    std::string key_prefix;
+    std::string key_data_str;
+    std::string key;
     std::map<std::string, bufferlist> fbs_index;
-
-    // points (logically within the fb) to the relevant row with keyval
-    // <"col(s)_val",<idx_val_entry>> i.e., <col_val, map::<fb_num, row_num>>
     std::map<std::string, bufferlist> recs_index;
-
-    /// points (logicallywithin the fb) to the relevant row with RID
-    // <"rid",<idx_val_entry>> i.e., <rid, map::<fb_num, row_num>>
     std::map<std::string, bufferlist> rids_index;
 
     // extract the index op instructions from the input bl
@@ -80,8 +88,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         CLS_ERR("ERROR: cls_tabular:build_sky_idx: decoding idx_op");
         return -EINVAL;
     }
-    Tables::schema_vec idx_schema;
-    Tables::schemaFromString(idx_schema, op.idx_schema_str);
+    Tables::schema_vec idx_schema = Tables::schemaFromString(op.idx_schema_str);
 
     // obj contains one bl that itself wraps a seq of encoded bls of skyhook fb
     bufferlist wrapped_bls;
@@ -99,111 +106,111 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         off = obj_len - it.get_remaining();
         ceph::bufferlist bl;
         try {
-            ::decode(bl, it);  // unpack the next bl (flatbuf)
+            ::decode(bl, it);  // unpack the next bl
         } catch (ceph::buffer::error&) {
             assert(Tables::BuildSkyIndexDecodeBlsErr==0);
         }
 
-        // get our data as contiguous bytes before accessing as flatbuf
         const char* fb = bl.c_str();
         int fb_len = bl.length();
         Tables::sky_root root = Tables::getSkyRoot(fb, fb_len);
 
-        // create an idx_fb_entry for this fb's phys loc info.
-        // get current max fb_seq_num;
-        uint64_t fb_seq_num = ++fb_cnt;  // TODO: should be root.fb_seq_num;
-        struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
+        // CREATE AN IDX_FB_ENTRY (done for IDX_REC and IDX_RID)
+        //
+        // get the key prefix and key_data: the fb sequence num
+        key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
+                                    root.table_name);
+        std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
+        int len = sqnum.length();
+        int pos = len - 10; //  get the minimum keychars for type, assume int32
+        key_data_str = sqnum.substr(pos, len);
+        //
+        // create the entry
         bufferlist fb_bl;
+        struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
         ::encode(fb_ent, fb_bl);
-        std::string fbkey = Tables::u64tostr(fb_seq_num);
-        int len = fbkey.length();
-        fbkey = fbkey.substr(len-10, len);
-        fbs_index[fbkey] = fb_bl;
-        //CLS_LOG(20,"fb-key=%s", (fbkey+"; "+fb_ent.toString()).c_str());
+        key = key_prefix + key_data_str;
+        fbs_index[key] = fb_bl;
+        //CLS_LOG(20,"key=%s",(key+";"+fb_ent.toString()).c_str());
 
-        // create a idx_rec_entry for the keycols of each row
-        for (uint32_t i = 0; i < root.nrows; i++) {
-
-            Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
-            auto row = rec.data.AsVector();
-
-            // create the index key from the schema cols
-            std::string strkey;
+        // CREATE IDX_REC/RID_ENT
+        //
+        // get the key prefix and key data: either the col vals or RID
+        if (op.idx_type == Tables::SIT_IDX_RID) {
+            key_prefix = buildKeyPrefix(Tables::SIT_IDX_RID, root.schema_name,
+                                        root.table_name);
+        }
+        else if (op.idx_type == Tables::SIT_IDX_REC) {
+            std::vector<std::string> keycols;
             for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
-                int ret = Tables::buildStrKey(row[(*it).idx].AsUInt64(),
-                                              (*it).type, strkey);
-                if (ret) {
-                    CLS_ERR("error buildStrKey for RID %ld entry," \
-                            "TablesErrCodes::%d", rec.RID, ret);
-                    return -1;
+                keycols.push_back(it->name);
+            }
+            key_prefix = buildKeyPrefix(Tables::SIT_IDX_REC, root.schema_name,
+                                        root.table_name, keycols);
+
+        }
+        for (uint32_t i = 0; i < root.nrows; i++) {  // key data for each row
+            key_data_str.clear();
+            Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
+            if (op.idx_type == Tables::SIT_IDX_REC) {
+                auto row = rec.data.AsVector();
+                for (unsigned i = 0; i < idx_schema.size(); i++) {
+                    if (i > 0) key_data_str += Tables::IDX_KEY_DELIM_MINR;
+                    key_data_str += Tables::buildKeyData(
+                                            idx_schema[i].type,
+                                            row[idx_schema[i].idx].AsUInt64());
                 }
             }
-
-            if (strkey.empty()) {
-                CLS_ERR("error key for RID %ld entry," \
-                        " TablesErrCodes::%d", rec.RID,
-                        Tables::BuildSkyIndexKeyCreationFailed);
-                return -1;
+            else if (op.idx_type == Tables::SIT_IDX_RID) {
+                key_data_str = Tables::u64tostr(rec.RID);
             }
 
-            // create the index val
-            struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
+            //
+            // create the entry
             bufferlist rec_bl;
+            struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
             ::encode(rec_ent, rec_bl);
-            recs_index[strkey] = rec_bl;  // TODO: verify if non-unique key
-            //CLS_LOG(20,"rec-key=%s",(strkey+";"+rec_ent.toString()).c_str());
+            key = key_prefix + key_data_str;
+            recs_index[key] = rec_bl;
+            //CLS_LOG(20,"key=%s",(key+";"+rec_ent.toString()).c_str());
 
-            // add keys in batches to minimize IOs
-            if (recs_index.size() > op.batch_size) {
+            // write to omap in batches to minimize IOs
+            if (recs_index.size() > op.idx_batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
-                    CLS_ERR("error setting records index entries %d", ret);
+                    CLS_ERR("error setting recs index entries %d", ret);
                     return ret;
                 }
                 recs_index.clear();
             }
-
-            strkey = Tables::u64tostr(rec.RID);
-            rids_index[strkey] = rec_bl;  // TODO: verify if non-unique key
-            CLS_LOG(20,"rid-key=%s",(strkey+";"+rec_ent.toString()).c_str());
-
-            // add keys in batches to minimize IOs
-            if (rids_index.size() > op.batch_size) {
-                ret = cls_cxx_map_set_vals(hctx, &rids_index);
-                if (ret < 0) {
-                    CLS_ERR("error setting RIDs index entries %d", ret);
-                    return ret;
-                }
-                rids_index.clear();
-            }
         }  // end foreach row
+
+        // write to omap in batches to minimize IOs
+        if (fbs_index.size() > op.idx_batch_size) {
+            ret = cls_cxx_map_set_vals(hctx, &fbs_index);
+            if (ret < 0) {
+                CLS_ERR("error setting fbs index entries %d", ret);
+                return ret;
+            }
+            fbs_index.clear();
+        }
     }  // end while decode wrapped_bls
 
-    // always add fbs_index to omap
-    ret = cls_cxx_map_set_vals(hctx, &fbs_index);
-    if (ret < 0) {
-        CLS_ERR("error setting fbs index entries %d", ret);
-        return ret;
-    }
-
-    // add any remaining recs_index to omap
+    // add any remaining recs_index and fb_index to omap
     if (recs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &recs_index);
         if (ret < 0) {
-            CLS_ERR("error setting records index entries %d", ret);
+            CLS_ERR("error setting recs index entries %d", ret);
             return ret;
         }
     }
-
-    // add any remaining rids_index to omap
-    if (rids_index.size() > 0) {
-        ret = cls_cxx_map_set_vals(hctx, &rids_index);
+    if (fbs_index.size() > 0) {
+        ret = cls_cxx_map_set_vals(hctx, &fbs_index);
         if (ret < 0) {
-            CLS_ERR("error setting RIDs index entries %d", ret);
+            CLS_ERR("error setting fbs index entries %d", ret);
             return ret;
         }
     }
-
     return 0;
 }
 
@@ -296,96 +303,280 @@ static void add_extra_row_cost(uint64_t cost)
 }
 
 /*
- * Primary method to process our test queries qa--qf
+ * Lookup matching records in omap, based on the index specified and the
+ * index predicates.  Set the idx_reads info vector with the corresponding
+ * flatbuf off/len and row numbers for each matching record.
  */
-static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
-{
-  query_op op;
-  // extract the query op to get the query request params
-  try {
-    bufferlist::iterator it = in->begin();
-    ::decode(op, it);
-  } catch (const buffer::error &err) {
-    CLS_ERR("ERROR: decoding query op");
-    return -EINVAL;
-  }
+static
+int
+do_index_lookup(
+    cls_method_context_t hctx,
+    Tables::predicate_vec index_preds,
+    Tables::schema_vec index_schema,
+    std::string db_schema,
+    std::string table,
+    int index_type,
+    std::vector<struct Tables::read_info>& idx_reads) {
 
-  // represents total rows considered during processing, including those
-  // skipped by using an index or other filtering, this should match the
-  // total rows stored or indexed in the object.
-  uint64_t rows_processed = 0;
+    using namespace Tables;
+    int ret = 0;
 
-  // track the bufferlist read time (read_ns) vs. the processing time (eval_ns)
-  uint64_t read_ns = 0;
-  uint64_t eval_ns_start = 0;
+    // for each fb_seq_num, a corresponding read_info struct to
+    // indicate the relevant rows within a given fb.
+    // fb_seq_num is used as key, so that subsequent reads will always be from
+    // a higher byte offset, if that matters.
+    std::map<int, struct read_info> reads;
 
-  bufferlist result_bl;  // result set to be returned to client.
+    // create record key
+    std::vector<std::string> keys;
+    std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
+    std::string key_prefix = buildKeyPrefix(index_type,
+                                            db_schema,
+                                            table,
+                                            index_cols);
 
-    if (op.query == "flatbuf") {
-
-        bufferlist b;
-        uint64_t start = getns();
-        int ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
-        if (ret < 0) {
-          CLS_ERR("ERROR: reading flatbuf obj %d", ret);
-          return ret;
+    // build up the key data portion from the idx pred vals.
+    std::string key_data;
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+        uint64_t val;
+        switch(index_preds[i]->colType()) {
+            case SDT_INT8:
+            case SDT_INT16:
+            case SDT_INT32:
+            case SDT_INT64: {
+                TypedPredicate<int64_t>* p = \
+                        dynamic_cast<TypedPredicate<int64_t>*>(index_preds[i]);
+                val = static_cast<uint64_t>(p->Val());
+                break;
+            }
+            default:
+                assert (BuildSkyIndexUnsupportedColType==0);
         }
-        read_ns = getns() - start;
-        eval_ns_start = getns();
+        if (i > 0)
+            key_data += Tables::IDX_KEY_DELIM_MINR;
+        key_data += buildKeyData(index_preds[i]->colType(), val);
+    }
+    std::string key = key_prefix + key_data;
+    keys.push_back(key);
 
-        if (op.fastpath == true) {
-            result_bl = b;
-            // note fastpath will not increment any rows_processed
-        } else {
-            // get the inbound (current schema) and outbound (query) schema,
-            // once per obj, before we start unpacking the fbs.
-
-            // schema_in is the table's current schema
-            Tables::schema_vec schema_in;
-            Tables::schemaFromString(schema_in, op.table_schema_str);
-
-            // schema_out is the query schema
-            Tables::schema_vec schema_out;
-            Tables::schemaFromString(schema_out, op.query_schema_str);
-
-            // predicates to be applied, if any
-            Tables::predicate_vec preds;
-            Tables::predsFromString(preds, schema_in, op.predicate_str);
-
-            // decode and process each bl (contains 1 flatbuf) in a loop.
-            ceph::bufferlist::iterator it = b.begin();
-            while (it.get_remaining() > 0) {
-                bufferlist bl;
+    // lookup key in omap to get the row offset
+    if (!keys.empty()) {
+        for (unsigned i = 0; i < keys.size(); i++) {
+            struct idx_rec_entry rec_ent;
+            bufferlist bl;
+            ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
+            if (ret < 0 && ret != -ENOENT) {
+                CLS_ERR("cant read map val index rec for idx_rec key %d", ret);
+                return ret;
+            }
+            if (ret >= 0) {
                 try {
-                    ::decode(bl, it);  // unpack the next bl (flatbuf)
+                    bufferlist::iterator it = bl.begin();
+                    ::decode(rec_ent, it);
                 } catch (const buffer::error &err) {
-                    CLS_ERR("ERROR: decoding flatbuf from BL");
+                    CLS_ERR("ERROR: decoding query idx_rec_ent");
                     return -EINVAL;
                 }
 
-                // get our data as contiguous bytes before accessing as flatbuf
-                const char* fb = bl.c_str();
-                size_t fb_size = bl.length();
+                // keep track of the specified row num for this record
+                std::vector<unsigned int> row_nums;
+                row_nums.push_back(rec_ent.row_num);
 
-                Tables::sky_root root = Tables::getSkyRoot(fb, fb_size);
-                flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
-                std::string errmsg;
-                ret = Tables::processSkyFb(flatbldr, schema_in, schema_out,
-                                           preds, fb, fb_size, errmsg);
-                if (ret != 0) {
-                    CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                    CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                    return -1;
+                // now build the key to lookup the corresponding flatbuf entry
+                std::string key_prefix = buildKeyPrefix(SIT_IDX_FB,
+                                                        db_schema,
+                                                        table);
+                std::string key_data = buildKeyData(SDT_INT32, rec_ent.fb_num);
+                std::string key = key_prefix + key_data;
+                struct idx_fb_entry fb_ent;
+                bufferlist bl;
+                ret = cls_cxx_map_get_val(hctx, key, &bl);
+                if (ret < 0 && ret != -ENOENT) {
+                    CLS_ERR("cant read map val index for idx_fb_key, %d", ret);
+                    return ret;
                 }
-                rows_processed += root.nrows;
-                const char *processed_fb = \
-                    reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                int bufsz = flatbldr.GetSize();
+                if (ret >= 0) {
+                    try {
+                        bufferlist::iterator it = bl.begin();
+                        ::decode(fb_ent, it);
+                    } catch (const buffer::error &err) {
+                        CLS_ERR("ERROR: decoding query idx_fb_ent");
+                        return -EINVAL;
+                    }
 
-                // add this processed fb to our sequence of bls
-                bufferlist ans;
-                ans.append(processed_fb, bufsz);
-                ::encode(ans, result_bl);
+                    // either add these row nums to the read_info struct for
+                    // the given fb, or create a new read_info for the given fb
+                    auto it = reads.find(rec_ent.fb_num);
+                    if (it != reads.end())
+                        it->second.rnums.insert(it->second.rnums.end(),
+                                                row_nums.begin(),
+                                                row_nums.end());
+                    else
+                        reads[rec_ent.fb_num] = \
+                            Tables::read_info(rec_ent.fb_num,
+                                                    fb_ent.off,
+                                                    fb_ent.len,
+                                                    row_nums);
+                }
+            } else  {  // no rec found for key
+                // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
+            }
+        }
+    }
+
+    // set all of the accumulated rows info per fb into the index reads vector
+    for (auto it = reads.begin(); it != reads.end(); ++it)
+        idx_reads.push_back(it->second);
+    return 0;
+}
+
+/*
+ * Primary method to process queries (new:flatbufs, old:q_a thru q_f)
+ */
+static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    int ret = 0;
+    uint64_t rows_processed = 0;
+    uint64_t read_ns = 0;
+    uint64_t eval_ns = 0;
+    bufferlist result_bl;  // result set to be returned to client.
+    query_op op;
+
+    // extract the query op to get the query request params
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: decoding query op");
+        return -EINVAL;
+    }
+    std::string msg = op.toString();
+    std::replace(msg.begin(), msg.end(), '\n', ' ');
+
+    if (op.query == "flatbuf") {
+
+        using namespace Tables;
+
+        // hold result of index lookups or read all flatbufs
+        std::vector<struct read_info> reads;
+
+        // fastpath means we skip processing rows and just return all rows,
+        // i.e., the entire obj
+        // NOTE: fastpath will not increment rows_processed since we do nothing
+        if (op.fastpath == true) {
+            bufferlist b;  // to hold the obj data.
+            uint64_t start = getns();
+            ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
+            if (ret < 0) {
+              CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+              return ret;
+            }
+            read_ns = getns() - start;
+            result_bl = b;
+        } else {
+
+            // schema_in is the table's current schema
+            schema_vec schema_in = schemaFromString(op.table_schema);
+
+            // schema_out is the query schema
+            schema_vec schema_out = schemaFromString(op.query_schema);
+
+            // predicates to be applied, if any
+            predicate_vec query_preds = predsFromString(schema_in, op.query_preds);
+
+            // lookup correct flatbuf and potentially set specific row nums
+            // to be processed next in processFb()
+            if (op.index_read) {
+
+                // index schema, should be empty if not op.index_read
+                schema_vec index_schema = schemaFromString(op.index_schema);
+
+                // index predicates to be applied, if any
+                predicate_vec index_preds = predsFromString(schema_in, op.index_preds);
+
+                // index lookup to set the read requests, if any rows match
+                ret = do_index_lookup(hctx,
+                                      index_preds,
+                                      index_schema,
+                                      op.db_schema,
+                                      op.table,
+                                      op.index_type,
+                                      reads);
+                if (ret < 0) {
+                    CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
+                    return ret;
+                }
+            } else {
+
+                // just read entire object.
+                struct read_info ri(0, 0, 0, {});
+                reads.push_back(ri);
+            }
+
+            // now we can decode and process each bl in the obj, specified
+            // by each read request.
+            // NOTE: 1 bl contains exactly 1 flatbuf.
+            for (unsigned i = 0; i < reads.size(); i++) {
+
+                bufferlist b;
+                size_t off = reads[i].off;
+                size_t len = reads[i].len;
+                std::vector<unsigned int> row_nums = reads[i].rnums;
+
+                uint64_t start = getns();
+                ret = cls_cxx_read(hctx, off, len, &b);
+                if (ret < 0) {
+                  CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+                  return ret;
+                }
+                read_ns += getns() - start;
+
+                start = getns();
+                ceph::bufferlist::iterator it = b.begin();
+                while (it.get_remaining() > 0) {
+                    bufferlist bl;
+                    try {
+                        ::decode(bl, it);  // unpack the next bl (flatbuf)
+                    } catch (const buffer::error &err) {
+                        CLS_ERR("ERROR: decoding flatbuf from BL");
+                        return -EINVAL;
+                    }
+
+                    // get our data as contiguous bytes before accessing as flatbuf
+                    const char* fb = bl.c_str();
+                    size_t fb_size = bl.length();
+
+                    sky_root root = Tables::getSkyRoot(fb, fb_size);
+                    flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+                    std::string errmsg;
+                    ret = processSkyFb(flatbldr,
+                                       schema_in,
+                                       schema_out,
+                                       query_preds,
+                                       fb,
+                                       fb_size,
+                                       errmsg,
+                                       row_nums);
+
+                    if (ret != 0) {
+                        CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
+                        CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                        return -1;
+                    }
+                    if (op.index_read)
+                        rows_processed += row_nums.size();
+                    else
+                        rows_processed += root.nrows;
+                    const char *processed_fb = \
+                        reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                    int bufsz = flatbldr.GetSize();
+
+                    // add this processed fb to our sequence of bls
+                    bufferlist ans;
+                    ans.append(processed_fb, bufsz);
+                    ::encode(ans, result_bl);
+                }
+                eval_ns += getns() - start;
             }
         }
     } else {
@@ -402,7 +593,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       }
       result_bl.reserve(bl.length());
 
-      eval_ns_start = getns();
+      uint64_t start = getns();
 
       // our test data is fixed size per col and uses tpch lineitem schema.
       const size_t row_size = 141;
@@ -422,8 +613,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       if (op.query == "a") {  // count query on extended_price col
         size_t result_count = 0;
         for (size_t rid = 0; rid < num_rows; rid++) {
-          const char *row = rows + rid * row_size;  // offset to row
-          const char *vptr = row + extended_price_field_offset;  // offset to col
+          const char *row = rows + rid * row_size;  // row off
+          const char *vptr = row + extended_price_field_offset; // col off
           const double val = *(const double*)vptr;  // extract data as col type
           if (val > op.extended_price) {  // apply filter
             result_count++;  // counter of matching rows for this count(*) query
@@ -433,7 +624,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         }
         ::encode(result_count, result_bl);  // store count into our result set.
       } else if (op.query == "b") {  // range query on extended_price col
-        if (op.projection) {  // only add (orderkey,linenum) col data to result set
+        if (op.projection) {  // only add (orderkey,linenum) data to result set
           for (size_t rid = 0; rid < num_rows; rid++) {
             const char *row = rows + rid * row_size;
             const char *vptr = row + extended_price_field_offset;
@@ -478,7 +669,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             }
           }
         }
-      } else if (op.query == "d") {// point query on primary key (orderkey,linenum)
+      } else if (op.query == "d") {// point query on PK (orderkey,linenum)
         if (op.use_index) {  // if we have previously built an index on the PK.
           // create the requested composite key from the op struct
           uint64_t key = ((uint64_t)op.order_key) << 32;
@@ -657,9 +848,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
       } else {
         return -EINVAL;
       }
-  }
-
-  uint64_t eval_ns = getns() - eval_ns_start;
+      eval_ns += getns() - start;
+    }
 
   // store timings and result set into output BL
   ::encode(read_ns, *out);
@@ -681,6 +871,6 @@ void __cls_init()
   cls_register_cxx_method(h_class, "build_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_index, &h_build_index);
 
-    cls_register_cxx_method(h_class, "build_sky_index",
+  cls_register_cxx_method(h_class, "build_sky_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_sky_index, &h_build_sky_index);
 }

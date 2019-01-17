@@ -11,7 +11,6 @@
 #include <fstream>
 #include <boost/program_options.hpp>
 #include "query.h"
-#include "cls/tabular/cls_split_utils.h"
 
 namespace po = boost::program_options;
 
@@ -24,32 +23,36 @@ int main(int argc, char **argv)
   std::string logfile;
   int qdepth;
   std::string dir;
-  std::string split_obj_arg;
 
-  std::string select_preds_str_default = Tables::SELECT_DEFAULT;
-  std::string project_cols_str_default = Tables::PROJECT_DEFAULT;
-  std::string schema_str_default = Tables::lineitem_test_schema_string;
-  std::string select_preds_str;   // provided by client app
-  std::string project_cols_str;  // provided by client app
-  std::string index_cols_str;  // provided by client app
-  std::string schema_str;  // provided by client app
+  // user/client input, trimmed and encoded to skyhook structs for query_op
+  // defaults set below via boost::program_options
+  bool index_read;
+  bool index_create;
+  std::string db_schema;
+  std::string table;
+  std::string table_schema;
+  std::string query_schema;
+  std::string index_schema;
+  std::string query_preds;
+  std::string index_preds;
+  std::string index_cols;
+  std::string project_cols;
 
-  // TODO: get actual schema from the db client.
-  schema_str = schema_str_default;
-
-  // set the table's current schema
-  Tables::schema_vec current_schema;
-  schemaFromString(current_schema, schema_str);
+  // set based upon program_options
+  int index_type = Tables::SIT_IDX_REC;
+  bool fastpath = false;
 
   // help menu messages for select and project
-  std::string project_help_msg = "col names as csv list";
+  std::string query_index_help_msg("Execute query via index lookup. Use " \
+                                   "in conjunction with -- select  " \
+                                   " and --use-cls flags.");
+  std::string project_help_msg("Provide column names as csv list");
+
+  std::string ops_help_msg(" where 'op' is one of: " \
+                       "lt, gt, eq, neq, leq, geq, like, in, between, " \
+                       "logical_and, logical_or, logical_not, logical_nor, " \
+                       "logical_xor, bitwise_and, bitwise_or");
   std::stringstream ss;
-  ss << " where 'op' is one of: "
-     << "lt, gt, eq, neq, leq, geq, like, in, between, "
-     << "logical_and, logical_or, logical_not, logical_nor, logical_xor, "
-     << "bitwise_and, bitwise_or";
-  std::string oplist = ss.str();
-  ss.clear();
   ss.str(std::string());
   ss << "<"
      << "colname" << Tables::PRED_DELIM_INNER
@@ -58,19 +61,18 @@ int main(int argc, char **argv)
      << "colname" << Tables::PRED_DELIM_INNER
      << "op" << Tables::PRED_DELIM_INNER
      << "value" << Tables::PRED_DELIM_OUTER
-     << "...>" << oplist;
+     << "...>" << ops_help_msg;
   std::string select_help_msg = ss.str();
 
-  // split_obj_msg for help output
-  ss.clear();
-  ss.str(std::string());
-  ss << "(true/false) do object splitting" ;
-  std::string split_obj_arg_msg = ss.str();
+  std::string create_index_help_msg("To create index on RIDs only, specify '" +
+        Tables::RID_INDEX + "', else specify " + project_help_msg +
+        ", currently only supports unique indexes over integral columns, with"
+        " max number of cols = " + std::to_string(Tables::MAX_COLS_INDEX));
 
+  std::string schema_help_msg = Tables::SCHEMA_FORMAT + "\nEX: \n" +
+        Tables::TEST_SCHEMA_STRING_PROJECT;
   po::options_description gen_opts("General options");
   gen_opts.add_options()
-
-    // setup parameters
     ("help,h", "show help message")
     ("pool", po::value<std::string>(&pool)->required(), "pool")
     ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
@@ -86,11 +88,7 @@ int main(int argc, char **argv)
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
     ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
-
-    // split option
-    ("split", po::value<std::string>(&split_obj_arg)->default_value("nah"), split_obj_arg_msg.c_str())
-
-    // query parameters
+    // query parameters (old)
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
     ("line-number", po::value<int>(&line_number)->default_value(0.0), "line number")
@@ -100,9 +98,16 @@ int main(int argc, char **argv)
     ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
-    ("create-index", po::value<std::string>(&index_cols_str)->default_value(""), project_help_msg.c_str())
-    ("project", po::value<std::string>(&project_cols_str)->default_value(project_cols_str_default), project_help_msg.c_str())
-    ("select", po::value<std::string>(&select_preds_str)->default_value(select_preds_str_default), select_help_msg.c_str())
+    // query parameters (new) flatbufs
+    ("db-schema-name", po::value<std::string>(&db_schema)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
+    ("table-name", po::value<std::string>(&table)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
+    ("table-schema", po::value<std::string>(&table_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
+    ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
+    ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
+    ("index-cols", po::value<std::string>(&index_cols)->default_value(""), project_help_msg.c_str())
+    ("project-cols", po::value<std::string>(&project_cols)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
+    ("index-preds", po::value<std::string>(&index_preds)->default_value(""), select_help_msg.c_str())
+    ("select-preds", po::value<std::string>(&query_preds)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
   ;
 
   po::options_description all_opts("Allowed options");
@@ -136,7 +141,6 @@ int main(int argc, char **argv)
 
   timings.reserve(num_objs);
 
-
   // generate the names of the objects to process
   for (unsigned oidx = 0; oidx < num_objs; oidx++) {
     std::stringstream oid_ss;
@@ -145,7 +149,6 @@ int main(int argc, char **argv)
     target_objects.push_back(oid);
   }
 
-  // why change the object order???
   if (dir == "fwd") {
     std::reverse(std::begin(target_objects),
         std::end(target_objects));
@@ -175,40 +178,220 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  // ========================================================= //
-  // build skyhook index over general flatbuf data
-    boost::trim(index_cols_str);
-    if (!index_cols_str.empty()) {
+  /*
+   * sanity check queries against provided parameters
+   */
+  if (query == "a") {
 
-    // create the idx op info to be used by the workers when reading obj data
-    Tables::schema_vec idx_schema;
-    Tables::schemaFromColNames(idx_schema, current_schema, index_cols_str);
-    if (idx_schema.size() > Tables::MAX_IDX_COLS)
-        assert (Tables::BuildSkyIndexUnsupportedNumCols == 0);
-    for (auto it=idx_schema.begin(); it!=idx_schema.end(); ++it) {
-        Tables::col_info ci = *it;  // must be integral type
-        if (ci.type <= Tables::SKY_INT8 or ci.type >= Tables::SKY_BOOL)
-            assert (Tables::BuildSkyIndexUnsupportedColType == 0);
-        if (ci.idx <= Tables::AGG_MIN)
-            assert (Tables::BuildSkyIndexUnsupportedAggCol == 0);
+    assert(!use_index); // not supported
+    assert(extended_price != 0.0);
+    std::cout << "select count(*) from lineitem where l_extendedprice > "
+      << extended_price << std::endl;
+
+  } else if (query == "b") {
+
+    assert(!use_index); // not supported
+    assert(extended_price != 0.0);
+    std::cout << "select * from lineitem where l_extendedprice > "
+      << extended_price << std::endl;
+
+  } else if (query == "c") {
+
+    assert(!use_index); // not supported
+    assert(extended_price != 0.0);
+    std::cout << "select * from lineitem where l_extendedprice = "
+      << extended_price << std::endl;
+
+  } else if (query == "d") {
+
+    if (use_index)
+      assert(use_cls);
+
+    assert(order_key != 0);
+    assert(line_number != 0);
+    std::cout << "select * from from lineitem where l_orderkey = "
+      << order_key << " and l_linenumber = " << line_number << std::endl;
+
+  } else if (query == "e") {
+
+    assert(!use_index); // not supported
+    assert(ship_date_low != -9999);
+    assert(ship_date_high != -9999);
+    assert(discount_low != -9999.0);
+    assert(discount_high != -9999.0);
+    assert(quantity != 0.0);
+    std::cout << "select * from lineitem where l_shipdate >= "
+      << ship_date_low << " and l_shipdate < " << ship_date_high
+      << " and l_discount > " << discount_low << " and l_discount < "
+      << discount_high << " and l_quantity < " << quantity << std::endl;
+
+  } else if (query == "f") {
+
+    assert(!use_index); // not supported
+    assert(comment_regex != "");
+    std::cout << "select * from lineitem where l_comment ilike '%"
+      << comment_regex << "%'" << std::endl;
+
+  } else if (query == "fastpath") {   // no processing required
+
+    assert(!use_index); // not supported
+    assert(!projection); // not supported
+    std::cout << "select * from lineitem" << std::endl;
+
+  } else if (query == "flatbuf") {
+
+    // verify and prep client input
+    using namespace Tables;
+
+    // clean input
+    boost::trim(db_schema);
+    boost::trim(table);
+    boost::trim(table_schema);
+    boost::trim(index_cols);
+    boost::trim(project_cols);
+    boost::trim(query_preds);
+    boost::trim(index_preds);
+
+    boost::to_upper(db_schema);
+    boost::to_upper(table);
+    boost::to_upper(index_cols);
+    boost::to_upper(project_cols);
+
+    assert (!table.empty());
+    assert (!db_schema.empty());
+    if(index_create or index_read) {
+        assert (!index_cols.empty());
+        assert (use_cls);
     }
 
-    // check if all keycols of current schema are present in index schema
-    bool unique_index = true;
-    for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
-        if ((*it).is_key) {
-            bool found = false;
-            for (auto it2=idx_schema.begin(); it2!=idx_schema.end(); ++it2) {
-                if ((*it).idx==(*it2).idx) found = true;
+    // set the index type
+    if (index_cols == RID_INDEX)
+        index_type = SIT_IDX_RID;
+    else
+        index_type = SIT_IDX_REC;
+
+    // below we convert user input to skyhook structures for error checking,
+    // to be encoded into query_op or index_op structs.
+
+    // verify and set the table schema, needed to create other preds/schemas
+    sky_tbl_schema = schemaFromString(table_schema);
+
+    // verify and set the index schema
+    sky_idx_schema = schemaFromColNames(sky_tbl_schema, index_cols);
+
+    // verify and set the query predicates
+   sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
+
+    // verify and set the index predicates
+    sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
+
+    // verify and set the query schema, check for select *
+    if (project_cols == PROJECT_DEFAULT) {
+        for(auto it=sky_tbl_schema.begin();it!=sky_tbl_schema.end();++it) {
+            col_info ci(*it);  // deep copy
+            sky_qry_schema.push_back(ci);
+        }
+
+        // if project all cols and there are no selection preds, set fastpath
+        if (sky_qry_preds.size() == 0 and sky_idx_preds.size() == 0)
+            fastpath = true;
+
+    } else {
+        projection = true;
+        if (hasAggPreds(sky_qry_preds)) {
+            for (auto it = sky_qry_preds.begin();
+                 it != sky_qry_preds.end(); ++it) {
+                PredicateBase* p = *it;
+                if (p->isGlobalAgg()) {
+                    // build col info for agg pred type, append to query schema
+                    std::string op_str = skyOpTypeToString(p->opType());
+                    int agg_idx = AGG_COL_IDX.at(op_str);
+                    int agg_val_type = p->colType();
+                    bool is_key = false;
+                    bool nullable = false;
+                    std::string agg_name = skyOpTypeToString(p->opType());
+                    const struct col_info ci(agg_idx, agg_val_type,
+                                             is_key, nullable, agg_name);
+                    sky_qry_schema.push_back(ci);
+                }
             }
-            unique_index &= found;
+        } else {
+            sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols);
         }
     }
-    assert (unique_index);  // only unique indexes currently supported
 
-    idx_op op(unique_index, build_index_batch_size,
-              Tables::schemaToString(idx_schema));
-    cout << op.toString() << endl;
+    if (index_read) {
+        if (sky_idx_preds.size() > MAX_COLS_INDEX)
+            assert (BuildSkyIndexUnsupportedNumCols == 0);
+        for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
+            if (sky_idx_preds[i]->opType() != SOT_eq) {
+                cerr << "Only equality predicates currently supported for "
+                     << "Skyhook indexes" << std::endl;
+                assert (SkyIndexUnsupportedOpType == 0);
+            }
+        }
+    }
+
+    // verify index has integral types and check col idx bounds
+    if (index_create) {
+        if (sky_idx_schema.size() > MAX_COLS_INDEX)
+            assert (BuildSkyIndexUnsupportedNumCols == 0);
+        for (auto it = sky_idx_schema.begin();
+                  it != sky_idx_schema.end(); ++it) {
+            col_info ci = *it;
+            if (ci.type <= SDT_INT8 or ci.type >= SDT_BOOL)
+                assert (BuildSkyIndexUnsupportedColType == 0);
+            if (ci.idx <= AGG_COL_LAST)
+                assert (BuildSkyIndexUnsupportedAggCol == 0);
+            if (ci.idx > static_cast<int>(sky_tbl_schema.size()))
+                assert (BuildSkyIndexColIndexOOB == 0);
+        }
+
+        // to enforce index is unique, verify that all of the table's keycols
+        // are present in the index.
+        bool unique_index = true;
+        if (index_type == SIT_IDX_REC) {
+            for (auto it = sky_tbl_schema.begin();
+                      it != sky_tbl_schema.end(); ++it) {
+                if (it->is_key) {
+                    bool keycol_present = false;
+                    for (auto it2 = sky_idx_schema.begin();
+                              it2 != sky_idx_schema.end(); ++it2) {
+                        if (it->idx==it2->idx) keycol_present = true;
+                    }
+                    unique_index &= keycol_present;
+                }
+                if (!unique_index) break;
+            }
+        }
+        assert (unique_index);  // only unique indexes currently supported
+    }
+
+    // set all of the flatbuf info for our query op.
+    qop_fastpath = fastpath;
+    qop_index_read = index_read;
+    qop_index_create = index_create;
+    qop_index_type = index_type;
+    qop_db_schema = db_schema;
+    qop_table = table;
+    qop_table_schema = schemaToString(sky_tbl_schema);
+    qop_query_schema = schemaToString(sky_qry_schema);
+    qop_index_schema = schemaToString(sky_idx_schema);
+    qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
+    qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
+
+  } else {  // query type unknown.
+    std::cerr << "invalid query type: " << query << std::endl;
+    exit(1);
+  }  // end verify query params
+
+  // launch index creation for flatbufs here.
+  if (query == "flatbuf" && index_create) {
+
+    idx_op op(true,
+              build_index_batch_size,
+              index_type,
+              qop_index_schema);
 
     // kick off the workers
     std::vector<std::thread> threads;
@@ -225,168 +408,6 @@ int main(int argc, char **argv)
 
     return 0;
   }
-  // build skyhook index over general flatbuf data
-  // ========================================================= //
-
-  // ========================================================= //
-  //sanity check queries against provided parameters
-
-  // QUERY A
-  if (query == "a") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select count(*) from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  }
-
-  // QUERY B
-  else if (query == "b") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  }
-
-  // QUERY C
-  else if (query == "c") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice = "
-      << extended_price << std::endl;
-
-  } 
-
-  // QUERY D
-  else if (query == "d") {
-
-    if (use_index)
-      assert(use_cls);
-
-    assert(order_key != 0);
-    assert(line_number != 0);
-    std::cout << "select * from from lineitem where l_orderkey = "
-      << order_key << " and l_linenumber = " << line_number << std::endl;
-
-  }
-
-  // QUERY E
-  else if (query == "e") {
-
-    assert(!use_index); // not supported
-    assert(ship_date_low != -9999);
-    assert(ship_date_high != -9999);
-    assert(discount_low != -9999.0);
-    assert(discount_high != -9999.0);
-    assert(quantity != 0.0);
-    std::cout << "select * from lineitem where l_shipdate >= "
-      << ship_date_low << " and l_shipdate < " << ship_date_high
-      << " and l_discount > " << discount_low << " and l_discount < "
-      << discount_high << " and l_quantity < " << quantity << std::endl;
-
-  }
-
-  // QUERY F
-  else if (query == "f") {
-
-    assert(!use_index); // not supported
-    assert(comment_regex != "");
-    std::cout << "select * from lineitem where l_comment ilike '%"
-      << comment_regex << "%'" << std::endl;
-
-  }
-
-  // FASTPATH
-  else if (query == "fastpath") {   // no processing required
-
-    assert(!use_index); // not supported
-    assert(!projection); // not supported
-    std::cout << "select * from lineitem" << std::endl;
-
-  }
-
-  // FLATBUF
-  else if (query == "flatbuf") {   // no processing required
-
-    // the queryop schema string will be either the full current schema
-    // or the query's projected schema.
-    // set the query schema and check if proj&select
-
-    Tables::schema_vec query_schema;
-    Tables::predicate_vec preds;
-    Tables::predsFromString(preds, current_schema, select_preds_str);
-    boost::trim(project_cols_str);
-    boost::trim(project_cols_str_default);
-
-    // check for select *
-    if (project_cols_str == project_cols_str_default) {
-
-        // the query schema is identical to the current schema
-        for (auto it=current_schema.begin(); it!=current_schema.end(); ++it)
-            query_schema.push_back(*it);
-
-        // treat as fastpath query if no project and no select predicates
-        if (preds.size() == 0)
-            fastpath = true;
-
-    } 
-
-    // query on attribute subset
-    else {
-        projection = true;
-        Tables::schemaFromColNames(query_schema, current_schema,
-                                   project_cols_str);
-        assert(query_schema.size() != 0);
-    }
-
-    // to be shipped to cls via query_op struct.
-    table_schema_str = schemaToString(current_schema);
-    query_schema_str = schemaToString(query_schema);
-    predicate_str = predsToString(preds, current_schema);
-
-    // for aggs, set the query output schema correctly here.
-    // note output schema will be in same col order as agg preds specified
-    if (Tables::hasAggPreds(preds)) {
-        query_schema.clear();   // the new return schema will only have aggs
-        for (auto it=preds.begin();it!=preds.end();++it) {
-            Tables::PredicateBase* p = *it;
-            if (p->isGlobalAgg()) {
-                // build col info for agg pred type, append to new query schema
-                int agg_idx = Tables::agg_idx_names.at(
-                        Tables::skyOpTypeToString(p->opType()));
-                int agg_val_type = p->colType();
-                bool is_key=false;
-                bool nullable=false;
-                std::string agg_name = Tables::skyOpTypeToString(p->opType());
-                const struct Tables::col_info ci(agg_idx, agg_val_type,
-                                                 is_key, nullable, agg_name);
-                query_schema.push_back(ci);
-            }
-        }
-        query_schema_str = schemaToString(query_schema);
-    }
-
-    // cleanup tmp vars
-    for (auto it=preds.begin();it!=preds.end();++it)
-        delete (*it);
-    preds.clear();
-
-  } 
-
-  else {
-    std::cerr << "invalid query: " << query << std::endl;
-    exit(1);
-  }
-
-  // ^sanity check queries against provided parameters
-  // ========================================================= //
-
-  // ========================================================= //
-  // run the query
 
   result_count = 0;
   rows_returned = 0;
@@ -405,39 +426,21 @@ int main(int argc, char **argv)
   std::unique_lock<std::mutex> lock(dispatch_lock);
   while (true) {
     while (outstanding_ios < qdepth) {
-
-      // -------------------------------- //
       // get an object to process
-
-      // break execution if we processed all objects
       if (target_objects.empty())
         break;
       std::string oid = target_objects.back();
       target_objects.pop_back();
       lock.unlock();
 
-      // ^get an object to process
-      // -------------------------------- //
-
-      // -------------------------------- //
       // dispatch an io request
-
-      // struct AioState {
-      //   ceph::bufferlist bl;
-      //   librados::AioCompletion *c;
-      //   timing times;
-      // };
       AioState *s = new AioState;
-      // gets an aio_completion
-      // s => a blank aiostate
-      // NULL => rados callback_t
-      // handle_cb => function for firing up a worker
-      s->c = librados::Rados::aio_create_completion( s, NULL, handle_cb);
+      s->c = librados::Rados::aio_create_completion(
+          s, NULL, handle_cb);
 
       memset(&s->times, 0, sizeof(s->times));
       s->times.dispatch = getns();
 
-      // ???
       if (use_cls) {
         query_op op;
         op.query = query;
@@ -452,54 +455,37 @@ int main(int argc, char **argv)
         op.comment_regex = comment_regex;
         op.use_index = use_index;
         op.projection = projection;
-        op.fastpath = fastpath;
-
-        // these are set above during user input err checking
-        op.table_schema_str = table_schema_str;
-        op.query_schema_str = query_schema_str;
-        op.predicate_str = predicate_str;
-
         op.extra_row_cost = extra_row_cost;
+        // flatbufs
+        op.fastpath = qop_fastpath;
+        op.index_read = qop_index_read;
+        op.index_type = qop_index_type;
+        op.db_schema = qop_db_schema;
+        op.table = qop_table;
+        op.table_schema = qop_table_schema;
+        op.query_schema = qop_query_schema;
+        op.index_schema = qop_index_schema;
+        op.query_preds = qop_query_preds;
+        op.index_preds = qop_index_preds;
+        // cerr << "query_op:" << op.toString() << std::endl;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
         int ret = ioctx.aio_exec(oid, s->c,
             "tabular", "query_op", inbl, &s->bl);
         checkret(ret, 0);
-      }
-
-      // don't use cls
-      else {
-
-        // issue io request
-        // asynchronously read from the striped object at the specified offset.
-        // int aio_read(const std::string& soid, 
-        //              librados::AioCompletion *c, 
-        //              ceph::bufferlist *pbl, 
-        //              size_t len, 
-        //              uint64_t off);
+      } else {
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
         checkret(ret, 0);
-
       }
 
       lock.lock();
       outstanding_ios++;
     }
-
-    // check if appears twice?
     if (target_objects.empty())
       break;
     dispatch_cond.wait(lock);
   }
   lock.unlock();
-
-  // ^run the query
-  // ========================================================= //
-
-  // ========================================================= //
-  // post-processing
-
-  std::cout << "thing0" << std::endl ;
 
   // drain any still-in-flight operations
   while (true) {
@@ -513,16 +499,11 @@ int main(int argc, char **argv)
     sleep(1);
   }
 
-  std::cout << "thing1" << std::endl ;
-
   // wait for all the workers to stop
   work_lock.lock();
   stop = true;
   work_lock.unlock();
   work_cond.notify_all();
-
-  std::cout << "thing2" << std::endl ;
-  //return 0 ;
 
   // the threads will exit when all the objects are processed
   for (auto& thread : threads) {
@@ -556,8 +537,6 @@ int main(int argc, char **argv)
     out.close();
   }
 
-  // ^post-processing
-  // ========================================================= //
-
   return 0;
 }
+

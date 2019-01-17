@@ -72,10 +72,26 @@ extern double discount_low;
 extern double discount_high;
 extern double quantity;
 extern std::string comment_regex;
-extern std::string table_schema_str;
-extern std::string query_schema_str;
-extern std::string predicate_str;
-extern bool fastpath;
+
+// query_op params for flatbufs
+extern bool qop_fastpath;
+extern bool qop_index_read;
+extern bool qop_index_create;
+extern int qop_index_type;
+extern std::string qop_db_schema;
+extern std::string qop_table;
+extern std::string qop_table_schema;
+extern std::string qop_query_schema;
+extern std::string qop_index_schema;
+extern std::string qop_query_preds;
+extern std::string qop_index_preds;
+
+// to convert strings <=> skyhook data structs
+extern Tables::schema_vec sky_tbl_schema;
+extern Tables::schema_vec sky_qry_schema;
+extern Tables::schema_vec sky_idx_schema;
+extern Tables::predicate_vec sky_qry_preds;
+extern Tables::predicate_vec sky_idx_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
