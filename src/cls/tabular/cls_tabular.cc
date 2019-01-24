@@ -111,21 +111,19 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             assert(Tables::BuildSkyIndexDecodeBlsErr==0);
         }
 
-        const char* fb = bl.c_str();
+        const char* fb = bl.c_str();   // get fb as contiguous bytes
         int fb_len = bl.length();
         Tables::sky_root root = Tables::getSkyRoot(fb, fb_len);
 
-        // CREATE AN IDX_FB_ENTRY (done for IDX_REC and IDX_RID)
-        //
-        // get the key prefix and key_data: the fb sequence num
+        // IDX_FB get the key prefix and key_data (fb sequence num)
         key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
                                     root.table_name);
         std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
         int len = sqnum.length();
         int pos = len - 10; //  get the minimum keychars for type, assume int32
         key_data_str = sqnum.substr(pos, len);
-        //
-        // create the entry
+
+        // IDX_FB create the entry struct, encode into bufferlist
         bufferlist fb_bl;
         struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
         ::encode(fb_ent, fb_bl);
@@ -133,9 +131,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         fbs_index[key] = fb_bl;
         //CLS_LOG(20,"key=%s",(key+";"+fb_ent.toString()).c_str());
 
-        // CREATE IDX_REC/RID_ENT
-        //
-        // get the key prefix and key data: either the col vals or RID
+        // IDX_REC/IDX_RID build the key prefix
         if (op.idx_type == Tables::SIT_IDX_RID) {
             key_prefix = buildKeyPrefix(Tables::SIT_IDX_RID, root.schema_name,
                                         root.table_name);
@@ -147,11 +143,14 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             }
             key_prefix = buildKeyPrefix(Tables::SIT_IDX_REC, root.schema_name,
                                         root.table_name, keycols);
-
         }
-        for (uint32_t i = 0; i < root.nrows; i++) {  // key data for each row
+
+        // IDX_REC/IDX_RID build key data for each row, either col vals or RID
+        for (uint32_t i = 0; i < root.nrows; i++) {
             key_data_str.clear();
             Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
+
+            // IDX_REC: get the row data and append each col val to key data
             if (op.idx_type == Tables::SIT_IDX_REC) {
                 auto row = rec.data.AsVector();
                 for (unsigned i = 0; i < idx_schema.size(); i++) {
@@ -160,13 +159,19 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                             idx_schema[i].type,
                                             row[idx_schema[i].idx].AsUInt64());
                 }
+                // append RID to end of key data to enforce uniqueness
+                if (!op.idx_unique) {
+                    key_data_str += Tables::IDX_KEY_DELIM_MAJR;
+                    key_data_str += Tables::u64tostr(rec.RID);
+                }
             }
-            else if (op.idx_type == Tables::SIT_IDX_RID) {
+
+            // IDX_RID: just append the RID to the key data (no col values)
+            if (op.idx_type == Tables::SIT_IDX_RID) {
                 key_data_str = Tables::u64tostr(rec.RID);
             }
 
-            //
-            // create the entry
+            // IDX_REC/IDX_RID create the entry struct, encode into bufferlist
             bufferlist rec_bl;
             struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
             ::encode(rec_ent, rec_bl);
@@ -174,7 +179,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             recs_index[key] = rec_bl;
             //CLS_LOG(20,"key=%s",(key+";"+rec_ent.toString()).c_str());
 
-            // write to omap in batches to minimize IOs
+            // IDX_REC/IDX_RID batch write to omap (minimizes #inserts)
             if (recs_index.size() > op.idx_batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
@@ -185,7 +190,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             }
         }  // end foreach row
 
-        // write to omap in batches to minimize IOs
+        // IDX_FB batch write to omap (minimizes #inserts)
         if (fbs_index.size() > op.idx_batch_size) {
             ret = cls_cxx_map_set_vals(hctx, &fbs_index);
             if (ret < 0) {
@@ -196,7 +201,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         }
     }  // end while decode wrapped_bls
 
-    // add any remaining recs_index and fb_index to omap
+    // IDX_REC/IDX_RID add any remaining entries to omap
     if (recs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &recs_index);
         if (ret < 0) {
@@ -204,6 +209,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             return ret;
         }
     }
+    // IDX_FB  add any remaining entries to omap
     if (fbs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &fbs_index);
         if (ret < 0) {

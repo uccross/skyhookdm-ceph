@@ -53,6 +53,12 @@ std::string qop_index_schema;
 std::string qop_query_preds;
 std::string qop_index_preds;
 
+// build index op params for flatbufs
+bool idx_op_idx_unique;
+int idx_op_batch_size;
+int idx_op_idx_type;
+std::string idx_op_idx_schema;
+
 // to convert strings <=> skyhook data structs
 Tables::schema_vec sky_tbl_schema;
 Tables::schema_vec sky_qry_schema;

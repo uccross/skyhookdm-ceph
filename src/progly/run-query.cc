@@ -41,6 +41,7 @@ int main(int argc, char **argv)
   // set based upon program_options
   int index_type = Tables::SIT_IDX_REC;
   bool fastpath = false;
+  bool idx_unique = false;
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -347,9 +348,8 @@ int main(int argc, char **argv)
                 assert (BuildSkyIndexColIndexOOB == 0);
         }
 
-        // to enforce index is unique, verify that all of the table's keycols
-        // are present in the index.
-        bool unique_index = true;
+        // try to falsify idx uniqueness
+        idx_unique = true;
         if (index_type == SIT_IDX_REC) {
             for (auto it = sky_tbl_schema.begin();
                       it != sky_tbl_schema.end(); ++it) {
@@ -359,12 +359,12 @@ int main(int argc, char **argv)
                               it2 != sky_idx_schema.end(); ++it2) {
                         if (it->idx==it2->idx) keycol_present = true;
                     }
-                    unique_index &= keycol_present;
+                    idx_unique &= keycol_present;
                 }
-                if (!unique_index) break;
+                if (!idx_unique)
+                    break;
             }
         }
-        assert (unique_index);  // only unique indexes currently supported
     }
 
     // set all of the flatbuf info for our query op.
@@ -380,6 +380,11 @@ int main(int argc, char **argv)
     qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
     qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
 
+    idx_op_idx_unique = idx_unique;
+    idx_op_batch_size = build_index_batch_size;
+    idx_op_idx_type = index_type;
+    idx_op_idx_schema = schemaToString(sky_idx_schema);
+
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
@@ -388,10 +393,10 @@ int main(int argc, char **argv)
   // launch index creation for flatbufs here.
   if (query == "flatbuf" && index_create) {
 
-    idx_op op(true,
-              build_index_batch_size,
-              index_type,
-              qop_index_schema);
+    idx_op op(idx_op_idx_unique,
+              idx_op_batch_size,
+              idx_op_idx_type,
+              idx_op_idx_schema);
 
     // kick off the workers
     std::vector<std::thread> threads;
