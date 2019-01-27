@@ -131,7 +131,8 @@ enum SkyIdxType
     SIT_IDX_FB,
     SIT_IDX_RID,
     SIT_IDX_REC,
-    SIT_IDX_TXT
+    SIT_IDX_TXT,
+    SIT_IDX_UNK
 };
 
 const std::map<SkyIdxType, std::string> SkyIdxTypeMap = {
@@ -157,6 +158,16 @@ const std::map<std::string, int> AGG_COL_IDX = {
     {"cnt", AGG_COL_CNT}
 };
 
+const std::unordered_map<std::string, bool> IDX_STOPWORDS= {
+    {"a", 1}, {"an", 1}, {"and", 1}, {"are",  1}, {"as", 1}, {"at", 1},
+    {"be", 1}, {"by", 1}, {"for", 1}, {"from", 1},
+    {"has", 1}, {"he", 1},
+    {"in", 1}, {"is", 1}, {"it", 1}, {"its", 1},
+    {"of", 1}, {"on", 1},
+    {"that", 1}, {"the", 1}, {"to", 1},
+    {"was", 1}, {"were", 1}, {"will", 1}, {"with", 1}
+};
+
 const int offset_to_skyhook_version = 4;
 const int offset_to_schema_version = 6;
 const int offset_to_table_name = 8;
@@ -172,10 +183,12 @@ const std::string PRED_DELIM_INNER = ",";
 const std::string PROJECT_DEFAULT = "*";
 const std::string SELECT_DEFAULT = "*";
 const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
-const int MAX_COLS_TABLE = 128; // depends upon nullbits vector size (skyroot)
-const int MAX_COLS_INDEX = 4;
-const std::string IDX_KEY_DELIM_MINR = "-";
-const std::string IDX_KEY_DELIM_MAJR = ":";
+const int MAX_COLSIZE = 4096; // primarily for text cols TODO: blobs
+const int MAX_TABLE_COLS = 128; // affects nullbits vector size (skyroot)
+const int MAX_INDEX_COLS = 4;
+const std::string IDX_KEY_DELIM_INNER = "-";
+const std::string IDX_KEY_DELIM_OUTER = ":";
+const std::string IDX_KEY_DELIM_UNIQUE = "ENFORCEUNIQ";
 const std::string IDX_KEY_COLS_DEFAULT = "*";
 const std::string SCHEMA_NAME_DEFAULT = "*";
 const std::string TABLE_NAME_DEFAULT = "*";
@@ -478,7 +491,11 @@ struct rec_table {
     rec_table(int64_t rid, nullbits_vector n, row_data_ref d) :
         RID(rid),
         nullbits(n),
-        data(d) {};
+        data(d) {
+            // ensure one nullbit per col
+            int num_nullbits = nullbits.size() * sizeof(nullbits[0]) * 8;
+            assert (num_nullbits == MAX_TABLE_COLS);
+        };
 };
 typedef struct rec_table sky_rec;
 
@@ -595,8 +612,8 @@ std::string skyOpTypeToString(int op);
 // for proj, select, fastpath, aggregations: process data and build return fb
 int processSkyFb(
         flatbuffers::FlatBufferBuilder& flatb,
-        schema_vec& schema_in,
-        schema_vec& schema_out,
+        schema_vec& data_schema,
+        schema_vec& query_schema,
         predicate_vec& preds,
         const char* fb,
         const size_t fb_size,

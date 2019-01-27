@@ -29,8 +29,8 @@ namespace Tables {
 
 int processSkyFb(
     flatbuffers::FlatBufferBuilder& flatbldr,
-    schema_vec& schema_in,
-    schema_vec& schema_out,
+    schema_vec& data_schema,
+    schema_vec& query_schema,
     predicate_vec& preds,
     const char* fb,
     const size_t fb_size,
@@ -44,13 +44,13 @@ int processSkyFb(
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
-    for (auto it=schema_in.begin(); it!=schema_in.end(); ++it) {
+    for (auto it=data_schema.begin(); it!=data_schema.end(); ++it) {
         if (it->idx > col_idx_max)
             col_idx_max = it->idx;
     }
 
-    bool project_all = std::equal (schema_in.begin(), schema_in.end(),
-                                   schema_out.begin(), Tables::compareColInfo);
+    bool project_all = std::equal (data_schema.begin(), data_schema.end(),
+                                   query_schema.begin(), compareColInfo);
 
     // build the flexbuf with computed aggregates, aggs are computed for
     // each row that passes, and added to flexbuf after loop below.
@@ -103,9 +103,9 @@ int processSkyFb(
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
         flexbldr->Vector([&]() {
 
-            // iter over the output schema, locating it within the input schema
-            for (auto it=schema_out.begin();
-                      it!=schema_out.end() && !errcode; ++it) {
+            // iter over the query schema, locating it within the data schema
+            for (auto it=query_schema.begin();
+                      it!=query_schema.end() && !errcode; ++it) {
 
                 col_info col = *it;
                 if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
@@ -257,7 +257,7 @@ int processSkyFb(
 
     // now build the return ROOT flatbuf wrapper
     std::string schema_str;
-    for (auto it = schema_out.begin(); it != schema_out.end(); ++it) {
+    for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
         schema_str.append(it->toString() + "\n");
     }
     auto table_name = flatbldr.CreateString(root.table_name);
@@ -1215,7 +1215,7 @@ std::string buildKeyPrefix(
             idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_REC);
             // stitch the colnames together
             for (unsigned i = 0; i < colnames.size(); i++) {
-                if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_MINR;
+                if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_INNER;
                 key_cols_str += colnames[i];
             }
             break;
@@ -1229,10 +1229,10 @@ std::string buildKeyPrefix(
     // TODO: this prefix should be encoded as a unique index number
     // to minimize key length/redundancy across keys
     return (
-        idx_type_str + IDX_KEY_DELIM_MAJR +
-        schema_name + IDX_KEY_DELIM_MINR +
-        table_name + IDX_KEY_DELIM_MAJR +
-        key_cols_str + IDX_KEY_DELIM_MAJR
+        idx_type_str + IDX_KEY_DELIM_OUTER +
+        schema_name + IDX_KEY_DELIM_INNER +
+        table_name + IDX_KEY_DELIM_OUTER +
+        key_cols_str + IDX_KEY_DELIM_OUTER
     );
 }
 

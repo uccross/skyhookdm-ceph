@@ -73,11 +73,12 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     int fb_seq_num = 0;  // TODO: get this from a stable counter.
 
     std::string key_prefix;
-    std::string key_data_str;
+    std::string key_data;
     std::string key;
     std::map<std::string, bufferlist> fbs_index;
     std::map<std::string, bufferlist> recs_index;
     std::map<std::string, bufferlist> rids_index;
+    std::map<std::string, bufferlist> txt_index;
 
     // extract the index op instructions from the input bl
     idx_op op;
@@ -90,6 +91,8 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     }
     Tables::schema_vec idx_schema = Tables::schemaFromString(op.idx_schema_str);
 
+    // CLS_LOG(20,"%s",(op.toString()).c_str());
+
     // obj contains one bl that itself wraps a seq of encoded bls of skyhook fb
     bufferlist wrapped_bls;
     int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
@@ -98,7 +101,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return ret;
     }
 
-    // decode and process each bl (contains 1 flatbuf) in a loop.
+    // decode and process each wrapped bl (each bl contains 1 flatbuf)
     uint64_t off = 0;
     ceph::bufferlist::iterator it = wrapped_bls.begin();
     uint64_t obj_len = it.get_remaining();
@@ -115,71 +118,167 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         int fb_len = bl.length();
         Tables::sky_root root = Tables::getSkyRoot(fb, fb_len);
 
+        // DATA LOCATION INDEX (PHYSICAL data reference):
+
         // IDX_FB get the key prefix and key_data (fb sequence num)
         key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
                                     root.table_name);
         std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
         int len = sqnum.length();
-        int pos = len - 10; //  get the minimum keychars for type, assume int32
-        key_data_str = sqnum.substr(pos, len);
+
+        // create string of len min chars per type, int32 here
+        int pos = len - 10;
+        key_data = sqnum.substr(pos, len);
 
         // IDX_FB create the entry struct, encode into bufferlist
         bufferlist fb_bl;
         struct idx_fb_entry fb_ent(off, fb_len + ceph_bl_encoding_len);
         ::encode(fb_ent, fb_bl);
-        key = key_prefix + key_data_str;
+        key = key_prefix + key_data;
         fbs_index[key] = fb_bl;
         //CLS_LOG(20,"key=%s",(key+";"+fb_ent.toString()).c_str());
 
-        // IDX_REC/IDX_RID build the key prefix
+        // DATA CONTENT INDEXES (LOGICAL data reference):
+
+        // Build the key prefixes for each index type (IDX_RID/IDX_REC/IDX_TXT)
         if (op.idx_type == Tables::SIT_IDX_RID) {
             key_prefix = buildKeyPrefix(Tables::SIT_IDX_RID, root.schema_name,
                                         root.table_name);
         }
-        else if (op.idx_type == Tables::SIT_IDX_REC) {
+        if (op.idx_type == Tables::SIT_IDX_REC or
+            op.idx_type == Tables::SIT_IDX_TXT) {
+
             std::vector<std::string> keycols;
             for (auto it = idx_schema.begin(); it != idx_schema.end(); ++it) {
                 keycols.push_back(it->name);
             }
-            key_prefix = buildKeyPrefix(Tables::SIT_IDX_REC, root.schema_name,
-                                        root.table_name, keycols);
+            key_prefix = Tables::buildKeyPrefix(op.idx_type, root.schema_name,
+                                                root.table_name, keycols);
         }
 
-        // IDX_REC/IDX_RID build key data for each row, either col vals or RID
+        // IDX_REC/IDX_RID/IDX_TXT: create the key data for each row
         for (uint32_t i = 0; i < root.nrows; i++) {
-            key_data_str.clear();
             Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
 
-            // IDX_REC: get the row data and append each col val to key data
-            if (op.idx_type == Tables::SIT_IDX_REC) {
-                auto row = rec.data.AsVector();
-                for (unsigned i = 0; i < idx_schema.size(); i++) {
-                    if (i > 0) key_data_str += Tables::IDX_KEY_DELIM_MINR;
-                    key_data_str += Tables::buildKeyData(
+            switch (op.idx_type) {
+                case Tables::SIT_IDX_RID: {
+                    // key_data is only the RID
+                    key_data = Tables::u64tostr(rec.RID);
+
+                    // create the entry, encode into bufferlist, update map
+                    bufferlist rec_bl;
+                    struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
+                    ::encode(rec_ent, rec_bl);
+                    key = key_prefix + key_data;
+                    recs_index[key] = rec_bl;
+                    //CLS_LOG(20,"kv=%s",(key+";"+rec_ent.toString()).c_str());
+                    break;
+                }
+                case Tables::SIT_IDX_REC: {
+
+                    // key data is built up from the relevant col vals
+                    key_data.clear();
+                    auto row = rec.data.AsVector();
+                    for (unsigned i = 0; i < idx_schema.size(); i++) {
+                        if (i > 0) key_data += Tables::IDX_KEY_DELIM_INNER;
+                        key_data += Tables::buildKeyData(
                                             idx_schema[i].type,
                                             row[idx_schema[i].idx].AsUInt64());
+                    }
+
+                    // to enforce uniqueness, append RID to key data
+                    if (!op.idx_unique) {
+                        key_data += (Tables::IDX_KEY_DELIM_OUTER +
+                                     Tables::IDX_KEY_DELIM_UNIQUE +
+                                     Tables::IDX_KEY_DELIM_INNER +
+                                     std::to_string(rec.RID));
+                    }
+
+                    // create the entry, encode into bufferlist, update map
+                    bufferlist rec_bl;
+                    struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
+                    ::encode(rec_ent, rec_bl);
+                    key = key_prefix + key_data;
+                    recs_index[key] = rec_bl;
+                    //CLS_LOG(20,"kv=%s",(key+";"+rec_ent.toString()).c_str());
+                    break;
                 }
-                // append RID to end of key data to enforce uniqueness
-                if (!op.idx_unique) {
-                    key_data_str += Tables::IDX_KEY_DELIM_MAJR;
-                    key_data_str += Tables::u64tostr(rec.RID);
+                case Tables::SIT_IDX_TXT: {
+
+                    // add each word in the row to a words vector, store as
+                    // lower case and and preserve word sequence order.
+                    std::vector<std::pair<std::string, int>> words;
+                    std::string delims;
+                    if (!op.idx_delims.empty())
+                        delims = op.idx_delims;
+                    else
+                        delims = " \t\r\f\v\n"; // whitespace chars
+                    auto row = rec.data.AsVector();
+                    for (unsigned i = 0; i < idx_schema.size(); i++) {
+                        if (i > 0) key_data += Tables::IDX_KEY_DELIM_INNER;
+                        std::string line = \
+                            row[idx_schema[i].idx].AsString().str();
+                        boost::trim(line);
+                        if (line.empty())
+                            continue;
+                        vector<std::string> elems;
+                        boost::split(elems, line, boost::is_any_of(delims),
+                                            boost::token_compress_on);
+                        for (uint32_t i = 0; i < elems.size(); i++) {
+                            std::string word = \
+                                    boost::algorithm::to_lower_copy(elems[i]);
+                            boost::trim(word);
+
+                            // skip stopwords?
+                            if (op.idx_ignore_stopwords and
+                                Tables::IDX_STOPWORDS.count(word) > 0) {
+                                    continue;
+
+                            }
+                            words.push_back(std::make_pair(elems[i], i));
+                        }
+                    }
+                    // now create a key and val (an entry struct) for each
+                    // word extracted from line
+                    for (auto it = words.begin(); it != words.end(); ++it) {
+
+                        key_data.clear();
+                        std::string word = it->first;
+                        key_data += word;
+
+                        // add the RID for uniqueness,
+                        // in case of repeated words within all rows
+                        key_data += (Tables::IDX_KEY_DELIM_OUTER +
+                                     Tables::IDX_KEY_DELIM_UNIQUE +
+                                     Tables::IDX_KEY_DELIM_INNER +
+                                     std::to_string(rec.RID));
+
+                        // add the word pos for uniqueness,
+                        // in case of repeated words within same row
+                        int word_pos = it->second;
+                        key_data += (Tables::IDX_KEY_DELIM_INNER +
+                                     std::to_string(word_pos));
+
+                        // create the entry, encode into bufferlist, update map
+                        bufferlist txt_bl;
+                        struct idx_txt_entry txt_ent(fb_seq_num, i,
+                                                     rec.RID, word_pos);
+                        ::encode(txt_ent, txt_bl);
+                        key = key_prefix + key_data;
+                        txt_index[key] = txt_bl;
+                        /*CLS_LOG(20,"kv=%s",
+                                 (key+";"+txt_ent.toString()).c_str());*/
+                    }
+                    break;
+                }
+                default: {
+                    CLS_ERR("build_sky_index() %s", (
+                            "Index type unknown. type=" +
+                            std::to_string(op.idx_type)).c_str());
                 }
             }
 
-            // IDX_RID: just append the RID to the key data (no col values)
-            if (op.idx_type == Tables::SIT_IDX_RID) {
-                key_data_str = Tables::u64tostr(rec.RID);
-            }
-
-            // IDX_REC/IDX_RID create the entry struct, encode into bufferlist
-            bufferlist rec_bl;
-            struct idx_rec_entry rec_ent(fb_seq_num, i, rec.RID);
-            ::encode(rec_ent, rec_bl);
-            key = key_prefix + key_data_str;
-            recs_index[key] = rec_bl;
-            //CLS_LOG(20,"key=%s",(key+";"+rec_ent.toString()).c_str());
-
-            // IDX_REC/IDX_RID batch write to omap (minimizes #inserts)
+            // IDX_REC/IDX_RID batch insert to omap (minimize IOs)
             if (recs_index.size() > op.idx_batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
@@ -188,9 +287,19 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 }
                 recs_index.clear();
             }
+
+            // IDX_TXT batch insert to omap (minimize IOs)
+            if (txt_index.size() > op.idx_batch_size) {
+                ret = cls_cxx_map_set_vals(hctx, &txt_index);
+                if (ret < 0) {
+                    CLS_ERR("error setting recs index entries %d", ret);
+                    return ret;
+                }
+                txt_index.clear();
+            }
         }  // end foreach row
 
-        // IDX_FB batch write to omap (minimizes #inserts)
+        // IDX_FB batch insert to omap (minimize IOs)
         if (fbs_index.size() > op.idx_batch_size) {
             ret = cls_cxx_map_set_vals(hctx, &fbs_index);
             if (ret < 0) {
@@ -201,7 +310,18 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         }
     }  // end while decode wrapped_bls
 
-    // IDX_REC/IDX_RID add any remaining entries to omap
+
+    // IDX_TXT insert remaining entries to omap
+    if (txt_index.size() > 0) {
+        ret = cls_cxx_map_set_vals(hctx, &txt_index);
+        if (ret < 0) {
+            CLS_ERR("error setting recs index entries %d", ret);
+            return ret;
+        }
+        txt_index.clear();
+    }
+
+    // IDX_REC/IDX_RID insert remaining entries to omap
     if (recs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &recs_index);
         if (ret < 0) {
@@ -209,7 +329,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             return ret;
         }
     }
-    // IDX_FB  add any remaining entries to omap
+    // IDX_FB insert remaining entries to omap
     if (fbs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &fbs_index);
         if (ret < 0) {
@@ -359,7 +479,7 @@ do_index_lookup(
                 assert (BuildSkyIndexUnsupportedColType==0);
         }
         if (i > 0)
-            key_data += Tables::IDX_KEY_DELIM_MINR;
+            key_data += Tables::IDX_KEY_DELIM_INNER;
         key_data += buildKeyData(index_preds[i]->colType(), val);
     }
     std::string key = key_prefix + key_data;
@@ -481,14 +601,14 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             result_bl = b;
         } else {
 
-            // schema_in is the table's current schema
-            schema_vec schema_in = schemaFromString(op.table_schema);
+            // data_schema is the table's current schema
+            schema_vec data_schema = schemaFromString(op.data_schema);
 
-            // schema_out is the query schema
-            schema_vec schema_out = schemaFromString(op.query_schema);
+            // query_schema is the query schema
+            schema_vec query_schema = schemaFromString(op.query_schema);
 
             // predicates to be applied, if any
-            predicate_vec query_preds = predsFromString(schema_in, op.query_preds);
+            predicate_vec query_preds = predsFromString(data_schema, op.query_preds);
 
             // lookup correct flatbuf and potentially set specific row nums
             // to be processed next in processFb()
@@ -498,14 +618,14 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 schema_vec index_schema = schemaFromString(op.index_schema);
 
                 // index predicates to be applied, if any
-                predicate_vec index_preds = predsFromString(schema_in, op.index_preds);
+                predicate_vec index_preds = predsFromString(data_schema, op.index_preds);
 
                 // index lookup to set the read requests, if any rows match
                 ret = do_index_lookup(hctx,
                                       index_preds,
                                       index_schema,
                                       op.db_schema,
-                                      op.table,
+                                      op.table_name,
                                       op.index_type,
                                       reads);
                 if (ret < 0) {
@@ -556,8 +676,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                     flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
                     std::string errmsg;
                     ret = processSkyFb(flatbldr,
-                                       schema_in,
-                                       schema_out,
+                                       data_schema,
+                                       query_schema,
                                        query_preds,
                                        fb,
                                        fb_size,

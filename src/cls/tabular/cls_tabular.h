@@ -42,8 +42,8 @@ struct query_op {
   bool index_read;
   int index_type;
   std::string db_schema;
-  std::string table;
-  std::string table_schema;
+  std::string table_name;
+  std::string data_schema;
   std::string query_schema;
   std::string index_schema;
   std::string query_preds;
@@ -72,8 +72,8 @@ struct query_op {
     ::encode(index_read, bl);
     ::encode(index_type, bl);
     ::encode(db_schema, bl);
-    ::encode(table, bl);
-    ::encode(table_schema, bl);
+    ::encode(table_name, bl);
+    ::encode(data_schema, bl);
     ::encode(query_schema, bl);
     ::encode(index_schema, bl);
     ::encode(query_preds, bl);
@@ -102,8 +102,8 @@ struct query_op {
     ::decode(index_read, bl);
     ::decode(index_type, bl);
     ::decode(db_schema, bl);
-    ::decode(table, bl);
-    ::decode(table_schema, bl);
+    ::decode(table_name, bl);
+    ::decode(data_schema, bl);
     ::decode(query_schema, bl);
     ::decode(index_schema, bl);
     ::decode(query_preds, bl);
@@ -118,8 +118,8 @@ struct query_op {
     s.append(" .index_read=" + std::to_string(index_read));
     s.append(" .index_type=" + std::to_string(index_type));
     s.append(" .db_schema=" + db_schema);
-    s.append(" .table=" + table);
-    s.append(" .table_schema=" + table_schema);
+    s.append(" .table_name=" + table_name);
+    s.append(" .data_schema=" + data_schema);
     s.append(" .query_schema=" + query_schema);
     s.append(" .index_schema=" + index_schema);
     s.append(" .query_preds=" + query_preds);
@@ -129,14 +129,14 @@ struct query_op {
 };
 WRITE_CLASS_ENCODER(query_op)
 
-// omap entry for indexed fb metadata (physical loc info)
-// key = fb sequence number
-// val =  struct containing physical location of fb within obj
-// note that each fb is encoded as an independent bufferlist in the obj
-// and objs contain a sequence of fbs
+// holds an omap entry containing flatbuffer location
+// this entry type contains physical location info
+// idx_key = idx_prefix + fb sequence number (int)
+// val = this struct containing to PHYSICAL location of fb within obj
+// note: objs contain a sequence of fbs, hence the off/len is needed
 struct idx_fb_entry {
-    uint32_t off;  // byte offset within obj pointing to encoded fb
-    uint32_t len;  // fb size
+    uint32_t off;
+    uint32_t len;
 
     idx_fb_entry() {}
     idx_fb_entry(uint32_t o, uint32_t l) : off(o), len(l) { }
@@ -164,13 +164,14 @@ struct idx_fb_entry {
 };
 WRITE_CLASS_ENCODER(idx_fb_entry)
 
-// omap entry for indexed col value (logical loc info)
-// key = column data value (may be composite of multiple cols)
-// val = struct containing to logical location of row within fb within obj
+// holds an omap entry for indexed col values
+// this index entry type contains logical location info
+// idx_key = idx_prefix + column data value(s) (ints)
+// val = this struct containing to LOGICAL location of row within an fb
 struct idx_rec_entry {
-    uint32_t fb_num;  // within obj containing seq of fbs
-    uint32_t row_num;  // idx into rows array within fb root[nrows]
-    uint64_t rid;  // record id, for verification
+    uint32_t fb_num;
+    uint32_t row_num;
+    uint64_t rid;
 
     idx_rec_entry() {}
     idx_rec_entry(uint32_t fb, uint32_t row, uint64_t rec_id) :
@@ -204,26 +205,79 @@ struct idx_rec_entry {
 };
 WRITE_CLASS_ENCODER(idx_rec_entry)
 
-// to encode indexing op metadata into bl for build_sky_index()
+// omap entry for text index
+// this index entry type contains logical location info
+// idx_key = idx_prefix + column data value (here a text string)
+// val = this struct containing to logical location of row within fb
+struct idx_txt_entry {
+    uint32_t fb_num;
+    uint32_t row_num;
+    uint64_t rid;
+    uint32_t wpos;  // word's relative position in column, i.e., word number
+
+    idx_txt_entry() {}
+    idx_txt_entry(uint32_t fb, uint32_t row, uint64_t rec_id, uint32_t wp):
+            fb_num(fb),
+            row_num(row),
+            rid(rec_id),
+            wpos(wp) {}
+
+    void encode(bufferlist& bl) const {
+        ENCODE_START(1, 1, bl);
+        ::encode(fb_num, bl);
+        ::encode(row_num, bl);
+        ::encode(rid, bl);
+        ::encode(wpos, bl);
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(bufferlist::iterator& bl) {
+        DECODE_START(1, bl);
+        ::decode(fb_num, bl);
+        ::decode(row_num, bl);
+        ::decode(rid, bl);
+        ::decode(wpos, bl);
+        DECODE_FINISH(bl);
+    }
+
+    std::string toString() {
+        std::string s;
+        s.append("idx_txt_entry.fb_num=" + std::to_string(fb_num));
+        s.append("; idx_txt_entry.row_num=" + std::to_string(row_num));
+        s.append("; idx_txt_entry.rid=" + std::to_string(rid));
+        s.append("; idx_txt_entry.wpos=" + std::to_string(wpos));
+        return s;
+    }
+};
+WRITE_CLASS_ENCODER(idx_txt_entry)
+
+// Stores index instructions/metadata into bl for build_sky_index()
 struct idx_op {
-    bool idx_unique;   // whether to replace or append vals
-    uint32_t idx_batch_size;  // num idx entries to store at once
+    bool idx_unique;   // if idx contains all primary key/unique cols
+    bool idx_ignore_stopwords;  // for text indexing
+    uint32_t idx_batch_size;  // num idx entries to write into omap at once
     int idx_type;
     std::string idx_schema_str;
+    std::string idx_delims; // for text indexing
 
     idx_op() {}
-    idx_op(bool unq, int batsz, int index_type, std::string schema_str) :
+    idx_op(bool unq, bool ign, int batsz, int index_type,
+           std::string schema_str, std::string delimiters) :
         idx_unique(unq),
+        idx_ignore_stopwords(ign),
         idx_batch_size(batsz),
         idx_type(index_type),
-        idx_schema_str(schema_str) {}
+        idx_schema_str(schema_str),
+        idx_delims(delimiters) {}
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);
         ::encode(idx_unique, bl);
+        ::encode(idx_ignore_stopwords, bl);
         ::encode(idx_batch_size, bl);
         ::encode(idx_type, bl);
         ::encode(idx_schema_str, bl);
+        ::encode(idx_delims, bl);
         ENCODE_FINISH(bl);
     }
 
@@ -231,18 +285,23 @@ struct idx_op {
         std::string s;
         DECODE_START(1, bl);
         ::decode(idx_unique, bl);
+        ::decode(idx_ignore_stopwords, bl);
         ::decode(idx_batch_size, bl);
         ::decode(idx_type, bl);
         ::decode(idx_schema_str, bl);
+        ::decode(idx_delims, bl);
         DECODE_FINISH(bl);
     }
 
     std::string toString() {
         std::string s;
         s.append("idx_op.idx_unique=" + std::to_string(idx_unique));
+        s.append("idx_op.idx_ignore_stopwords=" +
+                 std::to_string(idx_ignore_stopwords));
         s.append("; idx_op.idx_batch_size=" + std::to_string(idx_batch_size));
         s.append("; idx_op.idx_type=" + std::to_string(idx_type));
         s.append("; idx_op.idx_schema_str=\n" + idx_schema_str);
+        s.append("; idx_op.delims=\n" + idx_delims);
         return s;
     }
 };
