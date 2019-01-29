@@ -12,9 +12,10 @@
 #ifndef CLS_TABULAR_H
 #define CLS_TABULAR_H
 
-#include "cls_tabular_utils.h"
-
 #include "include/types.h"
+
+
+void cls_log_message(std::string msg, bool is_err, int log_level);
 
 /*
  * Stores the query request parameters.  This is encoded by the client and

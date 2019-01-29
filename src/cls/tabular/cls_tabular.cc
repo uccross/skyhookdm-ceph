@@ -17,8 +17,9 @@
 #include "re2/re2.h"
 #include "include/types.h"
 #include "objclass/objclass.h"
-#include "cls_tabular.h"
 #include "cls_tabular_utils.h"
+#include "cls_tabular.h"
+
 
 CLS_VER(1,0)
 CLS_NAME(tabular)
@@ -28,6 +29,13 @@ cls_method_handle_t h_query_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_build_sky_index;
 
+
+void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
+    if (is_err)
+        CLS_ERR("skyhook: %s", msg.c_str());
+    else
+        CLS_LOG(log_level,"skyhook: %s", msg.c_str());
+}
 
 static inline uint64_t __getns(clockid_t clock)
 {
