@@ -7,10 +7,17 @@ install(TARGETS buffer_exercises DESTINATION bin)
 
 # ------------------------------------------------------- #
 # run-split
-add_executable(run-split run-split.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
+add_executable(run-split run-split.cc ${CMAKE_SOURCE_DIR}/src/cls/split/cls_split.cc)
 target_link_libraries(run-split librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
 install(TARGETS run-split DESTINATION bin)
+
+# ------------------------------------------------------- #
+# run-transform
+add_executable(run-transform run-transform.cc ${CMAKE_SOURCE_DIR}/src/cls/transform/cls_transform.cc)
+target_link_libraries(run-transform librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-transform DESTINATION bin)
 
 # ------------------------------------------------------- #
 # run-query
