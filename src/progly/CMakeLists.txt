@@ -1,9 +1,9 @@
 # ------------------------------------------------------- #
-# run-query
-add_executable(run-query run-query.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
-target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
+# buffer_exercises
+add_executable(buffer_exercises buffer_exercises.cc)
+target_link_libraries(buffer_exercises librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS run-query DESTINATION bin)
+install(TARGETS buffer_exercises DESTINATION bin)
 
 # ------------------------------------------------------- #
 # run-split
@@ -11,6 +11,13 @@ add_executable(run-split run-split.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabul
 target_link_libraries(run-split librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
 install(TARGETS run-split DESTINATION bin)
+
+# ------------------------------------------------------- #
+# run-query
+add_executable(run-query run-query.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
+target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-query DESTINATION bin)
 
 # ------------------------------------------------------- #
 install(PROGRAMS filtering.sh DESTINATION bin

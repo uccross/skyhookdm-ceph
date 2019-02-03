@@ -47,6 +47,42 @@ namespace SplitUtils {
 
   void do_remove( librados::IoCtx io_ctx, std::string oid ) ;
 
+  // =========================================================== //
+  // TRANSFORM
+
+  int transform( librados::IoCtx io_ctx, 
+                 std::string src_oid, 
+                 int offset, 
+                 int len, 
+                 int (*transform_func)( librados::IoCtx io_ctx, librados::bufferlist, int, int ) )
+  {
+    std::cout << "\n============\nrunning transform\n\n" << std::endl ;
+    std::cout << "    src_oid      = " << src_oid << std::endl ;
+    std::cout << "    offset       = " << offset  << std::endl ;
+    std::cout << "    len          = " << len     << std::endl ;
+    std::cout << "\n" << std::endl ;
+
+    librados::bufferlist src_bl  = do_read( io_ctx, src_oid ) ;
+
+    std::cout << "------------- start -------------" << std::endl ;
+
+    std::string data = (std::string)src_bl.c_str() ;
+
+    std::cout << data   << std::endl ;
+    std::cout << len    << std::endl ;
+    std::cout << offset << std::endl ;
+
+    transform_func( io_ctx, src_bl, offset, len ) ;
+
+    std::cout << "------------- end -------------" << std::endl ;
+
+    librados::bufferlist _src_bl  = do_read( io_ctx, src_oid ) ;
+
+    //do_remove( io_ctx, src_oid ) ;
+
+    return 0 ;
+  }
+
 
   // =========================================================== //
   // SPLIT 2

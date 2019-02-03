@@ -23,8 +23,7 @@
 
 // skyhook includes
 #include "query.h"
-#include "cls/tabular/cls_split_utils.h"
-#include "cls/tabular/cls_tabular_utils.h"
+#include "cls/copy_transform/cls_splits.h"
 
 #include <chrono>
 
@@ -33,314 +32,92 @@ namespace po = boost::program_options;
 int main(int argc, char **argv)
 {
 
-  std::cout << "let's start splittin!!!" << std::endl ;
+  std::cout << "starting splits..." << std::endl ;
 
-  // after placing flatbuffers in rados:
-  // 1. list all rados objects.
-  // 2. get all data from a flatbuffer
-  // 3. divide the data into two
-  // 4. create two new ceph objects and store in rados
-  // 5. delete the original object
-  // 6. read in the data for all three objects again
+  CopyTransform::test_func() ;
+  Splits::test_func() ;
 
-  // ---------------------------------------------------------------------------- //
-
-  // connect to rados
-  librados::Rados cluster;
-  cluster.init(NULL);
-  cluster.conf_read_file(NULL);
-  int ret = cluster.connect();
-  checkret(ret, 0);
-
-  /* Continued from previous C++ example, where cluster handle and
-   * connection are established. First declare an I/O Context.
-   */
-
-  librados::IoCtx io_ctx;
-  const char *pool_name = "tpchflatbuf";
-  const char *obj_name  = "split1";
-  //std::string obj_data  = "string_with_odd_num_chars" ;
-  //std::string obj_data  = "string_with_odd_num_chars\0" ;
-  std::string obj_data  = "string_with_even_num_chars" ;
-  librados::bufferlist bl;
-
+  // Copy from iter into target bl
   {
-    ret = cluster.ioctx_create(pool_name, io_ctx);
-    if (ret < 0) {
-      std::cerr << "Couldn't set up ioctx! error " << ret << std::endl;
-      exit(EXIT_FAILURE);
-    } else {
-      std::cout << "Created an ioctx for the pool." << std::endl;
-    }
+    std::cout << "run-split.cc" << std::endl ;
+
+    bufferlist bl;
+    bl.append("ABCD",4);
+    bufferlist copy;
+    bufferlist::iterator i(&bl);  // you can also declare iterator at a pos:  i(&bl, 2);
+    i.copy(1, copy);  // copy="A"
+    i.seek(0);
+    i.copy(4, copy);  // copy=AABCD
+    i.seek(2);
+    i.copy(1, copy) ;  // copy=AABCDC
+    i.seek(0);
+    i.copy(4, copy);  // copy=AABCDCABCD
+
+    std::cout << bl.c_str() << std::endl ;
+    std::cout << copy.c_str() << std::endl ;
   }
 
-  /* Write an object synchronously. */
+  std::cout << "==========================================" << std::endl ;
+  std::cout << ">>>   NO SPLIT   <<<" << std::endl ;
+
   {
-    bl.append( obj_data );
-    ret = io_ctx.write_full(obj_name, bl);
-    if (ret < 0) {
-      std::cerr << "Couldn't write object! error " << ret << std::endl;
-      exit(EXIT_FAILURE);
-    } else {
-      std::cout << "Wrote new object '"  << obj_name << "' " << std::endl;
-    }
+//    bufferlist src_blist ;
+//    bufferptr a("asdf", 4);
+//    src_blist.append( a ) ;
+//    bufferlist dest_blist ;
+//    bufferlist::iterator src_biter = src_blist.begin() ;
+//
+//    Splits::split( src_biter, dest_blist, 0 ) ;
+//
+//    std::cout << "check these:" << std::endl ;
+//    std::cout << "dest_blist.c_str() = " << dest_blist.c_str() << std::endl ;
+//    bufferlist::iterator dest_biter = dest_blist.begin() ;
+//    std::cout << "dest_biter.get_remaining() = " << dest_biter.get_remaining() << std::endl ;
+
+    //bufferlist src_blist ;
+    //bufferptr a("asdf", 4);
+    //src_blist.append( a ) ;
+    //bufferlist dest_blist ;
+    //bufferlist::iterator src_biter = src_blist.begin() ;
+    //const buffer::ptr src_bptr = src_biter.get_current_ptr();
+    //std::cout << src_bptr[0] << std::endl ;
+    //std::cout << src_bptr[1] << std::endl ;
+    //std::cout << src_bptr[2] << std::endl ;
+    //std::cout << src_bptr[3] << std::endl ;
+    ////std::cout << src_bptr[4] << std::endl ; //core dump
+
+    //std::cout << "src_bptr.offset()         = " << src_bptr.offset()         << std::endl ;
+    //std::cout << "src_bptr.length()         = " << src_bptr.length()         << std::endl ;
+    //std::cout << "src_biter.get_remaining() = " << src_biter.get_remaining() << std::endl ; 
+    //std::cout << "src_biter.get_off()       = " << src_biter.get_off()       << std::endl ; 
+
+    //std::string dest_data = "" ;
+    //for ( unsigned int i = 0; i < src_bptr.length(); i++ )
+    //{
+    //  dest_data += src_bptr[i] ;
+    //}
+    //std::cout << "dest_data = " << dest_data << std::endl ;
+
+    //bufferptr b( dest_data.c_str(), (signed int)src_bptr.length() ) ;
+    //dest_blist.append( b ) ;
+    //std::cout << "dest_blist.c_str() = " << dest_blist.c_str() << std::endl ;
+    //bufferlist::iterator dest_biter = dest_blist.begin() ;
+    //std::cout << "dest_biter.get_remaining() = " << dest_biter.get_remaining() << std::endl ;
+
+    ////src_biter.copy( 1, dest_blist ) ;
+    ////std::cout << " src_blist.c_str()  = " << src_blist.c_str() << std::endl ;
+    ////std::cout << " dest_blist.c_str() = " << dest_blist.c_str() << std::endl ;
   }
 
-  bool DO_SPLIT = false ;
+  std::cout << "==========================================" << std::endl ;
+  std::cout << ">>>   HALF SPLIT   <<<" << std::endl ;
 
-  if ( DO_SPLIT == false )
-  {
-    std::cout << "in main doing new split" << std::endl ;
+  std::cout << "==========================================" << std::endl ;
+  std::cout << ">>>   THIRD SPLIT   <<<" << std::endl ;
 
-    // c_str split
-    auto start = std::chrono::high_resolution_clock::now() ;
-    SplitUtils::split1( io_ctx, obj_name ) ;
-    auto stop = std::chrono::high_resolution_clock::now() ;
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start) ;
-    std::cout << "\n>>> split1 time: " << duration.count() << " microseconds\n";
+  std::cout << "==========================================" << std::endl ;
+  std::cout << ">>>   QUARTER SPLIT   <<<" << std::endl ;
 
-    // copy split
-    start = std::chrono::high_resolution_clock::now() ;
-    SplitUtils::split2( io_ctx, obj_name ) ;
-    stop = std::chrono::high_resolution_clock::now() ;
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start) ;
-    std::cout << "\nsplit2 time: " << duration.count() << " microseconds\n";
-  }
-  else 
-  {
-    /*
-     * Read the object back asynchronously.
-     */
-    {
-      librados::bufferlist read_buf;
-      int read_len = 48 ;
-
-      //Create I/O Completion.
-      librados::AioCompletion *read_completion = librados::Rados::aio_create_completion();
-
-      //Send read request.
-      ret = io_ctx.aio_read(obj_name, read_completion, &read_buf, read_len, 0);
-      if (ret < 0) {
-        std::cerr << "Couldn't start read object! error " << ret << std::endl;
-        exit(EXIT_FAILURE);
-      }
-
-      // Wait for the request to complete, and check that it succeeded.
-      read_completion->wait_for_complete();
-      ret = read_completion->get_return_value();
-      if (ret < 0) {
-        std::cerr << "Couldn't read object! error " << ret << std::endl;
-        exit(EXIT_FAILURE);
-      } else {
-        std::cout << "Read object '" << obj_name << "' asynchronously with contents:" << std::endl;
-        std::cout << read_buf.c_str() << std::endl;
-      }
-
-      SplitUtils::do_split( io_ctx, obj_name, read_buf ) ;
-
-    }
-  }
-
-  std::cout << "phew! done!" << std::endl ;
+  std::cout << "...splits done. phew!" << std::endl ;
   return 0 ;
 }
-
-//  ///*
-//  // * Add an xattr to the object.
-//  // */
-//  //{
-//  //  librados::bufferlist lang_bl;
-//  //  lang_bl.append("en_US");
-//  //  ret = io_ctx.setxattr("hw", "lang", lang_bl);
-//  //  if (ret < 0) {
-//  //    std::cerr << "failed to set xattr version entry! error "
-//  //    << ret << std::endl;
-//  //    exit(EXIT_FAILURE);
-//  //  } else {
-//  //    std::cout << "Set the xattr 'lang' on our object!" << std::endl;
-//  //  }
-//  //}
-//
-//
-////  /*
-////   * Read the xattr.
-////   */
-////  {
-////    librados::bufferlist lang_res;
-////    ret = io_ctx.getxattr("hw", "lang", lang_res);
-////    if (ret < 0) {
-////      std::cerr << "failed to get xattr version entry! error "
-////      << ret << std::endl;
-////      exit(EXIT_FAILURE);
-////    } else {
-////      std::cout << "Got the xattr 'lang' from object hw!"
-////      << lang_res.c_str() << std::endl;
-////    }
-////  }
-////
-////
-////  /*
-////   * Remove the xattr.
-////   */
-////  {
-////    ret = io_ctx.rmxattr("hw", "lang");
-////    if (ret < 0) {
-////      std::cerr << "Failed to remove xattr! error "
-////      << ret << std::endl;
-////      exit(EXIT_FAILURE);
-////    } else {
-////      std::cout << "Removed the xattr 'lang' from our object!" << std::endl;
-////    }
-////  }
-////
-////  /*
-////   * Remove the object.
-////   */
-////  {
-////    ret = io_ctx.remove("hw");
-////    if (ret < 0) {
-////      std::cerr << "Couldn't remove object! error " << ret << std::endl;
-////      exit(EXIT_FAILURE);
-////    } else {
-////      std::cout << "Removed object 'hw'." << std::endl;
-////    }
-////  }
-//
-//  // ---------------------------------------------------------------------------- //
-//
-//  //// connect to rados
-//  //librados::Rados cluster;
-//  //cluster.init(NULL);
-//  //cluster.conf_read_file(NULL);
-//  //int ret = cluster.connect();
-//  //checkret(ret, 0);
-//
-//  //// open pool
-//  //librados::IoCtx ioctx;
-//  //ret = cluster.ioctx_create("tpchflatbuf", ioctx);
-//  //checkret(ret, 0);
-//
-//  //// build an aiostate
-//  //AioState *s = new AioState;
-//  //s->c = librados::Rados::aio_create_completion( s, NULL, handle_cb);
-//  //memset(&s->times, 0, sizeof(s->times));
-//  //s->times.dispatch = getns();
-//
-//  //// do the read???
-//  //const std::string oid = "obj.0" ;
-//  //ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
-//  //checkret(ret, 0);
-//
-//  //ceph::bufferlist wrapped_bls = s->bl;  // contains a seq of encoded bls.
-//
-//  //std::cout << "blah" << std::endl ; 
-//
-//  //// decode and process each bl (contains 1 flatbuf) in a loop.
-//  //ceph::bufferlist::iterator it = wrapped_bls.begin();
-//  //std::cout << it.get_remaining() << std::endl ;
-//  //while (it.get_remaining() > 0) {
-//
-//  //  std::cout << "asdf" << std::endl ;
-//
-//  //  //ceph::bufferlist bl;
-//  //  //::decode(bl, it);  // unpack the next bl (flatbuf)
-//
-//  //  //// get our data as contiguous bytes before accessing as flatbuf
-//  //  //const char* fb = bl.c_str();
-//  //  //size_t fb_size = bl.length();
-//  //  //Tables::sky_root root = Tables::getSkyRoot(fb, fb_size);
-//
-//  //  //// local counter to accumulate nrows in all flatbuffers received.
-//  //  //rows_returned += root.nrows;
-//
-//  //}
-//
-//  //delete s ;
-//  //ioctx.close();
-//
-//  // ---------------------------------------------------------------------------- //
-//
-//  //std::list<AioState*> ready_ios;
-//
-//  //// connect to rados
-//  //std::string pool = "tpchflatbuf" ;
-//  //librados::Rados cluster;
-//  //cluster.init(NULL);
-//  //cluster.conf_read_file(NULL);
-//  //int ret0 = cluster.connect();
-//  //checkret(ret0, 0);
-//
-//  //librados::IoCtx ioctx;
-//  //int ret1 = cluster.ioctx_create(pool.c_str(), ioctx);
-//  //checkret(ret1, 0);
-//
-//  //std::vector<std::thread> threads;
-//  //threads.push_back(std::thread(worker));
-//
-//  //std::condition_variable dispatch_cond;
-//  //std::unique_lock<std::mutex> lock(dispatch_lock);
-//  //lock.unlock();
-//
-//  //AioState *s = new AioState;
-//  //// gets an aio_completion
-//  //// s => a blank aiostate
-//  //// NULL => rados callback_t
-//  //// handle_cb => function for firing up a worker
-//  //s->c = librados::Rados::aio_create_completion( s, NULL, handle_cb);
-//  //memset(&s->times, 0, sizeof(s->times));
-//  //s->times.dispatch = getns();
-//  //const std::string oid = "oid.0" ;
-//
-//  //int ret2 = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
-//  //checkret(ret2, 0);
-//
-//  //lock.lock() ;
-//  //dispatch_cond.wait(lock);
-//  //lock.unlock() ;
-//
-//  //for (auto& thread : threads) {
-//  //  thread.join();
-//  //}
-//
-//  //delete s ;
-//  //ioctx.close();
-//
-//  // ---------------------------------------------------------------------------- //
-//  // play with accessing flatbuffer data through flatbuffer api:
-//  // get number of rows per flatbuffer
-//  // divide rows into 3+ ceph objects.
-//  ////flatbuffers::FlatBufferBuilder flatbuffer_builder(1024) ; // pre-alloc size
-//  //// https://google.github.io/flatbuffers/flatbuffers_guide_use_cpp.html
-//  //// opening flatbuffer file:
-//  //std::ifstream infile ;
-//  //infile.open( argv[1], std::ios::binary | std::ios::in ) ;
-//  //infile.seekg( 0, std::ios::end ) ;
-//  //int length = infile.tellg() ;
-//  //std::cout << length << std::endl ;
-//  //infile.seekg( 0, std::ios::beg ) ;
-//  //char *data = new char[length] ;
-//  //infile.read( data, length ) ;
-//  //infile.close();
-//  //const Tables::Table* data_table = Tables::GetTable(data);
-//  //std::cout << data_table->nrows() << std::endl; 
-//  //std::cout << data_table->skyhook_version() << std::endl ;
-//  ////std::cout << data_table->schema_version() << std::endl ;
-//  ////std::cout << data_table->table_name()->str() << std::endl ;
-//  ////std::cout << data_table->schema()->str() << std::endl ;
-//  ////std::cout << data_table->rows() << std::endl ;
-//  //bufferlist bl;
-//  //bl.append("ABC", 3);
-//  //bufferlist::iterator i(&bl);
-//  //std::cout << "*i = " << *i << std::endl ;
-//  //++i;
-//  //std::cout << "*i = " << *i << std::endl ;
-//  //++i ;
-//  //std::cout << "*i = " << *i << std::endl ;
-//  //// This must be called after `Finish()`.
-//  ////uint8_t *buf = flatbuffer_builder.GetBufferPointer();
-//  ////int size = flatbuffer_builder.GetSize(); // Returns the size of the buffer that
-//  //                                         // `GetBufferPointer()` points to.
-//
-//  ////std::cout << "*buf " << *buf << std::endl ;
-//  ////std::cout << "size " << size << std::endl ;
-//
