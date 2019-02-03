@@ -275,3 +275,9 @@ target_link_libraries(cls_tabular re2)
 set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_tabular DESTINATION ${cls_dir})
 
+# skyhookdb cls_copy_transform
+add_library(cls_copy_transform SHARED copy_transform/cls_copy_transform.cc copy_transform/cls_splits.cc)
+target_link_libraries(cls_copy_transform re2)
+set_target_properties(cls_copy_transform PROPERTIES VERSION "1.0.0" SOVERSION "1")
+install(TARGETS cls_copy_transform DESTINATION ${cls_dir})
+
