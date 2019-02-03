@@ -22,17 +22,17 @@
 // ceph includes
 #include "include/rados/librados.hpp"
 
-// other includes
-#include "cls/split/cls_split.h"
+// skyhook includes
+#include "cls/transform/cls_transform.h"
 
 namespace po = boost::program_options;
 
 int main(int argc, char **argv)
 {
-  std::cout << "starting splits..." << std::endl ;
+  std::cout << "starting transforms..." << std::endl ;
 
-  Split::split() ;
+  Transform::transform() ;
 
-  std::cout << "...splits done. phew!" << std::endl ;
+  std::cout << "...transformss done. phew!" << std::endl ;
   return 0 ;
 }
