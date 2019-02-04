@@ -26,6 +26,12 @@
 namespace Transform {
 
   int transform() ;
+  int transform_noop() ;
+  int transform_all() ;
+  int transform_reverse() ;
+  int transform_sort() ;
+  int transform_rowtocol() ;
+  int transform_coltorow() ;
 
 }
 
