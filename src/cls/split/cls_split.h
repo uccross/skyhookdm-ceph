@@ -24,7 +24,23 @@
 
 namespace Split {
 
-  int split() ;
+  int split( librados::bufferlist* blist_in, 
+             librados::bufferlist* blist_out0, 
+             librados::bufferlist* blist_out1, 
+             int split_op_id ) ;
+
+  int split_12( librados::bufferlist* blist_in, 
+                librados::bufferlist* blist_out0, 
+                librados::bufferlist* blist_out1 ) ;
+
+  int split_pattern( librados::bufferlist* blist_in, 
+                     librados::bufferlist* blist_out0, 
+                     librados::bufferlist* blist_out1, 
+                     const char* pattern ) ;
+
+  int split_noop( librados::bufferlist* blist_in, 
+                  librados::bufferlist* blist_out0, 
+                  librados::bufferlist* blist_out1 ) ;
 
 }
 

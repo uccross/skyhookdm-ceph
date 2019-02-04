@@ -31,7 +31,50 @@ int main(int argc, char **argv)
 {
   std::cout << "starting splits..." << std::endl ;
 
-  Split::split() ;
+  // split_noop
+  librados::bufferlist id0_blist_in ;
+  librados::bufferlist id0_blist_out0 ;
+  librados::bufferlist id0_blist_out1 ;
+  id0_blist_in.append( "teststr", 7 ) ;
+
+  Split::split( &id0_blist_in, &id0_blist_out0, &id0_blist_out1, 0 ) ;
+  std::cout << "DRIVER check :"    << std::endl ;
+  std::cout << id0_blist_in.c_str()    << std::endl ;
+  std::cout << id0_blist_in.length()   << std::endl ;
+  std::cout << id0_blist_out0.c_str()  << std::endl ;
+  std::cout << id0_blist_out0.length() << std::endl ;
+  std::cout << id0_blist_out1.c_str()  << std::endl ;
+  std::cout << id0_blist_out1.length() << std::endl ;
+
+  // split_12
+  librados::bufferlist id1_blist_in ;
+  librados::bufferlist id1_blist_out0 ;
+  librados::bufferlist id1_blist_out1 ;
+  id1_blist_in.append( "teststr", 7 ) ;
+
+  Split::split( &id1_blist_in, &id1_blist_out0, &id1_blist_out1, 1 ) ;
+  std::cout << "DRIVER check :"    << std::endl ;
+  std::cout << id1_blist_in.c_str()    << std::endl ;
+  std::cout << id1_blist_in.length()   << std::endl ;
+  std::cout << id1_blist_out0.c_str()  << std::endl ;
+  std::cout << id1_blist_out0.length() << std::endl ;
+  std::cout << id1_blist_out1.c_str()  << std::endl ;
+  std::cout << id1_blist_out1.length() << std::endl ;
+
+  // split_pattern
+  librados::bufferlist id2_blist_in ;
+  librados::bufferlist id2_blist_out0 ;
+  librados::bufferlist id2_blist_out1 ;
+  id2_blist_in.append( "teststr", 7 ) ;
+
+  //Split::split( &id1_blist_in, &id2_blist_out0, &id2_blist_out1, 2 ) ;
+  std::cout << "DRIVER check :"    << std::endl ;
+  std::cout << id2_blist_in.c_str()    << std::endl ;
+  std::cout << id2_blist_in.length()   << std::endl ;
+  std::cout << id2_blist_out0.c_str()  << std::endl ;
+  std::cout << id2_blist_out0.length() << std::endl ;
+  std::cout << id2_blist_out1.c_str()  << std::endl ;
+  std::cout << id2_blist_out1.length() << std::endl ;
 
   std::cout << "...splits done. phew!" << std::endl ;
   return 0 ;
