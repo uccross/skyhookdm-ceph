@@ -67,7 +67,7 @@ int main(int argc, char **argv)
   librados::bufferlist id2_blist_out1 ;
   id2_blist_in.append( "teststr", 7 ) ;
 
-  //Split::split( &id1_blist_in, &id2_blist_out0, &id2_blist_out1, 2 ) ;
+  Split::split( &id1_blist_in, &id2_blist_out0, &id2_blist_out1, 2 ) ;
   std::cout << "DRIVER check :"    << std::endl ;
   std::cout << id2_blist_in.c_str()    << std::endl ;
   std::cout << id2_blist_in.length()   << std::endl ;
