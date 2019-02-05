@@ -25,13 +25,27 @@
 
 namespace Transform {
 
-  int transform() ;
-  int transform_noop() ;
-  int transform_all() ;
-  int transform_reverse() ;
-  int transform_sort() ;
-  int transform_rowtocol() ;
-  int transform_coltorow() ;
+  int transform( librados::bufferlist* blist_in,
+                 librados::bufferlist* blist_out,
+                 int transform_op_id ) ;
+
+  int transform_all( librados::bufferlist* blist_in,
+                     librados::bufferlist* blist_out ) ;
+
+  int transform_reverse( librados::bufferlist* blist_in,
+                         librados::bufferlist* blist_out ) ;
+
+  int transform_sort( librados::bufferlist* blist_in,
+                      librados::bufferlist* blist_out ) ;
+
+  int transform_rowtocol( librados::bufferlist* blist_in,
+                          librados::bufferlist* blist_out ) ;
+
+  int transform_coltorow( librados::bufferlist* blist_in,
+                          librados::bufferlist* blist_out ) ;
+
+  int transform_noop( librados::bufferlist* blist_in,
+                      librados::bufferlist* blist_out ) ;
 
 }
 
