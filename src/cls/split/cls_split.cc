@@ -54,14 +54,6 @@ namespace Split {
       blist_out1->append( bptr_in[ i ] ) ;
     }
 
-    std::cout << "METHOD check:"      << std::endl ;
-    std::cout << blist_in->c_str()    << std::endl ;
-    std::cout << blist_in->length()   << std::endl ;
-    std::cout << blist_out0->c_str()  << std::endl ;
-    std::cout << blist_out0->length() << std::endl ;
-    std::cout << blist_out1->c_str()  << std::endl ;
-    std::cout << blist_out1->length() << std::endl ;
-
     return 0 ;
   }
 
@@ -80,8 +72,6 @@ namespace Split {
 
     auto data = (std::string)blist_in->c_str() ;
     auto pos  = data.find( "s" ) ;
-    std::cout << data << std::endl ;
-    std::cout << pos << std::endl ;
 
     // this is easier with a bufferptr
     ceph::bufferptr bptr_in ;
@@ -99,14 +89,6 @@ namespace Split {
     {
       blist_out1->append( bptr_in[ i ] ) ;
     }
-
-    std::cout << "METHOD check:"      << std::endl ;
-    std::cout << blist_in->c_str()    << std::endl ;
-    std::cout << blist_in->length()   << std::endl ;
-    std::cout << blist_out0->c_str()  << std::endl ;
-    std::cout << blist_out0->length() << std::endl ;
-    std::cout << blist_out1->c_str()  << std::endl ;
-    std::cout << blist_out1->length() << std::endl ;
 
     return 0 ;
   }
@@ -138,14 +120,6 @@ namespace Split {
     {
       blist_out1->append( bptr_in[ i ] ) ;
     }
-
-    std::cout << "METHOD check:"      << std::endl ;
-    std::cout << blist_in->c_str()    << std::endl ;
-    std::cout << blist_in->length()   << std::endl ;
-    std::cout << blist_out0->c_str()  << std::endl ;
-    std::cout << blist_out0->length() << std::endl ;
-    std::cout << blist_out1->c_str()  << std::endl ;
-    std::cout << blist_out1->length() << std::endl ;
 
     return 0 ;
   }
