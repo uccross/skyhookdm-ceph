@@ -8,21 +8,8 @@
 *
 */
 
+
 #include "cls_tabular_utils.h"
-
-#include <errno.h>
-#include <string>
-#include <sstream>
-#include <time.h>
-#include "include/types.h"
-
-#include <boost/lexical_cast.hpp>
-#include "re2/re2.h"  // regex matching
-#include "objclass/objclass.h"
-
-#include "cls_tabular.h"
-#include "flatbuffers/flexbuffers.h"
-#include "skyhookv1_generated.h"
 
 
 namespace Tables {

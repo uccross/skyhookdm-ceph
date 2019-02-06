@@ -41,14 +41,18 @@ struct query_op {
   // query parameters (new) flatbufs
   bool fastpath;
   bool index_read;
+  bool index_intersection_plan;
   int index_type;
+  int index2_type;
   std::string db_schema;
   std::string table_name;
   std::string data_schema;
   std::string query_schema;
   std::string index_schema;
+  std::string index2_schema;
   std::string query_preds;
   std::string index_preds;
+  std::string index2_preds;
 
   query_op() {}
 
@@ -71,14 +75,18 @@ struct query_op {
     // flatbufs
     ::encode(fastpath, bl);
     ::encode(index_read, bl);
+    ::encode(index_intersection_plan, bl);
     ::encode(index_type, bl);
+    ::encode(index2_type, bl);
     ::encode(db_schema, bl);
     ::encode(table_name, bl);
     ::encode(data_schema, bl);
     ::encode(query_schema, bl);
     ::encode(index_schema, bl);
+    ::encode(index2_schema, bl);
     ::encode(query_preds, bl);
     ::encode(index_preds, bl);
+    ::encode(index2_preds, bl);
     ENCODE_FINISH(bl);
   }
 
@@ -101,14 +109,18 @@ struct query_op {
     // flatbufs
     ::decode(fastpath, bl);
     ::decode(index_read, bl);
+    ::decode(index_intersection_plan, bl);
     ::decode(index_type, bl);
+    ::decode(index2_type, bl);
     ::decode(db_schema, bl);
     ::decode(table_name, bl);
     ::decode(data_schema, bl);
     ::decode(query_schema, bl);
     ::decode(index_schema, bl);
+    ::decode(index2_schema, bl);
     ::decode(query_preds, bl);
     ::decode(index_preds, bl);
+    ::decode(index2_preds, bl);
     DECODE_FINISH(bl);
   }
 
@@ -123,8 +135,10 @@ struct query_op {
     s.append(" .data_schema=" + data_schema);
     s.append(" .query_schema=" + query_schema);
     s.append(" .index_schema=" + index_schema);
+    s.append(" .index2_schema=" + index2_schema);
     s.append(" .query_preds=" + query_preds);
     s.append(" .index_preds=" + index_preds);
+    s.append(" .index2_preds=" + index2_preds);
     return s;
   }
 };

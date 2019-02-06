@@ -443,14 +443,14 @@ static void add_extra_row_cost(uint64_t cost)
  */
 static
 int
-do_index_lookup(
+read_sky_index(
     cls_method_context_t hctx,
     Tables::predicate_vec index_preds,
     Tables::schema_vec index_schema,
     std::string db_schema,
     std::string table,
     int index_type,
-    std::vector<struct Tables::read_info>& idx_reads) {
+    std::map<int, struct Tables::read_info>& idx_reads) {
 
     using namespace Tables;
     int ret = 0;
@@ -459,7 +459,6 @@ do_index_lookup(
     // indicate the relevant rows within a given fb.
     // fb_seq_num is used as key, so that subsequent reads will always be from
     // a higher byte offset, if that matters.
-    std::map<int, struct read_info> reads;
 
     // create record key
     std::vector<std::string> keys;
@@ -504,6 +503,7 @@ do_index_lookup(
                 return ret;
             }
             if (ret >= 0) {
+                CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
                 try {
                     bufferlist::iterator it = bl.begin();
                     ::decode(rec_ent, it);
@@ -538,29 +538,29 @@ do_index_lookup(
                         return -EINVAL;
                     }
 
-                    // either add these row nums to the read_info struct for
-                    // the given fb, or create a new read_info for the given fb
-                    auto it = reads.find(rec_ent.fb_num);
-                    if (it != reads.end())
+                    // our reads are indexed by fb_num
+                    // either add these row nums to the existing read_info
+                    // struct for the given fb_num, or create a new one
+                    auto it = idx_reads.find(rec_ent.fb_num);
+                    if (it != idx_reads.end()) {
                         it->second.rnums.insert(it->second.rnums.end(),
                                                 row_nums.begin(),
                                                 row_nums.end());
-                    else
-                        reads[rec_ent.fb_num] = \
+                    }
+                    else {
+                        idx_reads[rec_ent.fb_num] = \
                             Tables::read_info(rec_ent.fb_num,
                                                     fb_ent.off,
                                                     fb_ent.len,
                                                     row_nums);
+                    }
                 }
             } else  {  // no rec found for key
-                // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
+                CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
             }
         }
     }
 
-    // set all of the accumulated rows info per fb into the index reads vector
-    for (auto it = reads.begin(); it != reads.end(); ++it)
-        idx_reads.push_back(it->second);
     return 0;
 }
 
@@ -592,7 +592,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         using namespace Tables;
 
         // hold result of index lookups or read all flatbufs
-        std::vector<struct read_info> reads;
+        std::map<int, struct read_info> reads;
 
         // fastpath means we skip processing rows and just return all rows,
         // i.e., the entire obj
@@ -629,7 +629,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 predicate_vec index_preds = predsFromString(data_schema, op.index_preds);
 
                 // index lookup to set the read requests, if any rows match
-                ret = do_index_lookup(hctx,
+                ret = read_sky_index(hctx,
                                       index_preds,
                                       index_schema,
                                       op.db_schema,
@@ -644,18 +644,18 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
                 // just read entire object.
                 struct read_info ri(0, 0, 0, {});
-                reads.push_back(ri);
+                    reads[0] = ri;
             }
 
             // now we can decode and process each bl in the obj, specified
             // by each read request.
             // NOTE: 1 bl contains exactly 1 flatbuf.
-            for (unsigned i = 0; i < reads.size(); i++) {
-
+            // weak ordering in map will iterate over fb nums in sequence
+            for (auto it=reads.begin(); it!=reads.end(); ++it) {
                 bufferlist b;
-                size_t off = reads[i].off;
-                size_t len = reads[i].len;
-                std::vector<unsigned int> row_nums = reads[i].rnums;
+                size_t off = it->second.off;
+                size_t len = it->second.len;
+                std::vector<unsigned int> row_nums = it->second.rnums;
 
                 uint64_t start = getns();
                 ret = cls_cxx_read(hctx, off, len, &b);
@@ -666,11 +666,11 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 read_ns += getns() - start;
 
                 start = getns();
-                ceph::bufferlist::iterator it = b.begin();
-                while (it.get_remaining() > 0) {
+                ceph::bufferlist::iterator it2 = b.begin();
+                while (it2.get_remaining() > 0) {
                     bufferlist bl;
                     try {
-                        ::decode(bl, it);  // unpack the next bl (flatbuf)
+                        ::decode(bl, it2);  // unpack the next bl (flatbuf)
                     } catch (const buffer::error &err) {
                         CLS_ERR("ERROR: decoding flatbuf from BL");
                         return -EINVAL;

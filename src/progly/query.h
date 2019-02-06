@@ -77,14 +77,18 @@ extern std::string comment_regex;
 extern bool qop_fastpath;
 extern bool qop_index_read;
 extern bool qop_index_create;
+extern bool qop_index_intersection_plan;
 extern int qop_index_type;
+extern int qop_index2_type;
 extern std::string qop_db_schema;
 extern std::string qop_table_name;
 extern std::string qop_data_schema;
 extern std::string qop_query_schema;
 extern std::string qop_index_schema;
+extern std::string qop_index2_schema;
 extern std::string qop_query_preds;
 extern std::string qop_index_preds;
+extern std::string qop_index2_preds;
 
 // build index op params for flatbufs
 extern bool idx_op_idx_unique;
@@ -98,8 +102,10 @@ extern std::string idx_op_delims;
 extern Tables::schema_vec sky_tbl_schema;
 extern Tables::schema_vec sky_qry_schema;
 extern Tables::schema_vec sky_idx_schema;
+extern Tables::schema_vec sky_idx2_schema;
 extern Tables::predicate_vec sky_qry_preds;
 extern Tables::predicate_vec sky_idx_preds;
+extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;

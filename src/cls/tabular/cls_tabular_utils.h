@@ -31,7 +31,6 @@
 #include "flatbuffers/flexbuffers.h"
 #include "skyhookv1_generated.h"
 
-
 namespace Tables {
 
 enum TablesErrCodes {
