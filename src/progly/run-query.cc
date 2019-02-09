@@ -365,11 +365,12 @@ int main(int argc, char **argv)
         if (sky_idx_preds.size() > MAX_INDEX_COLS)
             assert (BuildSkyIndexUnsupportedNumCols == 0);
         for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
-            if (sky_idx_preds[i]->opType() != SOT_eq) {
+            /*if (sky_idx_preds[i]->opType() != SOT_eq) {
                 cerr << "Only equality predicates currently supported for "
                      << "Skyhook indexes" << std::endl;
                 assert (SkyIndexUnsupportedOpType == 0);
-            }
+            }*/
+	    // Will work now
         }
     }
 

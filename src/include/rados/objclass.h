@@ -7,7 +7,8 @@
 #ifdef __cplusplus
 
 #include "buffer.h"
-
+#include <set>
+#include <map>
 extern "C" {
 #endif
 
@@ -175,7 +176,17 @@ extern int cls_cxx_map_get_val(cls_method_context_t hctx,
  */
 extern int cls_cxx_map_set_val(cls_method_context_t hctx,
                                const std::string &key, ceph::bufferlist *inbl);
-
+extern int cls_cxx_map_get_keys(cls_method_context_t hctx,
+                                const std::string &start_after,
+                                uint64_t max_to_get,
+                                std::set<std::string> *keys,
+                                bool *more);
+extern int cls_cxx_map_get_vals(cls_method_context_t hctx,
+                                const std::string &start_after,
+                                const std::string &filter_prefix,
+                                uint64_t max_to_get,
+                                std::map<std::string, ceph::bufferlist> *vals,
+                                bool *more);
 #endif
 
 #endif

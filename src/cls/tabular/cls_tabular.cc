@@ -453,7 +453,7 @@ read_sky_index(
     std::map<int, struct Tables::read_info>& idx_reads) {
 
     using namespace Tables;
-    int ret = 0;
+    int ret = 0, ret1, ret2;
 
     // for each fb_seq_num, a corresponding read_info struct to
     // indicate the relevant rows within a given fb.
@@ -470,6 +470,11 @@ read_sky_index(
 
     // build up the key data portion from the idx pred vals.
     std::string key_data;
+    bool geq_predicate=false;
+    bool gt_predicate=false;
+    bool leq_predicate=false;
+    bool lt_predicate=false;
+    bool eq_predicate=false;
     for (unsigned i = 0; i < index_preds.size(); i++) {
         uint64_t val;
         switch(index_preds[i]->colType()) {
@@ -485,18 +490,90 @@ read_sky_index(
             default:
                 assert (BuildSkyIndexUnsupportedColType==0);
         }
+	switch(index_preds[i]->opType()){
+                case SOT_eq:
+                        CLS_LOG(20,"*******Found eq predicate str=abcd");
+			eq_predicate=true;
+                        break;
+                case SOT_lt:
+			lt_predicate=true;
+			break;
+                case SOT_geq:
+			geq_predicate=true;
+			break;
+                case SOT_ne:
+                case SOT_leq:
+			leq_predicate=true;
+			break;
+                case SOT_gt:
+			gt_predicate=true;
+			break;
+                default:
+                        CLS_LOG(20,"*******It was not here=abcd");
+
+            }
+
         if (i > 0)
             key_data += Tables::IDX_KEY_DELIM_INNER;
         key_data += buildKeyData(index_preds[i]->colType(), val);
     }
     std::string key = key_prefix + key_data;
-    keys.push_back(key);
+    if( !lt_predicate && !gt_predicate )
+    	keys.push_back(key);
+    // Call to get all the keys now
+    std::string start_after = "";
+    if(geq_predicate || gt_predicate)
+    {	
+        //std::string start_after = "IDX_REC:*-LINEITEM:LINENUMBER-ORDERKEY:";
+	start_after = key;
+        CLS_LOG(20,"*******Looking for str=%s", start_after.c_str());
+    }
+    else if(lt_predicate || leq_predicate )
+    {
+	start_after = key_prefix;
+    }
+
+    if( start_after != "" ){	
+        bool more=true;
+    	std::set<std::string> keys1;
+	bool first=true;
+    	int max_to_get=2;
+	while(first || keys1.size() != 0)
+	{
+		ret1 = cls_cxx_map_get_keys(hctx, start_after, max_to_get, &keys1, &more);
+    		CLS_LOG(20,"*******Looking for size of Keys1=%d", keys1.size());
+
+    		try {
+        	for(auto it=keys1.cbegin(); it != keys1.cend(); it++)
+        	{
+             		const std::string& key = *it;
+	     		keys.push_back(key);
+             		CLS_LOG(20,"key Nitesh& Jeff found is=%s", key.c_str());
+        	}
+        	} catch (const buffer::error &err) {
+             		CLS_ERR("ERROR: decoding query idx_rec_ent");
+             		return -EINVAL;
+
+        	}
+		start_after = keys[keys.size()-1];
+		if(lt_predicate || leq_predicate)
+		{
+			if( keys1.find(key) != keys1.end())
+				break;
+		}
+		first=false;
+	}
+    }
+    
 
     // lookup key in omap to get the row offset
     if (!keys.empty()) {
         for (unsigned i = 0; i < keys.size(); i++) {
-            struct idx_rec_entry rec_ent;
-            bufferlist bl;
+            //struct idx_rec_entry rec_ent;
+            //bufferlist bl;
+	    struct idx_rec_entry rec_ent, rec_ent2;
+	    bufferlist bl, bl1;
+	    std::map<std::string, bufferlist> Map;
             ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
             if (ret < 0 && ret != -ENOENT) {
                 CLS_ERR("cant read map val index rec for idx_rec key %d", ret);
