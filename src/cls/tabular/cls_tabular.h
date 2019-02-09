@@ -41,9 +41,9 @@ struct query_op {
   // query parameters (new) flatbufs
   bool fastpath;
   bool index_read;
-  bool index_intersection_plan;
   int index_type;
   int index2_type;
+  int index_plan_type;
   std::string db_schema;
   std::string table_name;
   std::string data_schema;
@@ -75,9 +75,9 @@ struct query_op {
     // flatbufs
     ::encode(fastpath, bl);
     ::encode(index_read, bl);
-    ::encode(index_intersection_plan, bl);
     ::encode(index_type, bl);
     ::encode(index2_type, bl);
+    ::encode(index_plan_type, bl);
     ::encode(db_schema, bl);
     ::encode(table_name, bl);
     ::encode(data_schema, bl);
@@ -109,9 +109,9 @@ struct query_op {
     // flatbufs
     ::decode(fastpath, bl);
     ::decode(index_read, bl);
-    ::decode(index_intersection_plan, bl);
     ::decode(index_type, bl);
     ::decode(index2_type, bl);
+    ::decode(index_plan_type, bl);
     ::decode(db_schema, bl);
     ::decode(table_name, bl);
     ::decode(data_schema, bl);
@@ -130,6 +130,8 @@ struct query_op {
     s.append(" .fastpath=" + std::to_string(fastpath));
     s.append(" .index_read=" + std::to_string(index_read));
     s.append(" .index_type=" + std::to_string(index_type));
+    s.append(" .index2_type=" + std::to_string(index2_type));
+    s.append(" .index_plan_type=" + std::to_string(index_plan_type));
     s.append(" .db_schema=" + db_schema);
     s.append(" .table_name=" + table_name);
     s.append(" .data_schema=" + data_schema);

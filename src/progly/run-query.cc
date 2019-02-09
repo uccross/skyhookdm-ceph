@@ -29,6 +29,7 @@ int main(int argc, char **argv)
   bool index_read;
   bool index_create;
   bool text_index_ignore_stopwords;
+  int index_plan_type;
   std::string text_index_delims;
   std::string db_schema;
   std::string table_name;
@@ -48,7 +49,6 @@ int main(int argc, char **argv)
   int index2_type = Tables::SIT_IDX_UNK;
   bool fastpath = false;
   bool idx_unique = false;
-  bool index_intersection_plan = false;
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -120,6 +120,7 @@ int main(int argc, char **argv)
     ("select-preds", po::value<std::string>(&query_preds)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
     ("index-delims", po::value<std::string>(&text_index_delims)->default_value(""), "Use delim for text indexes (def=whitespace")
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
+    ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -334,31 +335,39 @@ int main(int argc, char **argv)
     }
 
     // set the index type
-    if (index_cols == RID_INDEX) { // special const value for colname provided
-        index_type = SIT_IDX_RID;
-    }
-    else if (sky_idx_schema.size() == 1 and
-             sky_idx_schema.at(0).type == SDT_STRING) {
-                index_type = SIT_IDX_TXT;  // txt indexes are 1 string col
-    }
-    else {
-        index_type = SIT_IDX_REC;
+    if (!index_cols.empty()) {
+        if (index_cols == RID_INDEX) { // const value for colname=RID
+            index_type = SIT_IDX_RID;
+        }
+        else if (sky_idx_schema.size() == 1 and
+                 sky_idx_schema.at(0).type == SDT_STRING) {
+                    index_type = SIT_IDX_TXT;  // txt indexes are 1 string col
+        }
+        else {
+            index_type = SIT_IDX_REC;
+        }
     }
 
     // set the index2 type
-    if (index2_cols == RID_INDEX) { // special const value for colname provided
-        index2_type = SIT_IDX_RID;
-    }
-    else if (sky_idx2_schema.size() == 1 and
-             sky_idx2_schema.at(0).type == SDT_STRING) {
-                index2_type = SIT_IDX_TXT;  // txt indexes are 1 string col
-    }
-    else {
-        index2_type = SIT_IDX_REC;
+    if (!index2_cols.empty()) {
+        if (index2_cols == RID_INDEX) { // const value for colname=RID
+            index2_type = SIT_IDX_RID;
+        }
+        else if (sky_idx2_schema.size() == 1 and
+                 sky_idx2_schema.at(0).type == SDT_STRING) {
+                    index2_type = SIT_IDX_TXT;  // txt indexes are 1 string col
+        }
+        else {
+            index2_type = SIT_IDX_REC;
+        }
     }
 
-    if (index_type != SIT_IDX_UNK and index2_type != SIT_IDX_UNK)
-        index_intersection_plan = true;
+    if (index_type == SIT_IDX_UNK or index2_type == SIT_IDX_UNK)
+        index_plan_type = SIP_IDX_STANDARD;
+
+    assert ((index_plan_type == SIP_IDX_STANDARD) or
+            (index_plan_type == SIP_IDX_INTERSECTION) or
+            (index_plan_type == SIP_IDX_UNION));
 
     // verify index predicates (only support equality preds currently)
     if (index_read) {
@@ -398,7 +407,8 @@ int main(int argc, char **argv)
                 assert (BuildSkyIndexColIndexOOB == 0);
         }
 
-        // check for index uniqueness
+        // check for index uniqueness, only used for build index,
+        // not read index so we do not check the index2 here.
         idx_unique = true;
         if (index_type == SIT_IDX_REC or index_type == SIT_IDX_TXT) {
             for (auto it = sky_tbl_schema.begin();
@@ -421,9 +431,9 @@ int main(int argc, char **argv)
     qop_fastpath = fastpath;
     qop_index_read = index_read;
     qop_index_create = index_create;
-    qop_index_intersection_plan = index_intersection_plan;
     qop_index_type = index_type;
     qop_index2_type = index2_type;
+    qop_index_plan_type = index_plan_type;
     qop_db_schema = db_schema;
     qop_table_name = table_name;
     qop_data_schema = schemaToString(sky_tbl_schema);
@@ -525,6 +535,7 @@ int main(int argc, char **argv)
         op.index_read = qop_index_read;
         op.index_type = qop_index_type;
         op.index2_type = qop_index2_type;
+        op.index_plan_type = qop_index_plan_type;
         op.db_schema = qop_db_schema;
         op.table_name = qop_table_name;
         op.data_schema = qop_data_schema;

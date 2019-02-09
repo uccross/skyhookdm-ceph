@@ -503,7 +503,7 @@ read_sky_index(
                 return ret;
             }
             if (ret >= 0) {
-                CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
+                // CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
                 try {
                     bufferlist::iterator it = bl.begin();
                     ::decode(rec_ent, it);
@@ -556,7 +556,7 @@ read_sky_index(
                     }
                 }
             } else  {  // no rec found for key
-                CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
+                // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
             }
         }
     }
@@ -593,6 +593,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
         // hold result of index lookups or read all flatbufs
         std::map<int, struct read_info> reads;
+        std::map<int, struct read_info> idx1_reads;
+        std::map<int, struct read_info> idx2_reads;
 
         // fastpath means we skip processing rows and just return all rows,
         // i.e., the entire obj
@@ -635,16 +637,91 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                       op.db_schema,
                                       op.table_name,
                                       op.index_type,
-                                      reads);
+                                      idx1_reads);
                 if (ret < 0) {
                     CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                     return ret;
                 }
+
+                if (op.index_plan_type == SIP_IDX_INTERSECTION or
+                    op.index_plan_type == SIP_IDX_UNION) {
+
+                    schema_vec index2_schema = \
+                        schemaFromString(op.index2_schema);
+
+                    predicate_vec index2_preds = \
+                        predsFromString(data_schema, op.index2_preds);
+
+                    ret = read_sky_index(hctx,
+                                         index2_preds,
+                                         index2_schema,
+                                         op.db_schema,
+                                         op.table_name,
+                                         op.index2_type,
+                                         idx2_reads);
+                    if (ret < 0) {
+                        CLS_ERR("ERROR: do_index2_lookup failed. %d", ret);
+                        return ret;
+                    }
+
+                    // INDEX PLAN (INTERSECTION or UNION)
+                    // for each fbseq_num in idx1 reads, check if idx2 has any
+                    // rows for same fbseq_num, perform intersection or union
+                    // of rows, store resulting rows into our reads vector.
+                    reads.clear();
+                    for (auto it1=idx1_reads.begin(); it1!=idx1_reads.end();
+                         ++it1) {
+
+                        int fbnum = it1->first;
+                        auto it2 = idx2_reads.find(fbnum);
+                        if (it2!=idx2_reads.end()) {
+                            struct Tables::read_info ri1 = it1->second;
+                            struct Tables::read_info ri2 = it2->second;
+                            std::vector<unsigned int> rnums1 = ri1.rnums;
+                            std::vector<unsigned int> rnums2 = ri2.rnums;
+                            std::sort(rnums1.begin(), rnums1.end());
+                            std::sort(rnums2.begin(), rnums2.end());
+                            std::vector<unsigned> result_rnums(rnums1.size() +
+                                                               rnums2.size());
+
+                            if (op.index_plan_type == SIP_IDX_INTERSECTION) {
+                                auto it = std::set_intersection(
+                                                        rnums1.begin(),
+                                                        rnums1.end(),
+                                                        rnums2.begin(),
+                                                        rnums2.end(),
+                                                        result_rnums.begin());
+                                result_rnums.resize(it - result_rnums.begin());
+                            }
+                            if (op.index_plan_type == SIP_IDX_UNION) {
+                                auto it = std::set_union(
+                                                        rnums1.begin(),
+                                                        rnums1.end(),
+                                                        rnums2.begin(),
+                                                        rnums2.end(),
+                                                        result_rnums.begin());
+                                result_rnums.resize(it - result_rnums.begin());
+                            }
+                            if (!result_rnums.empty()) {
+                                reads[fbnum] = Tables::read_info(
+                                                                ri1.fb_seq_num,
+                                                                ri1.off,
+                                                                ri1.len,
+                                                                result_rnums);
+                            }
+                        }
+                    }
+                }
+                if (op.index_plan_type == SIP_IDX_STANDARD) {  // default
+                    reads = idx1_reads;  // only 1 index was read
+                }
             } else {
 
                 // just read entire object.
+                // fbseq_num=0, off=0, len=0 indicates read entire obj/all fbs
+                reads.clear();
                 struct read_info ri(0, 0, 0, {});
-                    reads[0] = ri;
+                reads[0] = ri;
             }
 
             // now we can decode and process each bl in the obj, specified

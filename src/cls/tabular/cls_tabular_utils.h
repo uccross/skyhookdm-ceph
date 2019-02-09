@@ -134,6 +134,13 @@ enum SkyIdxType
     SIT_IDX_UNK
 };
 
+enum SkyIdxPlanType
+{
+    SIP_IDX_STANDARD = 1,
+    SIP_IDX_INTERSECTION,
+    SIP_IDX_UNION
+};
+
 const std::map<SkyIdxType, std::string> SkyIdxTypeMap = {
     {SIT_IDX_FB, "IDX_FB"},
     {SIT_IDX_RID, "IDX_RID"},
