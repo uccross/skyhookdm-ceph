@@ -10,7 +10,7 @@
 
 
 #ifndef CLS_TRANSFORM_H
-#define CLS_TRASNFORM_H
+#define CLS_TRANSFORM_H
 
 #include "include/rados/librados.hpp"
 
@@ -23,30 +23,66 @@
 #include <string>
 
 
-namespace Transform {
+#include "include/types.h"
+//#include "objclass/objclass.h"
 
-  int transform( librados::bufferlist* blist_in,
-                 librados::bufferlist* blist_out,
-                 int transform_op_id ) ;
+/*
+ */
+struct dataset {
+  int id ;
+  std::string data ;
 
-  int transform_all( librados::bufferlist* blist_in,
-                     librados::bufferlist* blist_out ) ;
+  dataset() {}
 
-  int transform_reverse( librados::bufferlist* blist_in,
-                         librados::bufferlist* blist_out ) ;
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode( bufferlist& bl ) const {
+    ENCODE_START( 1, 1, bl ) ;
+    ::encode( id, bl ) ;
+    ::encode( data, bl ) ;
+    ENCODE_FINISH( bl ) ;
+  }
 
-  int transform_sort( librados::bufferlist* blist_in,
-                      librados::bufferlist* blist_out ) ;
+  // deserialize the fields from the bufferlist into this struct
+  void decode( bufferlist::iterator& bl ) {
+    DECODE_START( 1, bl ) ;
+    ::decode( id, bl ) ;
+    ::decode( data, bl ) ;
+    DECODE_FINISH( bl ) ;
+  }
 
-  int transform_rowtocol( librados::bufferlist* blist_in,
-                          librados::bufferlist* blist_out ) ;
+  std::string toString() {
+    std::string s ;
+    s.append( "dataset :" ) ;
+    s.append( " .id   = " + std::to_string( id ) ) ;
+    s.append( " .data = " + data ) ;
+    return s ;
+  }
 
-  int transform_coltorow( librados::bufferlist* blist_in,
-                          librados::bufferlist* blist_out ) ;
+  int getLength() {
+    return data.length() ;
+  }
 
-  int transform_noop( librados::bufferlist* blist_in,
-                      librados::bufferlist* blist_out ) ;
+} ;
+WRITE_CLASS_ENCODER( dataset )
 
-}
+int ceph_transform( librados::bufferlist* blist_in,
+               librados::bufferlist* blist_out,
+               int ceph_transform_op_id ) ;
+
+int ceph_transform_all( librados::bufferlist* blist_in,
+                   librados::bufferlist* blist_out ) ;
+
+int ceph_transform_reverse( librados::bufferlist* blist_in,
+                       librados::bufferlist* blist_out ) ;
+
+int ceph_transform_sort( librados::bufferlist* blist_in,
+                    librados::bufferlist* blist_out ) ;
+
+int ceph_transform_transpose( librados::bufferlist* blist_in,
+                              librados::bufferlist* blist_out ) ;
+
+int ceph_transform_noop( librados::bufferlist* blist_in,
+                    librados::bufferlist* blist_out ) ;
+
 
 #endif
