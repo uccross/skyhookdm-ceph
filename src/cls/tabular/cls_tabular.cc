@@ -490,60 +490,66 @@ read_sky_index(
             default:
                 assert (BuildSkyIndexUnsupportedColType==0);
         }
-	switch(index_preds[i]->opType()){
-                case SOT_eq:
-                        CLS_LOG(20,"*******Found eq predicate str=abcd");
-			eq_predicate=true;
-                        break;
-                case SOT_lt:
-			lt_predicate=true;
-			break;
-                case SOT_geq:
-			geq_predicate=true;
-			break;
-                case SOT_ne:
-                case SOT_leq:
-			leq_predicate=true;
-			break;
-                case SOT_gt:
-			gt_predicate=true;
-			break;
-                default:
-                        CLS_LOG(20,"*******It was not here=abcd");
+        switch(index_preds[i]->opType()){
+            case SOT_eq:
+                //CLS_LOG(20,"*******Found eq predicate str=abcd");
+                eq_predicate=true;
+                break;
+            case SOT_lt:
+                lt_predicate=true;
+                break;
+            case SOT_geq:
+                geq_predicate=true;
+                break;
+            case SOT_ne:
+            case SOT_leq:
+                leq_predicate=true;
+                break;
+            case SOT_gt:
+                gt_predicate=true;
+                break;
+            default:
+                CLS_LOG(20,"*******It was not here=abcd");
 
-            }
+        }
 
         if (i > 0)
             key_data += Tables::IDX_KEY_DELIM_INNER;
         key_data += buildKeyData(index_preds[i]->colType(), val);
     }
     std::string key = key_prefix + key_data;
+    std::map<std::string, bufferlist> key_bf_map;
+    std::map<std::string, bufferlist> full_key_bf_map;
     if( !lt_predicate && !gt_predicate )
-    	keys.push_back(key);
+        keys.push_back(key);
     // Call to get all the keys now
     std::string start_after = "";
     if(geq_predicate || gt_predicate)
     {	
         //std::string start_after = "IDX_REC:*-LINEITEM:LINENUMBER-ORDERKEY:";
-	start_after = key;
-        CLS_LOG(20,"*******Looking for str=%s", start_after.c_str());
+        start_after = key;
     }
     else if(lt_predicate || leq_predicate )
     {
-	start_after = key_prefix;
+        start_after = key_prefix;
     }
+    struct idx_rec_entry rec_ent2;
+    bufferlist bl1;
 
-    if( start_after != "" ){	
+    if( start_after != "" ) {	
         bool more=true;
     	std::set<std::string> keys1;
 	bool first=true;
     	int max_to_get=2;
-	while(first || keys1.size() != 0)
+        // keys1 condition will be removed
+	//while(first || keys1.size() != 0 || key_bf_map.size() != 0)
+	while(first || key_bf_map.size() != 0)
 	{
-		ret1 = cls_cxx_map_get_keys(hctx, start_after, max_to_get, &keys1, &more);
-    		CLS_LOG(20,"*******Looking for size of Keys1=%d", keys1.size());
+		//ret1 = cls_cxx_map_get_keys(hctx, start_after, max_to_get, &keys1, &more);
+            // Fetch 2 key-value pairs at a time
+            ret2 = cls_cxx_map_get_vals(hctx, start_after, string() , max_to_get, &key_bf_map, &more); 
 
-    		try {
+    		/*try {
         	for(auto it=keys1.cbegin(); it != keys1.cend(); it++)
         	{
              		const std::string& key = *it;
@@ -554,14 +560,37 @@ read_sky_index(
              		CLS_ERR("ERROR: decoding query idx_rec_ent");
              		return -EINVAL;
 
-        	}
-		start_after = keys[keys.size()-1];
-		if(lt_predicate || leq_predicate)
+        	}*/
+	
+            try {
+                for(auto it=key_bf_map.cbegin(); it != key_bf_map.cend(); it++) {
+                    const std::string& key = it->first;
+                    keys.push_back(key);
+
+                    bl1 = it->second;
+                    bufferlist::iterator it2 = bl1.begin();
+                    ::decode(rec_ent2, it2);
+                    //CLS_LOG(20,"key with GetValuesNitesh& Jeff found is=%s", key.c_str());
+                    //CLS_LOG(20,"Values with GetValuesNitesh& Jeff found is=%s", (rec_ent2.toString()).c_str());
+                }
+            } catch (const buffer::error &err) {
+                    CLS_ERR("ERROR: decoding query idx_rec_ent");
+                    return -EINVAL;
+
+            }
+		// Todo: Skip eq key in case of less_than predicate 
+            full_key_bf_map.insert(key_bf_map.cbegin(), key_bf_map.cend());	
+            start_after = keys[keys.size()-1];
+		/*if(lt_predicate || leq_predicate)
 		{
 			if( keys1.find(key) != keys1.end())
 				break;
-		}
-		first=false;
+		}*/
+            if(lt_predicate || leq_predicate) {
+                if( key_bf_map.find(key) != key_bf_map.end())
+                    break;
+            }
+            first=false;
 	}
     }
     
@@ -574,7 +603,15 @@ read_sky_index(
 	    struct idx_rec_entry rec_ent, rec_ent2;
 	    bufferlist bl, bl1;
 	    std::map<std::string, bufferlist> Map;
-            ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
+	    // Not calling get_val when we already have bf_list output
+	    if(full_key_bf_map.find(keys[i]) == full_key_bf_map.end())
+            	ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
+	    else {
+		bl = full_key_bf_map.find(keys[i])->second;
+        	CLS_LOG(20,"****Not computing value. Already there.");
+		ret=0;
+	    }
+
             if (ret < 0 && ret != -ENOENT) {
                 CLS_ERR("cant read map val index rec for idx_rec key %d", ret);
                 return ret;
