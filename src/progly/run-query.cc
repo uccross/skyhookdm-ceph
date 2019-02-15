@@ -373,13 +373,13 @@ int main(int argc, char **argv)
     if (index_read) {
         if (sky_idx_preds.size() > MAX_INDEX_COLS)
             assert (BuildSkyIndexUnsupportedNumCols == 0);
-        for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
+        /*for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
             if (sky_idx_preds[i]->opType() != SOT_eq) {
                 cerr << "Only equality predicates currently supported for "
                      << "Skyhook indexes" << std::endl;
                 assert (SkyIndexUnsupportedOpType == 0);
             }
-        }
+        }*/
     }
 
     // verify index types are integral/string and check col idx bounds

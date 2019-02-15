@@ -436,6 +436,81 @@ static void add_extra_row_cost(uint64_t cost)
   }
 }
 
+static 
+int 
+record_details( 
+    cls_method_context_t hctx, 
+    std::map<int, struct Tables::read_info>& idx_reads, 
+    bufferlist bl, 
+    std::string db_schema, 
+    std::string table ) {
+
+    struct idx_rec_entry rec_ent;
+    int ret=0;
+    try {
+        bufferlist::iterator it = bl.begin();
+        ::decode(rec_ent, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: decoding query idx_rec_ent");
+        return -EINVAL;
+    }
+
+    // keep track of the specified row num for this record
+    std::vector<unsigned int> row_nums;
+    row_nums.push_back(rec_ent.row_num);
+
+    // now build the key to lookup the corresponding flatbuf entry
+    std::string key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB,db_schema, table);
+    std::string key_data = Tables::buildKeyData(Tables::SDT_INT32, rec_ent.fb_num);
+    std::string key = key_prefix + key_data;
+    struct idx_fb_entry fb_ent;
+    bufferlist bl1;
+    ret = cls_cxx_map_get_val(hctx, key, &bl1);
+    if (ret < 0 && ret != -ENOENT) {
+        CLS_ERR("cant read map val index for idx_fb_key, %d", ret);
+        return ret;
+    }
+    if (ret >= 0) {
+        try {
+            bufferlist::iterator it = bl1.begin();
+            ::decode(fb_ent, it);
+        } catch (const buffer::error &err) {
+            CLS_ERR("ERROR: decoding query idx_fb_ent");
+            return -EINVAL;
+        }
+
+        // our reads are indexed by fb_num
+        // either add these row nums to the existing read_info
+        // struct for the given fb_num, or create a new one
+        auto it = idx_reads.find(rec_ent.fb_num);
+        if (it != idx_reads.end()) {
+            it->second.rnums.insert(it->second.rnums.end(),
+                                    row_nums.begin(),
+                                    row_nums.end());
+        }
+        else {
+            idx_reads[rec_ent.fb_num] = \
+            Tables::read_info(rec_ent.fb_num,
+                                             fb_ent.off,
+                                             fb_ent.len,
+                                             row_nums);
+        }
+    }
+    return 0;
+        
+}
+
+bool checkPredicate( Tables::predicate_vec index_preds, int opType )
+{
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+
+        if(index_preds[i]->opType() == opType)
+            return true;
+        }
+    return false;
+
+}
+
 /*
  * Lookup matching records in omap, based on the index specified and the
  * index predicates.  Set the idx_reads info vector with the corresponding
@@ -453,7 +528,7 @@ read_sky_index(
     std::map<int, struct Tables::read_info>& idx_reads) {
 
     using namespace Tables;
-    int ret = 0;
+    int ret = 0, ret2 = 0, ret1 = 0;
 
     // for each fb_seq_num, a corresponding read_info struct to
     // indicate the relevant rows within a given fb.
@@ -462,6 +537,7 @@ read_sky_index(
 
     // create record key
     std::vector<std::string> keys;
+    std::vector<std::string> keys1;
     std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
     std::string key_prefix = buildKeyPrefix(index_type,
                                             db_schema,
@@ -490,7 +566,61 @@ read_sky_index(
         key_data += buildKeyData(index_preds[i]->colType(), val);
     }
     std::string key = key_prefix + key_data;
-    keys.push_back(key);
+    std::map<std::string, bufferlist> key_bf_map;
+    if( !checkPredicate(index_preds,SOT_lt) && !checkPredicate(index_preds,SOT_gt) )
+        keys.push_back(key);
+    // Call to get all the keys now
+    std::string start_after = "";
+    if( checkPredicate(index_preds,SOT_geq) || checkPredicate(index_preds, SOT_gt))
+    {
+        start_after = key;
+        CLS_LOG(20,"****Start_after key %s", start_after.c_str());
+    }
+    else if(checkPredicate(index_preds,SOT_lt) || checkPredicate(index_preds,SOT_leq) )
+    {
+        start_after = key_prefix;
+    }
+    struct idx_rec_entry rec_ent2;
+    bufferlist bl1;
+
+    if( start_after != "" ) {
+        bool more = true;
+        bool first = true;
+        int max_to_get = 2;
+        CLS_LOG(20,"Size of map is = %d", key_bf_map.size());
+        while(first || key_bf_map.size() != 0)
+        {
+            ret2 = cls_cxx_map_get_vals(hctx, start_after, string() , max_to_get, &key_bf_map, &more);
+
+            try {
+                for(auto it=key_bf_map.cbegin(); it != key_bf_map.cend(); it++) {
+                    const std::string& key1 = it->first;
+                    keys1.push_back(key1);
+
+                    CLS_LOG(20,"&&key is=%s", key1.c_str());
+                    bl1 = it->second;
+                    bufferlist::iterator it2 = bl1.begin();
+                    ::decode(rec_ent2, it2);
+                    ret2 = record_details(hctx, idx_reads, bl1, db_schema, table);
+                    //CLS_LOG(20,"key with GetValuesNitesh& Jeff found is=%s", key.c_str());
+                    //CLS_LOG(20,"Values with GetValuesNitesh& Jeff found is=%s", (rec_ent2.toString()).c_str());
+                }
+            } catch (const buffer::error &err) {
+                    CLS_ERR("ERROR: decoding query idx_rec_ent");
+                    return -EINVAL;
+
+            }
+                // Todo: Skip eq key in case of less_than predicate 
+            start_after = keys1[keys1.size()-1];
+            if(checkPredicate(index_preds,SOT_lt) || checkPredicate(index_preds,SOT_leq) ) {
+                if( key_bf_map.find(key) != key_bf_map.end())
+                    break;
+            }
+            first=false;
+        }
+
+    }
+
 
     // lookup key in omap to get the row offset
     if (!keys.empty()) {
@@ -498,63 +628,14 @@ read_sky_index(
             struct idx_rec_entry rec_ent;
             bufferlist bl;
             ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
+
             if (ret < 0 && ret != -ENOENT) {
                 CLS_ERR("cant read map val index rec for idx_rec key %d", ret);
                 return ret;
             }
             if (ret >= 0) {
                 // CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
-                try {
-                    bufferlist::iterator it = bl.begin();
-                    ::decode(rec_ent, it);
-                } catch (const buffer::error &err) {
-                    CLS_ERR("ERROR: decoding query idx_rec_ent");
-                    return -EINVAL;
-                }
-
-                // keep track of the specified row num for this record
-                std::vector<unsigned int> row_nums;
-                row_nums.push_back(rec_ent.row_num);
-
-                // now build the key to lookup the corresponding flatbuf entry
-                std::string key_prefix = buildKeyPrefix(SIT_IDX_FB,
-                                                        db_schema,
-                                                        table);
-                std::string key_data = buildKeyData(SDT_INT32, rec_ent.fb_num);
-                std::string key = key_prefix + key_data;
-                struct idx_fb_entry fb_ent;
-                bufferlist bl;
-                ret = cls_cxx_map_get_val(hctx, key, &bl);
-                if (ret < 0 && ret != -ENOENT) {
-                    CLS_ERR("cant read map val index for idx_fb_key, %d", ret);
-                    return ret;
-                }
-                if (ret >= 0) {
-                    try {
-                        bufferlist::iterator it = bl.begin();
-                        ::decode(fb_ent, it);
-                    } catch (const buffer::error &err) {
-                        CLS_ERR("ERROR: decoding query idx_fb_ent");
-                        return -EINVAL;
-                    }
-
-                    // our reads are indexed by fb_num
-                    // either add these row nums to the existing read_info
-                    // struct for the given fb_num, or create a new one
-                    auto it = idx_reads.find(rec_ent.fb_num);
-                    if (it != idx_reads.end()) {
-                        it->second.rnums.insert(it->second.rnums.end(),
-                                                row_nums.begin(),
-                                                row_nums.end());
-                    }
-                    else {
-                        idx_reads[rec_ent.fb_num] = \
-                            Tables::read_info(rec_ent.fb_num,
-                                                    fb_ent.off,
-                                                    fb_ent.len,
-                                                    row_nums);
-                    }
-                }
+                ret2 = record_details(hctx, idx_reads, bl, db_schema, table);
             } else  {  // no rec found for key
                 // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
             }
