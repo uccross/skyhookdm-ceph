@@ -438,7 +438,7 @@ static void add_extra_row_cost(uint64_t cost)
 
 static 
 int 
-record_details( 
+get_idx_reads( 
     cls_method_context_t hctx, 
     std::map<int, struct Tables::read_info>& idx_reads, 
     bufferlist bl, 
@@ -500,7 +500,7 @@ record_details(
         
 }
 
-bool checkPredicate( Tables::predicate_vec index_preds, int opType )
+bool check_predicate( Tables::predicate_vec index_preds, int opType )
 {
     for (unsigned i = 0; i < index_preds.size(); i++) {
 
@@ -511,6 +511,30 @@ bool checkPredicate( Tables::predicate_vec index_preds, int opType )
 
 }
 
+bool compare_keys( std::string user_key, std::string range_key )
+{
+
+    // Format of keys is like IDX_REC:*-LINEITEM:LINENUMBER-ORDERKEY:00000000000000000001-00000000000000000006
+    // First splitting both the string on the basis of ':' delimiter
+    vector<std::string> elem;
+    boost::split(elem, user_key, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
+
+    vector<std::string> elem1;
+    boost::split(elem1, range_key, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
+    
+    // 4th entry in vector represents the value vector i.e after prefix
+    vector<std::string> user_elem;
+    vector<std::string> range_elem;
+
+    // Now splitting on the basis of '-' delimiter and comparing first token of both
+    boost::split(user_elem, elem[3] , boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
+    boost::split(range_elem, elem1[3], boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
+
+    
+    if(user_elem[0] == range_elem[0])
+        return true;
+    return false;
+}
 /*
  * Lookup matching records in omap, based on the index specified and the
  * index predicates.  Set the idx_reads info vector with the corresponding
@@ -528,7 +552,7 @@ read_sky_index(
     std::map<int, struct Tables::read_info>& idx_reads) {
 
     using namespace Tables;
-    int ret = 0, ret2 = 0, ret1 = 0;
+    int ret = 0, ret2 = 0;
 
     // for each fb_seq_num, a corresponding read_info struct to
     // indicate the relevant rows within a given fb.
@@ -537,7 +561,6 @@ read_sky_index(
 
     // create record key
     std::vector<std::string> keys;
-    std::vector<std::string> keys1;
     std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
     std::string key_prefix = buildKeyPrefix(index_type,
                                             db_schema,
@@ -567,56 +590,84 @@ read_sky_index(
     }
     std::string key = key_prefix + key_data;
     std::map<std::string, bufferlist> key_bf_map;
-    if( !checkPredicate(index_preds,SOT_lt) && !checkPredicate(index_preds,SOT_gt) )
+    if( !check_predicate(index_preds,SOT_lt) && !check_predicate(index_preds,SOT_gt) )
         keys.push_back(key);
-    // Call to get all the keys now
+    // Find the starting key for range query keys
     std::string start_after = "";
-    if( checkPredicate(index_preds,SOT_geq) || checkPredicate(index_preds, SOT_gt))
+    if( check_predicate(index_preds,SOT_geq) || check_predicate(index_preds, SOT_gt))
     {
         start_after = key;
         CLS_LOG(20,"****Start_after key %s", start_after.c_str());
     }
-    else if(checkPredicate(index_preds,SOT_lt) || checkPredicate(index_preds,SOT_leq) )
+    else if(check_predicate(index_preds,SOT_lt) || check_predicate(index_preds,SOT_leq) )
     {
         start_after = key_prefix;
     }
-    struct idx_rec_entry rec_ent2;
     bufferlist bl1;
 
+    // Get keys-bufferlist two at a time and print row number/ offset detail
     if( start_after != "" ) {
         bool more = true;
         bool first = true;
+        bool stop = false;
         int max_to_get = 2;
-        CLS_LOG(20,"Size of map is = %d", key_bf_map.size());
         while(first || key_bf_map.size() != 0)
         {
             ret2 = cls_cxx_map_get_vals(hctx, start_after, string() , max_to_get, &key_bf_map, &more);
 
+            if (ret2 < 0 ) {
+                CLS_ERR("cant read map val index rec for idx_rec key %d", ret2);
+                return ret2;
+            }
+            if ( ret2 >= 0) {
             try {
                 for(auto it=key_bf_map.cbegin(); it != key_bf_map.cend(); it++) {
                     const std::string& key1 = it->first;
-                    keys1.push_back(key1);
+                    
+                    // Break if keyprefix in fetched key is not same as that passed by user 
+                    if(key1.find(key_prefix) == std::string::npos) {
+                        stop = true;
+                        break;
+                    }
 
-                    CLS_LOG(20,"&&key is=%s", key1.c_str());
+                    // Know this is the last key, so update start_after value with it
+                    if(std::next(it, 1) == key_bf_map.cend() ) {
+                        start_after = key1;    
+                        CLS_LOG(20,"%%key we have is=%s", key1.c_str());
+                    }
                     bl1 = it->second;
-                    bufferlist::iterator it2 = bl1.begin();
-                    ::decode(rec_ent2, it2);
-                    ret2 = record_details(hctx, idx_reads, bl1, db_schema, table);
-                    //CLS_LOG(20,"key with GetValuesNitesh& Jeff found is=%s", key.c_str());
-                    //CLS_LOG(20,"Values with GetValuesNitesh& Jeff found is=%s", (rec_ent2.toString()).c_str());
+                    // checking and breaking if key matches or exceeds key passed by the user in predicate column
+                    if(check_predicate(index_preds,SOT_lt) || check_predicate(index_preds,SOT_leq) ) {
+                        if( key_bf_map.find(key) != key_bf_map.end())
+                        {
+                            stop=true;
+                            break;
+                        }
+                        else if( key1 > key )  // Special handling for leq predicate
+                        {
+                            if( check_predicate(index_preds, SOT_leq) && compare_keys(key, key1)) {
+                                stop = false;
+                            }
+                            else {
+                                stop = true;
+                                break;
+                            }
+                        }
+                    }
+                    // Set the idx_reads info vector with the corresponding flatbuf off/len and row numbers for each matching record.
+                    ret2 = get_idx_reads(hctx, idx_reads, bl1, db_schema, table);
+                    if( ret2 < 0 )
+                        return ret2;
                 }
             } catch (const buffer::error &err) {
                     CLS_ERR("ERROR: decoding query idx_rec_ent");
                     return -EINVAL;
 
             }
-                // Todo: Skip eq key in case of less_than predicate 
-            start_after = keys1[keys1.size()-1];
-            if(checkPredicate(index_preds,SOT_lt) || checkPredicate(index_preds,SOT_leq) ) {
-                if( key_bf_map.find(key) != key_bf_map.end())
-                    break;
-            }
+            if(stop)
+                break;
             first=false;
+            }
         }
 
     }
@@ -635,7 +686,10 @@ read_sky_index(
             }
             if (ret >= 0) {
                 // CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
-                ret2 = record_details(hctx, idx_reads, bl, db_schema, table);
+                ret2 = get_idx_reads(hctx, idx_reads, bl, db_schema, table);
+
+                if( ret2 < 0)
+                    return ret2;
             } else  {  // no rec found for key
                 // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
             }
