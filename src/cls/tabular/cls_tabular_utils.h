@@ -134,6 +134,13 @@ enum SkyIdxType
     SIT_IDX_UNK
 };
 
+enum IdxField {
+    IDX_FIELD_TYPE = 0,
+    IDX_FIELD_Table,
+    IDX_FIELD_Column,
+    IDX_FIELD_Value,
+};
+
 enum SkyIdxPlanType
 {
     SIP_IDX_STANDARD = 1,

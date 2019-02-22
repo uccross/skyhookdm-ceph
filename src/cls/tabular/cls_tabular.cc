@@ -438,7 +438,7 @@ static void add_extra_row_cost(uint64_t cost)
 
 static 
 int 
-get_idx_reads( 
+update_idx_reads( 
     cls_method_context_t hctx, 
     std::map<int, struct Tables::read_info>& idx_reads, 
     bufferlist bl, 
@@ -511,27 +511,27 @@ bool check_predicate( Tables::predicate_vec index_preds, int opType )
 
 }
 
-bool compare_keys( std::string user_key, std::string range_key )
+bool compare_keys( std::string key1, std::string key2 )
 {
 
     // Format of keys is like IDX_REC:*-LINEITEM:LINENUMBER-ORDERKEY:00000000000000000001-00000000000000000006
     // First splitting both the string on the basis of ':' delimiter
-    vector<std::string> elem;
-    boost::split(elem, user_key, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
+    vector<std::string> elems1;
+    boost::split(elems1, key1, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
 
-    vector<std::string> elem1;
-    boost::split(elem1, range_key, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
+    vector<std::string> elems2;
+    boost::split(elems2, key2, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
     
     // 4th entry in vector represents the value vector i.e after prefix
-    vector<std::string> user_elem;
-    vector<std::string> range_elem;
+    vector<std::string> value1;
+    vector<std::string> value2;
 
     // Now splitting on the basis of '-' delimiter and comparing first token of both
-    boost::split(user_elem, elem[3] , boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
-    boost::split(range_elem, elem1[3], boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
+    boost::split(value1, elems1[Tables::IDX_FIELD_Value] , boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
+    boost::split(value2, elems2[Tables::IDX_FIELD_Value], boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
 
-    
-    if(user_elem[0] == range_elem[0])
+   // Compare first token of both field value 
+    if(value1[0] == value2[0])
         return true;
     return false;
 }
@@ -559,7 +559,7 @@ read_sky_index(
     // fb_seq_num is used as key, so that subsequent reads will always be from
     // a higher byte offset, if that matters.
 
-    // create record key
+    // build key prefix
     std::vector<std::string> keys;
     std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
     std::string key_prefix = buildKeyPrefix(index_type,
@@ -589,7 +589,8 @@ read_sky_index(
         key_data += buildKeyData(index_preds[i]->colType(), val);
     }
     std::string key = key_prefix + key_data;
-    std::map<std::string, bufferlist> key_bf_map;
+    std::map<std::string, bufferlist> key_val_map;
+    // Add equality predicate key
     if( !check_predicate(index_preds,SOT_lt) && !check_predicate(index_preds,SOT_gt) )
         keys.push_back(key);
     // Find the starting key for range query keys
@@ -597,31 +598,39 @@ read_sky_index(
     if( check_predicate(index_preds,SOT_geq) || check_predicate(index_preds, SOT_gt))
     {
         start_after = key;
-        CLS_LOG(20,"****Start_after key %s", start_after.c_str());
+        //CLS_LOG(20,"****Start_after key %s", start_after.c_str());
     }
     else if(check_predicate(index_preds,SOT_lt) || check_predicate(index_preds,SOT_leq) )
     {
         start_after = key_prefix;
     }
-    bufferlist bl1;
+    bufferlist record_bl_entry;
 
     // Get keys-bufferlist two at a time and print row number/ offset detail
-    if( start_after != "" ) {
-        bool more = true;
-        bool first = true;
-        bool stop = false;
-        int max_to_get = 2;
-        while(first || key_bf_map.size() != 0)
-        {
-            ret2 = cls_cxx_map_get_vals(hctx, start_after, string() , max_to_get, &key_bf_map, &more);
+    // This if condition is for the range query
+    bool stop = false;
+    if( start_after.empty() ) {
+        stop = true;
+    }
+    
+    bool more = true;
+    int max_to_get = 2;
+    // This is for the range query
+    while(!stop)
+    {
+        ret2 = cls_cxx_map_get_vals(hctx, start_after, string() , max_to_get, &key_val_map, &more);
 
-            if (ret2 < 0 ) {
-                CLS_ERR("cant read map val index rec for idx_rec key %d", ret2);
-                return ret2;
-            }
-            if ( ret2 >= 0) {
+        if (ret2 < 0 && ret2 != -ENOENT ) {
+            CLS_ERR("cant read map val index rec for idx_rec key %d", ret2);
+            return ret2;
+        }
+        // No entries found break out of the loop
+        if( ret2 == -ENOENT || key_val_map.size() == 0) {
+            break;
+        }
+        if ( ret2 >= 0) {
             try {
-                for(auto it=key_bf_map.cbegin(); it != key_bf_map.cend(); it++) {
+                for(auto it=key_val_map.cbegin(); it != key_val_map.cend(); it++) {
                     const std::string& key1 = it->first;
                     
                     // Break if keyprefix in fetched key is not same as that passed by user 
@@ -631,14 +640,14 @@ read_sky_index(
                     }
 
                     // Know this is the last key, so update start_after value with it
-                    if(std::next(it, 1) == key_bf_map.cend() ) {
+                    if(std::next(it, 1) == key_val_map.cend() ) {
                         start_after = key1;    
-                        CLS_LOG(20,"%%key we have is=%s", key1.c_str());
+                        //CLS_LOG(20,"%%key we have is=%s", key1.c_str());
                     }
-                    bl1 = it->second;
+                    record_bl_entry = it->second;
                     // checking and breaking if key matches or exceeds key passed by the user in predicate column
                     if(check_predicate(index_preds,SOT_lt) || check_predicate(index_preds,SOT_leq) ) {
-                        if( key_bf_map.find(key) != key_bf_map.end())
+                        if( key_val_map.find(key) != key_val_map.end())
                         {
                             stop=true;
                             break;
@@ -654,8 +663,12 @@ read_sky_index(
                             }
                         }
                     }
+
+                    // Skip equality entries in geq query
+                    if( check_predicate(index_preds, SOT_gt) && compare_keys(key, key1) )
+                        continue;
                     // Set the idx_reads info vector with the corresponding flatbuf off/len and row numbers for each matching record.
-                    ret2 = get_idx_reads(hctx, idx_reads, bl1, db_schema, table);
+                    ret2 = update_idx_reads(hctx, idx_reads, record_bl_entry, db_schema, table);
                     if( ret2 < 0 )
                         return ret2;
                 }
@@ -664,13 +677,9 @@ read_sky_index(
                     return -EINVAL;
 
             }
-            if(stop)
-                break;
-            first=false;
-            }
         }
-
     }
+
 
 
     // lookup key in omap to get the row offset
@@ -686,7 +695,7 @@ read_sky_index(
             }
             if (ret >= 0) {
                 // CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
-                ret2 = get_idx_reads(hctx, idx_reads, bl, db_schema, table);
+                ret2 = update_idx_reads(hctx, idx_reads, bl, db_schema, table);
 
                 if( ret2 < 0)
                     return ret2;
