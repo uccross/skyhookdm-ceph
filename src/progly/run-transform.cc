@@ -83,21 +83,41 @@ int main(int argc, char **argv)
   librados::bufferlist id4_blist_in ;
   librados::bufferlist id4_blist_out ;
 
-  std::string row1_data = "ABC" ;
-  std::string row2_data = "ABC" ;
-  std::string row3_data = "ABC" ;
+  std::string row1_data = "ABCD" ;
+  std::string row2_data = "ABCD" ;
+  std::string row3_data = "ABCD" ;
 
+  std::vector<std::pair<std::string, int>> data1 ;
+  std::vector<std::pair<std::string, int>> data2 ;
+  std::vector<std::pair<std::string, int>> data3 ;
+  std::vector<std::pair<std::string, int>> data4 ;
   dataset ds1 ;
   dataset ds2 ;
   dataset ds3 ;
 
-  ds1.id = 1 ;
-  ds2.id = 2 ;
-  ds3.id = 3 ;
+  for( unsigned int i = 0; i < row1_data.length(); i++ ) {
+    std::string astr ;
+    auto achar = row1_data.c_str()[ i ] ;
+    astr.push_back( achar ) ;
+    ds1.data.push_back( std::make_pair( astr, 1 ) ) ;
+  } 
+  for( unsigned int i = 0; i < row2_data.length(); i++ ) {
+    std::string astr ;
+    auto achar = row2_data.c_str()[ i ] ;
+    astr.push_back( achar ) ;
+    ds2.data.push_back( std::make_pair( astr, 2 ) ) ;
+  } 
+  for( unsigned int i = 0; i < row3_data.length(); i++ ) {
+    std::string astr ;
+    auto achar = row3_data.c_str()[ i ] ;
+    astr.push_back( achar ) ;
+    ds3.data.push_back( std::make_pair( astr, 3 ) ) ;
+  } 
 
-  ds1.data = row1_data ;
-  ds2.data = row2_data ;
-  ds3.data = row3_data ;
+  //std::cout << "====================" << std::endl ;
+  //std::cout << ds1.toString() << std::endl ;
+  //std::cout << ds2.toString() << std::endl ;
+  //std::cout << ds3.toString() << std::endl ;
 
   std::vector< dataset > table ;
 
@@ -115,12 +135,19 @@ int main(int argc, char **argv)
   librados::bufferlist::iterator decoded_id4_biter_out( &id4_blist_out ) ;
   ::decode( decoded_id4_blist_out, decoded_id4_biter_out ) ;
 
-  assert( decoded_id4_blist_in[0].toString()  == "dataset : .id   = 1 .data = ABC"  ) ;
-  assert( decoded_id4_blist_in[1].toString()  == "dataset : .id   = 2 .data = ABC"  ) ;
-  assert( decoded_id4_blist_in[2].toString()  == "dataset : .id   = 3 .data = ABC"  ) ;
-  assert( decoded_id4_blist_out[0].toString() == "dataset : .id   = 1 .data = AAA"  ) ;
-  assert( decoded_id4_blist_out[1].toString() == "dataset : .id   = 2 .data = BBB"  ) ;
-  assert( decoded_id4_blist_out[2].toString() == "dataset : .id   = 3 .data = CCC"  ) ;
+  //std::cout << "====================" << std::endl ;
+  //std::cout << decoded_id4_blist_out[0].toString() << std::endl ;
+  //std::cout << decoded_id4_blist_out[1].toString() << std::endl ;
+  //std::cout << decoded_id4_blist_out[2].toString() << std::endl ;
+  //std::cout << decoded_id4_blist_out[3].toString() << std::endl ;
+
+  assert( decoded_id4_blist_in[0].toString()  == "dataset :  A, 1  B, 1  C, 1  D, 1" ) ;
+  assert( decoded_id4_blist_in[1].toString()  == "dataset :  A, 2  B, 2  C, 2  D, 2" ) ;
+  assert( decoded_id4_blist_in[2].toString()  == "dataset :  A, 3  B, 3  C, 3  D, 3" ) ;
+  assert( decoded_id4_blist_out[0].toString() == "dataset :  A, 1  A, 2  A, 3" ) ;
+  assert( decoded_id4_blist_out[1].toString() == "dataset :  B, 1  B, 2  B, 3" ) ;
+  assert( decoded_id4_blist_out[2].toString() == "dataset :  C, 1  C, 2  C, 3" ) ;
+  assert( decoded_id4_blist_out[3].toString() == "dataset :  D, 1  D, 2  D, 3" ) ;
 
   // ----------------------------------------------------------------------------- //
   // ceph_transform_noop
