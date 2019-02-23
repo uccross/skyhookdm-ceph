@@ -29,15 +29,13 @@
 /*
  */
 struct dataset {
-  int id ;
-  std::string data ;
+  std::vector<std::pair<std::string,int>> data ;
 
   dataset() {}
 
   // serialize the fields into bufferlist to be sent over the wire
   void encode( bufferlist& bl ) const {
     ENCODE_START( 1, 1, bl ) ;
-    ::encode( id, bl ) ;
     ::encode( data, bl ) ;
     ENCODE_FINISH( bl ) ;
   }
@@ -45,7 +43,6 @@ struct dataset {
   // deserialize the fields from the bufferlist into this struct
   void decode( bufferlist::iterator& bl ) {
     DECODE_START( 1, bl ) ;
-    ::decode( id, bl ) ;
     ::decode( data, bl ) ;
     DECODE_FINISH( bl ) ;
   }
@@ -53,13 +50,18 @@ struct dataset {
   std::string toString() {
     std::string s ;
     s.append( "dataset :" ) ;
-    s.append( " .id   = " + std::to_string( id ) ) ;
-    s.append( " .data = " + data ) ;
+    for( unsigned int i = 0; i < data.size(); i++ ) {
+      auto apair = data[i] ;
+      s.append( "  " ) ; 
+      s.append( apair.first ) ;
+      s.append( ", " ) ;
+      s.append( std::to_string( apair.second ) ) ;
+    }
     return s ;
   }
 
   int getLength() {
-    return data.length() ;
+    return data.size() ;
   }
 
 } ;

@@ -105,17 +105,16 @@ int ceph_transform_transpose( librados::bufferlist* blist_in,
   librados::bufferlist::iterator biter( &*blist_in ) ;
   ::decode( decoded_table, biter ) ;
 
-  // initialize one dataset per row == decoded_table.size()
+  // one dataset per row == decoded_table.size()
   std::vector< dataset > transpose ;
 
-  // peel out the ith character from every row and insert
+  // peel out the ith element from every row and insert
   // into the corresponding ith col
-  for( int i = 0; i < decoded_table.size(); i++ ) {
+  int num_transpose_rows = decoded_table[0].getLength() ;
+  for( int i = 0; i < num_transpose_rows; i++ ) {
     dataset ds ;
-    ds.id   = i+1 ;
-    ds.data = "" ;
-    for( int j = 0; j < decoded_table[i].getLength(); j++ ) {
-      ds.data += decoded_table[j].data[i] ;
+    for( unsigned int j = 0; j < decoded_table.size(); j++ ) {
+      ds.data.push_back( decoded_table[j].data[i] ) ;
     }
     transpose.push_back( ds ) ;
   }
