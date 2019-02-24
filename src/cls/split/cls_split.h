@@ -22,26 +22,66 @@
 #include <tuple>
 #include <string>
 
-namespace Split {
+#include "include/types.h"
 
-  int split( librados::bufferlist* blist_in, 
-             librados::bufferlist* blist_out0, 
-             librados::bufferlist* blist_out1, 
-             int split_op_id ) ;
+/*
+ */
+struct dataset {
+  std::vector<std::pair<std::string,int>> data ;
 
-  int split_12( librados::bufferlist* blist_in, 
+  dataset() {}
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode( bufferlist& bl ) const {
+    ENCODE_START( 1, 1, bl ) ;
+    ::encode( data, bl ) ;
+    ENCODE_FINISH( bl ) ;
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode( bufferlist::iterator& bl ) {
+    DECODE_START( 1, bl ) ;
+    ::decode( data, bl ) ;
+    DECODE_FINISH( bl ) ;
+  }
+
+  std::string toString() {
+    std::string s ;
+    s.append( "dataset :" ) ;
+    for( unsigned int i = 0; i < data.size(); i++ ) {
+      auto apair = data[i] ;
+      s.append( "  " ) ;
+      s.append( apair.first ) ;
+      s.append( ", " ) ;
+      s.append( std::to_string( apair.second ) ) ;
+    }
+    return s ;
+  }
+
+  int getLength() {
+    return data.size() ;
+  }
+
+} ;
+WRITE_CLASS_ENCODER( dataset )
+
+int ceph_split( librados::bufferlist* blist_in, 
                 librados::bufferlist* blist_out0, 
-                librados::bufferlist* blist_out1 ) ;
+                librados::bufferlist* blist_out1, 
+                int split_op_id,
+                const char* split_pattern="" ) ;
 
-  int split_pattern( librados::bufferlist* blist_in, 
+int ceph_split_12( librados::bufferlist* blist_in, 
+                   librados::bufferlist* blist_out0, 
+                   librados::bufferlist* blist_out1 ) ;
+
+int ceph_split_pattern( librados::bufferlist* blist_in, 
+                        librados::bufferlist* blist_out0, 
+                        librados::bufferlist* blist_out1, 
+                        const char* spit_pattern ) ;
+
+int ceph_split_noop( librados::bufferlist* blist_in, 
                      librados::bufferlist* blist_out0, 
-                     librados::bufferlist* blist_out1, 
-                     const char* pattern ) ;
-
-  int split_noop( librados::bufferlist* blist_in, 
-                  librados::bufferlist* blist_out0, 
-                  librados::bufferlist* blist_out1 ) ;
-
-}
+                     librados::bufferlist* blist_out1 ) ;
 
 #endif
