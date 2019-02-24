@@ -56,16 +56,18 @@ int ceph_transform_reverse( librados::bufferlist* blist_in,
   std::cout << "  EXECUTING ceph_transform_reverse()" << std::endl ;
   std::cout << std::endl ;
 
-  // this is easier with a bufferptr
-  ceph::bufferptr bptr_in ;
-  librados::bufferlist::iterator i( &*blist_in ) ;
-  i.copy_deep( blist_in->length(), bptr_in ) ;
+  std::vector< dataset > decoded_table ;
+  librados::bufferlist::iterator biter( &*blist_in ) ;
+  ::decode( decoded_table, biter ) ;
 
-  // fill out list
-  for( int i = blist_in->length(); i --> 0 ; )
-  {
-    blist_out->append( bptr_in[ i ] ) ;
+  dataset ds_reversed ;
+  for( int i = decoded_table[0].data.size() - 1 ; i >=0 ; i-- ) {
+    ds_reversed.data.push_back( decoded_table[0].data[i] ) ;
   }
+
+  std::vector< dataset > reversed_table ;
+  reversed_table.push_back( ds_reversed ) ;
+  ::encode( reversed_table, *blist_out ) ;
 
   return 0 ;
 }
@@ -80,13 +82,15 @@ int ceph_transform_sort( librados::bufferlist* blist_in,
   std::cout << "  EXECUTING ceph_transform_sort()" << std::endl ;
   std::cout << std::endl ;
 
-  auto data = (std::string)blist_in->c_str() ;
-  std::sort( data.begin(), data.end() ) ;
+  std::vector< dataset > decoded_table ;
+  librados::bufferlist::iterator biter( &*blist_in ) ;
+  ::decode( decoded_table, biter ) ;
 
-  // fill out list
-  char data_sorted[ blist_in->length() + 1 ] ;
-  std::copy( data.begin(), data.end(), data_sorted ) ;
-  blist_out->append( data_sorted, blist_in->length() ) ;
+  std::sort( decoded_table[0].data.begin(), decoded_table[0].data.end() ) ;
+
+  std::vector< dataset > sorted_table ;
+  sorted_table.push_back( decoded_table[0] ) ;
+  ::encode( sorted_table, *blist_out ) ;
 
   return 0 ;
 }

@@ -54,28 +54,70 @@ int main(int argc, char **argv)
 
   librados::bufferlist id2_blist_in ;
   librados::bufferlist id2_blist_out ;
-  id2_blist_in.append( "teststr", 7 ) ;
 
-  //Transform::ceph_transform( &id2_blist_in, &id2_blist_out, 2 ) ;
+  std::string str_reverse = "teststr" ;
+
+  std::vector<std::pair<std::string, int>> data_reverse ;
+  dataset ds_reverse ;
+
+  for( unsigned int i = 0; i < str_reverse.length(); i++ ) {
+    std::string astr ;
+    auto achar = str_reverse.c_str()[ i ] ;
+    astr.push_back( achar ) ;
+    ds_reverse.data.push_back( std::make_pair( astr, 1 ) ) ;
+  } 
+
+  std::vector< dataset > table_reverse ;
+
+  table_reverse.push_back( ds_reverse ) ;
+
+  ::encode( table_reverse, id2_blist_in ) ;
   ceph_transform( &id2_blist_in, &id2_blist_out, 2 ) ;
-  assert( id2_blist_in.length()  == 7 ) ;
-  assert( id2_blist_out.length() == 7 ) ;
-  assert( ((std::string)id2_blist_in.c_str()).compare(  "teststr" ) == 0 ) ;
-  assert( ((std::string)id2_blist_out.c_str()).compare( "rtstset" ) == 0 ) ;
+
+  std::vector< dataset > decoded_id2_blist_in ;
+  librados::bufferlist::iterator decoded_id2_biter_in( &id2_blist_in ) ;
+  ::decode( decoded_id2_blist_in, decoded_id2_biter_in ) ;
+  std::vector< dataset > decoded_id2_blist_out ;
+  librados::bufferlist::iterator decoded_id2_biter_out( &id2_blist_out ) ;
+  ::decode( decoded_id2_blist_out, decoded_id2_biter_out ) ;
+
+  assert( decoded_id2_blist_in[0].toString()  == "dataset :  t, 1  e, 1  s, 1  t, 1  s, 1  t, 1  r, 1" ) ;
+  assert( decoded_id2_blist_out[0].toString() == "dataset :  r, 1  t, 1  s, 1  t, 1  s, 1  e, 1  t, 1" ) ;
 
   // ----------------------------------------------------------------------------- //
   // ceph_transform_sort
 
   librados::bufferlist id3_blist_in ;
   librados::bufferlist id3_blist_out ;
-  id3_blist_in.append( "teststr", 7 ) ;
 
-  //Transform::ceph_transform( &id3_blist_in, &id3_blist_out, 3 ) ;
+  std::string str_sort = "teststr" ;
+
+  std::vector<std::pair<std::string, int>> data_sort ;
+  dataset ds_sort ;
+
+  for( unsigned int i = 0; i < str_sort.length(); i++ ) {
+    std::string astr ;
+    auto achar = str_sort.c_str()[ i ] ;
+    astr.push_back( achar ) ;
+    ds_sort.data.push_back( std::make_pair( astr, 1 ) ) ;
+  } 
+
+  std::vector< dataset > table_sort ;
+
+  table_sort.push_back( ds_sort ) ;
+
+  ::encode( table_sort, id3_blist_in ) ;
   ceph_transform( &id3_blist_in, &id3_blist_out, 3 ) ;
-  assert( id3_blist_in.length()  == 7 ) ;
-  assert( id3_blist_out.length() == 7 ) ;
-  assert( ((std::string)id3_blist_in.c_str()).compare(  "teststr" ) == 0 ) ;
-  assert( ((std::string)id3_blist_out.c_str()).compare( "erssttt" ) == 0 ) ;
+
+  std::vector< dataset > decoded_id3_blist_in ;
+  librados::bufferlist::iterator decoded_id3_biter_in( &id3_blist_in ) ;
+  ::decode( decoded_id3_blist_in, decoded_id3_biter_in ) ;
+  std::vector< dataset > decoded_id3_blist_out ;
+  librados::bufferlist::iterator decoded_id3_biter_out( &id3_blist_out ) ;
+  ::decode( decoded_id3_blist_out, decoded_id3_biter_out ) ;
+
+  assert( decoded_id3_blist_in[0].toString()  == "dataset :  t, 1  e, 1  s, 1  t, 1  s, 1  t, 1  r, 1" ) ;
+  assert( decoded_id3_blist_out[0].toString() == "dataset :  e, 1  r, 1  s, 1  s, 1  t, 1  t, 1  t, 1" ) ;
 
   // ----------------------------------------------------------------------------- //
   // ceph_transform_transpose
@@ -152,13 +194,13 @@ int main(int argc, char **argv)
   // ----------------------------------------------------------------------------- //
   // ceph_transform_noop
 
-  librados::bufferlist id0_blist_in ;
-  librados::bufferlist id0_blist_out ;
-  id0_blist_in.append( "teststr", 7 ) ;
-
-  ceph_transform( &id0_blist_in, &id0_blist_out, 0 ) ;
-  assert( id3_blist_in.length() == 7 ) ;
-  assert( ((std::string)id3_blist_in.c_str()).compare("teststr" ) == 0 ) ;
+//  librados::bufferlist id0_blist_in ;
+//  librados::bufferlist id0_blist_out ;
+//  id0_blist_in.append( "teststr", 7 ) ;
+//
+//  ceph_transform( &id0_blist_in, &id0_blist_out, 0 ) ;
+//  assert( id3_blist_in.length() == 7 ) ;
+//  assert( ((std::string)id3_blist_in.c_str()).compare("teststr" ) == 0 ) ;
 
   std::cout << "...ceph_transformss done. phew!" << std::endl ;
   return 0 ;
