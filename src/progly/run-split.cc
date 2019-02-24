@@ -65,9 +65,9 @@ int main(int argc, char **argv)
   librados::bufferlist::iterator decoded_id1_biter_out1( &id1_blist_out1 ) ;
   ::decode( decoded_id1_blist_out1, decoded_id1_biter_out1 ) ;
 
-  std::cout << decoded_id1_blist_in[0].toString() << std::endl ;
-  std::cout << decoded_id1_blist_out0[0].toString() << std::endl ;
-  std::cout << decoded_id1_blist_out1[0].toString() << std::endl ;
+  //std::cout << decoded_id1_blist_in[0].toString() << std::endl ;
+  //std::cout << decoded_id1_blist_out0[0].toString() << std::endl ;
+  //std::cout << decoded_id1_blist_out1[0].toString() << std::endl ;
 
   assert( decoded_id1_blist_in[0].toString()   == "dataset :  t, 1  e, 1  s, 1  t, 1  s, 1  t, 1  r, 1" ) ;
   assert( decoded_id1_blist_out0[0].toString() == "dataset :  t, 1  e, 1  s, 1" ) ;

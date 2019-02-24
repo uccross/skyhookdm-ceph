@@ -83,15 +83,14 @@ int ceph_split_pattern( librados::bufferlist* blist_in,
   librados::bufferlist::iterator biter( &*blist_in ) ;
   ::decode( decoded_table, biter ) ;
 
-//  int pos = -1 ;
-//  for( unsigned int i = 0; i < decoded_table[0].data.size(); i++ ) {
-//    auto apair = decoded_table[0].data[i] ;
-//    if( apair.first == split_pattern ) {
-//      pos = i ;
-//      break ;
-//    }
-//  } 
-  int pos = 2 ;
+  int pos = -1 ;
+  for( unsigned int i = 0; i < decoded_table[0].data.size(); i++ ) {
+    auto apair = decoded_table[0].data[i] ;
+    if( apair.first == split_pattern ) {
+      pos = i ;
+      break ;
+    }
+  } 
 
   dataset left ;
   dataset right ;
@@ -103,8 +102,8 @@ int ceph_split_pattern( librados::bufferlist* blist_in,
     right.data.push_back( decoded_table[0].data[i] ) ;
   }
 
-  std::cout << left.toString() << std::endl ;
-  std::cout << right.toString() << std::endl ;
+  //std::cout << left.toString() << std::endl ;
+  //std::cout << right.toString() << std::endl ;
 
   std::vector< dataset > left_table ;
   left_table.push_back( left ) ;
