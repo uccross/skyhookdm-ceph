@@ -32,16 +32,13 @@ int ceph_transform_all( librados::bufferlist* blist_in,
   std::cout << "  EXECUTING ceph_transform_all()" << std::endl ;
   std::cout << std::endl ;
 
-  // this is easier with a bufferptr
-  ceph::bufferptr bptr_in ;
-  librados::bufferlist::iterator i( &*blist_in ) ;
-  i.copy_deep( blist_in->length(), bptr_in ) ;
+  std::vector< dataset > decoded_table ;
+  librados::bufferlist::iterator biter( &*blist_in ) ;
+  ::decode( decoded_table, biter ) ;
 
-  // fill out list
-  for( unsigned int i = 0; i < blist_in->length(); i++ )
-  {
-    blist_out->append( bptr_in[ i ] ) ;
-  }
+  std::vector< dataset > all_table ;
+  all_table.push_back( decoded_table[0] ) ;
+  ::encode( all_table, *blist_out ) ;
 
   return 0 ;
 }
@@ -132,7 +129,7 @@ int ceph_transform_transpose( librados::bufferlist* blist_in,
 //      CEPH_TRANSFORM NOOP     //
 // ============================ //
 int ceph_transform_noop( librados::bufferlist* blist_in,
-                    librados::bufferlist* blist_out )
+                         librados::bufferlist* blist_out )
 {
   std::cout << "............................" << std::endl ;
   std::cout << "  EXECUTING ceph_transform_noop()" << std::endl ;

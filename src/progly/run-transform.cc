@@ -40,14 +40,35 @@ int main(int argc, char **argv)
 
   librados::bufferlist id1_blist_in ;
   librados::bufferlist id1_blist_out ;
-  id1_blist_in.append( "teststr", 7 ) ;
 
-  //Transform::ceph_transform( &id1_blist_in, &id1_blist_out, 1 ) ;
+  std::string str_all = "teststr" ;
+
+  std::vector<std::pair<std::string, int>> data_all ;
+  dataset ds_all ;
+
+  for( unsigned int i = 0; i < str_all.length(); i++ ) {
+    std::string astr ;
+    auto achar = str_all.c_str()[ i ] ;
+    astr.push_back( achar ) ;
+    ds_all.data.push_back( std::make_pair( astr, 1 ) ) ;
+  } 
+
+  std::vector< dataset > table_all ;
+
+  table_all.push_back( ds_all ) ;
+
+  ::encode( table_all, id1_blist_in ) ;
   ceph_transform( &id1_blist_in, &id1_blist_out, 1 ) ;
-  assert( id1_blist_in.length()  == 7 ) ;
-  assert( id1_blist_out.length() == 7 ) ;
-  assert( ((std::string)id1_blist_in.c_str()).compare( "teststr" )  == 0 ) ;
-  assert( ((std::string)id1_blist_out.c_str()).compare( "teststr" ) == 0 ) ;
+
+  std::vector< dataset > decoded_id1_blist_in ;
+  librados::bufferlist::iterator decoded_id1_biter_in( &id1_blist_in ) ;
+  ::decode( decoded_id1_blist_in, decoded_id1_biter_in ) ;
+  std::vector< dataset > decoded_id1_blist_out ;
+  librados::bufferlist::iterator decoded_id1_biter_out( &id1_blist_out ) ;
+  ::decode( decoded_id1_blist_out, decoded_id1_biter_out ) ;
+
+  assert( decoded_id1_blist_in[0].toString()  == "dataset :  t, 1  e, 1  s, 1  t, 1  s, 1  t, 1  r, 1" ) ;
+  assert( decoded_id1_blist_out[0].toString() == "dataset :  t, 1  e, 1  s, 1  t, 1  s, 1  t, 1  r, 1" ) ;
 
   // ----------------------------------------------------------------------------- //
   // ceph_transform_reverse
