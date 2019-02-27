@@ -27,15 +27,17 @@
 
 /*
  */
-struct dataset {
+struct dataset_transform {
   std::vector<std::pair<std::string,int>> data ;
+  std::vector< std::string > schema ;
 
-  dataset() {}
+  dataset_transform() {}
 
   // serialize the fields into bufferlist to be sent over the wire
   void encode( bufferlist& bl ) const {
     ENCODE_START( 1, 1, bl ) ;
     ::encode( data, bl ) ;
+    ::encode( schema, bl ) ;
     ENCODE_FINISH( bl ) ;
   }
 
@@ -43,12 +45,13 @@ struct dataset {
   void decode( bufferlist::iterator& bl ) {
     DECODE_START( 1, bl ) ;
     ::decode( data, bl ) ;
+    ::decode( schema, bl ) ;
     DECODE_FINISH( bl ) ;
   }
 
   std::string toString() {
     std::string s ;
-    s.append( "dataset :" ) ;
+    s.append( "dataset_transform :" ) ;
     for( unsigned int i = 0; i < data.size(); i++ ) {
       auto apair = data[i] ;
       s.append( "  " ) ; 
@@ -64,7 +67,7 @@ struct dataset {
   }
 
 } ;
-WRITE_CLASS_ENCODER( dataset )
+WRITE_CLASS_ENCODER( dataset_transform )
 
 int ceph_transform( librados::bufferlist* blist_in,
                librados::bufferlist* blist_out,

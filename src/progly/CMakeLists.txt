@@ -20,6 +20,13 @@ target_link_libraries(run-transform librados global ${CMAKE_DL_LIBS}
 install(TARGETS run-transform DESTINATION bin)
 
 # ------------------------------------------------------- #
+# run-vop
+add_executable(run-vop run-vop.cc vop_engine.cc ${CMAKE_SOURCE_DIR}/src/cls/split/cls_split.cc ${CMAKE_SOURCE_DIR}/src/cls/transform/cls_transform.cc)
+target_link_libraries(run-vop librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-vop DESTINATION bin)
+
+# ------------------------------------------------------- #
 # run-query
 add_executable(run-query run-query.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
 target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
