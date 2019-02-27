@@ -36,14 +36,14 @@ int ceph_split_12( librados::bufferlist* blist_in,
   std::cout << "  EXECUTING ceph_split_12()" << std::endl ;
   std::cout << std::endl ;
 
-  std::vector< dataset > decoded_table ;
+  std::vector< dataset_split > decoded_table ;
   librados::bufferlist::iterator biter( &*blist_in ) ;
   ::decode( decoded_table, biter ) ;
 
   int midpoint = decoded_table[0].data.size() / 2 ;
 
-  dataset left ;
-  dataset right ;
+  dataset_split left ;
+  dataset_split right ;
 
   for( int i = 0; i < midpoint; i++ ) {
     left.data.push_back( decoded_table[0].data[i] ) ;
@@ -55,11 +55,11 @@ int ceph_split_12( librados::bufferlist* blist_in,
   //std::cout << left.toString() << std::endl ;
   //std::cout << right.toString() << std::endl ;
 
-  std::vector< dataset > left_table ;
+  std::vector< dataset_split > left_table ;
   left_table.push_back( left ) ;
   ::encode( left_table, *blist_out0 ) ;
 
-  std::vector< dataset > right_table ;
+  std::vector< dataset_split > right_table ;
   right_table.push_back( right ) ;
   ::encode( right_table, *blist_out1 ) ;
 
@@ -79,7 +79,7 @@ int ceph_split_pattern( librados::bufferlist* blist_in,
   std::cout << "    split_pattern   : " << split_pattern << std::endl ;
   std::cout << std::endl ;
 
-  std::vector< dataset > decoded_table ;
+  std::vector< dataset_split > decoded_table ;
   librados::bufferlist::iterator biter( &*blist_in ) ;
   ::decode( decoded_table, biter ) ;
 
@@ -92,8 +92,8 @@ int ceph_split_pattern( librados::bufferlist* blist_in,
     }
   } 
 
-  dataset left ;
-  dataset right ;
+  dataset_split left ;
+  dataset_split right ;
 
   for( int i = 0; i < pos; i++ ) {
     left.data.push_back( decoded_table[0].data[i] ) ;
@@ -105,11 +105,11 @@ int ceph_split_pattern( librados::bufferlist* blist_in,
   //std::cout << left.toString() << std::endl ;
   //std::cout << right.toString() << std::endl ;
 
-  std::vector< dataset > left_table ;
+  std::vector< dataset_split > left_table ;
   left_table.push_back( left ) ;
   ::encode( left_table, *blist_out0 ) ;
 
-  std::vector< dataset > right_table ;
+  std::vector< dataset_split > right_table ;
   right_table.push_back( right ) ;
   ::encode( right_table, *blist_out1 ) ;
 
