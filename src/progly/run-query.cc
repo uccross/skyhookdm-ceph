@@ -28,19 +28,27 @@ int main(int argc, char **argv)
   // defaults set below via boost::program_options
   bool index_read;
   bool index_create;
+  bool text_index_ignore_stopwords;
+  int index_plan_type;
+  std::string text_index_delims;
   std::string db_schema;
-  std::string table;
-  std::string table_schema;
+  std::string table_name;
+  std::string data_schema;
   std::string query_schema;
   std::string index_schema;
+  std::string index2_schema;
   std::string query_preds;
   std::string index_preds;
+  std::string index2_preds;
   std::string index_cols;
+  std::string index2_cols;
   std::string project_cols;
 
   // set based upon program_options
-  int index_type = Tables::SIT_IDX_REC;
+  int index_type = Tables::SIT_IDX_UNK;
+  int index2_type = Tables::SIT_IDX_UNK;
   bool fastpath = false;
+  bool idx_unique = false;
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -67,7 +75,7 @@ int main(int argc, char **argv)
   std::string create_index_help_msg("To create index on RIDs only, specify '" +
         Tables::RID_INDEX + "', else specify " + project_help_msg +
         ", currently only supports unique indexes over integral columns, with"
-        " max number of cols = " + std::to_string(Tables::MAX_COLS_INDEX));
+        " max number of cols = " + std::to_string(Tables::MAX_INDEX_COLS));
 
   std::string schema_help_msg = Tables::SCHEMA_FORMAT + "\nEX: \n" +
         Tables::TEST_SCHEMA_STRING_PROJECT;
@@ -100,14 +108,19 @@ int main(int argc, char **argv)
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
     // query parameters (new) flatbufs
     ("db-schema-name", po::value<std::string>(&db_schema)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
-    ("table-name", po::value<std::string>(&table)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
-    ("table-schema", po::value<std::string>(&table_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
+    ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
+    ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
     ("index-cols", po::value<std::string>(&index_cols)->default_value(""), project_help_msg.c_str())
+    ("index2-cols", po::value<std::string>(&index2_cols)->default_value(""), project_help_msg.c_str())
     ("project-cols", po::value<std::string>(&project_cols)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
     ("index-preds", po::value<std::string>(&index_preds)->default_value(""), select_help_msg.c_str())
+    ("index2-preds", po::value<std::string>(&index2_preds)->default_value(""), select_help_msg.c_str())
     ("select-preds", po::value<std::string>(&query_preds)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
+    ("index-delims", po::value<std::string>(&text_index_delims)->default_value(""), "Use delim for text indexes (def=whitespace")
+    ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
+    ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -245,45 +258,45 @@ int main(int argc, char **argv)
 
     // clean input
     boost::trim(db_schema);
-    boost::trim(table);
-    boost::trim(table_schema);
+    boost::trim(table_name);
+    boost::trim(data_schema);
     boost::trim(index_cols);
+    boost::trim(index2_cols);
     boost::trim(project_cols);
     boost::trim(query_preds);
     boost::trim(index_preds);
+    boost::trim(index2_preds);
+    boost::trim(text_index_delims);
 
     boost::to_upper(db_schema);
-    boost::to_upper(table);
+    boost::to_upper(table_name);
     boost::to_upper(index_cols);
+    boost::to_upper(index2_cols);
     boost::to_upper(project_cols);
 
-    assert (!table.empty());
+    assert (!table_name.empty());
     assert (!db_schema.empty());
     if(index_create or index_read) {
         assert (!index_cols.empty());
         assert (use_cls);
     }
 
-    // set the index type
-    if (index_cols == RID_INDEX)
-        index_type = SIT_IDX_RID;
-    else
-        index_type = SIT_IDX_REC;
-
     // below we convert user input to skyhook structures for error checking,
     // to be encoded into query_op or index_op structs.
 
     // verify and set the table schema, needed to create other preds/schemas
-    sky_tbl_schema = schemaFromString(table_schema);
+    sky_tbl_schema = schemaFromString(data_schema);
 
     // verify and set the index schema
     sky_idx_schema = schemaFromColNames(sky_tbl_schema, index_cols);
+    sky_idx2_schema = schemaFromColNames(sky_tbl_schema, index2_cols);
 
     // verify and set the query predicates
    sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
 
     // verify and set the index predicates
     sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
+    sky_idx2_preds = predsFromString(sky_tbl_schema, index2_preds);
 
     // verify and set the query schema, check for select *
     if (project_cols == PROJECT_DEFAULT) {
@@ -293,7 +306,8 @@ int main(int argc, char **argv)
         }
 
         // if project all cols and there are no selection preds, set fastpath
-        if (sky_qry_preds.size() == 0 and sky_idx_preds.size() == 0)
+        if (sky_qry_preds.size() == 0 and sky_idx_preds.size() == 0
+                                      and sky_idx2_preds.size() == 0)
             fastpath = true;
 
     } else {
@@ -320,11 +334,49 @@ int main(int argc, char **argv)
         }
     }
 
+    // set the index type
+    if (!index_cols.empty()) {
+        if (index_cols == RID_INDEX) { // const value for colname=RID
+            index_type = SIT_IDX_RID;
+        }
+        else if (sky_idx_schema.size() == 1 and
+                 sky_idx_schema.at(0).type == SDT_STRING) {
+                    index_type = SIT_IDX_TXT;  // txt indexes are 1 string col
+        }
+        else {
+            index_type = SIT_IDX_REC;
+        }
+    }
+
+    // set the index2 type
+    if (!index2_cols.empty()) {
+        if (index2_cols == RID_INDEX) { // const value for colname=RID
+            index2_type = SIT_IDX_RID;
+        }
+        else if (sky_idx2_schema.size() == 1 and
+                 sky_idx2_schema.at(0).type == SDT_STRING) {
+                    index2_type = SIT_IDX_TXT;  // txt indexes are 1 string col
+        }
+        else {
+            index2_type = SIT_IDX_REC;
+        }
+    }
+
+    if (index_type == SIT_IDX_UNK or index2_type == SIT_IDX_UNK)
+        index_plan_type = SIP_IDX_STANDARD;
+
+    assert ((index_plan_type == SIP_IDX_STANDARD) or
+            (index_plan_type == SIP_IDX_INTERSECTION) or
+            (index_plan_type == SIP_IDX_UNION));
+
+    // verify index predicates (only support equality preds currently)
     if (index_read) {
-        if (sky_idx_preds.size() > MAX_COLS_INDEX)
+        if (sky_idx_preds.size() > MAX_INDEX_COLS)
             assert (BuildSkyIndexUnsupportedNumCols == 0);
         for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
-            if (sky_idx_preds[i]->opType() != SOT_eq) {
+            if (sky_idx_preds[i]->opType() != SOT_eq && sky_idx_preds[i]->opType() != SOT_geq &&
+                sky_idx_preds[i]->opType() != SOT_gt && sky_idx_preds[i]->opType() != SOT_leq &&
+                sky_idx_preds[i]->opType() != SOT_lt ) {
                 cerr << "Only equality predicates currently supported for "
                      << "Skyhook indexes" << std::endl;
                 assert (SkyIndexUnsupportedOpType == 0);
@@ -332,25 +384,35 @@ int main(int argc, char **argv)
         }
     }
 
-    // verify index has integral types and check col idx bounds
+    // verify index types are integral/string and check col idx bounds
     if (index_create) {
-        if (sky_idx_schema.size() > MAX_COLS_INDEX)
+        if (index_type == SIT_IDX_TXT) {
+            if (sky_idx_schema.size() > 1)  // enforce TXT indexes are 1 column
+                assert (BuildSkyIndexUnsupportedNumCols == 0);
+        }
+        if (sky_idx_schema.size() > MAX_INDEX_COLS)
             assert (BuildSkyIndexUnsupportedNumCols == 0);
         for (auto it = sky_idx_schema.begin();
                   it != sky_idx_schema.end(); ++it) {
             col_info ci = *it;
-            if (ci.type <= SDT_INT8 or ci.type >= SDT_BOOL)
-                assert (BuildSkyIndexUnsupportedColType == 0);
+            if (index_type == SIT_IDX_TXT) {  // txt indexes only string cols
+                if(ci.type != SDT_STRING)
+                    assert (BuildSkyIndexUnsupportedColType == 0);
+            }
+            else if (index_type == SIT_IDX_REC or index_type == SIT_IDX_RID) {
+                if (ci.type < SDT_INT8 or ci.type > SDT_BOOL)
+                    assert (BuildSkyIndexUnsupportedColType == 0);
+            }
             if (ci.idx <= AGG_COL_LAST)
                 assert (BuildSkyIndexUnsupportedAggCol == 0);
             if (ci.idx > static_cast<int>(sky_tbl_schema.size()))
                 assert (BuildSkyIndexColIndexOOB == 0);
         }
 
-        // to enforce index is unique, verify that all of the table's keycols
-        // are present in the index.
-        bool unique_index = true;
-        if (index_type == SIT_IDX_REC) {
+        // check for index uniqueness, only used for build index,
+        // not read index so we do not check the index2 here.
+        idx_unique = true;
+        if (index_type == SIT_IDX_REC or index_type == SIT_IDX_TXT) {
             for (auto it = sky_tbl_schema.begin();
                       it != sky_tbl_schema.end(); ++it) {
                 if (it->is_key) {
@@ -359,12 +421,12 @@ int main(int argc, char **argv)
                               it2 != sky_idx_schema.end(); ++it2) {
                         if (it->idx==it2->idx) keycol_present = true;
                     }
-                    unique_index &= keycol_present;
+                    idx_unique &= keycol_present;
                 }
-                if (!unique_index) break;
+                if (!idx_unique)
+                    break;
             }
         }
-        assert (unique_index);  // only unique indexes currently supported
     }
 
     // set all of the flatbuf info for our query op.
@@ -372,13 +434,24 @@ int main(int argc, char **argv)
     qop_index_read = index_read;
     qop_index_create = index_create;
     qop_index_type = index_type;
+    qop_index2_type = index2_type;
+    qop_index_plan_type = index_plan_type;
     qop_db_schema = db_schema;
-    qop_table = table;
-    qop_table_schema = schemaToString(sky_tbl_schema);
+    qop_table_name = table_name;
+    qop_data_schema = schemaToString(sky_tbl_schema);
     qop_query_schema = schemaToString(sky_qry_schema);
     qop_index_schema = schemaToString(sky_idx_schema);
+    qop_index2_schema = schemaToString(sky_idx2_schema);
     qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
     qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
+    qop_index2_preds = predsToString(sky_idx2_preds, sky_tbl_schema);
+
+    idx_op_idx_unique = idx_unique;
+    idx_op_batch_size = build_index_batch_size;
+    idx_op_idx_type = index_type;
+    idx_op_idx_schema = schemaToString(sky_idx_schema);
+    idx_op_ignore_stopwords = text_index_ignore_stopwords;
+    idx_op_delims = text_index_delims;
 
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
@@ -388,10 +461,13 @@ int main(int argc, char **argv)
   // launch index creation for flatbufs here.
   if (query == "flatbuf" && index_create) {
 
-    idx_op op(true,
-              build_index_batch_size,
-              index_type,
-              qop_index_schema);
+    // create idx_op for workers
+    idx_op op(idx_op_idx_unique,
+              idx_op_ignore_stopwords,
+              idx_op_batch_size,
+              idx_op_idx_type,
+              idx_op_idx_schema,
+              idx_op_delims);
 
     // kick off the workers
     std::vector<std::thread> threads;
@@ -460,13 +536,17 @@ int main(int argc, char **argv)
         op.fastpath = qop_fastpath;
         op.index_read = qop_index_read;
         op.index_type = qop_index_type;
+        op.index2_type = qop_index2_type;
+        op.index_plan_type = qop_index_plan_type;
         op.db_schema = qop_db_schema;
-        op.table = qop_table;
-        op.table_schema = qop_table_schema;
+        op.table_name = qop_table_name;
+        op.data_schema = qop_data_schema;
         op.query_schema = qop_query_schema;
         op.index_schema = qop_index_schema;
+        op.index2_schema = qop_index2_schema;
         op.query_preds = qop_query_preds;
         op.index_preds = qop_index_preds;
+        op.index2_preds = qop_index2_preds;
         // cerr << "query_op:" << op.toString() << std::endl;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
