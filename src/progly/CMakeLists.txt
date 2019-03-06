@@ -6,6 +6,15 @@ target_link_libraries(buffer_exercises librados global ${CMAKE_DL_LIBS}
 install(TARGETS buffer_exercises DESTINATION bin)
 
 # ------------------------------------------------------- #
+# run-dm
+add_executable(run-dm run-dm.cc ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_dm.cc 
+                                ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_thing.cc
+                                ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_split.cc)
+target_link_libraries(run-dm librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-dm DESTINATION bin)
+
+# ------------------------------------------------------- #
 # run-split
 add_executable(run-split run-split.cc ${CMAKE_SOURCE_DIR}/src/cls/split/cls_split.cc)
 target_link_libraries(run-split librados global ${CMAKE_DL_LIBS}

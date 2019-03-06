@@ -287,4 +287,10 @@ target_link_libraries(cls_transform re2)
 set_target_properties(cls_transform PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_transform DESTINATION ${cls_dir})
 
+# cls_dm
+add_library(cls_dm SHARED dm/cls_dm.cc)
+target_link_libraries(cls_dm re2)
+set_target_properties(cls_dm PROPERTIES VERSION "1.0.0" SOVERSION "1")
+install(TARGETS cls_dm DESTINATION ${cls_dir})
+
 #eof
