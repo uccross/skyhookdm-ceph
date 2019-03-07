@@ -244,6 +244,11 @@ struct Dataset {
       s.append( ds_vvop.toString() ) ;
     }
 
+    else {
+      s.append( "cannot print string. unknow type_code '" + 
+                std::to_string( type_code ) + "'" ) ;
+    }
+
     return s ;
   }
 } ;
@@ -255,10 +260,10 @@ int get_midpoint( dataset_vect_str ) ;
 int get_midpoint( dataset_vect_uint64 ) ;
 int get_midpoint( vvop ) ;
 
-std::pair< Dataset, Dataset > get_range( Dataset, int, int ) ;
-std::pair< Dataset, Dataset > get_range( dataset_str, int, int ) ;
-std::pair< Dataset, Dataset > get_range( dataset_vect_str, int, int ) ;
-std::pair< Dataset, Dataset > get_range( dataset_vect_uint64, int, int ) ;
-std::pair< Dataset, Dataset > get_range( vvop, int, int ) ;
+Dataset get_range( Dataset, int, int ) ;
+Dataset get_range( dataset_str, int, int ) ;
+Dataset get_range( dataset_vect_str, int, int ) ;
+Dataset get_range( dataset_vect_uint64, int, int ) ;
+Dataset get_range( vvop, int, int ) ;
 
 #endif

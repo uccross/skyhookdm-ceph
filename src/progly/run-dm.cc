@@ -49,6 +49,7 @@ int main(int argc, char **argv)
   thing1.push_back( 0 ) ;
   thing1.push_back( 1 ) ;
   thing1.push_back( 2 ) ;
+  thing1.push_back( 3 ) ;
   Dataset avectint( thing1 ) ;
   std::cout << avectint.toString() << std::endl ;
 
@@ -97,6 +98,16 @@ int main(int argc, char **argv)
   std::cout << "thing0_mid : " << thing0_mid << std::endl ;
   std::cout << "thing1_mid : " << thing1_mid << std::endl ;
   std::cout << "avop_mid   : " << avop_mid   << std::endl ;
+
+  Dataset astr_range   = get_range( astr,   0, astr_mid   ) ;
+  Dataset thing0_range = get_range( thing0, 0, thing0_mid ) ;
+  Dataset thing1_range = get_range( thing1, 0, thing1_mid ) ;
+  Dataset avop_range   = get_range( avop,   0, avop_mid   ) ;
+
+  std::cout << "astr_range   : \n" << astr_range.toString()   << std::endl ;
+  std::cout << "thing0_range : \n" << thing0_range.toString() << std::endl ;
+  std::cout << "thing1_range : \n" << thing1_range.toString() << std::endl ;
+  std::cout << "avop_range   : \n" << avop_range.toString()   << std::endl ;
 
   std::cout << "... run-dm.cc done. phew!" << std::endl ;
 
