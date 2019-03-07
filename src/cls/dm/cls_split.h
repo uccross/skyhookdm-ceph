@@ -24,17 +24,17 @@
 
 #include "include/types.h"
 
-void thing2() ;
-
 int ceph_split( librados::bufferlist* blist_in, 
                 librados::bufferlist* blist_out0, 
                 librados::bufferlist* blist_out1, 
+                int type_code,
                 int split_op_id,
                 const char* split_pattern="" ) ;
 
 int ceph_split_12( librados::bufferlist* blist_in, 
                    librados::bufferlist* blist_out0, 
-                   librados::bufferlist* blist_out1 ) ;
+                   librados::bufferlist* blist_out1,
+                   int type_code ) ;
 
 int ceph_split_pattern( librados::bufferlist* blist_in, 
                         librados::bufferlist* blist_out0, 

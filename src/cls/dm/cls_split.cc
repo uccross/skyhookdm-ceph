@@ -2,59 +2,52 @@
 #include "cls_split.h"
 #include "cls_dm.h"
 
-void thing2() {
-  std::cout << "=================================" << std::endl ;
-  // str
-  Dataset ds( 0 ) ;
-  std::cout << "type_code = " << ds.get_type_code() << std::endl ;
-  ds.set_dataset( "here" ) ;
-  std::cout << "printed dataset:" << std::endl ;
-  ds.print_dataset() ;
-  std::cout << "=================================" << std::endl ;
-}
+// ==================== //
+//      CEPH SPLIT      //
+// ==================== //
+int ceph_split( librados::bufferlist* blist_in,
+           librados::bufferlist* blist_out0, 
+           librados::bufferlist* blist_out1, 
+           int type_code,
+           int split_op_id,
+           const char* split_pattern )
+{
+  std::cout << "===================================================" << std::endl ;
+  std::cout << "  EXECUTING split()" << std::endl ;
+  std::cout << "    split_op_id : " << split_op_id       << std::endl ;
+  std::cout << std::endl ;
 
-//// ==================== //
-////      CEPH SPLIT      //
-//// ==================== //
-//int ceph_split( librados::bufferlist* blist_in,
-//           librados::bufferlist* blist_out0, 
-//           librados::bufferlist* blist_out1, 
-//           int split_op_id,
-//           const char* split_pattern )
-//{
-//
-//  std::cout << "===================================================" << std::endl ;
-//  std::cout << "  EXECUTING split()" << std::endl ;
-//  std::cout << "    split_op_id : " << split_op_id       << std::endl ;
-//  std::cout << std::endl ;
-//
-//  switch( split_op_id )
-//  {
-//    case 1  : ceph_split_12( blist_in, blist_out0, blist_out1 ) ;                     break ;
+  switch( split_op_id )
+  {
+    case 1  : ceph_split_12( blist_in, blist_out0, blist_out1, type_code ) ;                     break ;
 //    case 2  : ceph_split_pattern( blist_in, blist_out0, blist_out1, split_pattern ) ; break ;
 //    default : ceph_split_noop( blist_in, blist_out0, blist_out1 ) ;                   break ;
-//  }
-//
-//  return 0 ;
-//}
-//
-//// ======================= //
-////      CEPH SPLIT 12      //
-//// ======================= //
-//int ceph_split_12( librados::bufferlist* blist_in,
-//                   librados::bufferlist* blist_out0, 
-//                   librados::bufferlist* blist_out1 )
-//{
-//  std::cout << "............................" << std::endl ;
-//  std::cout << "  EXECUTING ceph_split_12()" << std::endl ;
-//  std::cout << std::endl ;
-//
-//  std::vector< dataset_split > decoded_table ;
+  }
+
+  return 0 ;
+}
+
+// ======================= //
+//      CEPH SPLIT 12      //
+// ======================= //
+int ceph_split_12( librados::bufferlist* blist_in,
+                   librados::bufferlist* blist_out0, 
+                   librados::bufferlist* blist_out1,
+                   int type_code )
+{
+  std::cout << "............................" << std::endl ;
+  std::cout << "  EXECUTING ceph_split_12()" << std::endl ;
+  std::cout << std::endl ;
+
+//  std::string decoded_blist ;
 //  librados::bufferlist::iterator biter( &*blist_in ) ;
-//  ::decode( decoded_table, biter ) ;
+//  ::decode( decoded_blist, biter ) ;
+//  Dataset ds_str( 0 ) ;
+//  ds_str.set_dataset( decoded_blist ) ;
 //
-//  int midpoint = decoded_table[0].data.size() / 2 ;
-//
+//  //int midpoint = decoded_table[0].data.size() / 2 ;
+//  int midpoint = ds_str.get_midpoint() ;
+
 //  dataset_split left ;
 //  dataset_split right ;
 //
@@ -75,10 +68,10 @@ void thing2() {
 //  std::vector< dataset_split > right_table ;
 //  right_table.push_back( right ) ;
 //  ::encode( right_table, *blist_out1 ) ;
-//
-//  return 0 ;
-//}
-//
+
+  return 0 ;
+}
+
 //// ============================ //
 ////      CEPH SPLIT PATTERN      //
 //// ============================ //
@@ -128,16 +121,16 @@ void thing2() {
 //
 //  return 0 ;
 //}
-//
-//// ========================= //
-////      CEPH SPLIT NOOP      //
-//// ========================= //
-//int ceph_split_noop( librados::bufferlist* blist_in, 
-//                librados::bufferlist* blist_out0,
-//                librados::bufferlist* blist_out1 )
-//{
-//  std::cout << "............................" << std::endl ;
-//  std::cout << "  EXECUTING split_noop()" << std::endl ;
-//  std::cout << std::endl ;
-//  return 0 ;
-//}
+
+// ========================= //
+//      CEPH SPLIT NOOP      //
+// ========================= //
+int ceph_split_noop( librados::bufferlist* blist_in, 
+                librados::bufferlist* blist_out0,
+                librados::bufferlist* blist_out1 )
+{
+  std::cout << "............................" << std::endl ;
+  std::cout << "  EXECUTING split_noop()" << std::endl ;
+  std::cout << std::endl ;
+  return 0 ;
+}

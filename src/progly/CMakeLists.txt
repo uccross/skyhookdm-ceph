@@ -8,7 +8,6 @@ install(TARGETS buffer_exercises DESTINATION bin)
 # ------------------------------------------------------- #
 # run-dm
 add_executable(run-dm run-dm.cc ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_dm.cc 
-                                ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_thing.cc
                                 ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_split.cc)
 target_link_libraries(run-dm librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
