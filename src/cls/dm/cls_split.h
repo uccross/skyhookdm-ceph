@@ -29,17 +29,38 @@ int ceph_split( librados::bufferlist* blist_in,
                 librados::bufferlist* blist_out1, 
                 int type_code,
                 int split_op_id,
-                const char* split_pattern="" ) ;
+                std::string split_pattern_str="" ) ;
+
+int ceph_split( librados::bufferlist* blist_in, 
+                librados::bufferlist* blist_out0, 
+                librados::bufferlist* blist_out1, 
+                int type_code,
+                int split_op_id,
+                uint64_t split_pattern_uint64 ) ;
+
+int ceph_split_id( librados::bufferlist* blist_in, 
+                   librados::bufferlist* blist_out0, 
+                   librados::bufferlist* blist_out1,
+                   int type_code ) ;
 
 int ceph_split_12( librados::bufferlist* blist_in, 
                    librados::bufferlist* blist_out0, 
                    librados::bufferlist* blist_out1,
                    int type_code ) ;
 
+int ceph_split_hash2( librados::bufferlist* blist_in, 
+                      librados::bufferlist* blist_out0, 
+                      librados::bufferlist* blist_out1 ) ;
+
 int ceph_split_pattern( librados::bufferlist* blist_in, 
                         librados::bufferlist* blist_out0, 
                         librados::bufferlist* blist_out1, 
-                        const char* spit_pattern ) ;
+                        std::string spit_pattern ) ;
+
+int ceph_split_pattern( librados::bufferlist* blist_in, 
+                        librados::bufferlist* blist_out0, 
+                        librados::bufferlist* blist_out1, 
+                        uint64_t spit_pattern ) ;
 
 int ceph_split_noop( librados::bufferlist* blist_in, 
                      librados::bufferlist* blist_out0, 

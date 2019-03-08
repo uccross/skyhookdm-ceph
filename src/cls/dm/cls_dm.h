@@ -67,6 +67,10 @@ struct vvop {
     return data.size() ;
   }
 
+  void append( std::vector<std::pair<std::string,int>> i ) {
+    data.push_back( i ) ;
+  }
+
 } ;
 WRITE_CLASS_ENCODER( vvop )
 
@@ -95,6 +99,13 @@ struct dataset_str {
     return s ;
   }
 
+  int getLength() {
+    return data.size() ;
+  }
+
+  void append( std::string i ) {
+    data = data + i ;
+  }
 } ;
 WRITE_CLASS_ENCODER( dataset_str )
 
@@ -126,6 +137,14 @@ struct dataset_vect_str {
       }
     }
     return s ;
+  }
+
+  int getLength() {
+    return data.size() ;
+  }
+
+  void append( std::string i ) {
+    data.push_back( i ) ;
   }
 } ;
 WRITE_CLASS_ENCODER( dataset_vect_str )
@@ -160,6 +179,13 @@ struct dataset_vect_uint64 {
     return s ;
   }
 
+  int getLength() {
+    return data.size() ;
+  }
+
+  void append( uint64_t i ) {
+    data.push_back( i ) ;
+  }
 } ;
 WRITE_CLASS_ENCODER( dataset_vect_uint64 )
 
@@ -167,13 +193,17 @@ struct Dataset {
   dataset_str         ds_str         ; // 0
   dataset_vect_str    ds_vect_str    ; // 1
   dataset_vect_uint64 ds_vect_uint64 ; // 2
-  vvop                 ds_vvop       ; // 3
+  vvop                ds_vvop        ; // 3
   int type_code = -1 ;
 
   // ============================================ //
   //                 CONSTRUCTORS                 //
   // ============================================ //
   Dataset() {}
+
+  Dataset( int tc ) {
+    type_code = tc ;
+  }
 
   Dataset( std::string data_in ) {
     ds_str.data = data_in ;
@@ -206,6 +236,8 @@ struct Dataset {
     ::encode( ds_str, bl ) ;
     ::encode( ds_vect_str, bl ) ;
     ::encode( ds_vect_uint64, bl ) ;
+    ::encode( ds_vvop, bl ) ;
+    ::encode( type_code, bl ) ;
     ENCODE_FINISH( bl ) ;
   }
 
@@ -215,6 +247,8 @@ struct Dataset {
     ::decode( ds_str, bl ) ;
     ::decode( ds_vect_str, bl ) ;
     ::decode( ds_vect_uint64, bl ) ;
+    ::decode( ds_vvop, bl ) ;
+    ::decode( type_code, bl ) ;
     DECODE_FINISH( bl ) ;
   }
 
@@ -224,35 +258,105 @@ struct Dataset {
   std::string toString() {
     std::string s ;
 
-    // string
-    if( type_code == 0 ) {
-      s.append( ds_str.toString() ) ;
-    }
-
-    // vector< string >
-    else if( type_code == 1 ) {
-      s.append( ds_vect_str.toString() ) ;
-    }
-
-    // vector< uint64 >
-    else if( type_code == 2 ) {
-      s.append( ds_vect_uint64.toString() ) ;
-    }
-
-    // vvop
-    else if( type_code == 3 ) {
-      s.append( ds_vvop.toString() ) ;
-    }
-
-    else {
-      s.append( "cannot print string. unknow type_code '" + 
-                std::to_string( type_code ) + "'" ) ;
+    switch( type_code ) {
+      case 0 :
+        s.append( ds_str.toString() ) ;
+        break ;
+      case 1 :
+        s.append( ds_vect_str.toString() ) ;
+        break ;
+      case 2 :
+        s.append( ds_vect_uint64.toString() ) ;
+        break ;
+      case 3 :
+        s.append( ds_vvop.toString() ) ;
+        break ;
+      default :
+        s.append( "cannot print string. unknow type_code '" + 
+                  std::to_string( type_code ) + "'" ) ;
+        break ;
     }
 
     return s ;
   }
+
+  // ============================================ //
+  //                  GET LENGTH                  //
+  // ============================================ //
+  int getLength() {
+    int len = -1 ;
+    switch( type_code ) {
+      case 0 :
+        len = ds_str.getLength() ;
+        break ;
+      case 1 :
+        len = ds_vect_str.getLength() ;
+        break ;
+      case 2 :
+        len = ds_vect_uint64.getLength() ;
+        break ;
+      case 3 :
+        len = ds_vvop.getLength() ;
+        break ;
+      default :
+        std::cout << "cannot print string. unknow type_code '" <<
+                  std::to_string( type_code ) << "'" ;
+        break ;
+    }
+    return len ;
+  }
+
+  // ============================================ //
+  //                  APPEND                      //
+  // ============================================ //
+  void append( std::string i ) {
+    switch( type_code ) {
+      case 0 :
+        ds_str.append( i ) ;
+        break ;
+      case 1 :
+        ds_vect_str.append( i ) ;
+        break ;
+    }
+  }
+
+  void append( uint64_t i ) {
+    ds_vect_uint64.append( i ) ;
+  }
+
+  void append( std::vector<std::pair<std::string,int>> i ) {
+    ds_vvop.append( i ) ;
+  }
+
+  // ============================================ //
+  //                  GET                         //
+  // ============================================ //
+  std::string get( int i ) {
+    switch( type_code ) {
+      case 0 :
+        return string() + ds_str.data[i] ;
+      case 1 : 
+        return ds_vect_str.data[i] ;
+    }
+  }
+
+  uint64_t get_uint64( int i ) {
+    return ds_vect_uint64.data[i] ;
+  }
+
+  std::vector< std::pair<std::string,int> > get_vvop( int i ) {
+    return ds_vvop.data[i] ;
+  }
+
 } ;
 WRITE_CLASS_ENCODER( Dataset )
+
+int get_index( Dataset, std::string ) ;
+int get_index( Dataset, uint64_t ) ;
+int get_index( dataset_str, std::string ) ;
+int get_index( dataset_vect_str, std::string ) ;
+int get_index( dataset_vect_uint64, uint64_t ) ;
+int get_index( vvop, std::string ) ;
 
 int get_midpoint( Dataset ) ;
 int get_midpoint( dataset_str ) ;

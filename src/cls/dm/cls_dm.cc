@@ -2,6 +2,62 @@
 #include "cls_dm.h"
 
 // ================================================= //
+//                    GET INDEX                      //
+// ================================================= //
+
+int get_index( Dataset ds, std::string pattern ) {
+
+  int inx = -1 ;
+
+  switch( ds.type_code ) {
+    case 0 :
+      inx = get_index( ds.ds_str, pattern ) ;
+      break ;
+    case 1 :
+      inx = get_index( ds.ds_vect_str, pattern ) ;
+      break ;
+    case 3 :
+      //inx = get_index( ds.ds_vvop, pattern ) ;
+      break ;
+  }
+
+  return inx ;
+}
+
+int get_index( Dataset ds, uint64_t pattern ) {
+  return get_index( ds.ds_vect_uint64, pattern ) ;
+}
+
+int get_index( dataset_str data_str, std::string pattern ) {
+  return data_str.data.find( pattern ) ;
+}
+
+int get_index( dataset_vect_str data_vect_str, std::string pattern ) {
+  int inx = -1 ;
+  for( int i = 0; i < data_vect_str.getLength(); i++ ) {
+    if( data_vect_str.data[i] == pattern ) {
+      inx = i ;
+      break ;
+    }
+  }
+  return inx ;
+}
+
+int get_index( dataset_vect_uint64 data_vect_uint64, uint64_t pattern ) {
+  int inx = -1 ;
+  for( int i = 0; i < data_vect_uint64.getLength(); i++ ) {
+    if( data_vect_uint64.data[i] == pattern ) {
+      inx = i ;
+      break ;
+    }
+  }
+  return inx ;
+}
+
+//int get_index( vvop data_vvop ) {
+//}
+
+// ================================================= //
 //                    GET MIDPOINT                   //
 // ================================================= //
 
@@ -90,11 +146,15 @@ Dataset get_range( dataset_vect_str data_vect_str,
   Dataset ds_range ;
   ds_range.type_code = 1 ;
 
-  std::vector< std::string >::const_iterator first = data_vect_str.data.begin() + 
-                                                     left_index ;
-  std::vector< std::string >::const_iterator last  = data_vect_str.data.begin() + 
-                                                     ( right_index - left_index ) ;
-  std::vector< std::string > subvect( first, last ) ;
+  std::cout << "left_index:" << std::endl ;
+  std::cout << left_index << std::endl ;
+  std::cout << "right_index:" << std::endl ;
+  std::cout << right_index << std::endl ;
+
+  std::vector< std::string > subvect ;
+  for( int i = left_index; i < right_index; i++ ) {
+    subvect.push_back( data_vect_str.data[i] ) ;
+  }
 
   ds_range.ds_vect_str.data = subvect ;
 
@@ -107,11 +167,10 @@ Dataset get_range( dataset_vect_uint64 data_vect_uint64,
   Dataset ds_range ;
   ds_range.type_code = 2 ;
 
-  std::vector< uint64_t >::const_iterator first = data_vect_uint64.data.begin() + 
-                                                  left_index ;
-  std::vector< uint64_t >::const_iterator last  = data_vect_uint64.data.begin() + 
-                                                  ( right_index - left_index ) ;
-  std::vector< uint64_t > subvect( first, last ) ;
+  std::vector< uint64_t > subvect ;
+  for( int i = left_index; i < right_index; i++ ) {
+    subvect.push_back( data_vect_uint64.data[i] ) ;
+  }
 
   ds_range.ds_vect_uint64.data = subvect ;
 
@@ -124,11 +183,10 @@ Dataset get_range( vvop data_vvop,
   Dataset ds_range ;
   ds_range.type_code = 3 ;
 
-  std::vector< std::vector<std::pair<std::string,int>> >::const_iterator first = data_vvop.data.begin() + 
-                                                  left_index ;
-  std::vector< std::vector<std::pair<std::string,int>> >::const_iterator last  = data_vvop.data.begin() + 
-                                                  ( right_index - left_index ) ;
-  std::vector< std::vector<std::pair<std::string,int>> > subvect( first, last ) ;
+  std::vector< std::vector< std::pair< std::string, int > > > subvect ;
+  for( int i = left_index; i < right_index; i++ ) {
+    subvect.push_back( data_vvop.data[i] ) ;
+  }
 
   ds_range.ds_vvop.data = subvect ;
 
