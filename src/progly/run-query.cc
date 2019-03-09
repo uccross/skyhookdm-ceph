@@ -92,7 +92,7 @@ int main(int argc, char **argv)
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
     ("projection", po::bool_switch(&projection)->default_value(false), "projection")
-    ("build-index-batch-size", po::value<uint32_t>(&build_index_batch_size)->default_value(1000), "build index batch size")
+    ("index-batch-size", po::value<uint32_t>(&index_batch_size)->default_value(1000), "index (read/write) batch size")
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
     ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
@@ -436,6 +436,7 @@ int main(int argc, char **argv)
     qop_index_type = index_type;
     qop_index2_type = index2_type;
     qop_index_plan_type = index_plan_type;
+    qop_index_batch_size = index_batch_size;
     qop_db_schema = db_schema;
     qop_table_name = table_name;
     qop_data_schema = schemaToString(sky_tbl_schema);
@@ -447,7 +448,7 @@ int main(int argc, char **argv)
     qop_index2_preds = predsToString(sky_idx2_preds, sky_tbl_schema);
 
     idx_op_idx_unique = idx_unique;
-    idx_op_batch_size = build_index_batch_size;
+    idx_op_batch_size = index_batch_size;
     idx_op_idx_type = index_type;
     idx_op_idx_schema = schemaToString(sky_idx_schema);
     idx_op_ignore_stopwords = text_index_ignore_stopwords;
@@ -538,6 +539,7 @@ int main(int argc, char **argv)
         op.index_type = qop_index_type;
         op.index2_type = qop_index2_type;
         op.index_plan_type = qop_index_plan_type;
+        op.index_batch_size = qop_index_batch_size;
         op.db_schema = qop_db_schema;
         op.table_name = qop_table_name;
         op.data_schema = qop_data_schema;

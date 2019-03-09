@@ -24,7 +24,7 @@ bool use_cls;
 std::string query;
 bool use_index;
 bool projection;
-uint32_t build_index_batch_size;
+uint32_t index_batch_size;
 uint64_t extra_row_cost;
 
 std::vector<timing> timings;
@@ -47,6 +47,7 @@ bool qop_index_create;
 int qop_index_type;
 int qop_index2_type;
 int qop_index_plan_type;
+int qop_index_batch_size;
 std::string qop_db_schema;
 std::string qop_table_name;
 std::string qop_data_schema;
@@ -193,7 +194,7 @@ void worker_build_index(librados::IoCtx *ioctx)
     work_lock.unlock();
 
     ceph::bufferlist inbl, outbl;
-    ::encode(build_index_batch_size, inbl);
+    ::encode(index_batch_size, inbl);
     int ret = ioctx->exec(oid, "tabular", "build_index", inbl, outbl);
     checkret(ret, 0);
   }

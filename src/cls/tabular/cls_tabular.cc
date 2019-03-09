@@ -436,13 +436,13 @@ static void add_extra_row_cost(uint64_t cost)
   }
 }
 
-static 
-int 
-update_idx_reads( 
-    cls_method_context_t hctx, 
-    std::map<int, struct Tables::read_info>& idx_reads, 
-    bufferlist bl, 
-    std::string db_schema, 
+static
+int
+update_idx_reads(
+    cls_method_context_t hctx,
+    std::map<int, struct Tables::read_info>& idx_reads,
+    bufferlist bl,
+    std::string db_schema,
     std::string table ) {
 
     struct idx_rec_entry rec_ent;
@@ -497,7 +497,7 @@ update_idx_reads(
         }
     }
     return 0;
-        
+
 }
 
 bool check_predicate( Tables::predicate_vec index_preds, int opType )
@@ -521,7 +521,7 @@ bool compare_keys( std::string key1, std::string key2 )
 
     vector<std::string> elems2;
     boost::split(elems2, key2, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
-    
+
     // 4th entry in vector represents the value vector i.e after prefix
     vector<std::string> value1;
     vector<std::string> value2;
@@ -530,7 +530,7 @@ bool compare_keys( std::string key1, std::string key2 )
     boost::split(value1, elems1[Tables::IDX_FIELD_Value] , boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
     boost::split(value2, elems2[Tables::IDX_FIELD_Value], boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
 
-   // Compare first token of both field value 
+   // Compare first token of both field value
     if(value1[0] == value2[0])
         return true;
     return false;
@@ -549,6 +549,7 @@ read_sky_index(
     std::string db_schema,
     std::string table,
     int index_type,
+    int idx_batch_size,
     std::map<int, struct Tables::read_info>& idx_reads) {
 
     using namespace Tables;
@@ -590,18 +591,24 @@ read_sky_index(
     }
     std::string key = key_prefix + key_data;
     std::map<std::string, bufferlist> key_val_map;
-    // Add equality predicate key
-    if( !check_predicate(index_preds,SOT_lt) && !check_predicate(index_preds,SOT_gt) )
+
+    // Add equality predicate key if needed
+    if (check_predicate(index_preds,SOT_eq) or
+        check_predicate(index_preds,SOT_leq) or
+        check_predicate(index_preds,SOT_geq)) {
+
         keys.push_back(key);
+    }
+
     // Find the starting key for range query keys
     std::string start_after = "";
-    if( check_predicate(index_preds,SOT_geq) || check_predicate(index_preds, SOT_gt))
-    {
+    if (check_predicate(index_preds,SOT_geq) or
+        check_predicate(index_preds, SOT_gt)) {
         start_after = key;
         //CLS_LOG(20,"****Start_after key %s", start_after.c_str());
     }
-    else if(check_predicate(index_preds,SOT_lt) || check_predicate(index_preds,SOT_leq) )
-    {
+    else if (check_predicate(index_preds,SOT_lt) or
+             check_predicate(index_preds,SOT_leq)) {
         start_after = key_prefix;
     }
     bufferlist record_bl_entry;
@@ -609,52 +616,61 @@ read_sky_index(
     // Get keys-bufferlist two at a time and print row number/ offset detail
     // This if condition is for the range query
     bool stop = false;
-    if( start_after.empty() ) {
+    if (start_after.empty()) {
         stop = true;
     }
-    
+
+    // Retrieve keys for range queries in batches of "max_to_get"
+    // until no more keys
     bool more = true;
-    int max_to_get = 2;
-    // This is for the range query
+    int max_to_get = idx_batch_size;
     while(!stop)
     {
-        ret2 = cls_cxx_map_get_vals(hctx, start_after, string() , max_to_get, &key_val_map, &more);
+        ret2 = cls_cxx_map_get_vals(hctx, start_after, string(),
+                                    max_to_get, &key_val_map, &more);
 
         if (ret2 < 0 && ret2 != -ENOENT ) {
             CLS_ERR("cant read map val index rec for idx_rec key %d", ret2);
             return ret2;
         }
-        // No entries found break out of the loop
-        if( ret2 == -ENOENT || key_val_map.size() == 0) {
+
+        // If no more entries found break out of the loop
+        if (ret2 == -ENOENT || key_val_map.size() == 0) {
             break;
         }
-        if ( ret2 >= 0) {
+
+        if (ret2 >= 0) {
             try {
-                for(auto it=key_val_map.cbegin(); it != key_val_map.cend(); it++) {
+                for (auto it = key_val_map.cbegin();
+                          it != key_val_map.cend(); it++) {
                     const std::string& key1 = it->first;
-                    
-                    // Break if keyprefix in fetched key is not same as that passed by user 
-                    if(key1.find(key_prefix) == std::string::npos) {
+
+                    // Break if keyprefix in fetched key does not match that
+                    // passed by user, means we have gone too far, possibly
+                    // into keys for another index.
+                    if (key1.find(key_prefix) == std::string::npos) {
                         stop = true;
                         break;
                     }
 
-                    // Know this is the last key, so update start_after value with it
-                    if(std::next(it, 1) == key_val_map.cend() ) {
-                        start_after = key1;    
+                    // If this is the last key, update start_after value
+                    if (std::next(it, 1) == key_val_map.cend()) {
+                        start_after = key1;
                         //CLS_LOG(20,"%%key we have is=%s", key1.c_str());
                     }
                     record_bl_entry = it->second;
-                    // checking and breaking if key matches or exceeds key passed by the user in predicate column
-                    if(check_predicate(index_preds,SOT_lt) || check_predicate(index_preds,SOT_leq) ) {
-                        if( key_val_map.find(key) != key_val_map.end())
-                        {
-                            stop=true;
+
+                    // break if key matches or exceeds key passed by the user
+                    if (check_predicate(index_preds,SOT_lt) or
+                        check_predicate(index_preds,SOT_leq)) {
+
+                        if(key_val_map.find(key) != key_val_map.end()) {
+                            stop = true;
                             break;
                         }
-                        else if( key1 > key )  // Special handling for leq predicate
-                        {
-                            if( check_predicate(index_preds, SOT_leq) && compare_keys(key, key1)) {
+                        else if (key1 > key) {  // Special handling for leq
+                            if (check_predicate(index_preds, SOT_leq) and
+                                compare_keys(key, key1)) {
                                 stop = false;
                             }
                             else {
@@ -665,30 +681,30 @@ read_sky_index(
                     }
 
                     // Skip equality entries in geq query
-                    if( check_predicate(index_preds, SOT_gt) && compare_keys(key, key1) )
+                    if (check_predicate(index_preds, SOT_gt) and
+                        compare_keys(key, key1)) {
                         continue;
-                    // Set the idx_reads info vector with the corresponding flatbuf off/len and row numbers for each matching record.
-                    ret2 = update_idx_reads(hctx, idx_reads, record_bl_entry, db_schema, table);
-                    if( ret2 < 0 )
+                    }
+
+                    // Set the idx_reads info vector with the corresponding
+                    // flatbuf off/len and row numbers for each matching record.
+                    ret2 = update_idx_reads(hctx, idx_reads, record_bl_entry,
+                                            db_schema, table);
+                    if(ret2 < 0)
                         return ret2;
                 }
             } catch (const buffer::error &err) {
                     CLS_ERR("ERROR: decoding query idx_rec_ent");
                     return -EINVAL;
-
             }
         }
     }
 
-
-
     // lookup key in omap to get the row offset
     if (!keys.empty()) {
         for (unsigned i = 0; i < keys.size(); i++) {
-            struct idx_rec_entry rec_ent;
             bufferlist bl;
             ret = cls_cxx_map_get_val(hctx, keys[i], &bl);
-
             if (ret < 0 && ret != -ENOENT) {
                 CLS_ERR("cant read map val index rec for idx_rec key %d", ret);
                 return ret;
@@ -696,15 +712,13 @@ read_sky_index(
             if (ret >= 0) {
                 // CLS_LOG(20,"idx_rec_ent FOUND for key=%s", key.c_str());
                 ret2 = update_idx_reads(hctx, idx_reads, bl, db_schema, table);
-
-                if( ret2 < 0)
+                if (ret2 < 0)
                     return ret2;
             } else  {  // no rec found for key
                 // CLS_LOG(20,"idx_rec_ent NOT FOUND for key=%s", key.c_str());
             }
         }
     }
-
     return 0;
 }
 
@@ -776,12 +790,13 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
                 // index lookup to set the read requests, if any rows match
                 ret = read_sky_index(hctx,
-                                      index_preds,
-                                      index_schema,
-                                      op.db_schema,
-                                      op.table_name,
-                                      op.index_type,
-                                      idx1_reads);
+                                     index_preds,
+                                     index_schema,
+                                     op.db_schema,
+                                     op.table_name,
+                                     op.index_type,
+                                     op.index_batch_size,
+                                     idx1_reads);
                 if (ret < 0) {
                     CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                     return ret;
@@ -802,6 +817,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                          op.db_schema,
                                          op.table_name,
                                          op.index2_type,
+                                         op.index_batch_size,
                                          idx2_reads);
                     if (ret < 0) {
                         CLS_ERR("ERROR: do_index2_lookup failed. %d", ret);

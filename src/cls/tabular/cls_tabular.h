@@ -44,6 +44,7 @@ struct query_op {
   int index_type;
   int index2_type;
   int index_plan_type;
+  int index_batch_size;
   std::string db_schema;
   std::string table_name;
   std::string data_schema;
@@ -78,6 +79,7 @@ struct query_op {
     ::encode(index_type, bl);
     ::encode(index2_type, bl);
     ::encode(index_plan_type, bl);
+    ::encode(index_batch_size, bl);
     ::encode(db_schema, bl);
     ::encode(table_name, bl);
     ::encode(data_schema, bl);
@@ -112,6 +114,7 @@ struct query_op {
     ::decode(index_type, bl);
     ::decode(index2_type, bl);
     ::decode(index_plan_type, bl);
+    ::decode(index_batch_size, bl);
     ::decode(db_schema, bl);
     ::decode(table_name, bl);
     ::decode(data_schema, bl);

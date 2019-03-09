@@ -32,20 +32,20 @@ class SkyhookQuery : public ::testing::Test {
         // populate target objects, used by query.cc
         std::string oid = "obj000000" + std::to_string(i) + ".bin";
         target_objects.push_back(oid);
-    
+
         // from rados tool
         std::cout << "  ... uploading " << (dirname + oid).c_str() << std::endl;
         int fd = open((dirname + oid).c_str(), O_RDONLY);
         ASSERT_GE(fd, 0);
-    
+
         // how much should we read?
         int count = default_op_size;
         int offset = 0;
-        while (count != 0) { 
+        while (count != 0) {
           bufferlist indata;
           count = indata.read_fd(fd, default_op_size);
           ASSERT_GE(count, 0);
-    
+
           // write the data into rados
           int ret = 0;
           if (offset == 0)
@@ -53,12 +53,12 @@ class SkyhookQuery : public ::testing::Test {
           else
             ret = ioctx.write(oid, indata, count, offset);
           ASSERT_GE(ret, 0);
-    
+
           offset += count;
         }
         close(fd);
       }
- 
+
       unsigned int nobjects = 0;
       ObjectCursor c = ioctx.object_list_begin();
       ObjectCursor end = ioctx.object_list_end();
@@ -100,7 +100,7 @@ class SkyhookQuery : public ::testing::Test {
       projection = false;
       extra_row_cost = 0;
       quiet = true;
-    
+
       stop = true;
       result_count = 0;
       rows_returned = 0;
@@ -127,7 +127,7 @@ class SkyhookQuery : public ::testing::Test {
           op.use_index = use_index;
           op.projection = projection;
           op.extra_row_cost = extra_row_cost;
- 
+
           bufferlist inbl;
           ::encode(op, inbl);
           int ret = ioctx.aio_exec(oid, s->c,
@@ -283,7 +283,7 @@ TEST_F(SkyhookQuery, QueryDCLSSingleRowIndex)
   line_number = 3;
   use_cls = true;
   use_index = true;
-  build_index_batch_size = 1000;
+  index_batch_size = 1000;
 
   // build indices
   auto ioctx = new librados::IoCtx;
@@ -300,7 +300,7 @@ TEST_F(SkyhookQuery, QueryDCLSSingleRowIndex)
 }
 
 /*
- * TEST SIMPLE FASTPATH QUERY WITH CLS 
+ * TEST SIMPLE FASTPATH QUERY WITH CLS
  * selectivity=100% (select * from T)
  * expect "total result row count: 1000000 / 1000000; nrows_processed=1000000"
  *

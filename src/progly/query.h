@@ -57,7 +57,7 @@ extern bool use_cls;
 extern std::string query;
 extern bool use_index;
 extern bool projection;
-extern uint32_t build_index_batch_size;
+extern uint32_t index_batch_size;
 extern uint64_t extra_row_cost;
 
 extern std::vector<timing> timings;
@@ -80,6 +80,7 @@ extern bool qop_index_create;
 extern int qop_index_type;
 extern int qop_index2_type;
 extern int qop_index_plan_type;
+extern int qop_index_batch_size;
 extern std::string qop_db_schema;
 extern std::string qop_table_name;
 extern std::string qop_data_schema;
