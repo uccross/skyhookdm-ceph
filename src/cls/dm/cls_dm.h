@@ -370,4 +370,19 @@ Dataset get_range( dataset_vect_str, int, int ) ;
 Dataset get_range( dataset_vect_uint64, int, int ) ;
 Dataset get_range( vvop, int, int ) ;
 
+Dataset get_reverse( Dataset ) ;
+Dataset get_reverse( dataset_str );
+Dataset get_reverse( dataset_vect_str ) ;
+Dataset get_reverse( dataset_vect_uint64 ) ;
+Dataset get_reverse( vvop ) ;
+
+Dataset get_sort( Dataset ) ;
+Dataset get_sort( dataset_str );
+Dataset get_sort( dataset_vect_str ) ;
+Dataset get_sort( dataset_vect_uint64 ) ;
+Dataset get_sort( vvop ) ;
+
+Dataset get_transpose( Dataset ) ;
+Dataset get_transpose( vvop ) ;
+
 #endif

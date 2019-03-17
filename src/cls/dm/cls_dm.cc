@@ -192,3 +192,161 @@ Dataset get_range( vvop data_vvop,
 
   return ds_range ;
 }
+
+
+// ================================================= //
+//                    GET REVERSE                    //
+// ================================================= //
+
+Dataset get_reverse( Dataset ds ) {
+
+  Dataset ds_reverse ;
+
+  switch( ds.type_code ) {
+    case 0 :
+      ds_reverse = get_reverse( ds.ds_str ) ;
+      break ;
+    case 1 :
+      ds_reverse = get_reverse( ds.ds_vect_str ) ;
+      break ;
+    case 2 :
+      ds_reverse = get_reverse( ds.ds_vect_uint64 ) ;
+      break ;
+    case 3 :
+      ds_reverse = get_reverse( ds.ds_vvop ) ;
+      break ;
+  }
+
+  return ds_reverse ;
+}
+
+Dataset get_reverse( dataset_str data_str ) {
+  Dataset ds_reverse ;
+  ds_reverse.type_code = 0 ;
+  for( int i = data_str.data.size() - 1 ; i >=0 ; i-- ) {
+    ds_reverse.ds_str.data.push_back( data_str.data[i] ) ;
+  }
+  return ds_reverse ;
+}
+
+Dataset get_reverse( dataset_vect_str data_vect_str ) {
+  Dataset ds_reverse ;
+  ds_reverse.type_code = 1 ;
+  for( int i = data_vect_str.data.size() - 1 ; i >=0 ; i-- ) {
+    ds_reverse.ds_vect_str.data.push_back( data_vect_str.data[i] ) ;
+  }
+  return ds_reverse ;
+}
+
+Dataset get_reverse( dataset_vect_uint64 data_vect_uint64 ) {
+  Dataset ds_reverse ;
+  ds_reverse.type_code = 2 ;
+  for( int i = data_vect_uint64.data.size() - 1 ; i >=0 ; i-- ) {
+    ds_reverse.ds_vect_uint64.data.push_back( data_vect_uint64.data[i] ) ;
+  }
+  return ds_reverse ;
+}
+
+Dataset get_reverse( vvop data_vvop ) {
+  Dataset ds_reverse ;
+  ds_reverse.type_code = 3 ;
+  for( int i = data_vvop.data.size() - 1 ; i >=0 ; i-- ) {
+    ds_reverse.ds_vvop.data.push_back( data_vvop.data[i] ) ;
+  }
+  return ds_reverse ;
+}
+
+// ================================================= //
+//                    GET SORT                       //
+// ================================================= //
+
+Dataset get_sort( Dataset ds ) {
+
+  Dataset ds_sort ;
+
+  switch( ds.type_code ) {
+    case 0 :
+      ds_sort = get_sort( ds.ds_str ) ;
+      break ;
+    case 1 :
+      ds_sort = get_sort( ds.ds_vect_str ) ;
+      break ;
+    case 2 :
+      ds_sort = get_sort( ds.ds_vect_uint64 ) ;
+      break ;
+    case 3 :
+      ds_sort = get_sort( ds.ds_vvop ) ;
+      break ;
+  }
+
+  return ds_sort ;
+}
+
+Dataset get_sort( dataset_str data_str ) {
+  Dataset ds_sort ;
+  ds_sort.type_code = 0 ;
+  std::sort( data_str.data.begin(), data_str.data.end() ) ;
+  ds_sort.ds_str = data_str ;
+  return ds_sort ;
+}
+
+Dataset get_sort( dataset_vect_str data_vect_str ) {
+  Dataset ds_sort ;
+  ds_sort.type_code = 1 ;
+  std::sort( data_vect_str.data.begin(), data_vect_str.data.end() ) ;
+  ds_sort.ds_vect_str = data_vect_str ;
+  return ds_sort ;
+}
+
+Dataset get_sort( dataset_vect_uint64 data_vect_uint64 ) {
+  Dataset ds_sort ;
+  ds_sort.type_code = 2 ;
+  std::sort( data_vect_uint64.data.begin(), data_vect_uint64.data.end() ) ;
+  ds_sort.ds_vect_uint64 = data_vect_uint64 ;
+  return ds_sort ;
+}
+
+Dataset get_sort( vvop data_vvop ) {
+  Dataset ds_sort ;
+  ds_sort.type_code = 3 ;
+  std::sort( data_vvop.data.begin(), data_vvop.data.end() ) ;
+  ds_sort.ds_vvop = data_vvop ;
+  return ds_sort ;
+}
+
+// ================================================= //
+//                    GET TRANSPOSE                  //
+// ================================================= //
+
+Dataset get_transpose( Dataset ds ) {
+
+  Dataset ds_transpose ;
+
+  switch( ds.type_code ) {
+    case 3 :
+      ds_transpose = get_transpose( ds.ds_vvop ) ;
+      break ;
+  }
+
+  return ds_transpose ;
+}
+
+Dataset get_transpose( vvop data_vvop ) {
+  Dataset ds_transpose ;
+  ds_transpose.type_code = 3 ;
+  // peel out the ith element from every row and insert
+  // into the corresponding ith col
+
+  int arity = data_vvop.data[0].size() ;
+  //std::cout << "arity = " << arity << std::endl ;
+  for( int i = 0; i < arity; i++ ) {
+    std::vector< std::pair< std::string, int > > row ;
+    for( unsigned int j = 0; j < data_vvop.getLength(); j++ ) { 
+      //std::cout << data_vvop.data[j][i] << std::endl ;
+      row.push_back( data_vvop.data[j][i] ) ;
+    }
+    //std::cout << "pushback row : " << row << std::endl ;
+    ds_transpose.ds_vvop.data.push_back( row ) ;
+  }
+  return ds_transpose ;
+}

@@ -25,6 +25,7 @@
 // other includes
 #include "cls/dm/cls_dm.h"
 #include "cls/dm/cls_split.h"
+#include "cls/dm/cls_transform.h"
 
 namespace po = boost::program_options;
 
@@ -88,7 +89,10 @@ int main(int argc, char **argv)
   Dataset avvop( thing2, thing2schema ) ;
   std::cout << avvop.toString() << std::endl ;
 
+  // ------------------------------------------------------ //
+  // ------------------------------------------------------ //
   // split
+
   int astr_mid   = get_midpoint( astr ) ;
   int thing0_mid = get_midpoint( thing0 ) ;
   int thing1_mid = get_midpoint( thing1 ) ;
@@ -272,6 +276,142 @@ int main(int argc, char **argv)
               &avvop_split_blist_out0, 
               &avvop_split_blist_out1, 
               avvop.type_code, 3 ) ;
+
+  // ------------------------------------------------------ //
+  // ------------------------------------------------------ //
+  // transform
+
+  librados::bufferlist astr_transform_blist_in ;
+  librados::bufferlist astr_transform_blist_out ;
+
+  std::cout << "##############################################" << std::endl ;
+  std::cout << "TRANSFORM astr" << std::endl ;
+
+  // str transform_id
+  ::encode( astr, astr_transform_blist_in ) ;
+  ceph_transform( &astr_transform_blist_in, 
+                  &astr_transform_blist_out, 
+                  0 ) ;
+
+  // str transform_reverse
+  ::encode( astr, astr_transform_blist_in ) ;
+  ceph_transform( &astr_transform_blist_in, 
+                  &astr_transform_blist_out, 
+                  1 ) ;
+
+  // str transform_sort
+  ::encode( astr, astr_transform_blist_in ) ;
+  ceph_transform( &astr_transform_blist_in, 
+                  &astr_transform_blist_out, 
+                  2 ) ;
+
+  // str transform_noop
+  ::encode( astr, astr_transform_blist_in ) ;
+  ceph_transform( &astr_transform_blist_in, 
+                  &astr_transform_blist_out, 
+                  -1 ) ;
+
+  // ------------------------------------------------------ //
+
+  librados::bufferlist avectstr_transform_blist_in ;
+  librados::bufferlist avectstr_transform_blist_out ;
+
+  std::cout << "##############################################" << std::endl ;
+  std::cout << "TRANSFORM avectstr" << std::endl ;
+
+  // vect str transform_id
+  ::encode( avectstr, avectstr_transform_blist_in ) ;
+  ceph_transform( &avectstr_transform_blist_in, 
+                  &avectstr_transform_blist_out, 
+                  0 ) ;
+
+  // vect str transform_reverse
+  ::encode( avectstr, avectstr_transform_blist_in ) ;
+  ceph_transform( &avectstr_transform_blist_in, 
+                  &avectstr_transform_blist_out, 
+                  1 ) ;
+
+  // vect str transform_sort
+  ::encode( avectstr, avectstr_transform_blist_in ) ;
+  ceph_transform( &avectstr_transform_blist_in, 
+                  &avectstr_transform_blist_out, 
+                  2 ) ;
+
+  // vect str transform_noop
+  ::encode( avectstr, avectstr_transform_blist_in ) ;
+  ceph_transform( &avectstr_transform_blist_in, 
+                  &avectstr_transform_blist_out, 
+                  -1 ) ;
+
+  // ------------------------------------------------------ //
+
+  librados::bufferlist avectint_transform_blist_in ;
+  librados::bufferlist avectint_transform_blist_out ;
+
+  std::cout << "##############################################" << std::endl ;
+  std::cout << "TRANSFORM avectint" << std::endl ;
+
+  // vect int transform_id
+  ::encode( avectint, avectint_transform_blist_in ) ;
+  ceph_transform( &avectint_transform_blist_in, 
+                  &avectint_transform_blist_out, 
+                  0 ) ;
+
+  // vect int transform_reverse
+  ::encode( avectint, avectint_transform_blist_in ) ;
+  ceph_transform( &avectint_transform_blist_in, 
+                  &avectint_transform_blist_out, 
+                  1 ) ;
+
+  // vect int transform_sort
+  ::encode( avectint, avectint_transform_blist_in ) ;
+  ceph_transform( &avectint_transform_blist_in, 
+                  &avectint_transform_blist_out, 
+                  2 ) ;
+
+  // vect int transform_noop
+  ::encode( avectint, avectint_transform_blist_in ) ;
+  ceph_transform( &avectint_transform_blist_in, 
+                  &avectint_transform_blist_out, 
+                  -1 ) ;
+
+  // ------------------------------------------------------ //
+
+  librados::bufferlist avvop_transform_blist_in ;
+  librados::bufferlist avvop_transform_blist_out ;
+
+  std::cout << "##############################################" << std::endl ;
+  std::cout << "TRANSFORM vvop" << std::endl ;
+
+  // vvop transform_id
+  ::encode( avvop, avvop_transform_blist_in ) ;
+  ceph_transform( &avvop_transform_blist_in, 
+                  &avvop_transform_blist_out, 
+                  0 ) ;
+
+  // vvop transform_reverse
+  ::encode( avvop, avvop_transform_blist_in ) ;
+  ceph_transform( &avvop_transform_blist_in, 
+                  &avvop_transform_blist_out, 
+                  1 ) ;
+
+  // vvop transform_sort
+  ::encode( avvop, avvop_transform_blist_in ) ;
+  ceph_transform( &avvop_transform_blist_in, 
+                  &avvop_transform_blist_out, 
+                  2 ) ;
+
+  // vvop transform_transpose
+  ::encode( avvop, avvop_transform_blist_in ) ;
+  ceph_transform( &avvop_transform_blist_in, 
+                  &avvop_transform_blist_out, 
+                  3 ) ;
+
+  // vvop transform_noop
+  ::encode( avvop, avvop_transform_blist_in ) ;
+  ceph_transform( &avvop_transform_blist_in, 
+                  &avvop_transform_blist_out, 
+                  -1 ) ;
 
   std::cout << "... run-dm.cc done. phew!" << std::endl ;
 
