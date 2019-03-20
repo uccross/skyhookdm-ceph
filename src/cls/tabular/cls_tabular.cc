@@ -56,6 +56,39 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   return std::string(buffer, copyupto);
 }
 
+// Get fb_seq_num from xattr
+static
+int get_fb_seq_num(cls_method_context_t hctx, int& fb_seq_num) {
+    
+    bufferlist fb_bl2;
+    int r1 = cls_cxx_getxattr(hctx, "fb_seq_num", &fb_bl2);
+    if (r1 == -ENOENT || r1 == -ENODATA) {
+        fb_seq_num = Tables::FB_SEQ_NUM_MIN;
+        // If fb_seq_num is not present then insert it in xattr. 
+    }
+    else if( r1 < 0 ) {
+        return r1;
+    }
+    else {
+        bufferlist::iterator it = fb_bl2.begin();
+        ::decode(fb_seq_num,it);
+    }
+    return 0;
+
+}
+
+// Update counter and Insert fb_seq_num to xattr
+static
+int set_fb_seq_num(cls_method_context_t hctx, int fb_seq_num) {
+
+    bufferlist fb_bl2;
+    fb_seq_num++;
+    ::encode(fb_seq_num, fb_bl2);
+    int r = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl2);
+    if( r < 0 )
+        return r;
+    return 0;
+} 
 /*
  * Build a skyhook index, insert to omap.
  * Index types are
@@ -79,22 +112,12 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     // seems to be an int32 currently.
     const int ceph_bl_encoding_len = sizeof(int32_t);
 
-    bufferlist fb_bl2;
     int fb_seq_num;
-    int r1 = cls_cxx_getxattr(hctx, "fb_seq_num", &fb_bl2);
-    if (r1 == -ENOENT || r1 == -ENODATA) {
-        fb_seq_num = 0;  // TODO: get this from a stable counter.
-        // If fb_seq_num is not present then insert it in xattr. 
-    }
-    else if( r1 < 0 ) {
+    int r1 = get_fb_seq_num(hctx, fb_seq_num);
+    if( r1 < 0) {
+        CLS_ERR("error getting fb_seq_num entry from xattr %d", r1);
         return r1;
     }
-    else {
-        bufferlist::iterator it = fb_bl2.begin();
-        ::decode(fb_seq_num,it);
-        CLS_LOG(20,"Read from xattr %d", fb_seq_num);
-    }
-    
 
     std::string key_prefix;
     std::string key_data;
@@ -362,12 +385,13 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         }
     }
 
+
     // Update counter and Insert fb_seq_num to xattr
-    fb_seq_num +=1;
-    ::encode(fb_seq_num, fb_bl2);
-    int r = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl2);
-    if( r < 0 )
+    int r = set_fb_seq_num(hctx, fb_seq_num);
+    if(r < 0) {
+        CLS_ERR("error setting fb_seq_num entry to xattr %d", ret);
         return r;
+    }
     return 0;
 }
 
@@ -1268,3 +1292,4 @@ void __cls_init()
   cls_register_cxx_method(h_class, "build_sky_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_sky_index, &h_build_sky_index);
 }
+
