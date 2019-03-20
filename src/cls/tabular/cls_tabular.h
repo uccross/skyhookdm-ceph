@@ -41,6 +41,7 @@ struct query_op {
   // query parameters (new) flatbufs
   bool fastpath;
   bool index_read;
+  bool mem_constrain;
   int index_type;
   int index2_type;
   int index_plan_type;
@@ -76,6 +77,7 @@ struct query_op {
     // flatbufs
     ::encode(fastpath, bl);
     ::encode(index_read, bl);
+    ::encode(mem_constrain, bl);
     ::encode(index_type, bl);
     ::encode(index2_type, bl);
     ::encode(index_plan_type, bl);
@@ -111,6 +113,7 @@ struct query_op {
     // flatbufs
     ::decode(fastpath, bl);
     ::decode(index_read, bl);
+    ::decode(mem_constrain, bl);
     ::decode(index_type, bl);
     ::decode(index2_type, bl);
     ::decode(index_plan_type, bl);

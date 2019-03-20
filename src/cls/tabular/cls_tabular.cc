@@ -78,7 +78,9 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     // a ceph property encoding the len of each bl in front of the bl,
     // seems to be an int32 currently.
     const int ceph_bl_encoding_len = sizeof(int32_t);
-    int fb_seq_num = 0;  // TODO: get this from a stable counter.
+
+    // TODO: get curr seq_num from stable counter (xattr)
+    int fb_seq_num = Tables::FB_SEQ_NUM_MIN;
 
     std::string key_prefix;
     std::string key_data;
@@ -131,12 +133,12 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // IDX_FB get the key prefix and key_data (fb sequence num)
         key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
                                     root.table_name);
-        std::string sqnum = Tables::u64tostr(++fb_seq_num); // key data
-        int len = sqnum.length();
+        std::string str_seq_num = Tables::u64tostr(fb_seq_num); // key data
+        int len = str_seq_num.length();
 
         // create string of len min chars per type, int32 here
         int pos = len - 10;
-        key_data = sqnum.substr(pos, len);
+        key_data = str_seq_num.substr(pos, len);
 
         // IDX_FB create the entry struct, encode into bufferlist
         bufferlist fb_bl;
@@ -144,6 +146,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         ::encode(fb_ent, fb_bl);
         key = key_prefix + key_data;
         fbs_index[key] = fb_bl;
+        fb_seq_num++;
         //CLS_LOG(20,"key=%s",(key+";"+fb_ent.toString()).c_str());
 
         // DATA CONTENT INDEXES (LOGICAL data reference):
@@ -491,16 +494,15 @@ update_idx_reads(
         else {
             idx_reads[rec_ent.fb_num] = \
             Tables::read_info(rec_ent.fb_num,
-                                             fb_ent.off,
-                                             fb_ent.len,
-                                             row_nums);
+                              fb_ent.off,
+                              fb_ent.len,
+                              row_nums);
         }
     }
     return 0;
-
 }
 
-bool check_predicate( Tables::predicate_vec index_preds, int opType )
+bool check_predicate(Tables::predicate_vec index_preds, int opType)
 {
     for (unsigned i = 0; i < index_preds.size(); i++) {
 
@@ -508,33 +510,106 @@ bool check_predicate( Tables::predicate_vec index_preds, int opType )
             return true;
         }
     return false;
-
 }
 
-bool compare_keys( std::string key1, std::string key2 )
+bool compare_keys(std::string key1, std::string key2)
 {
 
     // Format of keys is like IDX_REC:*-LINEITEM:LINENUMBER-ORDERKEY:00000000000000000001-00000000000000000006
     // First splitting both the string on the basis of ':' delimiter
     vector<std::string> elems1;
-    boost::split(elems1, key1, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
+    boost::split(elems1, key1, boost::is_any_of(Tables::IDX_KEY_DELIM_OUTER),
+                                                boost::token_compress_on);
 
     vector<std::string> elems2;
-    boost::split(elems2, key2, boost::is_any_of( Tables::IDX_KEY_DELIM_OUTER ), boost::token_compress_on);
+    boost::split(elems2, key2, boost::is_any_of(Tables::IDX_KEY_DELIM_OUTER),
+                                                boost::token_compress_on);
 
     // 4th entry in vector represents the value vector i.e after prefix
     vector<std::string> value1;
     vector<std::string> value2;
 
-    // Now splitting on the basis of '-' delimiter and comparing first token of both
-    boost::split(value1, elems1[Tables::IDX_FIELD_Value] , boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
-    boost::split(value2, elems2[Tables::IDX_FIELD_Value], boost::is_any_of( Tables::IDX_KEY_DELIM_INNER ), boost::token_compress_on);
+    // Now splitting value field on the basis of '-' delimiter
+    boost::split(value1,
+                 elems1[Tables::IDX_FIELD_Value],
+                 boost::is_any_of(Tables::IDX_KEY_DELIM_INNER),
+                 boost::token_compress_on);
+    boost::split(value2,
+                 elems2[Tables::IDX_FIELD_Value],
+                 boost::is_any_of(Tables::IDX_KEY_DELIM_INNER),
+                 boost::token_compress_on);
 
    // Compare first token of both field value
     if(value1[0] == value2[0])
         return true;
     return false;
 }
+/*
+ * Lookup matching records in omap, based on the index specified and the
+ * index predicates.  Set the idx_reads info vector with the corresponding
+ * flatbuf off/len and row numbers for each matching record.
+ */
+static
+int
+read_fbs_index(
+    cls_method_context_t hctx,
+    std::string db_schema,
+    std::string table,
+    std::map<int, struct Tables::read_info>& reads) {
+
+    using namespace Tables;
+    int ret = 0;
+
+    // TODO: get curr MAX from stable counter (xattr)
+    unsigned int seq_max = Tables::FB_SEQ_NUM_MAX;
+    unsigned int seq_min = Tables::FB_SEQ_NUM_MIN;
+
+    // prefix is same for all fb index keys.
+    std::string key_prefix = buildKeyPrefix(Tables::SIT_IDX_FB,
+                                            db_schema,
+                                            table);
+
+    // fb seq num grow monotically, so try to read each key
+    for (unsigned int i = seq_min; i < seq_max; i++) {
+
+        // create key for this seq num.
+        std::string key_data = Tables::buildKeyData(Tables::SDT_INT32, i);
+        std::string key = key_prefix + key_data;
+
+        bufferlist bl;
+        ret = cls_cxx_map_get_val(hctx, key, &bl);
+
+        // a seq_num may not be present due to fb deleted/compaction
+        // if key not found, just continue (this is not an error)
+        if (ret < 0 ) {
+            if (ret == -ENOENT) {
+                // CLS_LOG(20, "omap entry NOT found for key=%s", key.c_str());
+                continue;
+            }
+            else {
+                CLS_ERR("Cannot read omap entry for key=%s", key.c_str());
+                return ret;
+            }
+        }
+
+        // key found so decode the entry and set the read vals.
+        if (ret >= 0) {
+            // CLS_LOG(20, "omap entry found for key=%s", key.c_str());
+            struct idx_fb_entry fb_ent;
+            try {
+                bufferlist::iterator it = bl.begin();
+                ::decode(fb_ent, it);
+            } catch (const buffer::error &err) {
+                CLS_ERR("ERROR: decoding idx_fb_ent for key=%s", key.c_str());
+                return -EINVAL;
+            }
+            reads[i] = Tables::read_info(i, fb_ent.off, fb_ent.len, {});
+        }
+    }
+    return 0;
+}
+
+
 /*
  * Lookup matching records in omap, based on the index specified and the
  * index predicates.  Set the idx_reads info vector with the corresponding
@@ -877,22 +952,40 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 }
             } else {
 
-                // just read entire object.
-                // fbseq_num=0, off=0, len=0 indicates read entire obj/all fbs
+                // if mem_constrain, check IDX_FBs and add corresponding reads-
+                // the idea is to read each fb in turn rather than entire obj.
+                // if no IDX_FB entries found, set default to read entire obj.
                 reads.clear();
-                struct read_info ri(0, 0, 0, {});
-                reads[0] = ri;
+                int ret = 0;
+                if (op.mem_constrain) {
+                    ret = read_fbs_index(hctx, op.db_schema, op.table_name, reads);
+                }
+                if (ret < 0 || reads.empty()) {
+                    // set default behaviour: read full obj
+                    // NOTE: fbseq_num=0, off=0, len=0 indicates read entire obj
+                    int fb_seq_num = 0;
+                    int off = 0;
+                    int len = 0;
+                    std::vector<unsigned int> rnums = {};
+                    struct read_info ri(fb_seq_num, off, len, {});
+                    reads[1] = ri;
+                }
             }
 
             // now we can decode and process each bl in the obj, specified
             // by each read request.
             // NOTE: 1 bl contains exactly 1 flatbuf.
             // weak ordering in map will iterate over fb nums in sequence
-            for (auto it=reads.begin(); it!=reads.end(); ++it) {
+            for (auto it = reads.begin(); it != reads.end(); ++it) {
                 bufferlist b;
                 size_t off = it->second.off;
                 size_t len = it->second.len;
                 std::vector<unsigned int> row_nums = it->second.rnums;
+
+                // std::string msg = "read[" + std::to_string(it->first) +
+                //                  "]; off=" + std::to_string(off) +
+                //                  "; len=" + std::to_string(len);
+                // CLS_LOG(20, "READING (%s)", msg.c_str());
 
                 uint64_t start = getns();
                 ret = cls_cxx_read(hctx, off, len, &b);

@@ -43,7 +43,7 @@ std::string comment_regex;
 // query_op params for flatbufs
 bool qop_fastpath;
 bool qop_index_read;
-bool qop_index_create;
+bool qop_mem_constrain;
 int qop_index_type;
 int qop_index2_type;
 int qop_index_plan_type;

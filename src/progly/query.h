@@ -76,7 +76,7 @@ extern std::string comment_regex;
 // query_op params for flatbufs
 extern bool qop_fastpath;
 extern bool qop_index_read;
-extern bool qop_index_create;
+extern bool qop_mem_constrain;
 extern int qop_index_type;
 extern int qop_index2_type;
 extern int qop_index_plan_type;
