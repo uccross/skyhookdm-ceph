@@ -60,18 +60,23 @@ static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
 static
 int get_fb_seq_num(cls_method_context_t hctx, int& fb_seq_num) {
     
-    bufferlist fb_bl2;
-    int r1 = cls_cxx_getxattr(hctx, "fb_seq_num", &fb_bl2);
-    if (r1 == -ENOENT || r1 == -ENODATA) {
+    bufferlist fb_bl;
+    int ret = cls_cxx_getxattr(hctx, "fb_seq_num", &fb_bl);
+    if (ret == -ENOENT || ret == -ENODATA) {
         fb_seq_num = Tables::FB_SEQ_NUM_MIN;
         // If fb_seq_num is not present then insert it in xattr. 
     }
-    else if( r1 < 0 ) {
-        return r1;
+    else if( ret < 0 ) {
+        return ret;
     }
     else {
-        bufferlist::iterator it = fb_bl2.begin();
-        ::decode(fb_seq_num,it);
+        try {
+            bufferlist::iterator it = fb_bl.begin();
+            ::decode(fb_seq_num,it);
+        } catch (const buffer::error &err) {
+            CLS_ERR("ERROR: cls_tabular:get_fb_seq_num: decoding fb_seq_num");
+            return -EINVAL;
+        }
     }
     return 0;
 
@@ -81,12 +86,12 @@ int get_fb_seq_num(cls_method_context_t hctx, int& fb_seq_num) {
 static
 int set_fb_seq_num(cls_method_context_t hctx, int fb_seq_num) {
 
-    bufferlist fb_bl2;
-    fb_seq_num++;
-    ::encode(fb_seq_num, fb_bl2);
-    int r = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl2);
-    if( r < 0 )
-        return r;
+    bufferlist fb_bl;
+    ::encode(fb_seq_num, fb_bl);
+    int ret = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl);
+    if( ret < 0 ) {
+        return ret;
+    }
     return 0;
 } 
 /*
@@ -112,11 +117,11 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     // seems to be an int32 currently.
     const int ceph_bl_encoding_len = sizeof(int32_t);
 
-    int fb_seq_num;
-    int r1 = get_fb_seq_num(hctx, fb_seq_num);
-    if( r1 < 0) {
-        CLS_ERR("error getting fb_seq_num entry from xattr %d", r1);
-        return r1;
+    int fb_seq_num = Tables::FB_SEQ_NUM_MIN;
+    int ret = get_fb_seq_num(hctx, fb_seq_num);
+    if( ret < 0) {
+        CLS_ERR("error getting fb_seq_num entry from xattr %d", ret);
+        return ret;
     }
 
     std::string key_prefix;
@@ -142,7 +147,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
     // obj contains one bl that itself wraps a seq of encoded bls of skyhook fb
     bufferlist wrapped_bls;
-    int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: cls_tabular:build_sky_index: reading obj %d", ret);
         return ret;
@@ -387,10 +392,11 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
 
     // Update counter and Insert fb_seq_num to xattr
-    int r = set_fb_seq_num(hctx, fb_seq_num);
-    if(r < 0) {
+    ++fb_seq_num;
+    ret = set_fb_seq_num(hctx, fb_seq_num);
+    if(ret < 0) {
         CLS_ERR("error setting fb_seq_num entry to xattr %d", ret);
-        return r;
+        return ret;
     }
     return 0;
 }
@@ -551,9 +557,10 @@ bool check_predicate( Tables::predicate_vec index_preds, int opType )
 {
     for (unsigned i = 0; i < index_preds.size(); i++) {
 
-        if(index_preds[i]->opType() == opType)
+        if(index_preds[i]->opType() == opType) {
             return true;
         }
+    }
     return false;
 
 }

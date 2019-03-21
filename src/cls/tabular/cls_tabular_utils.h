@@ -206,7 +206,7 @@ const std::string IDX_KEY_COLS_DEFAULT = "*";
 const std::string SCHEMA_NAME_DEFAULT = "*";
 const std::string TABLE_NAME_DEFAULT = "*";
 const std::string RID_INDEX = "_RID_INDEX_";
-const int FB_SEQ_NUM_MIN = 0;
+const int FB_SEQ_NUM_MIN = 1;
 
 /*
  * Convert integer to string for index/omap of primary key
