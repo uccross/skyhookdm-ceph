@@ -6,34 +6,11 @@ target_link_libraries(buffer_exercises librados global ${CMAKE_DL_LIBS}
 install(TARGETS buffer_exercises DESTINATION bin)
 
 # ------------------------------------------------------- #
-# run-dm
-add_executable(run-dm run-dm.cc ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_dm.cc 
-                                ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_split.cc
-                                ${CMAKE_SOURCE_DIR}/src/cls/dm/cls_transform.cc)
-target_link_libraries(run-dm librados global ${CMAKE_DL_LIBS}
+# run-transforms
+add_executable(run-transforms run-transforms.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_transform_utils.cc)
+target_link_libraries(run-transforms librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS run-dm DESTINATION bin)
-
-# ------------------------------------------------------- #
-# run-split
-add_executable(run-split run-split.cc ${CMAKE_SOURCE_DIR}/src/cls/split/cls_split.cc)
-target_link_libraries(run-split librados global ${CMAKE_DL_LIBS}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS run-split DESTINATION bin)
-
-# ------------------------------------------------------- #
-# run-transform
-add_executable(run-transform run-transform.cc ${CMAKE_SOURCE_DIR}/src/cls/transform/cls_transform.cc)
-target_link_libraries(run-transform librados global ${CMAKE_DL_LIBS}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS run-transform DESTINATION bin)
-
-# ------------------------------------------------------- #
-# run-vop
-add_executable(run-vop run-vop.cc vop_engine.cc ${CMAKE_SOURCE_DIR}/src/cls/split/cls_split.cc ${CMAKE_SOURCE_DIR}/src/cls/transform/cls_transform.cc)
-target_link_libraries(run-vop librados global ${CMAKE_DL_LIBS}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS run-vop DESTINATION bin)
+install(TARGETS run-transforms DESTINATION bin)
 
 # ------------------------------------------------------- #
 # run-query

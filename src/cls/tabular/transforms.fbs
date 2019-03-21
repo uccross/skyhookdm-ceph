@@ -1,0 +1,17 @@
+namespace Tables;
+
+table Record {
+  table_name  : string ;                    // table name containing oid for verification
+  layout      : string ;                    // row or column layout?
+  schema      : string ;                    // schema descriptor
+  RID         : uint64 ;                    // record ID
+  nullbits    : [ uint64 ] ;                // keeps track of null fields within the record
+
+  //record_data : [ ubyte ] ( flexbuffer ) ;  // record data
+  att0 : uint64 ;
+  att1 : uint64 ;
+  att2 : uint64 ;
+  att3 : uint64 ;
+}
+
+root_type Record ;
