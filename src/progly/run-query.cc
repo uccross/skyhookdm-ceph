@@ -28,6 +28,7 @@ int main(int argc, char **argv)
   // defaults set below via boost::program_options
   bool index_read;
   bool index_create;
+  bool mem_constrain;
   bool text_index_ignore_stopwords;
   int index_plan_type;
   std::string text_index_delims;
@@ -112,6 +113,7 @@ int main(int argc, char **argv)
     ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
+    ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")
     ("index-cols", po::value<std::string>(&index_cols)->default_value(""), project_help_msg.c_str())
     ("index2-cols", po::value<std::string>(&index2_cols)->default_value(""), project_help_msg.c_str())
     ("project-cols", po::value<std::string>(&project_cols)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
@@ -432,7 +434,7 @@ int main(int argc, char **argv)
     // set all of the flatbuf info for our query op.
     qop_fastpath = fastpath;
     qop_index_read = index_read;
-    qop_index_create = index_create;
+    qop_mem_constrain = mem_constrain;
     qop_index_type = index_type;
     qop_index2_type = index2_type;
     qop_index_plan_type = index_plan_type;
@@ -536,6 +538,7 @@ int main(int argc, char **argv)
         // flatbufs
         op.fastpath = qop_fastpath;
         op.index_read = qop_index_read;
+        op.mem_constrain = qop_mem_constrain;
         op.index_type = qop_index_type;
         op.index2_type = qop_index2_type;
         op.index_plan_type = qop_index_plan_type;
