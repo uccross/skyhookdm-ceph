@@ -39,9 +39,6 @@ void test() {
   ret = cluster.ioctx_create( "tpchflatbuf" , ioctx ) ;
   checkret( ret, 0 ) ;
 
-  librados::bufferlist bufl ;
-  bufl.append( "asdf" ) ;
-
   // write bl_seq
   const char *obj_name  = "blah" ;
   //ret = ioctx.write_full( obj_name, bufl ) ;
@@ -80,7 +77,141 @@ void test() {
     std::cout << "att3 : " << att3_read << std::endl ;
   }
 
-  ioctx.close();
+  // do row to col tranpose
+  auto transposed_bl_seq = transpose( wrapped_bl_seq ) ;
+
+  ceph::bufferlist::iterator it_transposed = transposed_bl_seq.begin() ;
+  std::cout << it_transposed.get_remaining() << std::endl ;
+
+  while( it_transposed.get_remaining() > 0 ) {
+    ceph::bufferlist bl ;
+    ::decode( bl, it_transposed ) ; // this decrements get_remaining by moving iterator
+
+    const char* fb = bl.c_str() ;
+    auto root = Tables::GetRecord( fb ) ;
+
+    auto table_name = root->table_name() ;
+    auto att0_read = root->att0() ;
+    auto att1_read = root->att1() ;
+    auto att2_read = root->att2() ;
+
+    std::cout << "table_name : " << table_name << std::endl ;
+    std::cout << "att0 : " << att0_read << std::endl ;
+    std::cout << "att1 : " << att1_read << std::endl ;
+    std::cout << "att2 : " << att2_read << std::endl ;
+  }
+
+  ioctx.close() ;
+}
+
+librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
+  std::cout << "bloo" << std::endl ;
+
+  librados::bufferlist transposed_bl_seq ;
+  int transpose_cardinality = 4 ; //transpose cardinality == orig arity
+  // technically need to compile a separate transpose schema,
+  // but reusing Record schema here for prototyping
+
+  int counter = 0 ;
+  for( int i = 0; i < transpose_cardinality; i++ ) {
+    // create new transpose record flatbuffer
+    flatbuffers::FlatBufferBuilder builder(1024) ;
+    auto table_name = builder.CreateString(  "transposed_tbl" ) ; //place this before record_builder declare
+
+    // collect record contents
+    ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
+    std::cout << "tranpose : it_wrapped.get_remaining() = " << it_wrapped.get_remaining() << std::endl ;
+
+    std::vector< uint64_t > data_read_vect ;
+    while( it_wrapped.get_remaining() > 0 ) { // iterates over cardinality
+      ceph::bufferlist bl ;
+      ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+
+      const char* fb = bl.c_str() ;
+      auto root = Tables::GetRecord( fb ) ;
+
+      if( counter == 0 ) {
+        auto data_read = root->att0() ;
+        std::cout << "counter   == " << counter << std::endl ;
+        std::cout << "data_read == " << data_read << std::endl ;
+        data_read_vect.push_back( data_read ) ;
+//        record_builder.add_att0( 999 ) ;
+      }
+      else if( counter == 1 ) {
+        auto data_read = root->att1() ;
+        std::cout << "counter   == " << counter << std::endl ;
+        std::cout << "data_read == " << data_read << std::endl ;
+        data_read_vect.push_back( data_read ) ;
+//        record_builder.add_att1( data_read ) ;
+      }
+      else if( counter  == 2 ) {
+        auto data_read = root->att2() ;
+        std::cout << "counter   == " << counter << std::endl ;
+        std::cout << "data_read == " << data_read << std::endl ;
+        data_read_vect.push_back( data_read ) ;
+//        record_builder.add_att2( data_read ) ;
+      }
+      else if( counter == 3 ) {
+        auto data_read = root->att3() ;
+        std::cout << "counter   == " << counter << std::endl ;
+        std::cout << "data_read == " << data_read << std::endl ;
+        data_read_vect.push_back( data_read ) ;
+//        record_builder.add_att2( data_read ) ;
+      }
+    }
+    counter++ ;
+
+    Tables::RecordBuilder record_builder( builder ) ;
+    record_builder.add_table_name( table_name ) ;
+
+    // because adds don't work in the while loop...
+    for( int i = 0; i < data_read_vect.size(); i++ ) {
+      if( i == 0 )
+        record_builder.add_att0( data_read_vect[i] ) ;
+      else if( i == 1 )
+        record_builder.add_att1( data_read_vect[i] ) ;
+      else if( i == 2 )
+        record_builder.add_att2( data_read_vect[i] ) ;
+    }
+
+    // mandatory finishes
+    auto arec = record_builder.Finish() ;
+    builder.Finish( arec ) ;
+
+    // save record in bufferlist bl
+    const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+    int bufsz      = builder.GetSize() ;
+    librados::bufferlist bl ;
+    bl.append( fb, bufsz ) ;
+
+    // append to transposed_bl_seq bufferlist
+    ::encode( bl, transposed_bl_seq ) ;
+  }
+
+  //ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
+  //std::cout << it_wrapped.get_remaining() << std::endl ;
+
+  //while( it_wrapped.get_remaining() > 0 ) { // iterates over cardinality
+  //  ceph::bufferlist bl ;
+  //  ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+
+  //  const char* fb = bl.c_str() ;
+  //  auto root = Tables::GetRecord( fb ) ;
+
+  //  auto table_name = root->table_name() ;
+  //  auto att0_read = root->att0() ;
+  //  auto att1_read = root->att1() ;
+  //  auto att2_read = root->att2() ;
+  //  auto att3_read = root->att3() ;
+
+  //  std::cout << "table_name : " << table_name << std::endl ;
+  //  std::cout << "att0 : " << att0_read << std::endl ;
+  //  std::cout << "att1 : " << att1_read << std::endl ;
+  //  std::cout << "att2 : " << att2_read << std::endl ;
+  //  std::cout << "att3 : " << att3_read << std::endl ;
+  //}
+
+  return transposed_bl_seq ;
 }
 
 librados::bufferlist record0() {

@@ -40,6 +40,7 @@
   } } while (0)
 
 void test() ;
+librados::bufferlist transpose( librados::bufferlist ) ;
 librados::bufferlist record0() ;
 librados::bufferlist record1( ) ;
 librados::bufferlist record2( ) ;
