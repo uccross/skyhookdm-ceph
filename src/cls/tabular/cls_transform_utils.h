@@ -29,8 +29,12 @@
 
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
-#include "transforms_generated.h"
 #include "include/rados/librados.hpp"
+
+//#include "transforms_generated.h"
+#include "rows_generated.h"
+#include "cols_int_generated.h"
+#include "cols_float_generated.h"
 
 #define checkret(r,v) do { \
   if (r != v) { \
@@ -41,9 +45,7 @@
 
 void test() ;
 librados::bufferlist transpose( librados::bufferlist ) ;
-librados::bufferlist record0() ;
-librados::bufferlist record1( ) ;
-librados::bufferlist record2( ) ;
+librados::bufferlist set_rows() ;
 
 
 #endif
