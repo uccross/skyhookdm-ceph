@@ -1,0 +1,14 @@
+namespace Tables;
+
+table Rows {
+  skyhook_version:ubyte;  // skyhook version
+  schema_version:ubyte;   // schema version of flexbuffers contained
+
+  table_name  : string ;
+
+  RIDs : [ uint64 ] ;
+  att0 : [ uint64 ] ;
+  att1 : [ float ] ;
+}
+
+root_type Rows ;
