@@ -17,7 +17,7 @@ struct Cols_int FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_COL_NAME = 8,
     VT_COL_INDEX = 10,
     VT_RIDS = 12,
-    VT_ATT0 = 14
+    VT_DATA = 14
   };
   uint8_t skyhook_version() const {
     return GetField<uint8_t>(VT_SKYHOOK_VERSION, 0);
@@ -34,8 +34,8 @@ struct Cols_int FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<uint64_t> *RIDs() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_RIDS);
   }
-  const flatbuffers::Vector<uint64_t> *att0() const {
-    return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_ATT0);
+  const flatbuffers::Vector<uint64_t> *data() const {
+    return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_DATA);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -46,8 +46,8 @@ struct Cols_int FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<uint64_t>(verifier, VT_COL_INDEX) &&
            VerifyOffset(verifier, VT_RIDS) &&
            verifier.VerifyVector(RIDs()) &&
-           VerifyOffset(verifier, VT_ATT0) &&
-           verifier.VerifyVector(att0()) &&
+           VerifyOffset(verifier, VT_DATA) &&
+           verifier.VerifyVector(data()) &&
            verifier.EndTable();
   }
 };
@@ -70,8 +70,8 @@ struct Cols_intBuilder {
   void add_RIDs(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs) {
     fbb_.AddOffset(Cols_int::VT_RIDS, RIDs);
   }
-  void add_att0(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> att0) {
-    fbb_.AddOffset(Cols_int::VT_ATT0, att0);
+  void add_data(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> data) {
+    fbb_.AddOffset(Cols_int::VT_DATA, data);
   }
   explicit Cols_intBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -92,10 +92,10 @@ inline flatbuffers::Offset<Cols_int> CreateCols_int(
     flatbuffers::Offset<flatbuffers::String> col_name = 0,
     uint64_t col_index = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint64_t>> att0 = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<uint64_t>> data = 0) {
   Cols_intBuilder builder_(_fbb);
   builder_.add_col_index(col_index);
-  builder_.add_att0(att0);
+  builder_.add_data(data);
   builder_.add_RIDs(RIDs);
   builder_.add_col_name(col_name);
   builder_.add_schema_version(schema_version);
@@ -110,10 +110,10 @@ inline flatbuffers::Offset<Cols_int> CreateCols_intDirect(
     const char *col_name = nullptr,
     uint64_t col_index = 0,
     const std::vector<uint64_t> *RIDs = nullptr,
-    const std::vector<uint64_t> *att0 = nullptr) {
+    const std::vector<uint64_t> *data = nullptr) {
   auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
-  auto att0__ = att0 ? _fbb.CreateVector<uint64_t>(*att0) : 0;
+  auto data__ = data ? _fbb.CreateVector<uint64_t>(*data) : 0;
   return Tables::CreateCols_int(
       _fbb,
       skyhook_version,
@@ -121,7 +121,7 @@ inline flatbuffers::Offset<Cols_int> CreateCols_intDirect(
       col_name__,
       col_index,
       RIDs__,
-      att0__);
+      data__);
 }
 
 inline const Tables::Cols_int *GetCols_int(const void *buf) {

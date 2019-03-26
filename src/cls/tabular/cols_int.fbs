@@ -8,7 +8,7 @@ table Cols_int {
   col_index: uint64 ;
 
   RIDs : [ uint64 ] ;
-  att0 : [ uint64 ] ;
+  data : [ uint64 ] ;
 }
 
 root_type Cols_int ;

@@ -47,6 +47,7 @@ void test() {
   // read bl_seq
   librados::bufferlist wrapped_bl_seq ;
   int num_bytes_read = ioctx.read( obj_name, wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
+  std::cout << "num_bytes_read : " << num_bytes_read << std::endl ; 
 
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
   std::cout << it_wrapped.get_remaining() << std::endl ;
@@ -83,18 +84,18 @@ void test() {
   const char* ints_fb = ints_bl.c_str() ;
   auto ints_root      = Tables::GetCols_int( ints_fb ) ;
 
-  auto int_att0_read = root->att0() ;
-  std::cout << "int_att0_read->Length() : " << int_att0_read->Length() << std::endl ;
-  std::cout << int_att0_read->Get( 0 ) << std::endl ;
-  std::cout << int_att0_read->Get( 1 ) << std::endl ;
-  std::cout << int_att0_read->Get( 2 ) << std::endl ;
+  auto int_data_read = ints_root->data() ;
+  std::cout << "int_data_read->Length() : " << int_data_read->Length() << std::endl ;
+  std::cout << int_data_read->Get( 0 ) << std::endl ;
+  std::cout << int_data_read->Get( 1 ) << std::endl ;
+  std::cout << int_data_read->Get( 2 ) << std::endl ;
 
   ceph::bufferlist floats_bl ;
   ::decode( floats_bl, it_transposed ) ; // this decrements get_remaining by moving iterator
   const char* floats_fb = floats_bl.c_str() ;
   auto floats_root      = Tables::GetCols_float( floats_fb ) ;
 
-  auto float_att0_read = floats_root->att0() ;
+  auto float_att0_read = floats_root->data() ;
   std::cout << "float_att0_read->Length() : " << float_att0_read->Length() << std::endl ;
   std::cout << float_att0_read->Get( 0 ) << std::endl ;
   std::cout << float_att0_read->Get( 1 ) << std::endl ;
@@ -115,6 +116,7 @@ librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
   auto root = Tables::GetRows( fb ) ;
 
   auto table_name  = root->table_name() ;
+  std::cout << "table_name : " << table_name << std::endl ;
   auto rids_read   = root->RIDs() ;
   auto ints_read   = root->att0() ;
   auto floats_read = root->att1() ;
@@ -143,7 +145,7 @@ librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
 
   Tables::Cols_intBuilder cols_int_builder( ints_builder ) ;
   cols_int_builder.add_RIDs( i_rids_vect_fb ) ;
-  cols_int_builder.add_att0( ints_vect_fb ) ;
+  cols_int_builder.add_data( ints_vect_fb ) ;
 
   auto cols_int = cols_int_builder.Finish() ;
   ints_builder.Finish( cols_int ) ;
@@ -169,7 +171,7 @@ librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
 
   Tables::Cols_floatBuilder cols_float_builder( floats_builder ) ;
   cols_float_builder.add_RIDs( f_rids_vect_fb ) ;
-  cols_float_builder.add_att0( floats_vect_fb ) ;
+  cols_float_builder.add_data( floats_vect_fb ) ;
 
   auto cols_float = cols_float_builder.Finish() ;
   floats_builder.Finish( cols_float ) ;

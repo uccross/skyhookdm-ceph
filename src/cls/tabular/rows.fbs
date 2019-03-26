@@ -4,7 +4,10 @@ table Rows {
   skyhook_version:ubyte;  // skyhook version
   schema_version:ubyte;   // schema version of flexbuffers contained
 
-  table_name  : string ;
+  table_name : string ;
+  schema     : [ string ] ;
+  nrows      : uint64 ;
+  ncols      : uint64 ;
 
   RIDs : [ uint64 ] ;
   att0 : [ uint64 ] ;

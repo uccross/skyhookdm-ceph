@@ -15,9 +15,12 @@ struct Rows FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_SKYHOOK_VERSION = 4,
     VT_SCHEMA_VERSION = 6,
     VT_TABLE_NAME = 8,
-    VT_RIDS = 10,
-    VT_ATT0 = 12,
-    VT_ATT1 = 14
+    VT_SCHEMA = 10,
+    VT_NROWS = 12,
+    VT_NCOLS = 14,
+    VT_RIDS = 16,
+    VT_ATT0 = 18,
+    VT_ATT1 = 20
   };
   uint8_t skyhook_version() const {
     return GetField<uint8_t>(VT_SKYHOOK_VERSION, 0);
@@ -27,6 +30,15 @@ struct Rows FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   const flatbuffers::String *table_name() const {
     return GetPointer<const flatbuffers::String *>(VT_TABLE_NAME);
+  }
+  const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *schema() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *>(VT_SCHEMA);
+  }
+  uint64_t nrows() const {
+    return GetField<uint64_t>(VT_NROWS, 0);
+  }
+  uint64_t ncols() const {
+    return GetField<uint64_t>(VT_NCOLS, 0);
   }
   const flatbuffers::Vector<uint64_t> *RIDs() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_RIDS);
@@ -43,6 +55,11 @@ struct Rows FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<uint8_t>(verifier, VT_SCHEMA_VERSION) &&
            VerifyOffset(verifier, VT_TABLE_NAME) &&
            verifier.VerifyString(table_name()) &&
+           VerifyOffset(verifier, VT_SCHEMA) &&
+           verifier.VerifyVector(schema()) &&
+           verifier.VerifyVectorOfStrings(schema()) &&
+           VerifyField<uint64_t>(verifier, VT_NROWS) &&
+           VerifyField<uint64_t>(verifier, VT_NCOLS) &&
            VerifyOffset(verifier, VT_RIDS) &&
            verifier.VerifyVector(RIDs()) &&
            VerifyOffset(verifier, VT_ATT0) &&
@@ -64,6 +81,15 @@ struct RowsBuilder {
   }
   void add_table_name(flatbuffers::Offset<flatbuffers::String> table_name) {
     fbb_.AddOffset(Rows::VT_TABLE_NAME, table_name);
+  }
+  void add_schema(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> schema) {
+    fbb_.AddOffset(Rows::VT_SCHEMA, schema);
+  }
+  void add_nrows(uint64_t nrows) {
+    fbb_.AddElement<uint64_t>(Rows::VT_NROWS, nrows, 0);
+  }
+  void add_ncols(uint64_t ncols) {
+    fbb_.AddElement<uint64_t>(Rows::VT_NCOLS, ncols, 0);
   }
   void add_RIDs(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs) {
     fbb_.AddOffset(Rows::VT_RIDS, RIDs);
@@ -91,13 +117,19 @@ inline flatbuffers::Offset<Rows> CreateRows(
     uint8_t skyhook_version = 0,
     uint8_t schema_version = 0,
     flatbuffers::Offset<flatbuffers::String> table_name = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> schema = 0,
+    uint64_t nrows = 0,
+    uint64_t ncols = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> att0 = 0,
     flatbuffers::Offset<flatbuffers::Vector<float>> att1 = 0) {
   RowsBuilder builder_(_fbb);
+  builder_.add_ncols(ncols);
+  builder_.add_nrows(nrows);
   builder_.add_att1(att1);
   builder_.add_att0(att0);
   builder_.add_RIDs(RIDs);
+  builder_.add_schema(schema);
   builder_.add_table_name(table_name);
   builder_.add_schema_version(schema_version);
   builder_.add_skyhook_version(skyhook_version);
@@ -109,10 +141,14 @@ inline flatbuffers::Offset<Rows> CreateRowsDirect(
     uint8_t skyhook_version = 0,
     uint8_t schema_version = 0,
     const char *table_name = nullptr,
+    const std::vector<flatbuffers::Offset<flatbuffers::String>> *schema = nullptr,
+    uint64_t nrows = 0,
+    uint64_t ncols = 0,
     const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<uint64_t> *att0 = nullptr,
     const std::vector<float> *att1 = nullptr) {
   auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
+  auto schema__ = schema ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*schema) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   auto att0__ = att0 ? _fbb.CreateVector<uint64_t>(*att0) : 0;
   auto att1__ = att1 ? _fbb.CreateVector<float>(*att1) : 0;
@@ -121,6 +157,9 @@ inline flatbuffers::Offset<Rows> CreateRowsDirect(
       skyhook_version,
       schema_version,
       table_name__,
+      schema__,
+      nrows,
+      ncols,
       RIDs__,
       att0__,
       att1__);
