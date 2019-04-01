@@ -1,6 +1,6 @@
 namespace Tables ;
 
-table Cols_float {
+table Table {
   skyhook_version:ubyte;  // skyhook version
   schema_version:ubyte;   // schema version of flexbuffers contained
 
@@ -9,7 +9,7 @@ table Cols_float {
   layout: string ;
 
   RIDs : [ uint64 ] ;
-  data : [ float ] ;
+  data : [ uint64 ] ;
 }
 
-root_type Cols_float ;
+root_type Table ;

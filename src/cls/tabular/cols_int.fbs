@@ -6,6 +6,7 @@ table Cols_int {
 
   col_name: string ;
   col_index: uint64 ;
+  layout: string ; //uint8
 
   RIDs : [ uint64 ] ;
   data : [ uint64 ] ;
