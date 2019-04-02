@@ -33,17 +33,22 @@ int main( int argc, char **argv ) {
   qo.where_preds.push_back( "att1<15" ) ;
 
   // execute query
+  std::cout << "ROW query=================================" << std::endl ;
   execute_query( qo, "ROW" ) ;
+  std::cout << "=================================" << std::endl ;
 
   // define transform operation
   transform_op to ;
-  to.oid = "blah2" ;
-  to.pool = "tpchflatbuf" ;
-  to.table_name = "atable" ;
+  to.oid            = "blah2" ;
+  to.pool           = "tpchflatbuf" ;
+  to.table_name     = "atable" ;
   to.transform_type = "transpose" ;
+  to.layout         = "ROW" ;
 
   // execute transform
+  std::cout << "row to col transpose=================================" << std::endl ;
   execute_transform( to ) ;
+  std::cout << "=================================" << std::endl ;
 
   // query the transpose
   spj_query_op qo1 ;
@@ -54,7 +59,19 @@ int main( int argc, char **argv ) {
   qo1.where_preds.push_back( "att1<15" ) ;
 
   // execute query
+  std::cout << "COL query=================================" << std::endl ;
   execute_query( qo1, "COL" ) ;
+  std::cout << "=================================" << std::endl ;
+
+  // query the recomposed transpose
+  spj_query_op qo2 ;
+  qo2.oid = "blah2_transposed_transposed" ;
+  qo2.pool = "tpchflatbuf" ;
+
+  // execute query
+  std::cout << "ROW query=================================" << std::endl ;
+  execute_query( qo2, "ROW" ) ;
+  std::cout << "=================================" << std::endl ;
 
   return 0 ;
 }

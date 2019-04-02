@@ -63,7 +63,7 @@ struct transform_op {
 
 void execute_transform( transform_op ) ;
 void execute_query( spj_query_op, std::string ) ;
-librados::bufferlist transpose( librados::bufferlist ) ;
+librados::bufferlist transpose( librados::bufferlist, std::string ) ;
 librados::bufferlist set_rows() ;
 
 #endif

@@ -50,24 +50,23 @@ void execute_query( spj_query_op q_op, std::string layout ) {
   if( layout == "ROW" ) {
     ceph::bufferlist bl ;
     ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
-
     const char* fb = bl.c_str() ;
 
     auto root = Tables::GetRows( fb ) ;
-    auto table_name_read = root->table_name() ;
-    auto schema_read     = root->schema() ;
-    auto nrows_read      = root->nrows() ;
-    auto ncols_read      = root->ncols() ;
+//    auto table_name_read = root->table_name() ;
+//    auto schema_read     = root->schema() ;
+//    auto nrows_read      = root->nrows() ;
+//    auto ncols_read      = root->ncols() ;
     auto rids_read       = root->RIDs() ;
     auto att0_read       = root->att0() ;
     auto att1_read       = root->att1() ;
 
-    std::cout << "table_name_read->str() : " << table_name_read->str() << std::endl ;
-    std::cout << "schema_read->Length() : " << schema_read->Length() << std::endl ;
-    std::cout << "schema_read->Get( 0 )->str() : " << schema_read->Get( 0 )->str() << std::endl ;
-    std::cout << "schema_read->Get( 1 )->str() : " << schema_read->Get( 1 )->str() << std::endl ;
-    std::cout << "nrows_read  : " << nrows_read << std::endl ;
-    std::cout << "ncols_read  : " << ncols_read << std::endl ;
+//    std::cout << "table_name_read->str() : " << table_name_read->str() << std::endl ;
+//    std::cout << "schema_read->Length() : " << schema_read->Length() << std::endl ;
+//    std::cout << "schema_read->Get( 0 )->str() : " << schema_read->Get( 0 )->str() << std::endl ;
+//    std::cout << "schema_read->Get( 1 )->str() : " << schema_read->Get( 1 )->str() << std::endl ;
+//    std::cout << "nrows_read  : " << nrows_read << std::endl ;
+//    std::cout << "ncols_read  : " << ncols_read << std::endl ;
     std::cout << "RIDs : " << rids_read << std::endl ;
     std::cout << rids_read->Length() << std::endl ;
     std::cout << rids_read->Get(0) << std::endl ;
@@ -143,7 +142,7 @@ void execute_transform( transform_op t_op ) {
   int num_bytes_read = ioctx.read( t_op.oid.c_str(), wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
   std::cout << "num_bytes_read : " << num_bytes_read << std::endl ;
 
-  auto transposed_bl_seq = transpose( wrapped_bl_seq ) ;
+  auto transposed_bl_seq = transpose( wrapped_bl_seq, t_op.layout ) ;
 
   // write bl_seq to ceph object
   auto obj_oid = t_op.oid + "_transposed" ;
@@ -153,93 +152,189 @@ void execute_transform( transform_op t_op ) {
   ret = ioctx.write( obj_name, transposed_bl_seq, i, 0 ) ;
   checkret( ret, 0 ) ;
 
+  // define transform operation for re-composition
+  transform_op to1 ;
+  to1.oid            = "blah2_transposed" ;
+  to1.pool           = "tpchflatbuf" ;
+  to1.table_name     = "atable" ;
+  to1.transform_type = "transpose" ;
+  to1.layout         = "COL" ;
+
+  auto recomposed_bl_seq = transpose( transposed_bl_seq, to1.layout ) ;
+
+  // write bl_seq to ceph object
+  auto obj_oid1 = to1.oid + "_transposed" ;
+  const char *obj_name1  = obj_oid1.c_str() ;
+  bufferlist::iterator p1 = recomposed_bl_seq.begin();
+  size_t i1 = p1.get_remaining() ;
+  ret = ioctx.write( obj_name1, recomposed_bl_seq, i1, 0 ) ;
+  checkret( ret, 0 ) ;
+
   ioctx.close() ;
 }
 
-librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
+librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq, std::string LAYOUT ) {
   std::cout << "in transpose..." << std::endl ;
 
   librados::bufferlist transposed_bl_seq ;
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
 
-  ceph::bufferlist bl ;
-  ::decode( bl, it_wrapped ) ;
-  const char* fb = bl.c_str() ;
-  auto root = Tables::GetRows( fb ) ;
+  if( LAYOUT == "ROW" ) {
+    ceph::bufferlist bl ;
+    ::decode( bl, it_wrapped ) ;
+    const char* fb = bl.c_str() ;
 
-  //auto table_name  = root->table_name() ;
-  auto rids_read   = root->RIDs() ;
-  auto ints_read   = root->att0() ;
-  auto floats_read = root->att1() ;
+    auto root = Tables::GetRows( fb ) ;
+    //^unpacking root should depend upon schema
 
-  std::vector< uint64_t > rids_vect ; 
-  for( unsigned int i = 0; i < rids_read->Length(); i++ ) {
-    rids_vect.push_back( rids_read->Get( i ) ) ;
+    //auto table_name  = root->table_name() ;
+    auto rids_read   = root->RIDs() ;
+    auto ints_read   = root->att0() ;
+    auto floats_read = root->att1() ;
+
+    std::vector< uint64_t > rids_vect ; 
+    for( unsigned int i = 0; i < rids_read->Length(); i++ ) {
+      rids_vect.push_back( rids_read->Get( i ) ) ;
+    }
+    std::vector< uint64_t > ints_vect ; 
+    for( unsigned int i = 0; i < ints_read->Length(); i++ ) {
+      ints_vect.push_back( ints_read->Get( i ) ) ;
+    }
+    std::vector< float > floats_vect ; 
+    for( unsigned int i = 0; i < floats_read->Length(); i++ ) {
+      floats_vect.push_back( floats_read->Get( i ) ) ;
+    }
+
+    // ----------------------------------------------- //
+    // build int column
+
+    flatbuffers::FlatBufferBuilder ints_builder(1024) ;
+
+    //place these before record_builder declare
+    auto i_rids_vect_fb = ints_builder.CreateVector( rids_vect ) ;
+    auto ints_vect_fb   = ints_builder.CreateVector( ints_vect ) ;
+    auto int_layout     = ints_builder.CreateString( "COL" ) ;
+
+    Tables::Cols_intBuilder cols_int_builder( ints_builder ) ;
+    cols_int_builder.add_layout( int_layout ) ;
+    cols_int_builder.add_RIDs( i_rids_vect_fb ) ;
+    cols_int_builder.add_data( ints_vect_fb ) ;
+
+    auto cols_int = cols_int_builder.Finish() ;
+    ints_builder.Finish( cols_int ) ;
+
+    // save record in bufferlist bl
+    const char* ints_fb = reinterpret_cast<char*>( ints_builder.GetBufferPointer() ) ;
+
+    int int_bfsz = ints_builder.GetSize() ;
+    librados::bufferlist bl_ints ;
+    bl_ints.append( ints_fb, int_bfsz ) ;
+
+    // append to transposed_bl_seq bufferlist
+    ::encode( bl_ints, transposed_bl_seq ) ;
+
+    // ----------------------------------------------- //
+    // build float column
+
+    flatbuffers::FlatBufferBuilder floats_builder( 1024 ) ;
+
+    //place these before record_builder declare
+    auto f_rids_vect_fb = floats_builder.CreateVector( rids_vect ) ;
+    auto floats_vect_fb = floats_builder.CreateVector( floats_vect ) ;
+    auto float_layout   = floats_builder.CreateString( "COL" ) ;
+
+    Tables::Cols_floatBuilder cols_float_builder( floats_builder ) ;
+    cols_float_builder.add_layout( float_layout ) ;
+    cols_float_builder.add_RIDs( f_rids_vect_fb ) ;
+    cols_float_builder.add_data( floats_vect_fb ) ;
+
+    auto cols_float = cols_float_builder.Finish() ;
+    floats_builder.Finish( cols_float ) ;
+
+    // save record in bufferlist bl
+    const char* floats_fb = reinterpret_cast<char*>( floats_builder.GetBufferPointer() ) ;
+
+    int float_bfsz = floats_builder.GetSize() ;
+    librados::bufferlist bl_floats ;
+    bl_floats.append( floats_fb, float_bfsz ) ;
+
+    // append to transposed_bl_seq bufferlist
+    ::encode( bl_floats, transposed_bl_seq ) ;
   }
-  std::vector< uint64_t > ints_vect ; 
-  for( unsigned int i = 0; i < ints_read->Length(); i++ ) {
-    ints_vect.push_back( ints_read->Get( i ) ) ;
+  else if( LAYOUT == "COL" ) {
+
+    // make this general
+    //int counter = 0 ;
+    //while(  it_wrapped.get_remaining() > 0 ) {
+    //  std::cout << ">>>"  << it_wrapped.get_remaining() << std::endl ;
+    //  ceph::bufferlist bl ;
+    //  ::decode( bl, it_wrapped ) ;
+    //  const char* fb = bl.c_str() ;
+    //  counter += 1 ;
+    //}
+
+    // unpack int column buflist
+    ceph::bufferlist bl0 ;
+    ::decode( bl0, it_wrapped ) ;
+    const char* fb0 = bl0.c_str() ;
+    auto int_root = Tables::GetCols_int( fb0 ) ;
+
+    // unpack float column buflist
+    ceph::bufferlist bl1 ;
+    ::decode( bl1, it_wrapped ) ;
+    const char* fb1 = bl1.c_str() ;
+    auto float_root = Tables::GetCols_float( fb1 ) ;
+
+    auto rids_read   = int_root->RIDs() ;
+    auto ints_read   = int_root->data() ;
+    auto floats_read = float_root->data() ;
+
+    std::vector< uint64_t > rids_vect ; 
+    for( unsigned int i = 0; i < rids_read->Length(); i++ ) {
+      rids_vect.push_back( rids_read->Get( i ) ) ;
+    }
+    std::vector< uint64_t > ints_vect ; 
+    for( unsigned int i = 0; i < ints_read->Length(); i++ ) {
+      ints_vect.push_back( ints_read->Get( i ) ) ;
+    }
+    std::vector< float > floats_vect ; 
+    for( unsigned int i = 0; i < floats_read->Length(); i++ ) {
+      floats_vect.push_back( floats_read->Get( i ) ) ;
+    }
+
+    // ----------------------------------------------- //
+    // build row flatbuffer
+
+    flatbuffers::FlatBufferBuilder builder( 1024 ) ;
+
+    //place these before record_builder declare
+    auto rids_vect_fb   = builder.CreateVector( rids_vect ) ;
+    auto ints_vect_fb   = builder.CreateVector( ints_vect ) ;
+    auto floats_vect_fb = builder.CreateVector( floats_vect ) ;
+    auto layout         = builder.CreateString( "ROW" ) ;
+
+    Tables::RowsBuilder row_builder( builder ) ;
+    row_builder.add_layout( layout ) ;
+    row_builder.add_RIDs( rids_vect_fb ) ;
+    row_builder.add_att0( ints_vect_fb ) ;
+    row_builder.add_att1( floats_vect_fb ) ;
+
+    auto done = row_builder.Finish() ;
+    builder.Finish( done ) ;
+
+    // save record in bufferlist bl
+    const char* row_fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+
+    int row_bfsz = builder.GetSize() ;
+    librados::bufferlist bl_rows ;
+    bl_rows.append( row_fb, row_bfsz ) ;
+
+    // append to transposed_bl_seq bufferlist
+    ::encode( bl_rows, transposed_bl_seq ) ;
   }
-  std::vector< float > floats_vect ; 
-  for( unsigned int i = 0; i < floats_read->Length(); i++ ) {
-    floats_vect.push_back( floats_read->Get( i ) ) ;
+  else {
+    std::cout << "lol wut? no LAYOUT X[" << std::endl ;
   }
-
-  // ----------------------------------------------- //
-  // build int column
-
-  flatbuffers::FlatBufferBuilder ints_builder(1024) ;
-
-  //place these before record_builder declare
-  auto i_rids_vect_fb = ints_builder.CreateVector( rids_vect ) ;
-  auto ints_vect_fb   = ints_builder.CreateVector( ints_vect ) ;
-  auto int_layout     = ints_builder.CreateString( "COL" ) ;
-
-  Tables::Cols_intBuilder cols_int_builder( ints_builder ) ;
-  cols_int_builder.add_layout( int_layout ) ;
-  cols_int_builder.add_RIDs( i_rids_vect_fb ) ;
-  cols_int_builder.add_data( ints_vect_fb ) ;
-
-  auto cols_int = cols_int_builder.Finish() ;
-  ints_builder.Finish( cols_int ) ;
-
-  // save record in bufferlist bl
-  const char* ints_fb = reinterpret_cast<char*>( ints_builder.GetBufferPointer() ) ;
-
-  int int_bfsz = ints_builder.GetSize() ;
-  librados::bufferlist bl_ints ;
-  bl_ints.append( ints_fb, int_bfsz ) ;
-
-  // append to transposed_bl_seq bufferlist
-  ::encode( bl_ints, transposed_bl_seq ) ;
-
-  // ----------------------------------------------- //
-  // build float column
-
-  flatbuffers::FlatBufferBuilder floats_builder(1024) ;
-
-  //place these before record_builder declare
-  auto f_rids_vect_fb = floats_builder.CreateVector( rids_vect ) ;
-  auto floats_vect_fb = floats_builder.CreateVector( floats_vect ) ;
-  auto float_layout   = floats_builder.CreateString( "COL" ) ;
-
-  Tables::Cols_floatBuilder cols_float_builder( floats_builder ) ;
-  cols_float_builder.add_layout( float_layout ) ;
-  cols_float_builder.add_RIDs( f_rids_vect_fb ) ;
-  cols_float_builder.add_data( floats_vect_fb ) ;
-
-  auto cols_float = cols_float_builder.Finish() ;
-  floats_builder.Finish( cols_float ) ;
-
-  // save record in bufferlist bl
-  const char* floats_fb = reinterpret_cast<char*>( floats_builder.GetBufferPointer() ) ;
-
-  int float_bfsz = floats_builder.GetSize() ;
-  librados::bufferlist bl_floats ;
-  bl_floats.append( floats_fb, float_bfsz ) ;
-
-  // append to transposed_bl_seq bufferlist
-  ::encode( bl_floats, transposed_bl_seq ) ;
 
   return transposed_bl_seq ;
 }
