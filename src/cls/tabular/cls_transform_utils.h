@@ -32,9 +32,11 @@
 #include "include/rados/librados.hpp"
 
 //#include "transforms_generated.h"
-#include "rows_generated.h"
-#include "cols_int_generated.h"
-#include "cols_float_generated.h"
+//#include "rows_generated.h"
+//#include "cols_int_generated.h"
+//#include "cols_float_generated.h"
+//#include "fbmeta_generated.h"
+#include "skyroot_generated.h"
 
 #define checkret(r,v) do { \
   if (r != v) { \
@@ -55,15 +57,16 @@ struct transform_op {
   std::string oid ;
   std::string pool ;
   std::string table_name ;
+  uint64_t transform_type ;
 
-  // change these to ints
-  std::string transform_type ;
-  std::string layout ;
+  // CODES for transform_type
+  // 0 --> transpose
+
 } ;
 
 void execute_transform( transform_op ) ;
-void execute_query( spj_query_op, std::string ) ;
-librados::bufferlist transpose( librados::bufferlist, std::string ) ;
+void execute_query( spj_query_op ) ;
+librados::bufferlist transpose( librados::bufferlist ) ;
 librados::bufferlist set_rows() ;
 
 #endif

@@ -1,0 +1,64 @@
+namespace Tables;
+
+union Relation { 
+  Rows,
+  Col
+}
+
+union Data { 
+  IntData,
+  FloatData,
+  StringData
+}
+
+table Root {
+  schema       : [ ubyte ] ;
+  relationData : Relation  ;
+}
+
+table Rows {
+  skyhook_version : ubyte ;  // skyhook version
+  schema_version  : ubyte ;   // schema version of flexbuffers contained
+
+  table_name : string     ;
+  schema     : [ string ] ;
+  nrows      : uint64     ;
+  ncols      : uint64     ;
+  layout     : string     ;
+
+  RIDs : [ uint64 ] ;
+  data : [ Data ]   ;
+}
+
+table Col {
+  skyhook_version : ubyte ;  // skyhook version
+  schema_version  : ubyte ;   // schema version of flexbuffers contained
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : ubyte  ;
+
+  RIDs : [ uint64 ] ;
+  data : Data    ;
+}
+
+table IntData {
+  data : [ uint64 ] ;
+}
+table FloatData {
+  data : [ float ] ;
+}
+table StringData {
+  data : [ string ] ;
+}
+
+root_type Root ;
+
+// CODES for schema/data_type
+// 0 --> uint64
+// 1 --> float
+// 2 --> string
+
+// CODES for layout
+// 0 --> ROW
+// 1 --> COL

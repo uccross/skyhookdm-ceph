@@ -1,0 +1,14 @@
+namespace Tables;
+
+table FBMeta {
+  schema  : [ uint64 ] ;
+  layout  : uint64 ;
+  num_fbs : uint64 ;
+}
+
+root_type FBMeta ;
+
+// CODES for schema+layout
+// 0 --> uint64
+// 1 --> float
+// 2 --> string

@@ -21,29 +21,24 @@ void set_rows( std::string ) ;
 int main( int argc, char **argv ) {
   std::cout << "in run-transforms..." << std::endl ;
 
-  std::string oid = "blah2" ;
+  std::string oid = "atable" ;
   set_rows( oid.c_str() ) ;
 
   // define query operation
   spj_query_op qo ;
-  qo.oid = "blah2" ;
+  qo.oid = "atable" ;
   qo.pool = "tpchflatbuf" ;
-  qo.select_atts.push_back( "att1" ) ;
-  qo.from_rels.push_back( "atable" ) ;
-  qo.where_preds.push_back( "att1<15" ) ;
 
   // execute query
   std::cout << "ROW query=================================" << std::endl ;
-  execute_query( qo, "ROW" ) ;
+  execute_query( qo ) ;
   std::cout << "=================================" << std::endl ;
 
   // define transform operation
   transform_op to ;
-  to.oid            = "blah2" ;
+  to.oid            = "atable" ;
   to.pool           = "tpchflatbuf" ;
-  to.table_name     = "atable" ;
-  to.transform_type = "transpose" ;
-  to.layout         = "ROW" ;
+  to.transform_type = 0 ; // 0 --> transpose
 
   // execute transform
   std::cout << "row to col transpose=================================" << std::endl ;
@@ -54,30 +49,42 @@ int main( int argc, char **argv ) {
   spj_query_op qo1 ;
   qo1.oid = "blah2_transposed" ;
   qo1.pool = "tpchflatbuf" ;
-  qo1.select_atts.push_back( "att1" ) ;
-  qo1.from_rels.push_back( "atable" ) ;
-  qo1.where_preds.push_back( "att1<15" ) ;
 
   // execute query
   std::cout << "COL query=================================" << std::endl ;
-  execute_query( qo1, "COL" ) ;
+  execute_query( qo1 ) ;
   std::cout << "=================================" << std::endl ;
 
-  // query the recomposed transpose
-  spj_query_op qo2 ;
-  qo2.oid = "blah2_transposed_transposed" ;
-  qo2.pool = "tpchflatbuf" ;
-
-  // execute query
-  std::cout << "ROW query=================================" << std::endl ;
-  execute_query( qo2, "ROW" ) ;
-  std::cout << "=================================" << std::endl ;
+//  // query the recomposed transpose
+//  spj_query_op qo2 ;
+//  qo2.oid = "blah2_transposed_transposed" ;
+//  qo2.pool = "tpchflatbuf" ;
+//
+//  // execute query
+//  std::cout << "ROW query=================================" << std::endl ;
+//  execute_query( qo2, "ROW" ) ;
+//  std::cout << "=================================" << std::endl ;
 
   return 0 ;
 }
 
+// writes object called 'oid' to ceph of the form:
+// -----------------------------------------------
+// | FBMeta flatbuffer     | Rows flatbuffer     |
+// -----------------------------------------------
 void set_rows( std::string oid ) {
   std::cout << "in set_rows..." << std::endl ;
+
+  flatbuffers::FlatBufferBuilder builder( 1024 ) ;
+  librados::bufferlist bl_seq ;
+
+  // --------------------------------------------- //
+  // build fb meta bufferlist
+
+  std::vector< uint8_t > meta_schema ;
+  meta_schema.push_back( (uint8_t)0 ) ; // 0 --> uint64
+  meta_schema.push_back( (uint8_t)1 ) ; // 1 --> float
+  auto a = builder.CreateVector( meta_schema ) ;
 
   std::vector< uint64_t > rids_vect ;
   std::vector< uint64_t > int_vect ;
@@ -93,8 +100,6 @@ void set_rows( std::string oid ) {
   float_vect.push_back( 21.5 ) ;
   float_vect.push_back( 31.5 ) ;
 
-  flatbuffers::FlatBufferBuilder builder(1024) ;
-
   std::vector< flatbuffers::Offset< flatbuffers::String > > schema ;
   schema.push_back( builder.CreateString( "att0" ) ) ;
   schema.push_back( builder.CreateString( "att1" ) ) ;
@@ -107,54 +112,42 @@ void set_rows( std::string oid ) {
   auto int_vect_fb   = builder.CreateVector( int_vect ) ;
   auto float_vect_fb = builder.CreateVector( float_vect ) ;
 
-  Tables::RowsBuilder rows_builder( builder ) ;
-  rows_builder.add_table_name( table_name ) ;
-  rows_builder.add_layout( layout ) ;
-  rows_builder.add_schema( schema_fb ) ;
-  rows_builder.add_nrows( 3 ) ;
-  rows_builder.add_ncols( 2 ) ;
-  rows_builder.add_RIDs( rids_vect_fb ) ;
-  rows_builder.add_att0( int_vect_fb ) ;
-  rows_builder.add_att1( float_vect_fb ) ;
+  auto iv = Tables::CreateIntData( builder, int_vect_fb ) ;
+  auto fv = Tables::CreateFloatData( builder, float_vect_fb ) ;
 
-  auto rows = rows_builder.Finish() ;
-  builder.Finish( rows ) ;
+  std::vector< flatbuffers::Offset< void > > data_vect ;
+  data_vect.push_back( iv.Union() ) ;
+  data_vect.push_back( fv.Union() ) ;
+  auto data = builder.CreateVector( data_vect ) ;
 
-  //uint8_t *buffer_pointer = builder.GetBufferPointer() ;
-  //int size = builder.GetSize() ;
-  //auto rows_read = Tables::GetRows( buffer_pointer ) ;
-  //auto table_name_read = rows_read->table_name() ;
-  //auto schema_read     = rows_read->schema() ;
-  //auto nrows_read      = rows_read->nrows() ;
-  //auto ncols_read      = rows_read->ncols() ;
-  //auto rids_read       = rows_read->RIDs() ;
-  //auto att0_read       = rows_read->att0() ;
-  //auto att1_read       = rows_read->att1() ;
+  std::vector< uint8_t > data_type_vect ;
+  data_type_vect.push_back( Tables::Data_IntData ) ;
+  data_type_vect.push_back( Tables::Data_FloatData ) ;
+  auto data_types = builder.CreateVector( data_type_vect ) ;
 
-  //std::cout << "size : " << size << std::endl ;
-  //std::cout << "table_name_read : " << table_name_read << std::endl ;
-  //std::cout << "schema_read->Length() : " << schema_read->Length() << std::endl ;
-  //std::cout << "schema_read->Get( 0 )->str() : " << schema_read->Get( 0 )->str() << std::endl ;
-  //std::cout << "schema_read->Get( 1 )->str() : " << schema_read->Get( 1 )->str() << std::endl ;
-  //std::cout << "nrows_read  : " << nrows_read << std::endl ;
-  //std::cout << "ncols_read  : " << ncols_read << std::endl ;
-  //std::cout << "RIDs : " << rids_read << std::endl ;
-  //std::cout << rids_read->Length() << std::endl ;
-  //std::cout << rids_read->Get(0) << std::endl ;
-  //std::cout << rids_read->Get(1) << std::endl ;
-  //std::cout << rids_read->Get(2) << std::endl ;
+  // create the Rows flatbuffer:
+  auto rows = Tables::CreateRows(
+    builder,
+    0,
+    0,
+    table_name,
+    schema_fb,
+    3,
+    2,
+    layout,
+    rids_vect_fb,
+    data_types,
+    data ) ;
 
-  //std::cout << "att0 : " << att0_read << std::endl ;
-  //std::cout << att0_read->Length() << std::endl ;
-  //std::cout << att0_read->Get(0) << std::endl ;
-  //std::cout << att0_read->Get(1) << std::endl ;
-  //std::cout << att0_read->Get(2) << std::endl ;
+  Tables::RootBuilder root_builder( builder ) ;
+  root_builder.add_schema( a ) ;
 
-  //std::cout << "att1 : " << att1_read << std::endl ;
-  //std::cout << att1_read->Length() << std::endl ;
-  //std::cout << att1_read->Get(0) << std::endl ;
-  //std::cout << att1_read->Get(1) << std::endl ;
-  //std::cout << att1_read->Get(2) << std::endl ;
+  // save the Rows flatbuffer to the root flatbuffer
+  root_builder.add_relationData_type( Tables::Relation_Rows ) ;
+  root_builder.add_relationData( rows.Union() ) ;
+
+  auto res = root_builder.Finish() ;
+  builder.Finish( res ) ;
 
   const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
   int bufsz      = builder.GetSize() ;
@@ -162,7 +155,7 @@ void set_rows( std::string oid ) {
   bl.append( fb, bufsz ) ;
 
   // write to flatbuffer
-  librados::bufferlist bl_seq ;
+  //librados::bufferlist bl_seq ;
   ::encode( bl, bl_seq ) ;
 
   // save to ceph object
