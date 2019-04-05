@@ -114,6 +114,7 @@ void execute_query( spj_query_op q_op ) {
 
   // process one Root>Col flatbuffer
   else if( data_type == Tables::Relation_Col ) {
+    std::cout << "else if data_type == Tables::Relation_Col" << std::endl ;
 
     auto col = static_cast< const Tables::Col* >( root->relationData() ) ;
     auto col_name_read  = col->col_name() ;
@@ -123,47 +124,38 @@ void execute_query( spj_query_op q_op ) {
     auto col_data_type  = col->data_type() ;
     auto col_data       = col->data() ;
 
-    std::cout << "col_name_read->str()     : " << col_name_read->str() << std::endl ;
-    std::cout << "col_index_read->Length() : " << col_index_read << std::endl ;
-    std::cout << "nrows_read               : " << nrows_read     << std::endl ;
+    std::cout << "col_name_read->str() : " << col_name_read->str() << std::endl ;
+    std::cout << "col_index_read       : " << (unsigned)col_index_read << std::endl ;
+    std::cout << "nrows_read           : " << (unsigned)nrows_read     << std::endl ;
+    std::cout << "col_data_type        : " << col_data_type     << std::endl ;
 
     // print data to stdout
     for( unsigned int i = 0; i < nrows_read; i++ ) {
       std::cout << rids_read->Get(i) << ":\t" ;
-      //for( unsigned int j = 0; j < ncols_read; j++ ) {
-
-      //  // column of ints
-      //  if( (unsigned)rows_data_type->Get(j) == Tables::Data_IntData ) {
-      //    auto int_col_data = static_cast< const Tables::IntData* >( rows_data->Get(j) ) ;
-      //    std::cout << int_col_data->data()->Get(i) << "\t" ;
-      //  }
-      //  // column of floats
-      //  else if( (unsigned)rows_data_type->Get(j) == Tables::Data_FloatData ) {
-      //    auto float_col_data = static_cast< const Tables::FloatData* >( rows_data->Get(j) ) ;
-      //    std::cout << float_col_data->data()->Get(i) << "\t" ;
-      //  }
-      //  // column of strings
-      //  else if( (unsigned)rows_data_type->Get(j) == Tables::Data_FloatData ) {
-      //    auto float_col_data = static_cast< const Tables::FloatData* >( rows_data->Get(j) ) ;
-      //    std::cout << float_col_data->data()->Get(i) << "\t" ;
-      //  }
-      //  else {
-      //    std::cout << "cls_transform_utils.cc: wut???" << std::endl ; 
-      //  }
-      //}
+      // column of ints
+      if( (unsigned)col_data_type == Tables::Data_IntData ) {
+        auto int_col_data = static_cast< const Tables::IntData* >( col_data ) ;
+        std::cout << int_col_data->data()->Get(i) << "\t" ;
+      }
+      // column of floats
+      else if( (unsigned)col_data_type == Tables::Data_FloatData ) {
+        auto float_col_data = static_cast< const Tables::FloatData* >( col_data ) ;
+        std::cout << float_col_data->data()->Get(i) << "\t" ;
+      }
+      // column of strings
+      else if( (unsigned)col_data_type == Tables::Data_StringData ) {
+        auto string_col_data = static_cast< const Tables::StringData* >( col_data ) ;
+        std::cout << string_col_data->data()->Get(i) << "\t" ;
+      }
+      else {
+        std::cout << "unrecognized data_type " << (unsigned)col_data_type << std::endl ; 
+      }
       std::cout << std::endl ;
     }
   } // Relation_Col
 
   else {
     std::cout << "unrecognized data_type '" << data_type << "'" << std::endl ;
-    auto data = root->relationData() ;
-    auto data_read = static_cast< const Tables::Col* >( root->relationData() ) ;
-    auto nrows_read      = data_read->nrows() ;
-    //auto rids_read       = data_read->RIDs() ;
-    //auto rows_data_type  = data_read->data_type() ;
-    //auto rows_data       = data_read->data() ;
-    //std::cout << "nrows_read = " << nrows_read << std::endl ;
   }
 
   ioctx.close() ;
@@ -324,6 +316,44 @@ librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
         librados::bufferlist bl ;
         bl.append( fb, bufsz ) ;
         ::encode( bl, transposed_bl_seq ) ;
+
+        // ------------- sanity check ------------- //
+        auto _fb = bl.c_str() ;
+        auto _root          = Tables::GetRoot( _fb ) ;
+        auto _schema        = _root->schema() ; //2
+        auto _data_type     = _root->relationData_type() ; //2=>Col
+        auto _data          = _root->relationData() ;
+        auto _col           = static_cast< const Tables::Col* >( _data ) ;
+        auto _col_name      = _col->col_name() ;
+        auto _col_index     = _col->col_index() ;
+        auto _nrows         = _col->nrows() ;
+        auto _rids          = _col->RIDs() ;
+        auto _col_data_type = _col->data_type() ;
+        auto _col_int_data  = static_cast< const Tables::IntData* >( _col->data() ) ;
+        auto _col_int_data_data = _col_int_data->data() ;
+
+        std::cout << "TRANSPOSE : _schema->Length() : " << _schema->Length()         << std::endl ;
+        for( unsigned int i = 0; i < _schema->Length(); i++ ) {
+          std::cout << "TRANSPOSE : _schema->Get(" << i << ")   : " 
+                    << (unsigned)_schema->Get(i) << std::endl ;
+        }
+        std::cout << "TRANSPOSE : _data_type        : " << _data_type                << std::endl ;
+        std::cout << "TRANSPOSE : _col_name->str()  : " << _col_name->str()          << std::endl ;
+        std::cout << "TRANSPOSE : _col_index        : " << (unsigned)_col_index      << std::endl ;
+        std::cout << "TRANSPOSE : _nrows            : " << (unsigned)_nrows          << std::endl ;
+        std::cout << "TRANSPOSE : _rids->Length()   : " << (unsigned)_rids->Length() << std::endl ;
+        for( unsigned int i = 0; i < _rids->Length(); i++ ) {
+          std::cout << "TRANSPOSE : _rids->Get(" << i << ")     : " 
+                    << (unsigned)_rids->Get(i)   << std::endl ;
+        }
+        std::cout << "TRANSPOSE : _col_data_type    : " << _col_data_type << std::endl ;
+        std::cout << "TRANSPOSE : _col_int_data_data->Length() : " 
+                  << _col_int_data_data->Length() << std::endl ;
+        for( unsigned int i = 0; i < _col_int_data_data->Length(); i++ ) {
+          std::cout << "TRANSPOSE : _col_int_data_data->Get(" << i << ")     : " 
+                    << (unsigned)_col_int_data_data->Get(i)   << std::endl ;
+        }
+        // ------------- sanity check ------------- //
       }
 
       // =============================== //

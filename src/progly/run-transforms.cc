@@ -17,6 +17,7 @@ namespace po = boost::program_options ;
 
 
 void set_rows( std::string ) ;
+void set_col( std::string ) ;
 
 int main( int argc, char **argv ) {
   std::cout << "in run-transforms..." << std::endl ;
@@ -34,6 +35,19 @@ int main( int argc, char **argv ) {
   execute_query( qo ) ;
   std::cout << "=================================" << std::endl ;
 
+  std::string oid1 = "test_cols" ;
+  set_col( oid1.c_str() ) ;
+
+  // define query operation
+  spj_query_op qo0 ;
+  qo0.oid = "test_cols" ;
+  qo0.pool = "tpchflatbuf" ;
+
+  // execute query
+  std::cout << "COL query=================================" << std::endl ;
+  execute_query( qo0 ) ;
+  std::cout << "=================================" << std::endl ;
+
   // define transform operation
   transform_op to ;
   to.oid            = "atable" ;
@@ -45,15 +59,15 @@ int main( int argc, char **argv ) {
   execute_transform( to ) ;
   std::cout << "=================================" << std::endl ;
 
-  // query the transpose
-  spj_query_op qo1 ;
-  qo1.oid = "blah2_transposed" ;
-  qo1.pool = "tpchflatbuf" ;
-
-  // execute query
-  std::cout << "COL query=================================" << std::endl ;
-  execute_query( qo1 ) ;
-  std::cout << "=================================" << std::endl ;
+//  // query the transpose
+//  spj_query_op qo1 ;
+//  qo1.oid = "blah2_transposed" ;
+//  qo1.pool = "tpchflatbuf" ;
+//
+//  // execute query
+//  std::cout << "COL query=================================" << std::endl ;
+//  execute_query( qo1 ) ;
+//  std::cout << "=================================" << std::endl ;
 
 //  // query the recomposed transpose
 //  spj_query_op qo2 ;
@@ -183,4 +197,93 @@ void set_rows( std::string oid ) {
 
   //bl->append( "qwerty" ) ;
   //bl->append( builder ) ;
+}
+
+// writes object called 'oid' to ceph of the form:
+// -----------------------------------------------
+// | FBMeta flatbuffer     | Col flatbuffer     |
+// -----------------------------------------------
+void set_col( std::string oid ) {
+  std::cout << "in set_col..." << std::endl ;
+
+  flatbuffers::FlatBufferBuilder builder( 1024 ) ;
+  librados::bufferlist bl_seq ;
+
+  // --------------------------------------------- //
+  // build fb meta bufferlist
+
+  std::vector< uint8_t > meta_schema ;
+  meta_schema.push_back( (uint8_t)0 ) ; // 0 --> uint64
+  auto a = builder.CreateVector( meta_schema ) ;
+
+  std::vector< uint64_t > rids_vect ;
+  std::vector< uint64_t > int_vect ;
+
+  rids_vect.push_back( 1 ) ;
+  rids_vect.push_back( 2 ) ;
+  rids_vect.push_back( 3 ) ;
+  int_vect.push_back( 10 ) ;
+  int_vect.push_back( 20 ) ;
+  int_vect.push_back( 30 ) ;
+
+  //place these before record_builder declare
+  auto col_name     = builder.CreateString( "att0" ) ;
+  auto RIDs         = builder.CreateVector( rids_vect ) ;
+  auto int_vect_fb  = builder.CreateVector( int_vect ) ;
+  uint8_t col_index = 0 ;
+  uint8_t nrows     = int_vect.size() ;
+
+  auto data = Tables::CreateIntData( builder, int_vect_fb ) ;
+
+  // create the Rows flatbuffer:
+  auto col = Tables::CreateCol(
+    builder,
+    0,
+    0,
+    col_name,
+    col_index,
+    nrows,
+    RIDs,
+    Tables::Data_IntData,
+    data.Union() ) ;
+
+  // save the Rows flatbuffer to the root flatbuffer
+  Tables::RootBuilder root_builder( builder ) ;
+  root_builder.add_schema( a ) ;
+  root_builder.add_relationData_type( Tables::Relation_Col ) ;
+  root_builder.add_relationData( col.Union() ) ;
+
+  auto res = root_builder.Finish() ;
+  builder.Finish( res ) ;
+
+  const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+  int bufsz      = builder.GetSize() ;
+  librados::bufferlist bl ;
+  bl.append( fb, bufsz ) ;
+
+  // write to flatbuffer
+  ::encode( bl, bl_seq ) ;
+
+  // save to ceph object
+  // connect to rados
+  librados::Rados cluster;
+  cluster.init(NULL);
+  cluster.conf_read_file(NULL);
+  int ret = cluster.connect();
+  checkret(ret, 0);
+
+  // open pool
+  librados::IoCtx ioctx ;
+  ret = cluster.ioctx_create( "tpchflatbuf" , ioctx ) ;
+  checkret( ret, 0 ) ;
+
+  // write bl_seq to ceph object
+  const char *obj_name = oid.c_str() ;
+  bufferlist::iterator p = bl_seq.begin();
+  size_t i = p.get_remaining() ;
+  std::cout << i << std::endl ;
+  ret = ioctx.write( obj_name, bl_seq, i, 0 ) ;
+  checkret(ret, 0);
+
+  ioctx.close() ;
 }
