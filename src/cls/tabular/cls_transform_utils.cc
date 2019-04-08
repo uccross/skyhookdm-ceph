@@ -20,6 +20,7 @@ void execute_query( spj_query_op q_op ) {
   std::cout << "q_op.from_rels   : " << q_op.from_rels   << std::endl ;
   std::cout << "q_op.where_preds : " << q_op.where_preds << std::endl ;
 
+/*
   // connect to rados
   librados::Rados cluster;
   cluster.init(NULL);
@@ -54,6 +55,7 @@ void execute_query( spj_query_op q_op ) {
 
   // process one Root>Rows flatbuffer
   if( data_type == Tables::Relation_Rows ) {
+    std::cout << "if data_type == Tables::Relation_Col" << std::endl ;
 
     auto schema    = root->schema() ;
     std::cout << "schema : " << std::endl ;
@@ -100,12 +102,13 @@ void execute_query( spj_query_op q_op ) {
           std::cout << float_col_data->data()->Get(i) << "\t" ;
         }
         // column of strings
-        else if( (unsigned)rows_data_type->Get(j) == Tables::Data_FloatData ) {
-          auto float_col_data = static_cast< const Tables::FloatData* >( rows_data->Get(j) ) ;
-          std::cout << float_col_data->data()->Get(i) << "\t" ;
+        else if( (unsigned)rows_data_type->Get(j) == Tables::Data_StringData ) {
+          auto string_col_data = static_cast< const Tables::StringData* >( rows_data->Get(j) ) ;
+          std::cout << string_col_data->data()->Get(i)->str() << "\t" ;
         }
         else {
-          std::cout << "cls_transform_utils.cc: wut???" << std::endl ; 
+          std::cout << "execute_query: unrecognized row_data_type " 
+                    << (unsigned)rows_data_type->Get(j) << std::endl ; 
         }
       }
       std::cout << std::endl ;
@@ -145,7 +148,7 @@ void execute_query( spj_query_op q_op ) {
       // column of strings
       else if( (unsigned)col_data_type == Tables::Data_StringData ) {
         auto string_col_data = static_cast< const Tables::StringData* >( col_data ) ;
-        std::cout << string_col_data->data()->Get(i) << "\t" ;
+        std::cout << string_col_data->data()->Get(i)->str() << "\t" ;
       }
       else {
         std::cout << "unrecognized data_type " << (unsigned)col_data_type << std::endl ; 
@@ -159,9 +162,11 @@ void execute_query( spj_query_op q_op ) {
   }
 
   ioctx.close() ;
+*/
 }
 
 void execute_transform( transform_op t_op ) {
+/*
   std::cout << "in execute_transform..." << std::endl ;
   std::cout << "t_op.oid            = " << t_op.oid            << std::endl ;
   std::cout << "t_op.pool           = " << t_op.pool           << std::endl ;
@@ -185,10 +190,10 @@ void execute_transform( transform_op t_op ) {
   int num_bytes_read = ioctx.read( t_op.oid.c_str(), wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
   std::cout << "num_bytes_read : " << num_bytes_read << std::endl ;
 
-  librados::bufferlist transposed_bl_seq ;
+  librados::bufferlist transformed_bl_seq ;
   switch( t_op.transform_type ) {
     case 0 :
-      transposed_bl_seq = transpose( wrapped_bl_seq ) ;
+      transformed_bl_seq = transpose( wrapped_bl_seq ) ;
       break ;
     default :
       std::cout << "lol wut? unrecognized t_op.transform_type '" << t_op.transform_type << "'" << std::endl ;
@@ -196,38 +201,40 @@ void execute_transform( transform_op t_op ) {
   }
 
   // write bl_seq to ceph object
-  auto obj_oid = t_op.oid + "_transposed" ;
-  const char *obj_name  = obj_oid.c_str() ;
-  bufferlist::iterator p = transposed_bl_seq.begin();
-  size_t i = p.get_remaining() ;
-  ret = ioctx.write( obj_name, transposed_bl_seq, i, 0 ) ;
-  checkret( ret, 0 ) ;
-
-// ------------------- \/\/\/ EXPERIMENTAL \/\/\/ ------------------- //
-  // define transform operation for re-composition
-//  transform_op to1 ;
-//  to1.oid            = "blah2_transposed" ;
-//  to1.pool           = "tpchflatbuf" ;
-//  to1.table_name     = "atable" ;
-//  to1.transform_type = 0 ; // 0 --> transpose
-//
-//  auto recomposed_bl_seq = transpose( transposed_bl_seq ) ;
-//
-//  // write bl_seq to ceph object
-//  auto obj_oid1 = to1.oid + "_transposed" ;
-//  const char *obj_name1  = obj_oid1.c_str() ;
-//  bufferlist::iterator p1 = recomposed_bl_seq.begin();
-//  size_t i1 = p1.get_remaining() ;
-//  ret = ioctx.write( obj_name1, recomposed_bl_seq, i1, 0 ) ;
+//  auto obj_oid = t_op.oid + "_transposed" ;
+//  const char *obj_name  = obj_oid.c_str() ;
+//  bufferlist::iterator p = transformed_bl_seq.begin();
+//  size_t i = p.get_remaining() ;
+//  ret = ioctx.write( obj_name, transformed_bl_seq, i, 0 ) ;
 //  checkret( ret, 0 ) ;
-// ------------------- /\/\/\ EXPERIMENTAL /\/\/\  ------------------- //
+//
+//// ------------------- \/\/\/ EXPERIMENTAL \/\/\/ ------------------- //
+//  // define transform operation for re-composition
+////  transform_op to1 ;
+////  to1.oid            = "blah2_transposed" ;
+////  to1.pool           = "tpchflatbuf" ;
+////  to1.table_name     = "atable" ;
+////  to1.transform_type = 0 ; // 0 --> transpose
+////
+////  auto recomposed_bl_seq = transpose( transformed_bl_seq ) ;
+////
+////  // write bl_seq to ceph object
+////  auto obj_oid1 = to1.oid + "_transposed" ;
+////  const char *obj_name1  = obj_oid1.c_str() ;
+////  bufferlist::iterator p1 = recomposed_bl_seq.begin();
+////  size_t i1 = p1.get_remaining() ;
+////  ret = ioctx.write( obj_name1, recomposed_bl_seq, i1, 0 ) ;
+////  checkret( ret, 0 ) ;
+//// ------------------- /\/\/\ EXPERIMENTAL /\/\/\  ------------------- //
 
   ioctx.close() ;
+*/
 }
 
 librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
   std::cout << "in transpose..." << std::endl ;
 
+/*
   librados::bufferlist transposed_bl_seq ;
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
 
@@ -278,134 +285,134 @@ librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
 
     for( unsigned int i = 0; i < ncols_read; i++ ) {
 
+//      // =============================== //
+//      // column of ints
+//      if( (unsigned)rows_data_type->Get(i) == Tables::Data_IntData ) {
+//        auto int_col_data_read = static_cast< const Tables::IntData* >( rows_data->Get(i) ) ;
+//        std::vector< uint64_t > int_col_data_vect ;
+//        for( unsigned int j = 0; j < int_col_data_read->data()->Length(); j++ ) {
+//          int_col_data_vect.push_back( int_col_data_read->data()->Get(j) ) ;
+//        }
+//        auto int_col_data_vect_fb = builder.CreateVector( int_col_data_vect ) ;
+//
+//        auto int_col_data = Tables::CreateIntData( builder, int_col_data_vect_fb ) ;
+//        auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
+//
+//        auto col = CreateCol(
+//          builder,
+//          0,
+//          0,
+//          col_name,
+//          (uint8_t)0,
+//          nrows_read,
+//          RIDs,
+//          Tables::Data_IntData,
+//          int_col_data.Union() ) ;
+//
+//        // save the Rows flatbuffer to the root flatbuffer
+//        Tables::RootBuilder root_builder( builder ) ;
+//        root_builder.add_schema( schema_fb ) ;
+//        root_builder.add_relationData_type( Tables::Relation_Col ) ;
+//        root_builder.add_relationData( col.Union() ) ;
+//
+//        // save column to buffer and append to the transposed bufferlist
+//        auto res = root_builder.Finish() ;
+//        builder.Finish( res ) ;
+//        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+//        int bufsz      = builder.GetSize() ;
+//        librados::bufferlist bl ;
+//        bl.append( fb, bufsz ) ;
+//        ::encode( bl, transposed_bl_seq ) ;
+//
+//        // ------------- sanity check ------------- //
+//        auto _fb = bl.c_str() ;
+//        auto _root          = Tables::GetRoot( _fb ) ;
+//        auto _schema        = _root->schema() ; //2
+//        auto _data_type     = _root->relationData_type() ; //2=>Col
+//        auto _data          = _root->relationData() ;
+//        auto _col           = static_cast< const Tables::Col* >( _data ) ;
+//        auto _col_name      = _col->col_name() ;
+//        auto _col_index     = _col->col_index() ;
+//        auto _nrows         = _col->nrows() ;
+//        auto _rids          = _col->RIDs() ;
+//        auto _col_data_type = _col->data_type() ;
+//        auto _col_int_data  = static_cast< const Tables::IntData* >( _col->data() ) ;
+//        auto _col_int_data_data = _col_int_data->data() ;
+//
+//        std::cout << "TRANSPOSE : _schema->Length() : " << _schema->Length()         << std::endl ;
+//        for( unsigned int i = 0; i < _schema->Length(); i++ ) {
+//          std::cout << "TRANSPOSE : _schema->Get(" << i << ")   : " 
+//                    << (unsigned)_schema->Get(i) << std::endl ;
+//        }
+//        std::cout << "TRANSPOSE : _data_type        : " << _data_type                << std::endl ;
+//        std::cout << "TRANSPOSE : _col_name->str()  : " << _col_name->str()          << std::endl ;
+//        std::cout << "TRANSPOSE : _col_index        : " << (unsigned)_col_index      << std::endl ;
+//        std::cout << "TRANSPOSE : _nrows            : " << (unsigned)_nrows          << std::endl ;
+//        std::cout << "TRANSPOSE : _rids->Length()   : " << (unsigned)_rids->Length() << std::endl ;
+//        for( unsigned int i = 0; i < _rids->Length(); i++ ) {
+//          std::cout << "TRANSPOSE : _rids->Get(" << i << ")     : " 
+//                    << (unsigned)_rids->Get(i)   << std::endl ;
+//        }
+//        std::cout << "TRANSPOSE : _col_data_type    : " << _col_data_type << std::endl ;
+//        std::cout << "TRANSPOSE : _col_int_data_data->Length() : " 
+//                  << _col_int_data_data->Length() << std::endl ;
+//        for( unsigned int i = 0; i < _col_int_data_data->Length(); i++ ) {
+//          std::cout << "TRANSPOSE : _col_int_data_data->Get(" << i << ")     : " 
+//                    << (unsigned)_col_int_data_data->Get(i)   << std::endl ;
+//        }
+//        // ------------- sanity check ------------- //
+//      }
+//
+//      // =============================== //
+//      // column of floats
+//      else if( (unsigned)rows_data_type->Get(i) == Tables::Data_FloatData ) {
+//        auto float_col_data_read = static_cast< const Tables::FloatData* >( rows_data->Get(i) ) ;
+//        std::vector< float > float_col_data_vect ;
+//        for( unsigned int j = 0; j < float_col_data_read->data()->Length(); j++ ) {
+//          float_col_data_vect.push_back( float_col_data_read->data()->Get(j) ) ;
+//        }
+//        auto float_col_data_vect_fb = builder.CreateVector( float_col_data_vect ) ;
+//
+//        auto float_col_data = Tables::CreateFloatData( builder, float_col_data_vect_fb ) ;
+//        auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
+//
+//        auto col = CreateCol(
+//          builder,
+//          0,
+//          0,
+//          col_name,
+//          (uint8_t)0,
+//          nrows_read,
+//          RIDs,
+//          Tables::Data_FloatData,
+//          float_col_data.Union() ) ;
+//
+//        // save the Rows flatbuffer to the root flatbuffer
+//        Tables::RootBuilder root_builder( builder ) ;
+//        root_builder.add_schema( schema_fb ) ;
+//        root_builder.add_relationData_type( Tables::Relation_Col ) ;
+//        root_builder.add_relationData( col.Union() ) ;
+//
+//        // save column to buffer and append to the transposed bufferlist
+//        auto res = root_builder.Finish() ;
+//        builder.Finish( res ) ;
+//        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+//        int bufsz      = builder.GetSize() ;
+//        librados::bufferlist bl ;
+//        bl.append( fb, bufsz ) ;
+//        ::encode( bl, transposed_bl_seq ) ;
+//      }
+//
+//      // =============================== //
+//      // column of strings
+//      else if( (unsigned)rows_data_type->Get(i) == Tables::Data_StringData ) {
+//        auto string_col_data = static_cast< const Tables::StringData* >( rows_data->Get(i) ) ;
+//      }
+
       // =============================== //
-      // column of ints
-      if( (unsigned)rows_data_type->Get(i) == Tables::Data_IntData ) {
-        auto int_col_data_read = static_cast< const Tables::IntData* >( rows_data->Get(i) ) ;
-        std::vector< uint64_t > int_col_data_vect ;
-        for( unsigned int j = 0; j < int_col_data_read->data()->Length(); j++ ) {
-          int_col_data_vect.push_back( int_col_data_read->data()->Get(j) ) ;
-        }
-        auto int_col_data_vect_fb = builder.CreateVector( int_col_data_vect ) ;
-
-        auto int_col_data = Tables::CreateIntData( builder, int_col_data_vect_fb ) ;
-        auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
-
-        auto col = CreateCol(
-          builder,
-          0,
-          0,
-          col_name,
-          (uint8_t)0,
-          nrows_read,
-          RIDs,
-          Tables::Data_IntData,
-          int_col_data.Union() ) ;
-
-        // save the Rows flatbuffer to the root flatbuffer
-        Tables::RootBuilder root_builder( builder ) ;
-        root_builder.add_schema( schema_fb ) ;
-        root_builder.add_relationData_type( Tables::Relation_Col ) ;
-        root_builder.add_relationData( col.Union() ) ;
-
-        // save column to buffer and append to the transposed bufferlist
-        auto res = root_builder.Finish() ;
-        builder.Finish( res ) ;
-        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-        int bufsz      = builder.GetSize() ;
-        librados::bufferlist bl ;
-        bl.append( fb, bufsz ) ;
-        ::encode( bl, transposed_bl_seq ) ;
-
-        // ------------- sanity check ------------- //
-        auto _fb = bl.c_str() ;
-        auto _root          = Tables::GetRoot( _fb ) ;
-        auto _schema        = _root->schema() ; //2
-        auto _data_type     = _root->relationData_type() ; //2=>Col
-        auto _data          = _root->relationData() ;
-        auto _col           = static_cast< const Tables::Col* >( _data ) ;
-        auto _col_name      = _col->col_name() ;
-        auto _col_index     = _col->col_index() ;
-        auto _nrows         = _col->nrows() ;
-        auto _rids          = _col->RIDs() ;
-        auto _col_data_type = _col->data_type() ;
-        auto _col_int_data  = static_cast< const Tables::IntData* >( _col->data() ) ;
-        auto _col_int_data_data = _col_int_data->data() ;
-
-        std::cout << "TRANSPOSE : _schema->Length() : " << _schema->Length()         << std::endl ;
-        for( unsigned int i = 0; i < _schema->Length(); i++ ) {
-          std::cout << "TRANSPOSE : _schema->Get(" << i << ")   : " 
-                    << (unsigned)_schema->Get(i) << std::endl ;
-        }
-        std::cout << "TRANSPOSE : _data_type        : " << _data_type                << std::endl ;
-        std::cout << "TRANSPOSE : _col_name->str()  : " << _col_name->str()          << std::endl ;
-        std::cout << "TRANSPOSE : _col_index        : " << (unsigned)_col_index      << std::endl ;
-        std::cout << "TRANSPOSE : _nrows            : " << (unsigned)_nrows          << std::endl ;
-        std::cout << "TRANSPOSE : _rids->Length()   : " << (unsigned)_rids->Length() << std::endl ;
-        for( unsigned int i = 0; i < _rids->Length(); i++ ) {
-          std::cout << "TRANSPOSE : _rids->Get(" << i << ")     : " 
-                    << (unsigned)_rids->Get(i)   << std::endl ;
-        }
-        std::cout << "TRANSPOSE : _col_data_type    : " << _col_data_type << std::endl ;
-        std::cout << "TRANSPOSE : _col_int_data_data->Length() : " 
-                  << _col_int_data_data->Length() << std::endl ;
-        for( unsigned int i = 0; i < _col_int_data_data->Length(); i++ ) {
-          std::cout << "TRANSPOSE : _col_int_data_data->Get(" << i << ")     : " 
-                    << (unsigned)_col_int_data_data->Get(i)   << std::endl ;
-        }
-        // ------------- sanity check ------------- //
-      }
-
-      // =============================== //
-      // column of floats
-      else if( (unsigned)rows_data_type->Get(i) == Tables::Data_FloatData ) {
-        auto float_col_data_read = static_cast< const Tables::FloatData* >( rows_data->Get(i) ) ;
-        std::vector< float > float_col_data_vect ;
-        for( unsigned int j = 0; j < float_col_data_read->data()->Length(); j++ ) {
-          float_col_data_vect.push_back( float_col_data_read->data()->Get(j) ) ;
-        }
-        auto float_col_data_vect_fb = builder.CreateVector( float_col_data_vect ) ;
-
-        auto float_col_data = Tables::CreateFloatData( builder, float_col_data_vect_fb ) ;
-        auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
-
-        auto col = CreateCol(
-          builder,
-          0,
-          0,
-          col_name,
-          (uint8_t)0,
-          nrows_read,
-          RIDs,
-          Tables::Data_FloatData,
-          float_col_data.Union() ) ;
-
-        // save the Rows flatbuffer to the root flatbuffer
-        Tables::RootBuilder root_builder( builder ) ;
-        root_builder.add_schema( schema_fb ) ;
-        root_builder.add_relationData_type( Tables::Relation_Col ) ;
-        root_builder.add_relationData( col.Union() ) ;
-
-        // save column to buffer and append to the transposed bufferlist
-        auto res = root_builder.Finish() ;
-        builder.Finish( res ) ;
-        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-        int bufsz      = builder.GetSize() ;
-        librados::bufferlist bl ;
-        bl.append( fb, bufsz ) ;
-        ::encode( bl, transposed_bl_seq ) ;
-      }
-
-      // =============================== //
-      // column of strings
-      else if( (unsigned)rows_data_type->Get(i) == Tables::Data_StringData ) {
-        auto string_col_data = static_cast< const Tables::StringData* >( rows_data->Get(i) ) ;
-      }
-
-      // =============================== //
-      else {
-        std::cout << "execute_transpose: wut???" << std::endl ; 
-      }
+//      else {
+//        std::cout << "execute_transpose: wut???" << std::endl ; 
+//      }
     }
   } // Relation_Rows
 
@@ -482,8 +489,9 @@ librados::bufferlist transpose( librados::bufferlist wrapped_bl_seq ) {
   } // Relation_Cols
 
   else {
-    std::cout << "lol wut? unrecognized layout" << std::endl ;
+    std::cout << "transform: unrecognized layout" << std::endl ;
   }
 
   return transposed_bl_seq ;
+*/
 }

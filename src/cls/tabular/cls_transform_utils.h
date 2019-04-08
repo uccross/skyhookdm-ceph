@@ -31,12 +31,8 @@
 #include "flatbuffers/flexbuffers.h"
 #include "include/rados/librados.hpp"
 
-//#include "transforms_generated.h"
-//#include "rows_generated.h"
-//#include "cols_int_generated.h"
-//#include "cols_float_generated.h"
-//#include "fbmeta_generated.h"
 #include "skyroot_generated.h"
+//#include "test_skyroot_generated.h"
 
 #define checkret(r,v) do { \
   if (r != v) { \

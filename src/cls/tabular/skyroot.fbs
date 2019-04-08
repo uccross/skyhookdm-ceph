@@ -2,7 +2,10 @@ namespace Tables;
 
 union Relation { 
   Rows,
-  Col
+  Col,
+  ColInt,
+  ColFloat,
+  ColString
 }
 
 union Data { 
@@ -18,7 +21,7 @@ table Root {
 
 table Rows {
   skyhook_version : ubyte ;  // skyhook version
-  schema_version  : ubyte ;   // schema version of flexbuffers contained
+  schema_version  : ubyte ;
 
   table_name : string     ;
   schema     : [ string ] ;
@@ -32,7 +35,7 @@ table Rows {
 
 table Col {
   skyhook_version : ubyte ;  // skyhook version
-  schema_version  : ubyte ;   // schema version of flexbuffers contained
+  schema_version  : ubyte ;
 
   col_name  : string ;
   col_index : ubyte  ;
@@ -49,6 +52,42 @@ table FloatData {
   data : [ float ] ;
 }
 table StringData {
+  data : [ string ] ;
+}
+
+table ColInt {
+  skyhook_version : ubyte ;  // skyhook version
+  schema_version  : ubyte ;
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : ubyte  ;
+
+  RIDs : [ uint64 ] ;
+  data : [ uint64 ] ;
+}
+
+table ColFloat {
+  skyhook_version : ubyte ;  // skyhook version
+  schema_version  : ubyte ;
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : ubyte  ;
+
+  RIDs : [ uint64 ] ;
+  data : [ float ] ;
+}
+
+table ColString {
+  skyhook_version : ubyte ;  // skyhook version
+  schema_version  : ubyte ;
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : ubyte  ;
+
+  RIDs : [ uint64 ] ;
   data : [ string ] ;
 }
 
