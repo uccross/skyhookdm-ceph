@@ -325,9 +325,11 @@ void set_col2( std::string oid ) {
   rids_vect.push_back( 1 ) ;
   rids_vect.push_back( 2 ) ;
   rids_vect.push_back( 3 ) ;
+  rids_vect.push_back( 4 ) ;
   string_vect.push_back( builder.CreateString( "aaa" ) ) ;
   string_vect.push_back( builder.CreateString( "bbbb" ) ) ;
   string_vect.push_back( builder.CreateString( "blahblahblahblah" ) ) ;
+  string_vect.push_back( builder.CreateString( "1234" ) ) ;
 
   //place these before record_builder declare
   auto col_name       = builder.CreateString( "att1" ) ;
@@ -414,9 +416,11 @@ void set_col1( std::string oid ) {
   rids_vect.push_back( 1 ) ;
   rids_vect.push_back( 2 ) ;
   rids_vect.push_back( 3 ) ;
+  rids_vect.push_back( 4 ) ;
   float_vect.push_back( 1.11111 ) ;
   float_vect.push_back( 2.2 ) ;
   float_vect.push_back( 33333.3 ) ;
+  float_vect.push_back( 444.4 ) ;
 
   //place these before record_builder declare
   auto col_name      = builder.CreateString( "att1" ) ;
@@ -503,9 +507,11 @@ void set_col0( std::string oid ) {
   rids_vect.push_back( 1 ) ;
   rids_vect.push_back( 2 ) ;
   rids_vect.push_back( 3 ) ;
+  rids_vect.push_back( 4 ) ;
   int_vect.push_back( 10 ) ;
   int_vect.push_back( 20 ) ;
   int_vect.push_back( 30 ) ;
+  int_vect.push_back( 40 ) ;
 
   //place these before record_builder declare
   auto col_name     = builder.CreateString( "att0" ) ;
