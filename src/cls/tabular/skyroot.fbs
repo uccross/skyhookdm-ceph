@@ -30,7 +30,11 @@ table Rows {
   layout     : string     ;
 
   RIDs : [ uint64 ] ;
-  data : [ Data ]   ;
+  data : [ Record ] ;
+}
+
+table Record {
+  data: [ Data ] ;
 }
 
 table Col {

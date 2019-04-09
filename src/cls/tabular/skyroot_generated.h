@@ -12,6 +12,8 @@ struct Root;
 
 struct Rows;
 
+struct Record;
+
 struct Col;
 
 struct IntData;
@@ -271,8 +273,7 @@ struct Rows FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_NCOLS = 14,
     VT_LAYOUT = 16,
     VT_RIDS = 18,
-    VT_DATA_TYPE = 20,
-    VT_DATA = 22
+    VT_DATA = 20
   };
   uint8_t skyhook_version() const {
     return GetField<uint8_t>(VT_SKYHOOK_VERSION, 0);
@@ -298,11 +299,8 @@ struct Rows FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<uint64_t> *RIDs() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_RIDS);
   }
-  const flatbuffers::Vector<uint8_t> *data_type() const {
-    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA_TYPE);
-  }
-  const flatbuffers::Vector<flatbuffers::Offset<void>> *data() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<void>> *>(VT_DATA);
+  const flatbuffers::Vector<flatbuffers::Offset<Record>> *data() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Record>> *>(VT_DATA);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -319,11 +317,9 @@ struct Rows FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            verifier.VerifyString(layout()) &&
            VerifyOffset(verifier, VT_RIDS) &&
            verifier.VerifyVector(RIDs()) &&
-           VerifyOffset(verifier, VT_DATA_TYPE) &&
-           verifier.VerifyVector(data_type()) &&
            VerifyOffset(verifier, VT_DATA) &&
            verifier.VerifyVector(data()) &&
-           VerifyDataVector(verifier, data(), data_type()) &&
+           verifier.VerifyVectorOfTables(data()) &&
            verifier.EndTable();
   }
 };
@@ -355,10 +351,7 @@ struct RowsBuilder {
   void add_RIDs(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs) {
     fbb_.AddOffset(Rows::VT_RIDS, RIDs);
   }
-  void add_data_type(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data_type) {
-    fbb_.AddOffset(Rows::VT_DATA_TYPE, data_type);
-  }
-  void add_data(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> data) {
+  void add_data(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Record>>> data) {
     fbb_.AddOffset(Rows::VT_DATA, data);
   }
   explicit RowsBuilder(flatbuffers::FlatBufferBuilder &_fbb)
@@ -383,13 +376,11 @@ inline flatbuffers::Offset<Rows> CreateRows(
     uint64_t ncols = 0,
     flatbuffers::Offset<flatbuffers::String> layout = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data_type = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> data = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Record>>> data = 0) {
   RowsBuilder builder_(_fbb);
   builder_.add_ncols(ncols);
   builder_.add_nrows(nrows);
   builder_.add_data(data);
-  builder_.add_data_type(data_type);
   builder_.add_RIDs(RIDs);
   builder_.add_layout(layout);
   builder_.add_schema(schema);
@@ -409,14 +400,12 @@ inline flatbuffers::Offset<Rows> CreateRowsDirect(
     uint64_t ncols = 0,
     const char *layout = nullptr,
     const std::vector<uint64_t> *RIDs = nullptr,
-    const std::vector<uint8_t> *data_type = nullptr,
-    const std::vector<flatbuffers::Offset<void>> *data = nullptr) {
+    const std::vector<flatbuffers::Offset<Record>> *data = nullptr) {
   auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
   auto schema__ = schema ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*schema) : 0;
   auto layout__ = layout ? _fbb.CreateString(layout) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
-  auto data_type__ = data_type ? _fbb.CreateVector<uint8_t>(*data_type) : 0;
-  auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<void>>(*data) : 0;
+  auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<Record>>(*data) : 0;
   return Tables::CreateRows(
       _fbb,
       skyhook_version,
@@ -427,6 +416,70 @@ inline flatbuffers::Offset<Rows> CreateRowsDirect(
       ncols,
       layout__,
       RIDs__,
+      data__);
+}
+
+struct Record FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_DATA_TYPE = 4,
+    VT_DATA = 6
+  };
+  const flatbuffers::Vector<uint8_t> *data_type() const {
+    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA_TYPE);
+  }
+  const flatbuffers::Vector<flatbuffers::Offset<void>> *data() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<void>> *>(VT_DATA);
+  }
+  bool Verify(flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_DATA_TYPE) &&
+           verifier.VerifyVector(data_type()) &&
+           VerifyOffset(verifier, VT_DATA) &&
+           verifier.VerifyVector(data()) &&
+           VerifyDataVector(verifier, data(), data_type()) &&
+           verifier.EndTable();
+  }
+};
+
+struct RecordBuilder {
+  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::uoffset_t start_;
+  void add_data_type(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data_type) {
+    fbb_.AddOffset(Record::VT_DATA_TYPE, data_type);
+  }
+  void add_data(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> data) {
+    fbb_.AddOffset(Record::VT_DATA, data);
+  }
+  explicit RecordBuilder(flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  RecordBuilder &operator=(const RecordBuilder &);
+  flatbuffers::Offset<Record> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = flatbuffers::Offset<Record>(end);
+    return o;
+  }
+};
+
+inline flatbuffers::Offset<Record> CreateRecord(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data_type = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> data = 0) {
+  RecordBuilder builder_(_fbb);
+  builder_.add_data(data);
+  builder_.add_data_type(data_type);
+  return builder_.Finish();
+}
+
+inline flatbuffers::Offset<Record> CreateRecordDirect(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    const std::vector<uint8_t> *data_type = nullptr,
+    const std::vector<flatbuffers::Offset<void>> *data = nullptr) {
+  auto data_type__ = data_type ? _fbb.CreateVector<uint8_t>(*data_type) : 0;
+  auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<void>>(*data) : 0;
+  return Tables::CreateRecord(
+      _fbb,
       data_type__,
       data__);
 }

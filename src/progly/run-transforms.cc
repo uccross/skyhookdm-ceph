@@ -95,24 +95,54 @@ int main( int argc, char **argv ) {
   execute_transform( to ) ;
   std::cout << "=================================" << std::endl ;
 
-//  // query the transpose
-//  spj_query_op  ;
-//  qo1.oid = "blah2_transposed" ;
-//  qo1.pool = "tpchflatbuf" ;
+  // query the transpose
+  spj_query_op print_col0 ;
+  print_col0.oid = "atable_transposed" ;
+  print_col0.pool = "tpchflatbuf" ;
 
+  // execute query
+  std::cout << "COL query=================================" << std::endl ;
+  execute_query( print_col0 ) ;
+  std::cout << "=================================" << std::endl ;
+
+//  // query the transpose
+//  spj_query_op print_col1 ;
+//  print_col1.oid = "atable_transposed" ;
+//  print_col1.pool = "tpchflatbuf" ;
+//
 //  // execute query
 //  std::cout << "COL query=================================" << std::endl ;
-//  execute_query( qo1 ) ;
+//  execute_query( print_col1 ) ;
+//  std::cout << "=================================" << std::endl ;
+//
+//  // query the transpose
+//  spj_query_op print_col2 ;
+//  print_col2.oid = "atable_transposed" ;
+//  print_col2.pool = "tpchflatbuf" ;
+//
+//  // execute query
+//  std::cout << "COL query=================================" << std::endl ;
+//  execute_query( print_col2 ) ;
 //  std::cout << "=================================" << std::endl ;
 
 //  // query the recomposed transpose
-//  spj_query_op qo2 ;
-//  qo2.oid = "blah2_transposed_transposed" ;
-//  qo2.pool = "tpchflatbuf" ;
+//  spj_query_op print_col1 ;
+//  print_col1.oid = "atable_transposed_transposed" ;
+//  print_col1.pool = "tpchflatbuf" ;
 //
 //  // execute query
 //  std::cout << "ROW query=================================" << std::endl ;
-//  execute_query( qo2, "ROW" ) ;
+//  execute_query( print_col1 ) ;
+//  std::cout << "=================================" << std::endl ;
+//
+//  // query the recomposed transpose
+//  spj_query_op print_col2 ;
+//  print_col2.oid = "blah2_transposed_transposed" ;
+//  print_col2.pool = "tpchflatbuf" ;
+//
+//  // execute query
+//  std::cout << "ROW query=================================" << std::endl ;
+//  execute_query( print_col2 ) ;
 //  std::cout << "=================================" << std::endl ;
 
   return 0 ;
@@ -131,32 +161,35 @@ void set_rows( std::string oid ) {
   // --------------------------------------------- //
   // build fb meta bufferlist
 
+  uint64_t nrows = 4 ;
+  uint64_t ncols = 3 ;
+
   std::vector< uint8_t > meta_schema ;
   meta_schema.push_back( (uint8_t)0 ) ; // 0 --> uint64
   meta_schema.push_back( (uint8_t)1 ) ; // 1 --> float
   auto a = builder.CreateVector( meta_schema ) ;
 
   std::vector< uint64_t > rids_vect ;
-  std::vector< uint64_t > int_vect ;
-  std::vector< float > float_vect ;
-  std::vector< flatbuffers::Offset<flatbuffers::String> > string_vect ;
+  std::vector< uint64_t > int_vect_raw ;
+  std::vector< float > float_vect_raw ;
+  std::vector< flatbuffers::Offset<flatbuffers::String> > string_vect_raw ;
 
   rids_vect.push_back( 1 ) ;
   rids_vect.push_back( 2 ) ;
   rids_vect.push_back( 3 ) ;
   rids_vect.push_back( 4 ) ;
-  int_vect.push_back( 10 ) ;
-  int_vect.push_back( 20 ) ;
-  int_vect.push_back( 30 ) ;
-  int_vect.push_back( 40 ) ;
-  float_vect.push_back( 11.5 ) ;
-  float_vect.push_back( 21.5 ) ;
-  float_vect.push_back( 31.5 ) ;
-  float_vect.push_back( 41.5 ) ;
-  string_vect.push_back( builder.CreateString( "aaaaaaa" ) ) ;
-  string_vect.push_back( builder.CreateString( "bbbb" ) ) ;
-  string_vect.push_back( builder.CreateString( "blahblahblahblah" ) ) ;
-  string_vect.push_back( builder.CreateString( "1234" ) ) ;
+  int_vect_raw.push_back( 10 ) ;
+  int_vect_raw.push_back( 20 ) ;
+  int_vect_raw.push_back( 30 ) ;
+  int_vect_raw.push_back( 40 ) ;
+  float_vect_raw.push_back( 11.5 ) ;
+  float_vect_raw.push_back( 21.5 ) ;
+  float_vect_raw.push_back( 31.5 ) ;
+  float_vect_raw.push_back( 41.5 ) ;
+  string_vect_raw.push_back( builder.CreateString( "aaaaaaa" ) ) ;
+  string_vect_raw.push_back( builder.CreateString( "bbbb" ) ) ;
+  string_vect_raw.push_back( builder.CreateString( "blahblahblahblah" ) ) ;
+  string_vect_raw.push_back( builder.CreateString( "1234" ) ) ;
 
   std::vector< flatbuffers::Offset< flatbuffers::String > > schema ;
   schema.push_back( builder.CreateString( "att0" ) ) ;
@@ -168,28 +201,47 @@ void set_rows( std::string oid ) {
   auto layout         = builder.CreateString( "ROW" ) ;
   auto schema_fb      = builder.CreateVector( schema ) ;
   auto rids_vect_fb   = builder.CreateVector( rids_vect ) ;
-  auto int_vect_fb    = builder.CreateVector( int_vect ) ;
-  auto float_vect_fb  = builder.CreateVector( float_vect ) ;
-  auto string_vect_fb = builder.CreateVector( string_vect ) ;
 
-  auto iv = Tables::CreateIntData( builder, int_vect_fb ) ;
-  auto fv = Tables::CreateFloatData( builder, float_vect_fb ) ;
-  auto sv = Tables::CreateStringData( builder, string_vect_fb ) ;
+  std::vector< uint8_t > record_data_type_vect ;
+  record_data_type_vect.push_back( Tables::Data_IntData ) ;
+  record_data_type_vect.push_back( Tables::Data_FloatData ) ;
+  record_data_type_vect.push_back( Tables::Data_StringData ) ;
+  auto record_data_types = builder.CreateVector( record_data_type_vect ) ;
 
-  std::vector< flatbuffers::Offset< void > > data_vect ;
-  data_vect.push_back( iv.Union() ) ;
-  data_vect.push_back( fv.Union() ) ;
-  data_vect.push_back( sv.Union() ) ;
-  auto data = builder.CreateVector( data_vect ) ;
+  std::vector< flatbuffers::Offset< Tables::Record > > row_records ;
 
-  std::vector< uint8_t > data_type_vect ;
-  data_type_vect.push_back( Tables::Data_IntData ) ;
-  data_type_vect.push_back( Tables::Data_FloatData ) ;
-  data_type_vect.push_back( Tables::Data_StringData ) ;
-  auto data_types = builder.CreateVector( data_type_vect ) ;
+  // create Records as lists of Datas
+  for( unsigned int i = 0; i < nrows; i++ ) {
 
-  uint64_t nrows = 4 ;
-  uint64_t ncols = 3 ;
+    std::vector< uint64_t > single_iv ;
+    std::vector< float > single_fv ;
+    std::vector< flatbuffers::Offset<flatbuffers::String> > single_sv ;
+
+    single_iv.push_back( int_vect_raw[ i ] ) ;
+    single_fv.push_back( float_vect_raw[ i ] ) ;
+    single_sv.push_back( string_vect_raw[ i ] ) ;
+
+    auto int_vect_fb    = builder.CreateVector( single_iv ) ;
+    auto float_vect_fb  = builder.CreateVector( single_fv ) ;
+    auto string_vect_fb = builder.CreateVector( single_sv ) ;
+
+    // data items
+    auto iv = Tables::CreateIntData( builder, int_vect_fb ) ;
+    auto fv = Tables::CreateFloatData( builder, float_vect_fb ) ;
+    auto sv = Tables::CreateStringData( builder, string_vect_fb ) ;
+
+    // record data
+    std::vector< flatbuffers::Offset< void > > data_vect ;
+    data_vect.push_back( iv.Union() ) ;
+    data_vect.push_back( fv.Union() ) ;
+    data_vect.push_back( sv.Union() ) ;
+    auto data = builder.CreateVector( data_vect ) ;
+
+    auto rec = Tables::CreateRecord( builder, record_data_types, data ) ;
+    row_records.push_back( rec ) ;
+  }
+
+  auto row_records_fb = builder.CreateVector( row_records ) ;
 
   // create the Rows flatbuffer:
   auto rows = Tables::CreateRows(
@@ -202,8 +254,7 @@ void set_rows( std::string oid ) {
     ncols,
     layout,
     rids_vect_fb,
-    data_types,
-    data ) ;
+    row_records_fb ) ;
 
   Tables::RootBuilder root_builder( builder ) ;
   root_builder.add_schema( a ) ;
