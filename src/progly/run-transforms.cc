@@ -84,11 +84,13 @@ int main( int argc, char **argv ) {
   std::cout << "=================================" << std::endl ;
 // ...................................... //
 
+// ...................................... //
   // define transform operation
   transform_op to ;
   to.oid            = "atable" ;
   to.pool           = "tpchflatbuf" ;
   to.transform_type = 0 ; // 0 --> transpose
+  to.bloffs.push_back( 0 ) ;
 
   // execute transform
   std::cout << "row to col transpose=================================" << std::endl ;
@@ -96,54 +98,42 @@ int main( int argc, char **argv ) {
   std::cout << "=================================" << std::endl ;
 
   // query the transpose
-  spj_query_op print_col0 ;
-  print_col0.oid = "atable_transposed" ;
-  print_col0.pool = "tpchflatbuf" ;
+  spj_query_op print_cols ;
+  print_cols.oid = "atable_transposed" ;
+  print_cols.pool = "tpchflatbuf" ;
 
   // execute query
   std::cout << "COL query=================================" << std::endl ;
-  execute_query( print_col0 ) ;
+  execute_query( print_cols ) ;
+  std::cout << "=================================" << std::endl ;
+// ...................................... //
+
+// ...................................... //
+  // define transform operation
+  transform_op to_recompose ;
+  to_recompose.oid            = "atable_transposed" ;
+  to_recompose.pool           = "tpchflatbuf" ;
+  to_recompose.transform_type = 0 ; // 0 --> transpose
+  to_recompose.bloffs.push_back( 0 ) ;
+  to_recompose.bloffs.push_back( 1 ) ;
+  to_recompose.bloffs.push_back( 2 ) ;
+  to_recompose.layout = 1 ;
+
+  // execute transform
+  std::cout << "row to col transpose=================================" << std::endl ;
+  execute_transform( to_recompose ) ;
   std::cout << "=================================" << std::endl ;
 
-//  // query the transpose
-//  spj_query_op print_col1 ;
-//  print_col1.oid = "atable_transposed" ;
-//  print_col1.pool = "tpchflatbuf" ;
-//
-//  // execute query
-//  std::cout << "COL query=================================" << std::endl ;
-//  execute_query( print_col1 ) ;
-//  std::cout << "=================================" << std::endl ;
-//
-//  // query the transpose
-//  spj_query_op print_col2 ;
-//  print_col2.oid = "atable_transposed" ;
-//  print_col2.pool = "tpchflatbuf" ;
-//
-//  // execute query
-//  std::cout << "COL query=================================" << std::endl ;
-//  execute_query( print_col2 ) ;
-//  std::cout << "=================================" << std::endl ;
+  // query the transpose
+  spj_query_op print_rows ;
+  print_rows.oid = "atable_transposed_transposed" ;
+  print_rows.pool = "tpchflatbuf" ;
 
-//  // query the recomposed transpose
-//  spj_query_op print_col1 ;
-//  print_col1.oid = "atable_transposed_transposed" ;
-//  print_col1.pool = "tpchflatbuf" ;
-//
-//  // execute query
-//  std::cout << "ROW query=================================" << std::endl ;
-//  execute_query( print_col1 ) ;
-//  std::cout << "=================================" << std::endl ;
-//
-//  // query the recomposed transpose
-//  spj_query_op print_col2 ;
-//  print_col2.oid = "blah2_transposed_transposed" ;
-//  print_col2.pool = "tpchflatbuf" ;
-//
-//  // execute query
-//  std::cout << "ROW query=================================" << std::endl ;
-//  execute_query( print_col2 ) ;
-//  std::cout << "=================================" << std::endl ;
+  // execute query
+  std::cout << "ROW query=================================" << std::endl ;
+  execute_query( print_rows ) ;
+  std::cout << "=================================" << std::endl ;
+// ...................................... //
 
   return 0 ;
 }

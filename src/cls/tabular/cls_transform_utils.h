@@ -54,15 +54,18 @@ struct transform_op {
   std::string pool ;
   std::string table_name ;
   uint64_t transform_type ;
+  uint64_t layout ; //0=Rows,1=Col
+
+  // offsets of columns in bufferlist contained in oid object
+  std::vector< uint64_t > bloffs ;
 
   // CODES for transform_type
   // 0 --> transpose
-
 } ;
 
 void execute_transform( transform_op ) ;
 void execute_query( spj_query_op ) ;
-librados::bufferlist transpose( librados::bufferlist ) ;
+librados::bufferlist transpose( librados::bufferlist, transform_op ) ;
 librados::bufferlist set_rows() ;
 
 #endif
