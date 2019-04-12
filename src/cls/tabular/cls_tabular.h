@@ -281,7 +281,7 @@ struct idx_op {
     uint32_t idx_batch_size;  // num idx entries to write into omap at once
     int idx_type;
     std::string idx_schema_str;
-    std::string idx_delims; // for text indexing
+    std::string idx_text_delims; // for text indexing
 
     idx_op() {}
     idx_op(bool unq, bool ign, int batsz, int index_type,
@@ -291,7 +291,7 @@ struct idx_op {
         idx_batch_size(batsz),
         idx_type(index_type),
         idx_schema_str(schema_str),
-        idx_delims(delimiters) {}
+        idx_text_delims(delimiters) {}
 
     void encode(bufferlist& bl) const {
         ENCODE_START(1, 1, bl);
@@ -300,7 +300,7 @@ struct idx_op {
         ::encode(idx_batch_size, bl);
         ::encode(idx_type, bl);
         ::encode(idx_schema_str, bl);
-        ::encode(idx_delims, bl);
+        ::encode(idx_text_delims, bl);
         ENCODE_FINISH(bl);
     }
 
@@ -312,7 +312,7 @@ struct idx_op {
         ::decode(idx_batch_size, bl);
         ::decode(idx_type, bl);
         ::decode(idx_schema_str, bl);
-        ::decode(idx_delims, bl);
+        ::decode(idx_text_delims, bl);
         DECODE_FINISH(bl);
     }
 
@@ -324,7 +324,7 @@ struct idx_op {
         s.append("; idx_op.idx_batch_size=" + std::to_string(idx_batch_size));
         s.append("; idx_op.idx_type=" + std::to_string(idx_type));
         s.append("; idx_op.idx_schema_str=\n" + idx_schema_str);
-        s.append("; idx_op.delims=\n" + idx_delims);
+        s.append("; idx_op.text_delims=\n" + idx_text_delims);
         return s;
     }
 };

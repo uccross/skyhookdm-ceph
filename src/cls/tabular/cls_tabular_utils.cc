@@ -272,14 +272,18 @@ std::string schemaToString(schema_vec schema) {
 }
 
 schema_vec schemaFromColNames(schema_vec &current_schema,
-                              std::string col_names)
-{
+                              std::string col_names) {
     schema_vec schema;
     boost::trim(col_names);
     if (col_names == PROJECT_DEFAULT) {
         for (auto it=current_schema.begin(); it!=current_schema.end(); ++it) {
             schema.push_back(*it);
         }
+    }
+    else if (col_names == RID_INDEX) {
+        col_info ci(RID_COL_INDEX, SDT_UINT64, true, false, RID_INDEX);
+        schema.push_back(ci);
+
     }
     else {
         vector<std::string> cols;
@@ -517,8 +521,9 @@ std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
     std::vector<std::string> colnames;
     for (auto it_prd=preds.begin(); it_prd!=preds.end(); ++it_prd) {
         for (auto it_scm=schema.begin(); it_scm!=schema.end(); ++it_scm) {
-            if ((*it_prd)->colIdx() == it_scm->idx)
+            if ((*it_prd)->colIdx() == it_scm->idx) {
                 colnames.push_back(it_scm->name);
+            }
         }
     }
     return colnames;
@@ -532,22 +537,38 @@ std::vector<std::string> colnamesFromSchema(schema_vec &schema) {
     return colnames;
 }
 
-std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
+std::string predsToString(predicate_vec &preds, schema_vec &schema) {
     // output format:  "|orderkey,lt,5|comment,like,he|extendedprice,gt,2.01|"
     // where '|' and ',' are denoted as PRED_DELIM_OUTER and PRED_DELIM_INNER
+
     std::string preds_str;
 
-    for (auto it_prd=preds.begin(); it_prd!=preds.end(); ++it_prd) {
-        for (auto it_sch=schema.begin(); it_sch!=schema.end(); ++it_sch) {
+    // for each pred specified, we iterate over the schema to find its
+    // correpsonding column index so we can build the col value string
+    // based on col type.
+    for (auto it_prd = preds.begin(); it_prd != preds.end(); ++it_prd) {
+        for (auto it_sch = schema.begin(); it_sch != schema.end(); ++it_sch) {
             col_info ci = *it_sch;
-            if (ci.idx ==  (*it_prd)->colIdx()) {
+
+            // if col indexes match then build the value string.
+            if (((*it_prd)->colIdx() == ci.idx) or
+                ((*it_prd)->colIdx() == RID_COL_INDEX)) {
                 preds_str.append(PRED_DELIM_OUTER);
-                preds_str.append(ci.name);
+                std::string colname;
+
+                // set the column name string
+                if ((*it_prd)->colIdx() == RID_COL_INDEX)
+                    colname = RID_INDEX;  // special col index for RID 'col'
+                else
+                    colname = ci.name;
+                preds_str.append(colname);
                 preds_str.append(PRED_DELIM_INNER);
                 preds_str.append(skyOpTypeToString((*it_prd)->opType()));
                 preds_str.append(PRED_DELIM_INNER);
+
+                // set the col's value as string based on data type
                 std::string val;
-                switch (ci.type) {
+                switch ((*it_prd)->colType()) {
 
                     case SDT_BOOL: {
                         TypedPredicate<bool>* p = \
@@ -637,6 +658,8 @@ std::string predsToString(predicate_vec &preds,  schema_vec &schema) {
                 }
                 preds_str.append(val);
             }
+            if ((*it_prd)->colIdx() == RID_COL_INDEX)
+                break;  // only 1 RID col in the schema
         }
     }
     preds_str.append(PRED_DELIM_OUTER);
@@ -751,6 +774,8 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
 
     // get root table ptr
     sky_root skyroot = Tables::getSkyRoot(fb, fb_size);
+    if (skyroot.nrows == 0) return;  // nothing to see here...
+
     printSkyRootHeader(skyroot);
 
     // print col metadata (only names for now).
@@ -916,7 +941,11 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
             case SDT_INT64: {
                 TypedPredicate<int64_t>* p = \
                         dynamic_cast<TypedPredicate<int64_t>*>(*it);
-                int64_t rowval = row[p->colIdx()].AsInt64();
+                int64_t rowval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX)
+                    rowval = rec.RID;  // RID val not in the row
+                else
+                    rowval = row[p->colIdx()].AsInt64();
                 int64_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(rowval,predval,p->opType()));
@@ -966,7 +995,11 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
                         dynamic_cast<TypedPredicate<uint64_t>*>(*it);
-                uint64_t rowval = row[p->colIdx()].AsUInt64();
+                uint64_t rowval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX) // RID val not in the row
+                    rowval = rec.RID;
+                else
+                    rowval = row[p->colIdx()].AsUInt64();
                 uint64_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(rowval,predval,p->opType()));
@@ -1192,25 +1225,29 @@ std::string buildKeyPrefix(
         key_cols_str = IDX_KEY_COLS_DEFAULT;
 
     switch (idx_type) {
-        case SIT_IDX_FB:
-            idx_type_str = SkyIdxTypeMap.at(SIT_IDX_FB);
-            break;
-        case SIT_IDX_RID:
-            idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_RID);
-            break;
-        case SIT_IDX_REC:
-            idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_REC);
-            // stitch the colnames together
-            for (unsigned i = 0; i < colnames.size(); i++) {
-                if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_INNER;
-                key_cols_str += colnames[i];
-            }
-            break;
-        case SIT_IDX_TXT:
-            idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_TXT);
-            break;
-        default:
-            idx_type_str = "IDX_UNK";
+    case SIT_IDX_FB:
+        idx_type_str = SkyIdxTypeMap.at(SIT_IDX_FB);
+        break;
+    case SIT_IDX_RID:
+        idx_type_str = SkyIdxTypeMap.at(SIT_IDX_RID);
+        for (unsigned i = 0; i < colnames.size(); i++) {
+            if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_INNER;
+            key_cols_str += colnames[i];
+        }
+        break;
+    case SIT_IDX_REC:
+        idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_REC);
+        // stitch the colnames together
+        for (unsigned i = 0; i < colnames.size(); i++) {
+            if (i > 0) key_cols_str += Tables::IDX_KEY_DELIM_INNER;
+            key_cols_str += colnames[i];
+        }
+        break;
+    case SIT_IDX_TXT:
+        idx_type_str =  SkyIdxTypeMap.at(SIT_IDX_TXT);
+        break;
+    default:
+        idx_type_str = "IDX_UNK";
     }
 
     // TODO: this prefix should be encoded as a unique index number
@@ -1221,6 +1258,71 @@ std::string buildKeyPrefix(
         table_name + IDX_KEY_DELIM_OUTER +
         key_cols_str + IDX_KEY_DELIM_OUTER
     );
+}
+
+/*
+ * Given a predicate vector, check if the opType provided is present therein.
+   Used to compare idx ops, for special handling of leq case, etc.
+*/
+bool check_predicate_ops(predicate_vec index_preds, int opType)
+{
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+        if(index_preds[i]->opType() != opType)
+            return false;
+    }
+    return true;
+}
+
+bool check_predicate_ops_all_equality(predicate_vec index_preds)
+{
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+        switch (index_preds[i]->opType()) {
+            case SOT_eq:
+            case SOT_leq:
+            case SOT_geq:
+                continue;
+            default:
+                return false;
+        }
+    }
+    return true;
+}
+
+
+// used for index prefix matching during index range queries
+bool compare_keys(std::string key1, std::string key2)
+{
+
+    // Format of keys is like IDX_REC:*-LINEITEM:LINENUMBER-ORDERKEY:00000000000000000001-00000000000000000006
+    // First splitting both the string on the basis of ':' delimiter
+    vector<std::string> elems1;
+    boost::split(elems1, key1, boost::is_any_of(IDX_KEY_DELIM_OUTER),
+                                                boost::token_compress_on);
+
+    vector<std::string> elems2;
+    boost::split(elems2, key2, boost::is_any_of(IDX_KEY_DELIM_OUTER),
+                                                boost::token_compress_on);
+
+    // 4th entry in vector represents the value vector i.e after prefix
+    vector<std::string> value1;
+    vector<std::string> value2;
+
+    // Now splitting value field on the basis of '-' delimiter
+    boost::split(value1,
+                 elems1[IDX_FIELD_Value],
+                 boost::is_any_of(IDX_KEY_DELIM_INNER),
+                 boost::token_compress_on);
+    boost::split(value2,
+                 elems2[IDX_FIELD_Value],
+                 boost::is_any_of(IDX_KEY_DELIM_INNER),
+                 boost::token_compress_on);
+
+   // Compare first token of both field value
+    if (!value1.empty() and !value2.empty()) {
+        if(value1[0] == value2[0])
+            return true;
+    }
+    return false;
 }
 
 

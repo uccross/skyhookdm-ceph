@@ -64,7 +64,7 @@ bool idx_op_ignore_stopwords;
 int idx_op_batch_size;
 int idx_op_idx_type;
 std::string idx_op_idx_schema;
-std::string idx_op_delims;
+std::string idx_op_text_delims;
 
 // to convert strings <=> skyhook data structs
 Tables::schema_vec sky_tbl_schema;

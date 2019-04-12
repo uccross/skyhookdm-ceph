@@ -97,7 +97,7 @@ extern bool idx_op_ignore_stopwords;
 extern int idx_op_batch_size;
 extern int idx_op_idx_type;
 extern std::string idx_op_idx_schema;
-extern std::string idx_op_delims;
+extern std::string idx_op_text_delims;
 
 // to convert strings <=> skyhook data structs
 extern Tables::schema_vec sky_tbl_schema;

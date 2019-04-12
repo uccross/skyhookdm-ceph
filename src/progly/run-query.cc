@@ -294,7 +294,7 @@ int main(int argc, char **argv)
     sky_idx2_schema = schemaFromColNames(sky_tbl_schema, index2_cols);
 
     // verify and set the query predicates
-   sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
+    sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
 
     // verify and set the index predicates
     sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
@@ -302,15 +302,17 @@ int main(int argc, char **argv)
 
     // verify and set the query schema, check for select *
     if (project_cols == PROJECT_DEFAULT) {
-        for(auto it=sky_tbl_schema.begin();it!=sky_tbl_schema.end();++it) {
+        for(auto it=sky_tbl_schema.begin(); it!=sky_tbl_schema.end(); ++it) {
             col_info ci(*it);  // deep copy
             sky_qry_schema.push_back(ci);
         }
 
         // if project all cols and there are no selection preds, set fastpath
-        if (sky_qry_preds.size() == 0 and sky_idx_preds.size() == 0
-                                      and sky_idx2_preds.size() == 0)
-            fastpath = true;
+        if (sky_qry_preds.size() == 0 and
+            sky_idx_preds.size() == 0 and
+            sky_idx2_preds.size() == 0) {
+                fastpath = true;
+        }
 
     } else {
         projection = true;
@@ -376,12 +378,17 @@ int main(int argc, char **argv)
         if (sky_idx_preds.size() > MAX_INDEX_COLS)
             assert (BuildSkyIndexUnsupportedNumCols == 0);
         for (unsigned int i = 0; i < sky_idx_preds.size(); i++) {
-            if (sky_idx_preds[i]->opType() != SOT_eq && sky_idx_preds[i]->opType() != SOT_geq &&
-                sky_idx_preds[i]->opType() != SOT_gt && sky_idx_preds[i]->opType() != SOT_leq &&
-                sky_idx_preds[i]->opType() != SOT_lt ) {
-                cerr << "Only equality predicates currently supported for "
-                     << "Skyhook indexes" << std::endl;
-                assert (SkyIndexUnsupportedOpType == 0);
+            switch (sky_idx_preds[i]->opType()) {
+                case SOT_gt:
+                case SOT_lt:
+                case SOT_eq:
+                case SOT_leq:
+                case SOT_geq:
+                    break;  // all ok, supported index ops
+                default:
+                    cerr << "Only >, <, =, <=, >= predicates currently "
+                         << "supported for Skyhook indexes" << std::endl;
+                    assert (SkyIndexUnsupportedOpType == 0);
             }
         }
     }
@@ -405,7 +412,7 @@ int main(int argc, char **argv)
                 if (ci.type < SDT_INT8 or ci.type > SDT_BOOL)
                     assert (BuildSkyIndexUnsupportedColType == 0);
             }
-            if (ci.idx <= AGG_COL_LAST)
+            if (ci.idx <= AGG_COL_LAST and ci.idx != RID_COL_INDEX)
                 assert (BuildSkyIndexUnsupportedAggCol == 0);
             if (ci.idx > static_cast<int>(sky_tbl_schema.size()))
                 assert (BuildSkyIndexColIndexOOB == 0);
@@ -448,13 +455,12 @@ int main(int argc, char **argv)
     qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
     qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
     qop_index2_preds = predsToString(sky_idx2_preds, sky_tbl_schema);
-
     idx_op_idx_unique = idx_unique;
     idx_op_batch_size = index_batch_size;
     idx_op_idx_type = index_type;
     idx_op_idx_schema = schemaToString(sky_idx_schema);
     idx_op_ignore_stopwords = text_index_ignore_stopwords;
-    idx_op_delims = text_index_delims;
+    idx_op_text_delims = text_index_delims;
 
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
@@ -470,7 +476,7 @@ int main(int argc, char **argv)
               idx_op_batch_size,
               idx_op_idx_type,
               idx_op_idx_schema,
-              idx_op_delims);
+              idx_op_text_delims);
 
     // kick off the workers
     std::vector<std::thread> threads;
@@ -552,7 +558,6 @@ int main(int argc, char **argv)
         op.query_preds = qop_query_preds;
         op.index_preds = qop_index_preds;
         op.index2_preds = qop_index2_preds;
-        // cerr << "query_op:" << op.toString() << std::endl;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
         int ret = ioctx.aio_exec(oid, s->c,

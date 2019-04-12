@@ -149,10 +149,11 @@ enum SkyIdxPlanType
 };
 
 const std::map<SkyIdxType, std::string> SkyIdxTypeMap = {
-    {SIT_IDX_FB, "IDX_FB"},
+    {SIT_IDX_FB, "IDX_FBF"},
     {SIT_IDX_RID, "IDX_RID"},
     {SIT_IDX_REC, "IDX_REC"},
-    {SIT_IDX_TXT, "IDX_TXT"}
+    {SIT_IDX_TXT, "IDX_TXT"},
+    {SIT_IDX_UNK, "IDX_UNK"}
 };
 
 enum AggColIdx {
@@ -208,6 +209,7 @@ const std::string IDX_KEY_COLS_DEFAULT = "*";
 const std::string SCHEMA_NAME_DEFAULT = "*";
 const std::string TABLE_NAME_DEFAULT = "*";
 const std::string RID_INDEX = "_RID_INDEX_";
+const int RID_COL_INDEX = -99; // magic number...
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -672,6 +674,13 @@ std::string buildKeyPrefix(
         std::string table_name,
         std::vector<string> colnames=std::vector<string>());
 std::string buildKeyData(int data_type, uint64_t new_data);
+
+// used for index prefix matching during index range queries
+bool compare_keys(std::string key1, std::string key2);
+
+// used for matching lt/leq index predicates
+bool check_predicate_ops(predicate_vec index_preds, int opType);
+bool check_predicate_ops_all_equality(predicate_vec index_preds);
 
 } // end namespace Tables
 
