@@ -322,11 +322,11 @@ schema_vec schemaFromString(std::string schema_string) {
         boost::trim(col_info_string);
 
         // expected num of metadata items in our Tables::col_info struct
-        uint32_t col_metadata_items = 5;
+        uint32_t col_metadata_items = NUM_COL_INFO_FIELDS;
 
         // ignore empty strings after trimming, due to above boost split.
         // expected len of at least n items with n-1 spaces
-        uint32_t col_info_string_min_len = (2*col_metadata_items) - 1;
+        uint32_t col_info_string_min_len = (2 * col_metadata_items) - 1;
         if (col_info_string.length() < col_info_string_min_len)
             continue;
 
@@ -375,7 +375,11 @@ predicate_vec predsFromString(schema_vec &schema, std::string preds_string) {
 
         // this only has 1 col and only used to verify input
         schema_vec sv = schemaFromColNames(schema, colname);
-        assert (sv.size() > 0);
+        if (sv.empty()) {
+            cerr << "Error: colname=" << colname << " not present in schema."
+                 << std::endl;
+            assert (TablesErrCodes::RequestedColNotPresent == 0);
+        }
         col_info ci = sv.at(0);
         int op_type = skyOpTypeFromString(opname);
 

@@ -41,6 +41,7 @@ enum TablesErrCodes {
     UnsupportedAggDataType,
     UnknownSkyDataType,
     RequestedColIndexOOB,
+    RequestedColNotPresent,
     PredicateComparisonNotDefined,
     PredicateRegexPatternNotSet,
     OpNotRecognized,
@@ -54,6 +55,7 @@ enum TablesErrCodes {
     BuildSkyIndexKeyCreationFailed,
     BuildSkyIndexColIndexOOB,
     SkyIndexUnsupportedOpType,
+    SkyIndexColNotPresent,
     RowIndexOOB,
 };
 
@@ -408,6 +410,7 @@ public:
 };
 
 // col metadata used for the schema
+const int NUM_COL_INFO_FIELDS = 5;
 struct col_info {
     const int idx;
     const int type;

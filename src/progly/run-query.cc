@@ -373,7 +373,8 @@ int main(int argc, char **argv)
             (index_plan_type == SIP_IDX_INTERSECTION) or
             (index_plan_type == SIP_IDX_UNION));
 
-    // verify index predicates (only support equality preds currently)
+    // verify index predicates: op type supported and if all index
+    // predicate cols are in the specified index.
     if (index_read) {
         if (sky_idx_preds.size() > MAX_INDEX_COLS)
             assert (BuildSkyIndexUnsupportedNumCols == 0);
@@ -390,7 +391,44 @@ int main(int argc, char **argv)
                          << "supported for Skyhook indexes" << std::endl;
                     assert (SkyIndexUnsupportedOpType == 0);
             }
+            // verify index pred cols are all in the index schema
+            bool found = false;
+            for (unsigned j = 0; j < sky_idx_schema.size() and !found; j++) {
+                found |= (sky_idx_schema[j].idx == sky_idx_preds[i]->colIdx());
+            }
+            if (!found) {
+                cerr << "Index predicate cols are not all present in the "
+                     << "specified index:(" << index_cols << ")" << std::endl;
+                assert (SkyIndexColNotPresent == 0);
+            }
         }
+        if (sky_idx2_preds.size() > MAX_INDEX_COLS)
+            assert (BuildSkyIndexUnsupportedNumCols == 0);
+        for (unsigned int i = 0; i < sky_idx2_preds.size(); i++) {
+            switch (sky_idx2_preds[i]->opType()) {
+                case SOT_gt:
+                case SOT_lt:
+                case SOT_eq:
+                case SOT_leq:
+                case SOT_geq:
+                    break;  // all ok, supported index ops
+                default:
+                    cerr << "Only >, <, =, <=, >= predicates currently "
+                         << "supported for Skyhook indexes" << std::endl;
+                    assert (SkyIndexUnsupportedOpType == 0);
+            }
+            // verify index pred cols are all in the index schema
+            bool found = false;
+            for (unsigned j = 0; j < sky_idx2_schema.size() and !found; j++) {
+                found |= (sky_idx2_schema[j].idx == sky_idx2_preds[i]->colIdx());
+            }
+            if (!found) {
+                cerr << "Index predicate cols are not all present in the "
+                     << "specified index:(" << index2_cols << ")" << std::endl;
+                assert (SkyIndexColNotPresent == 0);
+            }
+        }
+
     }
 
     // verify index types are integral/string and check col idx bounds

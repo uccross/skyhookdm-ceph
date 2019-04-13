@@ -793,6 +793,7 @@ read_sky_index(
                     }
 
                     // break if key matches or exceeds key passed by the user
+                    // prevents going into the next index (next key prefix)
                     if (check_predicate_ops(index_preds, SOT_lt) or
                         check_predicate_ops(index_preds, SOT_leq)) {
                         //~ if(key_val_map.find(key) != key_val_map.end()) {
