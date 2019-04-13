@@ -261,6 +261,7 @@ public:
     virtual int colIdx() = 0;  // to check info via base ptr before dynm cast
     virtual int colType() = 0;
     virtual int opType() = 0;
+    virtual int chainOpType() = 0;
     virtual bool isGlobalAgg() = 0;
 };
 typedef std::vector<class PredicateBase*> predicate_vec;
@@ -275,15 +276,17 @@ private:
     const bool is_global_agg;
     const re2::RE2* regx;
     PredicateValue<T> value;
+    const int chain_op_type;
 
 public:
-    TypedPredicate(int idx, int type, int op, const T& val) :
+    TypedPredicate(int idx, int type, int op, const T& val, const int ch_op=SOT_logical_and) :
         col_idx(idx),
         col_type(type),
         op_type(op),
         is_global_agg(op==SOT_min || op==SOT_max ||
                       op==SOT_sum || op==SOT_cnt),
-        value(val) {
+        value(val),
+        chain_op_type(ch_op) {
 
             // ONLY VERIFY op type is valid for specified col type and value
             // type T, and compile regex if needed.
@@ -403,6 +406,7 @@ public:
     virtual int colIdx() {return col_idx;}
     virtual int colType() {return col_type;}
     virtual int opType() {return op_type;}
+    virtual int chainOpType() {return chain_op_type;}
     virtual bool isGlobalAgg() {return is_global_agg;}
     T Val() {return value.val;}
     const re2::RE2* getRegex() {return regx;}
