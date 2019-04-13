@@ -586,13 +586,16 @@ int
 read_fbs_index(
     cls_method_context_t hctx,
     std::string key_fb_prefix,
-    std::map<int, struct Tables::read_info>& reads) {
+    std::map<int, struct Tables::read_info>& reads)
+{
 
     using namespace Tables;
     int ret = 0;
 
     unsigned int seq_min = Tables::FB_SEQ_NUM_MIN;
     unsigned int seq_max = Tables::FB_SEQ_NUM_MIN;
+
+    // get the actual max fb seq number
     ret = get_fb_seq_num(hctx, seq_max);
     if (ret < 0) {
         CLS_ERR("error getting fb_seq_num entry from xattr %d", ret);
@@ -666,6 +669,52 @@ sky_index_exists (cls_method_context_t hctx, std::string key_prefix)
         return false;
 
     return true;
+}
+
+
+/*
+    Decide to use index or not.
+    Check statistics and index predicates, if expected selectivity is high
+    enough then use the index (return true) else if low selectivity too many
+    index entries will match and we should not use the index (return false).
+    Returning false indicates to use a table scan instead of index.
+*/
+static
+bool
+use_sky_index(
+        cls_method_context_t hctx,
+        std::string index_prefix,
+        Tables::predicate_vec index_preds)
+{
+    // we assume to use by default, since the planner requested it.
+    bool use_index = true;
+
+    bufferlist bl;
+    int ret = cls_cxx_map_get_val(hctx, index_prefix, &bl);
+    if (ret < 0 && ret != -ENOENT ) {
+        CLS_ERR("Cannot read idx_rec entry for key, errorcode=%d", ret);
+        return false;
+    }
+
+    // If an entry was found for this index key, check the statistics for
+    // each predicate to see if it is expected to be highly selective.
+    if (ret != -ENOENT) {
+
+        // TODO: this should be based on a cost model, not a fixed value.
+        const float SELECTIVITY_HIGH_VAL = 0.10;
+
+        // for each pred, check the bl idx_stats struct and decide selectivity
+        for (auto it = index_preds.begin(); it != index_preds.end(); ++it) {
+
+            // TODO: compute this from the predicate value and stats struct
+            float expected_selectivity = 0.10;
+            if (expected_selectivity <= SELECTIVITY_HIGH_VAL)
+                use_index &= true;
+            else
+                use_index &= false;
+        }
+    }
+    return use_index;
 }
 
 /*
@@ -890,7 +939,10 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
         using namespace Tables;
 
         // hold result of index lookups or read all flatbufs
-        bool use_index = false;
+        bool index1_exists = false;
+        bool index2_exists = false;
+        bool use_index1 = false;
+        bool use_index2 = false;
         std::map<int, struct read_info> reads;
         std::map<int, struct read_info> idx1_reads;
         std::map<int, struct read_info> idx2_reads;
@@ -962,9 +1014,20 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                        op.table_name,
                                        index2_cols);
 
-                // verify if the prefix for this key has any entries in omap.
-                use_index = sky_index_exists(hctx, key_data_prefix);
-                if (use_index) {
+                // verify if index1 is present in omap
+                index1_exists = sky_index_exists(hctx,
+                                                 key_data_prefix);
+
+                // check local statistics, decide to use or not.
+                if (index1_exists)
+                    use_index1 = use_sky_index(hctx,
+                                               key_data_prefix,
+                                               index_preds);
+
+                CLS_LOG(20, "query_op_op: index1 prefix=%s", key_data_prefix.c_str());
+                CLS_LOG(20, "query_op_op: use_index1=%d", use_index1);
+
+                if (use_index1) {
 
                     // index lookup to set the read requests, if any rows match
                     ret = read_sky_index(hctx,
@@ -978,21 +1041,35 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                         CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                         return ret;
                     }
+                    CLS_LOG(20, "query_op_op: index1 found %lu entries",
+                            idx1_reads.size());
+
+                    reads = idx1_reads;  // populate with reads from index1
 
                     // check for second index/index plan type and set READs.
                     switch (op.index_plan_type) {
 
                     case SIP_IDX_STANDARD: {
-                        reads = idx1_reads;  // only 1 index was read
                         break;
                     }
 
                     case SIP_IDX_INTERSECTION:
                     case SIP_IDX_UNION: {
 
-                        // requested index may not exist...
-                        use_index &= sky_index_exists(hctx, key2_data_prefix);
-                        if (use_index){
+                        // verify if index2 is present in omap
+                        index2_exists = sky_index_exists(hctx,
+                                                         key2_data_prefix);
+
+                        // check local statistics, decide to use or not.
+                        if (index2_exists)
+                            use_index2 &= use_sky_index(hctx,
+                                                        key2_data_prefix,
+                                                        index2_preds);
+
+                        CLS_LOG(20, "query_op_op: index2 prefix=%s", key2_data_prefix.c_str());
+                        CLS_LOG(20, "query_op_op: use_index2=%d", use_index2);
+
+                        if (use_index2) {
                             ret = read_sky_index(hctx,
                                                  index2_preds,
                                                  key_fb_prefix,
@@ -1006,12 +1083,15 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                 return ret;
                             }
 
+                            CLS_LOG(20, "query_op_op: index2 found %lu entries",
+                            idx2_reads.size());
+
                             // INDEX PLAN (INTERSECTION or UNION)
                             // for each fbseq_num in idx1 reads, check if idx2
                             // has any rows for same fbseq_num, perform
                             // intersection or union of rows, store resulting
                             // rows into our reads vector.
-                            reads.clear();
+                            ///reads.clear();
 
                             // for union always "populate" the first vector
                             // because we always iterate over that one, so it
@@ -1090,7 +1170,8 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                     }
 
                     default:
-                        use_index = false;  // no index plan type specified.
+                        use_index1 = false;  // no index plan type specified.
+                        use_index2 = false;  // no index plan type specified.
                     }
                 }  // end if (use_index1)
             }
@@ -1114,34 +1195,62 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
              *         mem constrained.
              */
 
-            if (!use_index) {
-                // If we did not use an index, but were provided with index
-                // predicates, we must add those to our query_preds here so they
-                // can be applied during the data scan operator
-                if (!index_preds.empty()) {
-                        query_preds.insert(
-                            query_preds.end(),
-                            std::make_move_iterator(index_preds.begin()),
-                            std::make_move_iterator(index_preds.end()));
+            if (op.index_read) {
+                // If we were requested to do an index plan but locally
+                // decided not to use one or both indexes, then we must add
+                // those requested index predicates to our query_preds so those
+                // predicates can be applied during the data scan operator
+                if (!use_index1) {
+                    if (!index_preds.empty()) {
+                            query_preds.insert(
+                                query_preds.end(),
+                                std::make_move_iterator(index_preds.begin()),
+                                std::make_move_iterator(index_preds.end()));
+                    }
                 }
 
-                if (!index2_preds.empty()) {
-                        query_preds.insert(
-                            query_preds.end(),
-                            std::make_move_iterator(index2_preds.begin()),
-                            std::make_move_iterator(index2_preds.end()));
+                if (!use_index2) {
+                    if (!index2_preds.empty()) {
+                            query_preds.insert(
+                                query_preds.end(),
+                                std::make_move_iterator(index2_preds.begin()),
+                                std::make_move_iterator(index2_preds.end()));
+                    }
                 }
+            }
 
-                // if mem_constrain, check IDX_FBs and add corresponding reads-
-                // the idea is to read each fb in turn rather than entire obj.
-                reads.clear();
+
+            if (!op.index_read or
+                (op.index_read and (!use_index1 and !use_index2))) {
+                // if no index read was requested,
+                // or it was requested and we decided not to use either index,
+                // then we must read the entire object (perform table scan).
+                //
+                // So here we decide to either
+                // 1) read it all at once into mem or
+                // 2) read each fb into mem in sequence to hopefully conserve
+                //    mem during read + processing.
+
+                // default, assume we have plenty of mem avail.
                 bool read_full_object = true;
+
                 if (op.mem_constrain) {
+
+                    // try to set the reads[] with the fb sequence
                     int ret = read_fbs_index(hctx, key_fb_prefix, reads);
-                    if (ret >= 0 and !reads.empty())  // fbs_idx lookup success!
+
+                    if (reads.empty())
+                        CLS_LOG(20,
+                            "query_op_op: WARN: No FBs index entries found.");
+
+                    // if we found the fb sequence of offsets, then we
+                    // no longer need to read the full object.
+                    if (ret >= 0 and !reads.empty())
                         read_full_object = false;
                 }
 
+                // if we must read the full object, we set the reads[] to
+                // contain a single read, indicating the entire object.
                 if (read_full_object) {
                     int fb_seq_num = Tables::FB_SEQ_NUM_MIN;
                     int off = 0;
@@ -1161,6 +1270,9 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 size_t off = it->second.off;
                 size_t len = it->second.len;
                 std::vector<unsigned int> row_nums = it->second.rnums;
+                std::string msg = "off=" + std::to_string(off)
+                                        + ";len=" + std::to_string(len);
+                CLS_LOG(20, "query_op_op: READING %s", msg.c_str());
                 uint64_t start = getns();
                 ret = cls_cxx_read(hctx, off, len, &b);
                 if (ret < 0) {
