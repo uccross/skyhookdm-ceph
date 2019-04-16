@@ -148,7 +148,7 @@ static void print_fb(const char *fb, size_t fb_size,
         return;
 
     print_lock.lock();
-    Tables::printSkyFb(fb, fb_size, schema);
+    Tables::printSkyFb(fb, fb_size);
     print_lock.unlock();
 }
 

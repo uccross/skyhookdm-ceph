@@ -151,7 +151,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     bufferlist wrapped_bls;
     ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
     if (ret < 0) {
-        CLS_ERR("ERROR: cls_tabular:build_sky_index: reading obj %d", ret);
+        CLS_ERR("ERROR: cls_tabular:build_sky_index: reading obj. %d", ret);
         return ret;
     }
 
@@ -1017,6 +1017,13 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 // verify if index1 is present in omap
                 index1_exists = sky_index_exists(hctx,
                                                  key_data_prefix);
+
+                // TODO: if index exists, but is multicol, if all preds are
+                // equality we can use it; else for each col, check if index
+                // prefix exists, choose to use most selective index based on
+                // prefix and since we only use the first col for index preds
+                // we must copy the remaining pred cols into the query preds to
+                // be applied during processing of matching rows.
 
                 // check local statistics, decide to use or not.
                 if (index1_exists)

@@ -79,7 +79,7 @@ int main(int argc, char **argv)
         " max number of cols = " + std::to_string(Tables::MAX_INDEX_COLS));
 
   std::string schema_help_msg = Tables::SCHEMA_FORMAT + "\nEX: \n" +
-        Tables::TEST_SCHEMA_STRING_PROJECT;
+        Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT;
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
@@ -110,7 +110,7 @@ int main(int argc, char **argv)
     // query parameters (new) flatbufs
     ("db-schema-name", po::value<std::string>(&db_schema)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
     ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
-    ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
+    ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING), schema_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
     ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")

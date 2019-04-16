@@ -742,8 +742,10 @@ void printSkyRootHeader(sky_root &r) {
     std::cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< std::endl;
     std::cout << "skyhookdb version: "<< r.skyhook_version << std::endl;
     std::cout << "schema version: "<< r.schema_version << std::endl;
+    std::cout << "schema_name: "<< r.schema_name << std::endl;
     std::cout << "table name: "<< r.table_name << std::endl;
-    std::cout << "schema_name: \n"<< r.schema_name << std::endl;
+    std::cout << "schema: \n"<< r.schema << std::endl;
+
     std::cout << "delete vector: [";
     for (int i=0; i< (int)r.delete_vec.size(); i++) {
         std::cout << (int)r.delete_vec[i];
@@ -778,17 +780,21 @@ void printSkyRecHeader(sky_rec &r) {
 }
 
 // parent print function for skyhook flatbuffer data layout
-void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
+void printSkyFb(const char* fb, size_t fb_size) { ///, schema_vec &sch) {
 
     // get root table ptr
-    sky_root skyroot = Tables::getSkyRoot(fb, fb_size);
+    sky_root skyroot = getSkyRoot(fb, fb_size);
     if (skyroot.nrows == 0) return;  // nothing to see here...
 
     printSkyRootHeader(skyroot);
+    schema_vec sc = schemaFromString(skyroot.schema);
 
-    // print col metadata (only names for now).
-    std::cout  << "Flatbuffer schema for the following rows:" << std::endl;
-    for (schema_vec::iterator it = sch.begin(); it != sch.end(); ++it) {
+    // TODO: remove this temporary workaround for compatibility w/old test data
+    if (sc.empty())
+        sc = schemaFromString(TPCH_LINEITEM_TEST_SCHEMA_STRING);
+    std::cout  << "Schema for the following set of rows:" << std::endl;
+
+    for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
         std::cout << " | " << it->name;
         if (it->is_key) std::cout << "(key)";
         if (!it->nullable) std::cout << "(NOT NULL)";
@@ -806,9 +812,9 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
         auto row = skyrec.data.AsVector();
 
         std::cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << std::endl;
-        for (uint32_t j = 0; j < sch.size(); j++ ) {
+        for (uint32_t j = 0; j < sc.size(); j++ ) {
 
-            col_info col = sch.at(j);
+            col_info col = sc.at(j);
 
             // check our nullbit vector
             if (col.nullable) {
@@ -866,6 +872,7 @@ sky_root getSkyRoot(const char *fb, size_t fb_size) {
     return sky_root (
             root->skyhook_version(),
             root->schema_version(),
+            SCHEMA_NAME_DEFAULT,  // TODO:  dbschema not yet defined in fbs
             root->table_name()->str(),
             root->schema()->str(),
             delete_vector (root->delete_vector()->begin(),

@@ -486,18 +486,20 @@ typedef flexbuffers::Reference row_data_ref;
 struct root_table {
     const int skyhook_version;
     int schema_version;
-    string table_name;
-    string schema_name;
+    std::string schema_name;
+    std::string table_name;
+    std::string schema;
     delete_vector delete_vec;
     row_offs offs;
     uint32_t nrows;
 
-    root_table(int skyver, int schmver, std::string tblname, std::string schm,
-               delete_vector d, row_offs ro, uint32_t n) :
+    root_table(int skyver, int scver, std::string scname, std::string tname,
+               std::string sc, delete_vector d, row_offs ro, uint32_t n) :
         skyhook_version(skyver),
-        schema_version(schmver),
-        table_name(tblname),
-        schema_name(schm),
+        schema_version(scver),
+        schema_name(scname),
+        table_name(tname),
+        schema(sc),
         delete_vec(d),
         offs(ro),
         nrows(n) {};
@@ -575,11 +577,11 @@ const std::string SCHEMA_FORMAT ( \
 // A test schema for the TPC-H lineitem table.
 // format: "col_idx col_type is_key is_nullable name"
 // note the col_idx always refers to the index in the table's current schema
-const std::string TEST_SCHEMA_STRING (" \
-    0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
+const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING (" \
+    0 " +  std::to_string(SDT_INT32) + " 1 0 ORDERKEY \n\
     1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
     2 " +  std::to_string(SDT_INT32) + " 0 1 SUPPKEY \n\
-    3 " +  std::to_string(SDT_INT64) + " 1 0 LINENUMBER \n\
+    3 " +  std::to_string(SDT_INT32) + " 1 0 LINENUMBER \n\
     4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     6 " +  std::to_string(SDT_FLOAT) + " 0 1 DISCOUNT \n\
@@ -595,10 +597,10 @@ const std::string TEST_SCHEMA_STRING (" \
     ");
 
 // A test schema for projection over the TPC-H lineitem table.
-const std::string TEST_SCHEMA_STRING_PROJECT = " \
-    0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
+const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
+    0 " +  std::to_string(SDT_INT32) + " 1 0 ORDERKEY \n\
     1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
-    3 " +  std::to_string(SDT_INT64) + " 1 0 LINENUMBER \n\
+    3 " +  std::to_string(SDT_INT32) + " 1 0 LINENUMBER \n\
     4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     ";
@@ -612,7 +614,7 @@ sky_rec getSkyRec(const Tables::Row *rec);
 // print functions (debug only)
 void printSkyRoot(sky_root *r);
 void printSkyRec(sky_rec *r);
-void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
+void printSkyFb(const char* fb, size_t fb_size);
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,
