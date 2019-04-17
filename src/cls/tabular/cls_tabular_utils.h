@@ -158,6 +158,13 @@ const std::map<SkyIdxType, std::string> SkyIdxTypeMap = {
     {SIT_IDX_UNK, "IDX_UNK"}
 };
 
+// sampling density of statistics collected
+enum StatsLevel {
+    LOW=1,
+    MED,
+    HIGH,
+};
+
 enum AggColIdx {
     AGG_COL_MIN = -1,  // defines the schema idx for agg ops.
     AGG_COL_MAX = -2,
@@ -432,13 +439,22 @@ struct col_info {
         }
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
-        std::string n) :
+             std::string n) :
         idx(std::stoi(i.c_str())),
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
         name(n) {
             assert(type >= SDT_FIRST && type <= SDT_LAST);
+        }
+
+    col_info(std::vector<std::string> s) : // unsafe, for testing only
+        idx(stoll(s[0])),
+        type(stoll(s[1])),
+        is_key(s[2]=="1"),
+        nullable(s[3]=="1"),
+        name(s[4]) {
+            assert (s.size() == NUM_COL_INFO_FIELDS);
         }
 
     col_info(const col_info& c) :

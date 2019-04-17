@@ -330,4 +330,90 @@ struct idx_op {
 };
 WRITE_CLASS_ENCODER(idx_op)
 
+
+// Stores column level statstics
+struct col_stats {
+    int col_id;     // fixed, refers to col in original schema
+    int col_type;
+    int table_id;
+    int stats_level;  // an enum type for sampling density of stats collected
+    int64_t utc;   // last time stats computed
+    string table_name;  // TODO: remove when table ids available.
+    std::string col_info_str;  // datatype, etc. from col info struct.
+    unsigned int nbuckets;
+    std::vector<int> hist;  // TODO: should support uint type also
+
+    col_stats() {}
+    col_stats(int cid, int type, int tid, int level, int64_t cur_time,
+              std::string tname, std::string cinfo, unsigned n, std::vector<int> h) :
+        col_id(cid),
+        col_type(type),
+        table_id(tid),
+        stats_level(level),
+        utc(cur_time),
+        table_name(tname),
+        col_info_str(cinfo),
+        nbuckets(n) {
+            assert (n <= h.size());
+            for (unsigned int i=0; i<nbuckets; i++) {
+                hist.push_back(h[i]);
+            }
+        }
+
+    void encode(bufferlist& bl) const {
+        ENCODE_START(1, 1, bl);
+        ::encode(col_id, bl);
+        ::encode(col_type, bl);
+        ::encode(table_id, bl);
+        ::encode(stats_level, bl),
+        ::encode(utc, bl);
+        ::encode(table_name, bl);
+        ::encode(col_info_str, bl);
+        ::encode(nbuckets, bl);
+        for (unsigned int i=0; i<nbuckets; i++) {
+            ::encode(hist[i], bl);
+        }
+        ENCODE_FINISH(bl);
+    }
+
+    void decode(bufferlist::iterator& bl) {
+        std::string s;
+        DECODE_START(1, bl);
+        ::decode(col_id, bl);
+        ::decode(col_type, bl);
+        ::decode(table_id, bl);
+        ::decode(stats_level, bl);
+        ::decode(utc, bl);
+        ::decode(table_name, bl);
+        ::decode(col_info_str, bl);
+        ::decode(nbuckets, bl);
+        for (unsigned int i=0; i<nbuckets; i++) {
+            int tmp;
+            ::decode(tmp, bl);
+            hist.push_back(tmp);
+        }
+        DECODE_FINISH(bl);
+    }
+
+    std::string toString() {
+        std::string s;
+        s.append("col_stats.col_id=" + std::to_string(col_id));
+        s.append("col_stats.col_type=" + std::to_string(col_type));
+        s.append("col_stats.table_id=" + std::to_string(table_id));
+        s.append("col_stats.stats_level=" + std::to_string(stats_level));
+        s.append("col_stats.utc=" + std::to_string(utc));
+        s.append("col_stats.table_name=" + table_name);
+        s.append("col_stats.col_info_str=" + col_info_str);
+        s.append("col_stats.nbuckets=" + std::to_string(nbuckets));
+        s.append("col_stats.hist<");
+        for (unsigned int i=0; i<nbuckets; i++) {
+            s.append(std::to_string(hist[i]) + ",");
+        }
+        s.append(">");
+        return s;
+    }
+};
+WRITE_CLASS_ENCODER(col_stats)
+
+
 #endif

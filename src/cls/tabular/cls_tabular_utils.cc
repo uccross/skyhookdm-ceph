@@ -780,7 +780,7 @@ void printSkyRecHeader(sky_rec &r) {
 }
 
 // parent print function for skyhook flatbuffer data layout
-void printSkyFb(const char* fb, size_t fb_size) { ///, schema_vec &sch) {
+void printSkyFb(const char* fb, size_t fb_size) {
 
     // get root table ptr
     sky_root skyroot = getSkyRoot(fb, fb_size);
@@ -792,8 +792,8 @@ void printSkyFb(const char* fb, size_t fb_size) { ///, schema_vec &sch) {
     // TODO: remove this temporary workaround for compatibility w/old test data
     if (sc.empty())
         sc = schemaFromString(TPCH_LINEITEM_TEST_SCHEMA_STRING);
-    std::cout  << "Schema for the following set of rows:" << std::endl;
 
+    std::cout  << "Schema for the following set of rows:" << std::endl;
     for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
         std::cout << " | " << it->name;
         if (it->is_key) std::cout << "(key)";

@@ -962,7 +962,9 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
             result_bl = b;
 
         } else {
+
             // data_schema is the table's current schema
+            // TODO: redundant, this is also stored in the fb, extract from fb?
             schema_vec data_schema = schemaFromString(op.data_schema);
 
             // query_schema is the query schema
