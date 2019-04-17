@@ -1,5 +1,5 @@
 // This IDL file represents our flatbuffer schema (Table).
-// The top level Table contains metadata and a vecor of Row Tables where each element
+// The top level Table contains metadata and a vector of Row Tables where each element
 // is similarly a flatbuffer table.
 // The Row Table also has metadata about the flexbuffer (single row)
 // which contains the row's data

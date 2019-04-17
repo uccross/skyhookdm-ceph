@@ -20,6 +20,8 @@
 #include "cls_tabular_utils.h"
 #include "cls_tabular.h"
 
+#include "cls_transform_utils.h" //KD
+
 
 CLS_VER(1,0)
 CLS_NAME(tabular)
@@ -28,6 +30,7 @@ cls_handle_t h_class;
 cls_method_handle_t h_query_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_build_sky_index;
+cls_method_handle_t h_sky_transform ; //KD
 
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
@@ -1608,6 +1611,14 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return 0;
 }
 
+static
+int sky_transform(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  CLS_LOG(20,"blah!") ;
+  print_stuff() ;
+  return 11 ;
+}
+
 void __cls_init()
 {
   CLS_LOG(20, "Loaded tabular class!");
@@ -1622,5 +1633,8 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "build_sky_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_sky_index, &h_build_sky_index);
+
+  cls_register_cxx_method( h_class, "sky_transform",
+      CLS_METHOD_RD | CLS_METHOD_WR, sky_transform, &h_sky_transform ) ;
 }
 

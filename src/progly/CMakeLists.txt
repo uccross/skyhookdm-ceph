@@ -1,3 +1,12 @@
+# --------------------------------- #
+add_executable(run-transforms run-transforms.cc #${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular.cc
+                                                ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc
+                                                ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_transform_utils.cc )
+target_link_libraries(run-transforms librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-transforms DESTINATION bin)
+
+# --------------------------------- #
 add_executable(run-query run-query.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
 target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)

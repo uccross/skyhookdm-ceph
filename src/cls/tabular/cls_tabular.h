@@ -14,7 +14,6 @@
 
 #include "include/types.h"
 
-
 void cls_log_message(std::string msg, bool is_err, int log_level);
 
 /*

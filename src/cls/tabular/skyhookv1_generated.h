@@ -14,7 +14,7 @@ struct Table;
 struct Row;
 
 struct Table FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  enum {
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_SKYHOOK_VERSION = 4,
     VT_SCHEMA_VERSION = 6,
     VT_TABLE_NAME = 8,
@@ -26,57 +26,36 @@ struct Table FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint8_t skyhook_version() const {
     return GetField<uint8_t>(VT_SKYHOOK_VERSION, 0);
   }
-  bool mutate_skyhook_version(uint8_t _skyhook_version) {
-    return SetField<uint8_t>(VT_SKYHOOK_VERSION, _skyhook_version, 0);
-  }
   uint8_t schema_version() const {
     return GetField<uint8_t>(VT_SCHEMA_VERSION, 0);
-  }
-  bool mutate_schema_version(uint8_t _schema_version) {
-    return SetField<uint8_t>(VT_SCHEMA_VERSION, _schema_version, 0);
   }
   const flatbuffers::String *table_name() const {
     return GetPointer<const flatbuffers::String *>(VT_TABLE_NAME);
   }
-  flatbuffers::String *mutable_table_name() {
-    return GetPointer<flatbuffers::String *>(VT_TABLE_NAME);
-  }
   const flatbuffers::String *schema() const {
     return GetPointer<const flatbuffers::String *>(VT_SCHEMA);
-  }
-  flatbuffers::String *mutable_schema() {
-    return GetPointer<flatbuffers::String *>(VT_SCHEMA);
   }
   const flatbuffers::Vector<uint8_t> *delete_vector() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
   }
-  flatbuffers::Vector<uint8_t> *mutable_delete_vector() {
-    return GetPointer<flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
-  }
   const flatbuffers::Vector<flatbuffers::Offset<Row>> *rows() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Row>> *>(VT_ROWS);
   }
-  flatbuffers::Vector<flatbuffers::Offset<Row>> *mutable_rows() {
-    return GetPointer<flatbuffers::Vector<flatbuffers::Offset<Row>> *>(VT_ROWS);
-  }
   uint32_t nrows() const {
     return GetField<uint32_t>(VT_NROWS, 0);
-  }
-  bool mutate_nrows(uint32_t _nrows) {
-    return SetField<uint32_t>(VT_NROWS, _nrows, 0);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint8_t>(verifier, VT_SKYHOOK_VERSION) &&
            VerifyField<uint8_t>(verifier, VT_SCHEMA_VERSION) &&
            VerifyOffset(verifier, VT_TABLE_NAME) &&
-           verifier.Verify(table_name()) &&
+           verifier.VerifyString(table_name()) &&
            VerifyOffset(verifier, VT_SCHEMA) &&
-           verifier.Verify(schema()) &&
+           verifier.VerifyString(schema()) &&
            VerifyOffset(verifier, VT_DELETE_VECTOR) &&
-           verifier.Verify(delete_vector()) &&
+           verifier.VerifyVector(delete_vector()) &&
            VerifyOffset(verifier, VT_ROWS) &&
-           verifier.Verify(rows()) &&
+           verifier.VerifyVector(rows()) &&
            verifier.VerifyVectorOfTables(rows()) &&
            VerifyField<uint32_t>(verifier, VT_NROWS) &&
            verifier.EndTable();
@@ -148,19 +127,23 @@ inline flatbuffers::Offset<Table> CreateTableDirect(
     const std::vector<uint8_t> *delete_vector = nullptr,
     const std::vector<flatbuffers::Offset<Row>> *rows = nullptr,
     uint32_t nrows = 0) {
+  auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
+  auto schema__ = schema ? _fbb.CreateString(schema) : 0;
+  auto delete_vector__ = delete_vector ? _fbb.CreateVector<uint8_t>(*delete_vector) : 0;
+  auto rows__ = rows ? _fbb.CreateVector<flatbuffers::Offset<Row>>(*rows) : 0;
   return Tables::CreateTable(
       _fbb,
       skyhook_version,
       schema_version,
-      table_name ? _fbb.CreateString(table_name) : 0,
-      schema ? _fbb.CreateString(schema) : 0,
-      delete_vector ? _fbb.CreateVector<uint8_t>(*delete_vector) : 0,
-      rows ? _fbb.CreateVector<flatbuffers::Offset<Row>>(*rows) : 0,
+      table_name__,
+      schema__,
+      delete_vector__,
+      rows__,
       nrows);
 }
 
 struct Row FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
-  enum {
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_RID = 4,
     VT_NULLBITS = 6,
     VT_DATA = 8
@@ -168,32 +151,22 @@ struct Row FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint64_t RID() const {
     return GetField<uint64_t>(VT_RID, 0);
   }
-  bool mutate_RID(uint64_t _RID) {
-    return SetField<uint64_t>(VT_RID, _RID, 0);
-  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
-  }
-  flatbuffers::Vector<uint64_t> *mutable_nullbits() {
-    return GetPointer<flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
   const flatbuffers::Vector<uint8_t> *data() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
-  flatbuffers::Vector<uint8_t> *mutable_data() {
-    return GetPointer<flatbuffers::Vector<uint8_t> *>(VT_DATA);
-  }
   flexbuffers::Reference data_flexbuffer_root() const {
-    auto v = data();
-    return flexbuffers::GetRoot(v->Data(), v->size());
+    return flexbuffers::GetRoot(data()->Data(), data()->size());
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, VT_RID) &&
            VerifyOffset(verifier, VT_NULLBITS) &&
-           verifier.Verify(nullbits()) &&
+           verifier.VerifyVector(nullbits()) &&
            VerifyOffset(verifier, VT_DATA) &&
-           verifier.Verify(data()) &&
+           verifier.VerifyVector(data()) &&
            verifier.EndTable();
   }
 };
@@ -239,11 +212,13 @@ inline flatbuffers::Offset<Row> CreateRowDirect(
     uint64_t RID = 0,
     const std::vector<uint64_t> *nullbits = nullptr,
     const std::vector<uint8_t> *data = nullptr) {
+  auto nullbits__ = nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0;
+  auto data__ = data ? _fbb.CreateVector<uint8_t>(*data) : 0;
   return Tables::CreateRow(
       _fbb,
       RID,
-      nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0,
-      data ? _fbb.CreateVector<uint8_t>(*data) : 0);
+      nullbits__,
+      data__);
 }
 
 inline const Tables::Table *GetTable(const void *buf) {
@@ -252,10 +227,6 @@ inline const Tables::Table *GetTable(const void *buf) {
 
 inline const Tables::Table *GetSizePrefixedTable(const void *buf) {
   return flatbuffers::GetSizePrefixedRoot<Tables::Table>(buf);
-}
-
-inline Table *GetMutableTable(void *buf) {
-  return flatbuffers::GetMutableRoot<Table>(buf);
 }
 
 inline bool VerifyTableBuffer(
