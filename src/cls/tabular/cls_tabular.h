@@ -340,7 +340,7 @@ struct col_stats {
     int64_t utc;   // last time stats computed
     string table_name;  // TODO: remove when table ids available.
     std::string col_info_str;  // datatype, etc. from col info struct.
-    unsigned int nbuckets;
+    unsigned int nbins;
     std::vector<int> hist;  // TODO: should support uint type also
 
     col_stats() {}
@@ -353,9 +353,9 @@ struct col_stats {
         utc(cur_time),
         table_name(tname),
         col_info_str(cinfo),
-        nbuckets(n) {
+        nbins(n) {
             assert (n <= h.size());
-            for (unsigned int i=0; i<nbuckets; i++) {
+            for (unsigned int i=0; i<nbins; i++) {
                 hist.push_back(h[i]);
             }
         }
@@ -369,8 +369,8 @@ struct col_stats {
         ::encode(utc, bl);
         ::encode(table_name, bl);
         ::encode(col_info_str, bl);
-        ::encode(nbuckets, bl);
-        for (unsigned int i=0; i<nbuckets; i++) {
+        ::encode(nbins, bl);
+        for (unsigned int i=0; i<nbins; i++) {
             ::encode(hist[i], bl);
         }
         ENCODE_FINISH(bl);
@@ -386,8 +386,8 @@ struct col_stats {
         ::decode(utc, bl);
         ::decode(table_name, bl);
         ::decode(col_info_str, bl);
-        ::decode(nbuckets, bl);
-        for (unsigned int i=0; i<nbuckets; i++) {
+        ::decode(nbins, bl);
+        for (unsigned int i=0; i<nbins; i++) {
             int tmp;
             ::decode(tmp, bl);
             hist.push_back(tmp);
@@ -404,9 +404,9 @@ struct col_stats {
         s.append("col_stats.utc=" + std::to_string(utc));
         s.append("col_stats.table_name=" + table_name);
         s.append("col_stats.col_info_str=" + col_info_str);
-        s.append("col_stats.nbuckets=" + std::to_string(nbuckets));
+        s.append("col_stats.nbins=" + std::to_string(nbins));
         s.append("col_stats.hist<");
-        for (unsigned int i=0; i<nbuckets; i++) {
+        for (unsigned int i=0; i<nbins; i++) {
             s.append(std::to_string(hist[i]) + ",");
         }
         s.append(">");

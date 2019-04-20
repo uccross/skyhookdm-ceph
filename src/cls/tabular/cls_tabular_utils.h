@@ -705,7 +705,13 @@ bool compare_keys(std::string key1, std::string key2);
 
 // used for matching lt/leq index predicates
 bool check_predicate_ops(predicate_vec index_preds, int opType);
+bool check_predicate_ops_all_include_equality(predicate_vec index_preds);
 bool check_predicate_ops_all_equality(predicate_vec index_preds);
+
+// for extracting the typed value from a typed predicate then
+// returning as uint64, which is then used to build a key-data value string
+void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val);
+void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val);
 
 } // end namespace Tables
 

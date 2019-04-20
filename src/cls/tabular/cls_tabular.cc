@@ -722,6 +722,7 @@ use_sky_index(
  * index predicates.  Set the idx_reads info vector with the corresponding
  * flatbuf off/len and row numbers for each matching record.
  */
+
 static
 int
 read_sky_index(
@@ -744,43 +745,42 @@ read_sky_index(
 
     // build up the key data portion from the idx pred vals.
     // assumes all indexes here are integers, we extract the predicate vals
-    // as 64 bit ints and use our int to padded string method to build the keys
+    // as ints and use our uint to padded string method to build the keys
     std::string key_data;
     for (unsigned i = 0; i < index_preds.size(); i++) {
-        uint64_t val;
-        switch(index_preds[i]->colType()) {
+        uint64_t val = 0;
+
+        switch (index_preds[i]->colType()) {
             case SDT_INT8:
             case SDT_INT16:
             case SDT_INT32:
-            case SDT_INT64: {
-                TypedPredicate<int64_t>* p = \
-                    dynamic_cast<TypedPredicate<int64_t>*>(index_preds[i]);
-                val = static_cast<uint64_t>(p->Val());
+            case SDT_INT64: {  // TODO: support signed ints in index ranges
+                int64_t v = 0;
+                extract_typedpred_val(index_preds[i], v);
+                val = static_cast<uint64_t>(v);  // force to unsigned for now.
                 break;
             }
             case SDT_UINT8:
             case SDT_UINT16:
             case SDT_UINT32:
             case SDT_UINT64: {
-                TypedPredicate<uint64_t>* p = \
-                    dynamic_cast<TypedPredicate<uint64_t>*>(index_preds[i]);
-                val = static_cast<uint64_t>(p->Val());
+                extract_typedpred_val(index_preds[i], val);
                 break;
             }
             default:
                 assert (BuildSkyIndexUnsupportedColType==0);
         }
-        if (i > 0)
+
+        if (i > 0)  // add delim for multicol index vals
             key_data += IDX_KEY_DELIM_INNER;
         key_data += buildKeyData(index_preds[i]->colType(), val);
     }
     std::string key = key_data_prefix + key_data;
 
     // Add base key when all index predicates include equality
-    if (check_predicate_ops_all_equality(index_preds)) {
+    if (check_predicate_ops_all_include_equality(index_preds)) {
         keys.push_back(key);
     }
-
 
     // Find the starting key for range query keys:
     // 1. Greater than predicates we start after the base key,
@@ -1020,23 +1020,33 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 index1_exists = sky_index_exists(hctx,
                                                  key_data_prefix);
 
-                // TODO: if index exists, but is multicol, if all preds are
-                // equality we can use it; else for each col, check if index
-                // prefix exists, choose to use most selective index based on
-                // prefix and since we only use the first col for index preds
-                // we must copy the remaining pred cols into the query preds to
-                // be applied during processing of matching rows.
-
                 // check local statistics, decide to use or not.
                 if (index1_exists)
                     use_index1 = use_sky_index(hctx,
                                                key_data_prefix,
                                                index_preds);
 
-                CLS_LOG(20, "query_op_op: index1 prefix=%s", key_data_prefix.c_str());
-                CLS_LOG(20, "query_op_op: use_index1=%d", use_index1);
-
                 if (use_index1) {
+
+                    // check for case of multicol index but not all equality.
+                    if (index_cols.size() > 1 and
+                        !check_predicate_ops_all_equality(index_preds)) {
+
+                        // NOTE: mutlicol indexes only support range queries
+                        // over first col (but all cols for equality queries)
+                        // so to preserve correctness, here we (redundantly)
+                        // add all of the index preds to the query preds
+                        // to preserve correctness but we do not remove the
+                        // extra non-equality preds from the index preds
+                        // since in the future index queries will support
+                        // ranges on multicols.
+
+                        query_preds.reserve(query_preds.size() +
+                                            index_preds.size());
+                        for (unsigned i = 0; i < index_preds.size(); i++) {
+                            query_preds.push_back(index_preds[i]);
+                        }
+                    }
 
                     // index lookup to set the read requests, if any rows match
                     ret = read_sky_index(hctx,
@@ -1075,10 +1085,20 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                                         key2_data_prefix,
                                                         index2_preds);
 
-                        CLS_LOG(20, "query_op_op: index2 prefix=%s", key2_data_prefix.c_str());
-                        CLS_LOG(20, "query_op_op: use_index2=%d", use_index2);
-
                         if (use_index2) {
+
+                            // check for case of multicol index but not all equality.
+                            if (index2_cols.size() > 1 and
+                                !check_predicate_ops_all_equality(index2_preds)) {
+
+                                // NOTE: same reasoning as above for index1_preds
+                                query_preds.reserve(query_preds.size() +
+                                                    index2_preds.size());
+                                for (unsigned i = 0; i < index2_preds.size(); i++) {
+                                    query_preds.push_back(index2_preds[i]);
+                                }
+                            }
+
                             ret = read_sky_index(hctx,
                                                  index2_preds,
                                                  key_fb_prefix,
@@ -1093,7 +1113,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                             }
 
                             CLS_LOG(20, "query_op_op: index2 found %lu entries",
-                            idx2_reads.size());
+                                    idx2_reads.size());
 
                             // INDEX PLAN (INTERSECTION or UNION)
                             // for each fbseq_num in idx1 reads, check if idx2

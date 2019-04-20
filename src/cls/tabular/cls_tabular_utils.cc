@@ -1341,14 +1341,14 @@ bool check_predicate_ops(predicate_vec index_preds, int opType)
     return true;
 }
 
-bool check_predicate_ops_all_equality(predicate_vec index_preds)
+bool check_predicate_ops_all_include_equality(predicate_vec index_preds)
 {
     for (unsigned i = 0; i < index_preds.size(); i++) {
         switch (index_preds[i]->opType()) {
             case SOT_eq:
             case SOT_leq:
             case SOT_geq:
-                continue;
+                break;
             default:
                 return false;
         }
@@ -1356,6 +1356,18 @@ bool check_predicate_ops_all_equality(predicate_vec index_preds)
     return true;
 }
 
+bool check_predicate_ops_all_equality(predicate_vec index_preds)
+{
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+        switch (index_preds[i]->opType()) {
+            case SOT_eq:
+                break;
+            default:
+                return false;
+        }
+    }
+    return true;
+}
 
 // used for index prefix matching during index range queries
 bool compare_keys(std::string key1, std::string key2)
@@ -1392,6 +1404,74 @@ bool compare_keys(std::string key1, std::string key2)
     }
     return false;
 }
+
+void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val) {
+
+    switch(pb->colType()) {
+
+        case SDT_INT8: {
+            TypedPredicate<int8_t>* p = \
+                dynamic_cast<TypedPredicate<int8_t>*>(pb);
+            val = static_cast<int64_t>(p->Val());
+            break;
+        }
+        case SDT_INT16: {
+            TypedPredicate<int16_t>* p = \
+                dynamic_cast<TypedPredicate<int16_t>*>(pb);
+            val = static_cast<int64_t>(p->Val());
+            break;
+        }
+        case SDT_INT32: {
+            TypedPredicate<int32_t>* p = \
+                dynamic_cast<TypedPredicate<int32_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_INT64: {
+            TypedPredicate<int64_t>* p = \
+                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+            val = static_cast<int64_t>(p->Val());
+            break;
+        }
+        default:
+            assert (BuildSkyIndexUnsupportedColType==0);
+    }
+}
+
+void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val) {
+
+    switch(pb->colType()) {
+
+        case SDT_UINT8: {
+            TypedPredicate<uint8_t>* p = \
+                dynamic_cast<TypedPredicate<uint8_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_UINT16: {
+            TypedPredicate<uint16_t>* p = \
+                dynamic_cast<TypedPredicate<uint16_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_UINT32: {
+            TypedPredicate<uint32_t>* p = \
+                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_UINT64: {
+            TypedPredicate<uint64_t>* p = \
+                dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        default:
+            assert (BuildSkyIndexUnsupportedColType==0);
+    }
+}
+
+
 
 
 } // end namespace Tables
