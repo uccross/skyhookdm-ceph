@@ -1965,6 +1965,87 @@ ceph::bufferlist transpose( cls_method_context_t hctx, ceph::bufferlist wrapped_
     counter++ ;
   } // WHILE
 
+  if( to.layout == 1 ) {
+    auto rows_table_name        = rows_builder.CreateString( "atable" ) ;
+    auto rows_layout            = rows_builder.CreateString( "ROW" ) ;
+    auto rows_schema_fb         = rows_builder.CreateVector( rows_schema ) ;
+    auto rows_rids_vect_fb      = rows_builder.CreateVector( rows_rids_vect ) ;
+    auto a                      = rows_builder.CreateVector( rows_meta_schema ) ;
+    auto rows_record_data_types = rows_builder.CreateVector( rows_record_data_type_vect ) ;
+
+    // this process destroys column ordering from original
+    // if the relation has multiple columns of the same type
+    for( unsigned int i = 0; i < rows_nrows; i++ ) {
+
+      std::vector< uint64_t > single_iv ;
+      std::vector< float > single_fv ;
+      std::vector< flatbuffers::Offset<flatbuffers::String> > single_sv ;
+
+      //grab the ints
+      for( unsigned int j = 0; j < all_ints.size(); j++ ) {
+        single_iv.push_back( all_ints[j][i] ) ;
+      }
+      //grab the floats
+      for( unsigned int j = 0; j < all_floats.size(); j++ ) {
+        single_fv.push_back( all_floats[j][i] ) ;
+      }
+      //grab the strs
+      for( unsigned int j = 0; j < all_strs.size(); j++ ) {
+        single_sv.push_back( rows_builder.CreateString( all_strs[j][i] ) ) ;
+      }
+
+      auto int_vect_fb    = rows_builder.CreateVector( single_iv ) ;
+      auto float_vect_fb  = rows_builder.CreateVector( single_fv ) ;
+      auto string_vect_fb = rows_builder.CreateVector( single_sv ) ;
+      auto iv = Tables::CreateIntData( rows_builder, int_vect_fb ) ;
+      auto fv = Tables::CreateFloatData( rows_builder, float_vect_fb ) ;
+      auto sv = Tables::CreateStringData( rows_builder, string_vect_fb ) ;
+
+      std::vector< flatbuffers::Offset< void > > data_vect ;
+      data_vect.push_back( iv.Union() ) ;
+      data_vect.push_back( fv.Union() ) ;
+      data_vect.push_back( sv.Union() ) ;
+      auto data = rows_builder.CreateVector( data_vect ) ;
+
+      auto rec = Tables::CreateRecord( rows_builder, rows_record_data_types, data ) ;
+      rows_row_records.push_back( rec ) ;
+    }
+
+    auto rows_row_records_fb = rows_builder.CreateVector( rows_row_records ) ;
+
+    // create the Rows flatbuffer:
+    auto rows = Tables::CreateRows(
+      rows_builder,
+      0,
+      0,
+      rows_table_name,
+      rows_schema_fb,
+      rows_nrows,
+      rows_ncols,
+      rows_layout,
+      rows_rids_vect_fb,
+      rows_row_records_fb ) ;
+
+    Tables::RootBuilder root_builder( rows_builder ) ;
+    root_builder.add_schema( a ) ;
+
+    // save the Rows flatbuffer to the root flatbuffer
+    root_builder.add_relationData_type( Tables::Relation_Rows ) ;
+    root_builder.add_relationData( rows.Union() ) ;
+
+    auto res = root_builder.Finish() ;
+    rows_builder.Finish( res ) ;
+
+    const char* fb = reinterpret_cast<char*>( rows_builder.GetBufferPointer() ) ;
+    int bufsz      = rows_builder.GetSize() ;
+    librados::bufferlist bl ;
+    bl.append( fb, bufsz ) ;
+
+    // write to flatbuffer
+    ::encode( bl, transposed_bl_seq ) ;
+
+  } //IF
+
   CLS_LOG( 20, "sky_transform transpose : ...done transpose." ) ;
   return transposed_bl_seq ;
 } //TRANSPOSE

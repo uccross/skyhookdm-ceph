@@ -144,6 +144,7 @@ int main( int argc, char **argv ) {
   to1.bloffs.push_back( 0 ) ;
   to1.bloffs.push_back( 1 ) ;
   to1.bloffs.push_back( 2 ) ;
+  to1.layout = 1 ;
 
   // execute transform
   std::cout << "row to col transpose=================================" << std::endl ;
