@@ -32,7 +32,6 @@ cls_method_handle_t h_build_index;
 cls_method_handle_t h_build_sky_index;
 cls_method_handle_t h_sky_transform ; //KD
 
-
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
     if (is_err)
         CLS_ERR("skyhook: %s", msg.c_str());
@@ -1611,13 +1610,364 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return 0;
 }
 
-static
-int sky_transform(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+// ===================== //
+//     SKY TRANSFORM     //
+// ===================== //
+int sky_transform( cls_method_context_t hctx, bufferlist *inbl, bufferlist *outbl )
 {
-  CLS_LOG(20,"blah!") ;
-  print_stuff() ;
-  return 11 ;
+  CLS_LOG( 20, "sky_transform : executing sky_transform..." ) ;
+
+  // unpack bufferlist from inbl
+  transform_op top ;
+  bufferlist::iterator it = inbl->begin();
+  ::decode( top, it ) ;
+
+  CLS_LOG( 20, "sky_transform : top.oid            = %s", top.oid.c_str() ) ;
+  CLS_LOG( 20, "sky_transform : top.pool           = %s", top.pool.c_str() ) ;
+  CLS_LOG( 20, "sky_transform : top.table_name     = %s", top.table_name.c_str() ) ;
+  CLS_LOG( 20, "sky_transform : top.transform_type = %i", (int)top.transform_type ) ;
+
+  // read bl_seq
+  ceph::bufferlist wrapped_bl_seq ;
+  int ret = cls_cxx_read( hctx, 0, 0, &wrapped_bl_seq ) ;
+
+  //int ret = print_stuff() ;
+  ceph::bufferlist transformed_bl_seq ;
+  switch( top.transform_type ) {
+    case 0 :
+      CLS_LOG( 20, "sky_transform : case0" ) ;
+      *outbl = transpose( hctx, wrapped_bl_seq, top ) ;
+      break ;
+    default :
+      CLS_LOG( 20, "sky_transform : unrecognized t_op.transform_type '%i'", (int)top.transform_type ) ;
+      break ;
+  }
+
+  CLS_LOG( 20, "sky_transform : ...done sky_transform." ) ;
+  return 0 ;
 }
+
+// ========================== //
+//         TRANSPOSE          //
+// ========================== //
+ceph::bufferlist transpose( cls_method_context_t hctx, ceph::bufferlist wrapped_bl_seq, transform_op to ) {
+  CLS_LOG( 20, "sky_transform transpose : executing transpose..." ) ;
+  ceph::bufferlist outbl ;
+
+  ceph::bufferlist transposed_bl_seq ;
+  ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
+
+  // need to prime structures for Col to Rows transpose
+  std::vector< uint8_t > rows_meta_schema ;
+  std::vector< flatbuffers::Offset< flatbuffers::String > > rows_schema ;
+  std::vector< uint64_t > rows_rids_vect ;
+  std::vector< flatbuffers::Offset< Tables::Record > > rows_row_records ;
+  std::vector< uint8_t > rows_record_data_type_vect ;
+  flatbuffers::FlatBufferBuilder rows_builder( 1024 ) ;
+  uint8_t rows_nrows ;
+  uint8_t rows_ncols = to.bloffs.size() ;
+  std::vector< std::vector< uint64_t > > all_ints ;
+  std::vector< std::vector< float > > all_floats ;
+  std::vector< std::vector< std::string > > all_strs ;
+
+  CLS_LOG( 20, "sky_transform transpose : it_wrapped.get_remaining() = %i", it_wrapped.get_remaining() ) ;
+
+  int counter = 0 ;
+  while( it_wrapped.get_remaining() > 0 ) {
+
+    std::vector< uint64_t > col_ints ;
+    std::vector< float > col_floats ;
+    std::vector< std::string > col_strs ;
+
+    for( unsigned int i = 0; i < to.bloffs.size(); i++ ) {
+
+      // skip iterator processing at offsets not included in bloffs
+      if( std::find( to.bloffs.begin(), to.bloffs.end(), i ) == to.bloffs.end() ) {
+        counter++ ;
+        continue ;
+      }
+
+      // grab the Root
+      ceph::bufferlist bl ;
+      ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+      const char* fb = bl.c_str() ;
+    
+      auto root      = Tables::GetRoot( fb ) ;
+      auto data_type = root->relationData_type() ;
+      CLS_LOG( 20, "sky_transform transpose data_type : %i", data_type ) ;
+
+      // process ROWs
+      if( data_type == Tables::Relation_Rows ) {
+        CLS_LOG( 20, "sky_transform transpose : data_type == Tables::Relation_Rows" ) ;
+
+        auto rows = static_cast< const Tables::Rows* >( root->relationData() ) ;
+        auto table_name_read = rows->table_name() ;
+        auto schema_read     = rows->schema() ;
+        auto nrows_read      = rows->nrows() ;
+        auto ncols_read      = rows->ncols() ;
+        auto rids_read       = rows->RIDs() ;
+        auto rows_data       = rows->data() ; // [ Record ]
+
+        CLS_LOG( 20, "sky_transform transpose : table_name_read->str() : %s", table_name_read->str().c_str() ) ;
+        CLS_LOG( 20, "sky_transform transpose : nrows_read             : %i", (int)nrows_read ) ;
+        CLS_LOG( 20, "sky_transform transpose : ncols_read             : %i", (int)ncols_read ) ;
+
+        std::vector< uint64_t > RIDs_vect ;
+        for( unsigned int i = 0; i < rids_read->Length(); i++ ) {
+          RIDs_vect.push_back( rids_read->Get(i) ) ;
+        }
+    
+        // build out Root>Col
+        flatbuffers::FlatBufferBuilder builder( 1024 ) ;
+        auto RIDs = builder.CreateVector( RIDs_vect ) ;
+    
+        // get schema from first record in Rows
+        auto init_rec = rows_data->Get(0) ;
+        auto schema   = init_rec->data_type() ;
+    
+        for( unsigned int i = 0; i < schema->Length(); i++ ) {
+          CLS_LOG( 20, "sky_transform transpose : schema = %i", (int)(unsigned)schema->Get(i) ) ;
+    
+          if( (unsigned)schema->Get(i) == Tables::Data_IntData ) {
+    
+            std::vector< uint64_t > iv ;
+    
+            // extract all of the ith records into an IntData list
+            for( unsigned j = 0; j < rows_data->Length(); j++ ) {
+              auto curr_rec           = rows_data->Get(j) ;
+              auto curr_rec_data      = curr_rec->data() ;
+    
+              auto int_col_data_read = static_cast< const Tables::IntData* >( curr_rec_data->Get(i) ) ;
+              iv.push_back( int_col_data_read->data()->Get(0) ) ; // assume list of size 1
+            }
+            auto iv_fb = builder.CreateVector( iv ) ;
+            auto int_col_data = Tables::CreateIntData( builder, iv_fb ) ;
+            auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
+    
+            auto col = CreateCol(
+              builder,
+              0,
+              0,
+              col_name,
+              (uint8_t)i,
+              nrows_read,
+              RIDs,
+              Tables::Data_IntData,
+              int_col_data.Union() ) ;
+    
+            // save the Rows flatbuffer to the root flatbuffer
+            Tables::RootBuilder root_builder( builder ) ;
+            root_builder.add_relationData_type( Tables::Relation_Col ) ;
+            root_builder.add_relationData( col.Union() ) ;
+    
+            // save column to buffer and append to the transposed bufferlist
+            auto res = root_builder.Finish() ;
+            builder.Finish( res ) ;
+            const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+            int bufsz      = builder.GetSize() ;
+            ceph::bufferlist bl ;
+            bl.append( fb, bufsz ) ;
+            ::encode( bl, transposed_bl_seq ) ;
+          } //IF
+          else if( (unsigned)schema->Get(i) == Tables::Data_FloatData ) {
+    
+            std::vector< float > fv ;
+    
+            // extract all of the ith records into an IntData list
+            for( unsigned j = 0; j < rows_data->Length(); j++ ) {
+              auto curr_rec           = rows_data->Get(j) ;
+              auto curr_rec_data      = curr_rec->data() ;
+    
+              auto float_col_data_read = static_cast< const Tables::FloatData* >( curr_rec_data->Get(i) ) ;
+              fv.push_back( float_col_data_read->data()->Get(0) ) ; // assume list of size 1
+            }
+            auto fv_fb = builder.CreateVector( fv ) ;
+            auto float_col_data = Tables::CreateFloatData( builder, fv_fb ) ;
+            auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
+    
+            auto col = CreateCol(
+              builder,
+              0,
+              0,
+              col_name,
+              (uint8_t)i,
+              nrows_read,
+              RIDs,
+              Tables::Data_FloatData,
+              float_col_data.Union() ) ;
+    
+            // save the Rows flatbuffer to the root flatbuffer
+            Tables::RootBuilder root_builder( builder ) ;
+            root_builder.add_relationData_type( Tables::Relation_Col ) ;
+            root_builder.add_relationData( col.Union() ) ;
+    
+            // save column to buffer and append to the transposed bufferlist
+            auto res = root_builder.Finish() ;
+            builder.Finish( res ) ;
+            const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+            int bufsz      = builder.GetSize() ;
+            ceph::bufferlist bl ;
+            bl.append( fb, bufsz ) ;
+            ::encode( bl, transposed_bl_seq ) ;
+          } //ELSEIF
+          else if( (unsigned)schema->Get(i) == Tables::Data_StringData ) {
+    
+            std::vector< flatbuffers::Offset<flatbuffers::String> > sv ;
+    
+            // extract all of the ith records into an IntData list
+            for( unsigned j = 0; j < rows_data->Length(); j++ ) {
+              auto curr_rec           = rows_data->Get(j) ;
+              auto curr_rec_data      = curr_rec->data() ;
+    
+              auto string_col_data_read = static_cast< const Tables::StringData* >( curr_rec_data->Get(i) ) ;
+
+              // assume list of size 1
+              sv.push_back( builder.CreateString( string_col_data_read->data()->Get(0) ) ) ;
+            }
+            auto sv_fb = builder.CreateVector( sv ) ;
+            auto string_col_data = Tables::CreateStringData( builder, sv_fb ) ;
+            auto col_name = builder.CreateString( schema_read->Get(i)->str() ) ;
+    
+            auto col = CreateCol(
+              builder,
+              0,
+              0,
+              col_name,
+              (uint8_t)i,
+              nrows_read,
+              RIDs,
+              Tables::Data_StringData,
+              string_col_data.Union() ) ;
+    
+            // save the Rows flatbuffer to the root flatbuffer
+            Tables::RootBuilder root_builder( builder ) ;
+            root_builder.add_relationData_type( Tables::Relation_Col ) ;
+            root_builder.add_relationData( col.Union() ) ;
+    
+            // save column to buffer and append to the transposed bufferlist
+            auto res = root_builder.Finish() ;
+            builder.Finish( res ) ;
+            const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+            int bufsz      = builder.GetSize() ;
+            ceph::bufferlist bl ;
+            bl.append( fb, bufsz ) ;
+            ::encode( bl, transposed_bl_seq ) ;
+          } //ELSEIF
+          else {
+            CLS_LOG( 20, "sky_transform transpose : unrecognized data_type = %i", (unsigned)schema->Get(i) ) ;
+          } //ELSE
+        } //FOR
+
+        for( unsigned int i = 0; i < rows_data->Length(); i++ ) {
+          CLS_LOG( 20, "sky_transform transpose : rid = %i", rids_read->Get(i) ) ;
+    
+          auto curr_rec           = rows_data->Get(i) ;
+          auto curr_rec_data      = curr_rec->data() ;
+          auto curr_rec_data_type = curr_rec->data_type() ;
+    
+          for( unsigned int j = 0; j < curr_rec_data->Length(); j++ ) {
+            // column of ints
+            if( (unsigned)curr_rec_data_type->Get(j) == Tables::Data_IntData ) {
+              //std::cout << "int" << "\t" ;
+              auto int_col_data = static_cast< const Tables::IntData* >( curr_rec_data->Get(j) ) ;
+              CLS_LOG( 20, "sky_transform transpose : %i", int_col_data->data()->Get(0) ) ;
+            }
+            // column of floats
+            else if( (unsigned)curr_rec_data_type->Get(j) == Tables::Data_FloatData ) {
+              //std::cout << "float" << "\t" ;
+              auto float_col_data = static_cast< const Tables::FloatData* >( curr_rec_data->Get(j) ) ;
+              CLS_LOG( 20, "sky_transform transpose : %6.6f", float_col_data->data()->Get(0) ) ;
+            }
+            // column of strings
+            else if( (unsigned)curr_rec_data_type->Get(j) == Tables::Data_StringData ) {
+              //std::cout << "str" << "\t" ;
+              auto string_col_data = static_cast< const Tables::StringData* >( curr_rec_data->Get(j) ) ;
+              CLS_LOG( 20, "sky_transform transpose : %s", string_col_data->data()->Get(0)->str().c_str() ) ;
+            }
+            else {
+              CLS_LOG( 20, "sky_transform transpose : execute_query: unrecognized row_data_type = %i", 
+                           (unsigned)curr_rec_data_type->Get(j) ) ;
+            }
+          } //FOR
+        } //FOR
+      } // Relation_Rows
+    
+      else if( data_type == Tables::Relation_Col ) {
+        CLS_LOG( 20, "sky_transform transpose : data_type == Tables::Relation_Col" ) ;
+
+        // unpack Col
+        auto col = static_cast< const Tables::Col* >( root->relationData() ) ;
+        auto col_name_read  = col->col_name() ;
+        auto col_index_read = col->col_name() ;
+        auto nrows_read     = col->nrows() ;
+        auto rids_read      = col->RIDs() ;
+        auto col_data_type  = col->data_type() ; // type of Data
+        auto col_data       = col->data() ; // Data
+    
+        CLS_LOG( 20, "sky_transform transpose : col_name_read->str()  : %s", col_name_read->str().c_str()  ) ;
+        CLS_LOG( 20, "sky_transform transpose : col_index_read->str() : %s", col_index_read->str().c_str() ) ;
+        CLS_LOG( 20, "sky_transform transpose : nrows_read            : %i", (unsigned)nrows_read  ) ;
+
+        if( counter == 0 ) {
+          rows_nrows = nrows_read ;
+
+          // all RIDs should be the same
+          for( unsigned int i = 0; i < rids_read->Length(); i++ ) {
+            rows_rids_vect.push_back( rids_read->Get(i) ) ;
+          }
+
+          // create initial Records for each row
+          if( (unsigned)col_data_type == Tables::Data_IntData ) {
+            auto col_data_read = static_cast< const Tables::IntData* >( col_data ) ;
+            for( unsigned int i = 0; i < col_data_read->data()->Length(); i++ ) {
+              CLS_LOG( 20, "sky_transform transpose : %i", col_data_read->data()->Get(i) ) ;
+              col_ints.push_back( col_data_read->data()->Get(i) ) ;
+            }
+            rows_meta_schema.push_back( (unsigned)0 ) ;
+          }
+          else if( (unsigned)col_data_type == Tables::Data_FloatData ) {
+            auto col_data_read = static_cast< const Tables::FloatData* >( col_data ) ;
+            for( unsigned int i = 0; i < col_data_read->data()->Length(); i++ ) {
+              CLS_LOG( 20, "sky_transform transpose : %6.6f", col_data_read->data()->Get(i) ) ;
+              col_floats.push_back( col_data_read->data()->Get(i) ) ;
+            }
+            rows_meta_schema.push_back( (unsigned)1 ) ;
+          }
+          else if( (unsigned)col_data_type == Tables::Data_StringData ) {
+            auto col_data_read = static_cast< const Tables::StringData* >( col_data ) ;
+            for( unsigned int i = 0; i < col_data_read->data()->Length(); i++ ) {
+              CLS_LOG( 20, "sky_transform transpose : %s", col_data_read->data()->Get(i)->str().c_str() ) ;
+              col_strs.push_back( col_data_read->data()->Get(i)->str() ) ;
+            }
+            rows_meta_schema.push_back( (unsigned)2 ) ;
+          }
+          else {
+            CLS_LOG( 20, "sky_transform transpose : unrecognized column data type '%i'", (unsigned)col_data_type ) ;
+          }
+        }
+
+        CLS_LOG( 20, "sky_transform transpose : add to rows_schema" ) ;
+        CLS_LOG( 20, "sky_transform transpose : add to rows_record_data_type_vect" ) ;
+        rows_schema.push_back( rows_builder.CreateString( col_name_read ) ) ;
+        rows_record_data_type_vect.push_back( col_data_type ) ;
+
+      } // Relation_Cols
+
+      else {
+        CLS_LOG( 20, "sky_transform transpose : unrecognized layout" ) ;
+      }
+    } // FOR
+
+    all_ints.push_back( col_ints ) ;
+    all_floats.push_back( col_floats ) ;
+    all_strs.push_back( col_strs ) ;
+
+    counter++ ;
+  } // WHILE
+
+  CLS_LOG( 20, "sky_transform transpose : ...done transpose." ) ;
+  return transposed_bl_seq ;
+} //TRANSPOSE
 
 void __cls_init()
 {

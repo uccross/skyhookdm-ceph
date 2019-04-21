@@ -41,32 +41,7 @@
     exit(1); \
   } } while (0)
 
-struct spj_query_op {
-  std::string oid ;
-  std::string pool ;
-  std::vector< std::string > select_atts ;
-  std::vector< std::string > from_rels ;
-  std::vector< std::string > where_preds ;
-} ;
-
-struct transform_op {
-  std::string oid ;
-  std::string pool ;
-  std::string table_name ;
-  uint64_t transform_type ;
-  uint64_t layout ; //0=Rows,1=Col
-
-  // offsets of columns in bufferlist contained in oid object
-  std::vector< uint64_t > bloffs ;
-
-  // CODES for transform_type
-  // 0 --> transpose
-} ;
-
-void execute_transform( transform_op ) ;
-void execute_query( spj_query_op ) ;
-librados::bufferlist transpose( librados::bufferlist, transform_op ) ;
-librados::bufferlist set_rows() ;
-void print_stuff() ;
+int print_stuff() ;
+ceph::bufferlist transpose( cls_method_context_t, ceph::bufferlist, transform_op ) ;
 
 #endif

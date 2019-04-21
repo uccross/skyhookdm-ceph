@@ -329,4 +329,61 @@ struct idx_op {
 };
 WRITE_CLASS_ENCODER(idx_op)
 
+struct transform_op {
+  std::string oid ;
+  std::string pool ;
+  std::string table_name ;
+  uint64_t transform_type ;
+  uint64_t layout ; //0=Rows,1=Col
+
+  // offsets of columns in bufferlist contained in oid object
+  std::vector< uint64_t > bloffs ;
+
+  // CODES for transform_type
+  // 0 --> transpose
+
+  transform_op() {}
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode( bufferlist& bl ) const {
+    ENCODE_START( 1, 1, bl ) ;
+    ::encode( oid, bl ) ;
+    ::encode( pool, bl ) ;
+    ::encode( table_name, bl ) ;
+    ::encode( transform_type, bl ) ;
+    ::encode( layout, bl ) ;
+    ::encode( bloffs, bl ) ;
+    ENCODE_FINISH( bl ) ;
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode( bufferlist::iterator& bl ) {
+    DECODE_START( 1, bl ) ;
+    ::decode( oid, bl ) ;
+    ::decode( pool, bl ) ;
+    ::decode( table_name, bl ) ;
+    ::decode( transform_type, bl ) ;
+    ::decode( layout, bl ) ;
+    ::decode( bloffs, bl ) ;
+    DECODE_FINISH( bl ) ;
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("transform op:");
+    s.append( "oid            = " + oid ) ;
+    s.append( "pool           = " + pool ) ;
+    s.append( "table_name     = " + table_name ) ;
+    s.append( "transform_type = " + transform_type ) ;
+    s.append( "bloffs:" ) ;
+    for( unsigned int i = 0; i < bloffs.size(); i++ ) {
+      std::string a ;
+      a = "" + bloffs[i] ;
+      s.append( a ) ;
+    }
+    return s;
+  }
+} ;
+WRITE_CLASS_ENCODER( transform_op )
+
 #endif
