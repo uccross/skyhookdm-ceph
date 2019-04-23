@@ -66,6 +66,9 @@ int idx_op_idx_type;
 std::string idx_op_idx_schema;
 std::string idx_op_text_delims;
 
+// for runstats op on a given table name
+bool runstats;
+
 // to convert strings <=> skyhook data structs
 Tables::schema_vec sky_tbl_schema;
 Tables::schema_vec sky_qry_schema;
@@ -201,7 +204,7 @@ void worker_build_index(librados::IoCtx *ioctx)
   ioctx->close();
 }
 
-void worker_build_sky_index(librados::IoCtx *ioctx, idx_op op)
+void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op)
 {
   while (true) {
     work_lock.lock();
@@ -211,12 +214,37 @@ void worker_build_sky_index(librados::IoCtx *ioctx, idx_op op)
     }
     std::string oid = target_objects.back();
     target_objects.pop_back();
-    std::cout << "building index... " << oid << std::endl;
+    std::cout << "building index..." << " cols:" << op.idx_schema_str
+              << " oid: " << oid << std::endl;
     work_lock.unlock();
 
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
-    int ret = ioctx->exec(oid, "tabular", "build_sky_index", inbl, outbl);
+    int ret = ioctx->exec(oid, "tabular", "exec_build_sky_index_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+  }
+  ioctx->close();
+}
+
+
+void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op)
+{
+  while (true) {
+    work_lock.lock();
+    if (target_objects.empty()) {
+      work_lock.unlock();
+      break;
+    }
+    std::string oid = target_objects.back();
+    target_objects.pop_back();
+    std::cout << "computing stats...table: " << op.table_name << " oid: "
+              << oid << std::endl;
+    work_lock.unlock();
+
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "exec_runstats_op", inbl, outbl);
     checkret(ret, 0);
   }
   ioctx->close();
@@ -264,8 +292,10 @@ void worker()
 
         using namespace Tables;
 
-        // librados read will return the original obj, which is a seq of bls.
-        // cls read will return an obj with some stats and a seq of bls.
+        // standard librados read will return the raw object data (unprocessed)
+        // cls read (execute) will return processed data from each obj.
+        // in both cases, the results are wrapped as a sequence of bufferlists
+        // currently each bufferlist is a skyhook flatbuf data structure.
 
         bufferlist wrapped_bls;   // to store the seq of bls.
 
@@ -357,7 +387,7 @@ void worker()
     } else {   // older processing code below
 
         ceph::bufferlist bl;
-        // if it was a cls read, first unpack some of the cls processing stats
+        // if it was a cls read, first unpack some of the cls processing info
         if (use_cls) {
             try {
                 ceph::bufferlist::iterator it = s->bl.begin();

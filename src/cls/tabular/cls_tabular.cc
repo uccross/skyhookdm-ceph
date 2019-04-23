@@ -25,9 +25,10 @@ CLS_VER(1,0)
 CLS_NAME(tabular)
 
 cls_handle_t h_class;
-cls_method_handle_t h_query_op;
+cls_method_handle_t h_exec_query_op;
+cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
-cls_method_handle_t h_build_sky_index;
+cls_method_handle_t h_exec_build_sky_index_op;
 
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
@@ -108,7 +109,7 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
  *
  */
 static
-int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     // iterate over all fbs within an obj and create 2 indexes:
     // 1. for each fb, create idx_fb_entry (physical fb offset)
@@ -123,7 +124,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     unsigned int fb_seq_num = Tables::FB_SEQ_NUM_MIN;
     int ret = get_fb_seq_num(hctx, fb_seq_num);
     if (ret < 0) {
-        CLS_ERR("error getting fb_seq_num entry from xattr %d", ret);
+        CLS_ERR("ERROR: exec_build_sky_index_op: fb_seq_num entry from xattr %d", ret);
         return ret;
     }
 
@@ -142,7 +143,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         bufferlist::iterator it = in->begin();
         ::decode(op, it);
     } catch (const buffer::error &err) {
-        CLS_ERR("ERROR: cls_tabular:build_sky_idx: decoding idx_op");
+        CLS_ERR("ERROR: exec_build_sky_index_op decoding idx_op");
         return -EINVAL;
     }
     Tables::schema_vec idx_schema = Tables::schemaFromString(op.idx_schema_str);
@@ -151,7 +152,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     bufferlist wrapped_bls;
     ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
     if (ret < 0) {
-        CLS_ERR("ERROR: cls_tabular:build_sky_index: reading obj. %d", ret);
+        CLS_ERR("ERROR: exec_build_sky_index_op: reading obj. %d", ret);
         return ret;
     }
 
@@ -331,7 +332,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     break;
                 }
                 default: {
-                    CLS_ERR("build_sky_index() %s", (
+                    CLS_ERR("exec_build_sky_index_op: %s", (
                             "Index type unknown. type=" +
                             std::to_string(op.idx_type)).c_str());
                 }
@@ -341,7 +342,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             if (recs_index.size() > op.idx_batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &recs_index);
                 if (ret < 0) {
-                    CLS_ERR("error setting recs index entries %d", ret);
+                    CLS_ERR("exec_build_sky_index_op: error setting recs index entries %d", ret);
                     return ret;
                 }
                 recs_index.clear();
@@ -351,7 +352,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             if (txt_index.size() > op.idx_batch_size) {
                 ret = cls_cxx_map_set_vals(hctx, &txt_index);
                 if (ret < 0) {
-                    CLS_ERR("error setting recs index entries %d", ret);
+                    CLS_ERR("exec_build_sky_index_op: error setting recs index entries %d", ret);
                     return ret;
                 }
                 txt_index.clear();
@@ -362,7 +363,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         if (fbs_index.size() > op.idx_batch_size) {
             ret = cls_cxx_map_set_vals(hctx, &fbs_index);
             if (ret < 0) {
-                CLS_ERR("error setting fbs index entries %d", ret);
+                CLS_ERR("exec_build_sky_index_op: error setting fbs index entries %d", ret);
                 return ret;
             }
             fbs_index.clear();
@@ -374,7 +375,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     if (txt_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &txt_index);
         if (ret < 0) {
-            CLS_ERR("error setting recs index entries %d", ret);
+            CLS_ERR("exec_build_sky_index_op: error setting recs index entries %d", ret);
             return ret;
         }
     }
@@ -383,7 +384,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     if (recs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &recs_index);
         if (ret < 0) {
-            CLS_ERR("error setting recs index entries %d", ret);
+            CLS_ERR("exec_build_sky_index_op: error setting recs index entries %d", ret);
             return ret;
         }
     }
@@ -391,7 +392,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     if (fbs_index.size() > 0) {
         ret = cls_cxx_map_set_vals(hctx, &fbs_index);
         if (ret < 0) {
-            CLS_ERR("error setting fbs index entries %d", ret);
+            CLS_ERR("exec_build_sky_index_op: error setting fbs index entries %d", ret);
             return ret;
         }
     }
@@ -399,7 +400,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     // Update counter and Insert fb_seq_num to xattr
     ret = set_fb_seq_num(hctx, fb_seq_num);
     if(ret < 0) {
-        CLS_ERR("error setting fb_seq_num entry to xattr %d", ret);
+        CLS_ERR("exec_build_sky_index_op: error setting fb_seq_num entry to xattr %d", ret);
         return ret;
     }
 
@@ -412,7 +413,7 @@ int build_sky_index(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     index_exists_marker[key_data_prefix] = empty_bl;
     ret = cls_cxx_map_set_vals(hctx, &index_exists_marker);
     if (ret < 0) {
-        CLS_ERR("error setting index_exists_marker %d", ret);
+        CLS_ERR("exec_build_sky_index_op: error setting index_exists_marker %d", ret);
         return ret;
     }
 
@@ -914,7 +915,8 @@ read_sky_index(
 /*
  * Primary method to process queries (new:flatbufs, old:q_a thru q_f)
  */
-static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static
+int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     int ret = 0;
     uint64_t rows_processed = 0;
@@ -1060,7 +1062,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                         CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                         return ret;
                     }
-                    CLS_LOG(20, "query_op_op: index1 found %lu entries",
+                    CLS_LOG(20, "exec_query_op: index1 found %lu entries",
                             idx1_reads.size());
 
                     reads = idx1_reads;  // populate with reads from index1
@@ -1112,7 +1114,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                                 return ret;
                             }
 
-                            CLS_LOG(20, "query_op_op: index2 found %lu entries",
+                            CLS_LOG(20, "exec_query_op: index2 found %lu entries",
                                     idx2_reads.size());
 
                             // INDEX PLAN (INTERSECTION or UNION)
@@ -1270,7 +1272,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
                     if (reads.empty())
                         CLS_LOG(20,
-                            "query_op_op: WARN: No FBs index entries found.");
+                            "exec_query_op: WARN: No FBs index entries found.");
 
                     // if we found the fb sequence of offsets, then we
                     // no longer need to read the full object.
@@ -1301,7 +1303,7 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
                 std::vector<unsigned int> row_nums = it->second.rnums;
                 std::string msg = "off=" + std::to_string(off)
                                         + ";len=" + std::to_string(len);
-                CLS_LOG(20, "query_op_op: READING %s", msg.c_str());
+                CLS_LOG(20, "exec_query_op: READING %s", msg.c_str());
                 uint64_t start = getns();
                 ret = cls_cxx_read(hctx, off, len, &b);
                 if (ret < 0) {
@@ -1637,19 +1639,50 @@ static int query_op_op(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return 0;
 }
 
+
+static
+int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    // unpack the requested op from the inbl.
+    stats_op op;
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:exec_stats_op: decoding stats_op");
+        return -EINVAL;
+    }
+
+    CLS_LOG(20, "exec_runstats_op: db_schema=%s", op.db_schema.c_str());
+    CLS_LOG(20, "exec_runstats_op: table_name=%s", op.table_name.c_str());
+    CLS_LOG(20, "exec_runstats_op: data_schema=%s", op.data_schema.c_str());
+
+    using namespace Tables;
+    std::string dbschema = op.db_schema;
+    std::string table_name = op.table_name;
+    schema_vec data_schema = schemaFromString(op.data_schema);
+
+
+
+    return 0;
+}
+
 void __cls_init()
 {
   CLS_LOG(20, "Loaded tabular class!");
 
   cls_register("tabular", &h_class);
 
-  cls_register_cxx_method(h_class, "query_op",
-      CLS_METHOD_RD, query_op_op, &h_query_op);
+  cls_register_cxx_method(h_class, "exec_query_op",
+      CLS_METHOD_RD, exec_query_op, &h_exec_query_op);
+
+  cls_register_cxx_method(h_class, "exec_runstats_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, exec_runstats_op, &h_exec_runstats_op);
 
   cls_register_cxx_method(h_class, "build_index",
       CLS_METHOD_RD | CLS_METHOD_WR, build_index, &h_build_index);
 
-  cls_register_cxx_method(h_class, "build_sky_index",
-      CLS_METHOD_RD | CLS_METHOD_WR, build_sky_index, &h_build_sky_index);
+  cls_register_cxx_method(h_class, "exec_build_sky_index_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, exec_build_sky_index_op, &h_exec_build_sky_index_op);
 }
 

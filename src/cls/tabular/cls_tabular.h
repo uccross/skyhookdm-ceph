@@ -132,7 +132,7 @@ struct query_op {
 
   std::string toString() {
     std::string s;
-    s.append("op:");
+    s.append("query_op:");
     s.append(" .fastpath=" + std::to_string(fastpath));
     s.append(" .index_read=" + std::to_string(index_read));
     s.append(" .index_type=" + std::to_string(index_type));
@@ -151,6 +151,46 @@ struct query_op {
   }
 };
 WRITE_CLASS_ENCODER(query_op)
+
+
+struct stats_op {
+
+  std::string db_schema;
+  std::string table_name;
+  std::string data_schema;
+
+  stats_op() {}
+  stats_op(std::string dbscma, std::string tname, std::string dtscma) :
+           db_schema(dbscma), table_name(tname), data_schema(dtscma) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(db_schema, bl);
+    ::encode(table_name, bl);
+    ::encode(data_schema, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(db_schema, bl);
+    ::decode(table_name, bl);
+    ::decode(data_schema, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("stats_op:");
+    s.append(" .db_schema=" + db_schema);
+    s.append(" .table_name=" + table_name);
+    s.append(" .data_schema=" + data_schema);
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(stats_op)
 
 // holds an omap entry containing flatbuffer location
 // this entry type contains physical location info
@@ -337,15 +377,18 @@ struct col_stats {
     int col_type;
     int table_id;
     int stats_level;  // an enum type for sampling density of stats collected
-    int64_t utc;   // last time stats computed
+    int64_t utc;   // last time stats computed, use 0 to set to cur localtime
     string table_name;  // TODO: remove when table ids available.
     std::string col_info_str;  // datatype, etc. from col info struct.
+    std::string min_val;
+    std::string max_val;
     unsigned int nbins;
     std::vector<int> hist;  // TODO: should support uint type also
 
     col_stats() {}
     col_stats(int cid, int type, int tid, int level, int64_t cur_time,
-              std::string tname, std::string cinfo, unsigned n, std::vector<int> h) :
+              std::string tname, std::string cinfo, std::string min,
+              std::string max, unsigned num_bins, std::vector<int> h) :
         col_id(cid),
         col_type(type),
         table_id(tid),
@@ -353,10 +396,16 @@ struct col_stats {
         utc(cur_time),
         table_name(tname),
         col_info_str(cinfo),
-        nbins(n) {
-            assert (n <= h.size());
+        min_val(min),
+        max_val(max),
+        nbins(num_bins) {
+            assert (nbins <= h.size());
             for (unsigned int i=0; i<nbins; i++) {
                 hist.push_back(h[i]);
+            }
+            if (utc == 0) {
+                std::time_t t = std::time(nullptr);
+                utc = static_cast<long long int>(t);
             }
         }
 
@@ -369,6 +418,8 @@ struct col_stats {
         ::encode(utc, bl);
         ::encode(table_name, bl);
         ::encode(col_info_str, bl);
+        ::encode(min_val, bl);
+        ::encode(max_val, bl);
         ::encode(nbins, bl);
         for (unsigned int i=0; i<nbins; i++) {
             ::encode(hist[i], bl);
@@ -386,6 +437,8 @@ struct col_stats {
         ::decode(utc, bl);
         ::decode(table_name, bl);
         ::decode(col_info_str, bl);
+        ::decode(min_val, bl);
+        ::decode(max_val, bl);
         ::decode(nbins, bl);
         for (unsigned int i=0; i<nbins; i++) {
             int tmp;
@@ -404,6 +457,8 @@ struct col_stats {
         s.append("col_stats.utc=" + std::to_string(utc));
         s.append("col_stats.table_name=" + table_name);
         s.append("col_stats.col_info_str=" + col_info_str);
+        s.append("col_stats.min_val=" + min_val);
+        s.append("col_stats.max_val=" + max_val);
         s.append("col_stats.nbins=" + std::to_string(nbins));
         s.append("col_stats.hist<");
         for (unsigned int i=0; i<nbins; i++) {

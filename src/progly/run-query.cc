@@ -123,6 +123,7 @@ int main(int argc, char **argv)
     ("index-delims", po::value<std::string>(&text_index_delims)->default_value(""), "Use delim for text indexes (def=whitespace")
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
+    ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -276,10 +277,16 @@ int main(int argc, char **argv)
     boost::to_upper(index2_cols);
     boost::to_upper(project_cols);
 
-    assert (!table_name.empty());
+    // current minimum required info for formulating IO requests.
     assert (!db_schema.empty());
+    assert (!table_name.empty());
+    assert (!data_schema.empty());
+
     if(index_create or index_read) {
         assert (!index_cols.empty());
+        assert (use_cls);
+    }
+    if (runstats) {
         assert (use_cls);
     }
 
@@ -505,7 +512,7 @@ int main(int argc, char **argv)
     exit(1);
   }  // end verify query params
 
-  // launch index creation for flatbufs here.
+  // launch index creation on given table and cols here.
   if (query == "flatbuf" && index_create) {
 
     // create idx_op for workers
@@ -522,7 +529,30 @@ int main(int argc, char **argv)
       auto ioctx = new librados::IoCtx;
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
-      threads.push_back(std::thread(worker_build_sky_index, ioctx, op));
+      threads.push_back(std::thread(worker_exec_build_sky_index_op, ioctx, op));
+    }
+
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    return 0;
+  }
+
+
+  // launch run statistics on given table here.
+  if (query == "flatbuf" && runstats) {
+
+    // create idx_op for workers
+    stats_op op(qop_db_schema, qop_table_name, qop_data_schema);
+
+    // kick off the workers
+    std::vector<std::thread> threads;
+    for (int i = 0; i < wthreads; i++) {
+      auto ioctx = new librados::IoCtx;
+      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+      checkret(ret, 0);
+      threads.push_back(std::thread(worker_exec_runstats_op, ioctx, op));
     }
 
     for (auto& thread : threads) {
@@ -599,7 +629,7 @@ int main(int argc, char **argv)
         ceph::bufferlist inbl;
         ::encode(op, inbl);
         int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "query_op", inbl, &s->bl);
+            "tabular", "exec_query_op", inbl, &s->bl);
         checkret(ret, 0);
       } else {
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);

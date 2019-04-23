@@ -99,6 +99,8 @@ extern int idx_op_idx_type;
 extern std::string idx_op_idx_schema;
 extern std::string idx_op_text_delims;
 
+extern bool runstats;
+
 // to convert strings <=> skyhook data structs
 extern Tables::schema_vec sky_tbl_schema;
 extern Tables::schema_vec sky_qry_schema;
@@ -128,6 +130,7 @@ extern std::condition_variable work_cond;
 extern bool stop;
 
 void worker_build_index(librados::IoCtx *ioctx);
-void worker_build_sky_index(librados::IoCtx *ioctx, idx_op op);
+void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op);
+void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op);
 void worker();
 void handle_cb(librados::completion_t cb, void *arg);
