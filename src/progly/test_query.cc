@@ -131,7 +131,7 @@ class SkyhookQuery : public ::testing::Test {
           bufferlist inbl;
           ::encode(op, inbl);
           int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "query_op", inbl, &s->bl);
+            "tabular", "exec_query_op", inbl, &s->bl);
           ASSERT_GE(ret, 0);
           s->c->wait_for_complete();
           ret = s->c->get_return_value();
