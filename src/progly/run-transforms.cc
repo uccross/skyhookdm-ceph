@@ -15,6 +15,7 @@
 #include "cls/tabular/cls_tabular.h"
 #include "cls/tabular/cls_tabular_utils.h"
 #include "include/rados/librados.hpp"
+#include "query_utils.h"
 
 namespace po = boost::program_options ;
 
@@ -31,6 +32,7 @@ void set_col0( std::string ) ;
 void set_col1( std::string ) ;
 void set_col2( std::string ) ;
 void execute_query( spj_query_op ) ;
+void execute_query2( spj_query_op ) ;
 
 int main( int argc, char **argv ) {
   std::cout << "in run-transforms..." << std::endl ;
@@ -180,6 +182,48 @@ int main( int argc, char **argv ) {
   execute_query( print_rows ) ;
   std::cout << "=================================" << std::endl ;
 // ...................................... //
+
+  std::cout << "==============================" << std::endl ; 
+  spj_query_op rowtest0 ;
+  rowtest0.oid = "atable" ;
+  rowtest0.pool = "tpchflatbuf" ;
+  execute_query2( rowtest0 ) ;
+
+  std::cout << "==============================" << std::endl ; 
+  spj_query_op rowtest1 ;
+  rowtest1.oid = "atable" ;
+  rowtest1.pool = "tpchflatbuf" ;
+  rowtest1.select_atts.push_back( "att2" ) ;
+  execute_query2( rowtest1 ) ;
+
+  std::cout << "==============================" << std::endl ; 
+  spj_query_op rowtest2 ;
+  rowtest2.oid = "atable" ;
+  rowtest2.pool = "tpchflatbuf" ;
+  rowtest2.select_atts.push_back( "att0" ) ;
+  rowtest2.select_atts.push_back( "att2" ) ;
+  execute_query2( rowtest2 ) ;
+
+  std::cout << "==============================" << std::endl ; 
+  spj_query_op coltest0 ;
+  coltest0.oid = "atable_transposed" ;
+  coltest0.pool = "tpchflatbuf" ;
+  execute_query2( coltest0 ) ;
+
+  std::cout << "==============================" << std::endl ; 
+  spj_query_op coltest1 ;
+  coltest1.oid = "atable_transposed" ;
+  coltest1.pool = "tpchflatbuf" ;
+  coltest1.select_atts.push_back( "att2" ) ;
+  execute_query2( coltest1 ) ;
+
+  std::cout << "==============================" << std::endl ; 
+  spj_query_op coltest2 ;
+  coltest2.oid = "atable_transposed" ;
+  coltest2.pool = "tpchflatbuf" ;
+  coltest2.select_atts.push_back( "att0" ) ;
+  coltest2.select_atts.push_back( "att2" ) ;
+  execute_query2( coltest2 ) ;
 
   return 0 ;
 }
@@ -773,3 +817,41 @@ void execute_query( spj_query_op q_op ) {
 
   ioctx.close() ;
 } // EXECUTE QUERY
+
+
+// =============================== //
+//          EXECUTE QUERY 2        //
+// =============================== //
+void execute_query2( spj_query_op q_op ) {
+  std::cout << "in execute_query2..." << std::endl ;
+  std::cout << "q_op.oid         : "  << q_op.oid         << std::endl ;
+  std::cout << "q_op.pool        : "  << q_op.pool        << std::endl ;
+  std::cout << "q_op.select_atts : "  << q_op.select_atts << std::endl ;
+  std::cout << "q_op.from_rels   : "  << q_op.from_rels   << std::endl ;
+  std::cout << "q_op.where_preds : "  << q_op.where_preds << std::endl ;
+
+  flatbuffers::FlatBufferBuilder res_builder( 1024 ) ;
+  librados::bufferlist wrapped_bl_seq ;
+
+  // connect to rados
+  librados::Rados cluster;
+  cluster.init(NULL);
+  cluster.conf_read_file(NULL);
+  int ret = cluster.connect();
+  checkret(ret, 0);
+
+  // open pool
+  librados::IoCtx ioctx ;
+  ret = cluster.ioctx_create( q_op.pool.c_str(), ioctx ) ;
+  checkret( ret, 0 ) ;
+
+  // read bl_seq
+  int num_bytes_read = ioctx.read( q_op.oid.c_str(), wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
+  std::cout << "num_bytes_read : " << num_bytes_read << std::endl ;
+
+  // process data
+  ret = process_fb_union( res_builder, wrapped_bl_seq, q_op.select_atts ) ;
+  checkret( ret, 0 ) ;
+
+  ioctx.close() ;
+}
