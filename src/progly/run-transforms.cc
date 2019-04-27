@@ -32,7 +32,7 @@ void set_col0( std::string ) ;
 void set_col1( std::string ) ;
 void set_col2( std::string ) ;
 void execute_query( spj_query_op ) ;
-void execute_query2( spj_query_op ) ;
+void execute_query2( spj_query_op, std::string ) ;
 
 int main( int argc, char **argv ) {
   std::cout << "in run-transforms..." << std::endl ;
@@ -183,47 +183,82 @@ int main( int argc, char **argv ) {
   std::cout << "=================================" << std::endl ;
 // ...................................... //
 
-  std::cout << "==============================" << std::endl ; 
-  spj_query_op rowtest0 ;
-  rowtest0.oid = "atable" ;
-  rowtest0.pool = "tpchflatbuf" ;
-  execute_query2( rowtest0 ) ;
+//  std::cout << "==============================" << std::endl ; 
+//  spj_query_op rowtest0 ;
+//  rowtest0.oid = "atable" ;
+//  rowtest0.pool = "tpchflatbuf" ;
+//  execute_query2( rowtest0, "rowtest0" ) ;
 
-  std::cout << "==============================" << std::endl ; 
-  spj_query_op rowtest1 ;
-  rowtest1.oid = "atable" ;
-  rowtest1.pool = "tpchflatbuf" ;
-  rowtest1.select_atts.push_back( "att2" ) ;
-  execute_query2( rowtest1 ) ;
-
-  std::cout << "==============================" << std::endl ; 
-  spj_query_op rowtest2 ;
-  rowtest2.oid = "atable" ;
-  rowtest2.pool = "tpchflatbuf" ;
-  rowtest2.select_atts.push_back( "att0" ) ;
-  rowtest2.select_atts.push_back( "att2" ) ;
-  execute_query2( rowtest2 ) ;
+//  std::cout << "==============================" << std::endl ; 
+//  spj_query_op rowtest1 ;
+//  rowtest1.oid = "atable" ;
+//  rowtest1.pool = "tpchflatbuf" ;
+//  rowtest1.select_atts.push_back( "att2" ) ;
+//  execute_query2( rowtest1, "rowtest1" ) ;
+//
+//  std::cout << "==============================" << std::endl ; 
+//  spj_query_op rowtest2 ;
+//  rowtest2.oid = "atable" ;
+//  rowtest2.pool = "tpchflatbuf" ;
+//  rowtest2.select_atts.push_back( "att0" ) ;
+//  rowtest2.select_atts.push_back( "att2" ) ;
+//  execute_query2( rowtest2, "rowtest2" ) ;
 
   std::cout << "==============================" << std::endl ; 
   spj_query_op coltest0 ;
   coltest0.oid = "atable_transposed" ;
   coltest0.pool = "tpchflatbuf" ;
-  execute_query2( coltest0 ) ;
+  execute_query2( coltest0, "coltest0" ) ;
 
-  std::cout << "==============================" << std::endl ; 
-  spj_query_op coltest1 ;
-  coltest1.oid = "atable_transposed" ;
-  coltest1.pool = "tpchflatbuf" ;
-  coltest1.select_atts.push_back( "att2" ) ;
-  execute_query2( coltest1 ) ;
+//  std::cout << "==============================" << std::endl ; 
+//  spj_query_op coltest1 ;
+//  coltest1.oid = "atable_transposed" ;
+//  coltest1.pool = "tpchflatbuf" ;
+//  coltest1.select_atts.push_back( "att2" ) ;
+//  execute_query2( coltest1, "coltest1" ) ;
+//
+//  std::cout << "==============================" << std::endl ; 
+//  spj_query_op coltest2 ;
+//  coltest2.oid = "atable_transposed" ;
+//  coltest2.pool = "tpchflatbuf" ;
+//  coltest2.select_atts.push_back( "att0" ) ;
+//  coltest2.select_atts.push_back( "att2" ) ;
+//  execute_query2( coltest2, "coltest2" ) ;
 
-  std::cout << "==============================" << std::endl ; 
-  spj_query_op coltest2 ;
-  coltest2.oid = "atable_transposed" ;
-  coltest2.pool = "tpchflatbuf" ;
-  coltest2.select_atts.push_back( "att0" ) ;
-  coltest2.select_atts.push_back( "att2" ) ;
-  execute_query2( coltest2 ) ;
+//  std::cout << "=================================" << std::endl ;
+//  spj_query_op read0 ;
+//  read0.oid = "atable_queryrowtest0" ;
+//  read0.pool = "tpchflatbuf" ;
+//  std::cout << "ROWS query=================================" << std::endl ;
+//  execute_query( read0 ) ;
+//  std::cout << "=================================" << std::endl ;
+
+//  std::cout << "=================================" << std::endl ;
+//  // query
+//  spj_query_op read1 ;
+//  read1.oid = "atable_queryrowtest1" ;
+//  read1.pool = "tpchflatbuf" ;
+//  std::cout << "ROWS query=================================" << std::endl ;
+//  execute_query( read1 ) ;
+//  std::cout << "=================================" << std::endl ;
+//
+//  std::cout << "=================================" << std::endl ;
+//  // query
+//  spj_query_op read2 ;
+//  read2.oid = "atable_queryrowtest2" ;
+//  read2.pool = "tpchflatbuf" ;
+//  std::cout << "ROWS query=================================" << std::endl ;
+//  execute_query( read2 ) ;
+//  std::cout << "=================================" << std::endl ;
+
+  std::cout << "=================================" << std::endl ;
+  // query
+  spj_query_op read3 ;
+  read3.oid = "atable_transposed_querycoltest0" ;
+  read3.pool = "tpchflatbuf" ;
+  std::cout << "ROWS query=================================" << std::endl ;
+  execute_query( read3 ) ;
+  std::cout << "=================================" << std::endl ;
 
   return 0 ;
 }
@@ -690,6 +725,8 @@ void execute_query( spj_query_op q_op ) {
 
   while( it_wrapped.get_remaining() > 0 ) {
 
+    std::cout << "it_wrapped.get_remaining() = " << it_wrapped.get_remaining() << std::endl ;
+
     // grab the Root
     ceph::bufferlist bl ;
     ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
@@ -739,6 +776,8 @@ void execute_query( spj_query_op q_op ) {
         auto curr_rec           = rows_data->Get(i) ;
         auto curr_rec_data      = curr_rec->data() ;
         auto curr_rec_data_type = curr_rec->data_type() ;
+
+        //std::cout << "curr_rec_data->Length() = " << curr_rec_data->Length() << std::endl ;
 
         for( unsigned int j = 0; j < curr_rec_data->Length(); j++ ) {
           // column of ints
@@ -813,6 +852,7 @@ void execute_query( spj_query_op q_op ) {
     else {
       std::cout << "unrecognized data_type '" << data_type << "'" << std::endl ;
     }
+    std::cout << "loop while" << std::endl ;
   } // while
 
   ioctx.close() ;
@@ -822,7 +862,7 @@ void execute_query( spj_query_op q_op ) {
 // =============================== //
 //          EXECUTE QUERY 2        //
 // =============================== //
-void execute_query2( spj_query_op q_op ) {
+void execute_query2( spj_query_op q_op, std::string qtag ) {
   std::cout << "in execute_query2..." << std::endl ;
   std::cout << "q_op.oid         : "  << q_op.oid         << std::endl ;
   std::cout << "q_op.pool        : "  << q_op.pool        << std::endl ;
@@ -851,7 +891,27 @@ void execute_query2( spj_query_op q_op ) {
 
   // process data
   ret = process_fb_union( res_builder, wrapped_bl_seq, q_op.select_atts ) ;
+  //ceph::bufferlist bl_seq = process_fb_union( res_builder, wrapped_bl_seq, q_op.select_atts ) ;
   checkret( ret, 0 ) ;
+
+  const char* fb = reinterpret_cast<char*>( res_builder.GetBufferPointer() ) ;
+  int bufsz      = res_builder.GetSize() ;
+  librados::bufferlist bl ;
+  bl.append( fb, bufsz ) ;
+  std::cout << "execute_query2 bufsz = " << bufsz << std::endl ;
+
+  //// write to flatbuffer
+  ceph::bufferlist bl_seq ;
+  ::encode( bl, bl_seq ) ;
+
+  // write bl_seq to ceph object
+  std::string astr = q_op.oid + "_query" + qtag ;
+  const char *obj_name = astr.c_str() ;
+  bufferlist::iterator p = bl_seq.begin();
+  size_t i = p.get_remaining() ;
+  std::cout << "execute_query2 p.get_remaining() = " << i << std::endl ;
+  ret = ioctx.write( obj_name, bl_seq, i, 0 ) ;
+  checkret(ret, 0);
 
   ioctx.close() ;
 }
