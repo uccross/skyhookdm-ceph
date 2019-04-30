@@ -2038,7 +2038,7 @@ ceph::bufferlist transpose( cls_method_context_t hctx, ceph::bufferlist wrapped_
 
     const char* fb = reinterpret_cast<char*>( rows_builder.GetBufferPointer() ) ;
     int bufsz      = rows_builder.GetSize() ;
-    librados::bufferlist bl ;
+    ceph::bufferlist bl ;
     bl.append( fb, bufsz ) ;
 
     // write to flatbuffer

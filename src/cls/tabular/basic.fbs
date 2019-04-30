@@ -1,0 +1,7 @@
+namespace Tables;
+
+table Basic {
+  data : [ uint64 ] ;
+}
+
+root_type Basic ;
