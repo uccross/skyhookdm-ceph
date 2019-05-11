@@ -22,6 +22,7 @@
 #include <boost/algorithm/string/classification.hpp> // for boost::is_any_of
 #include <boost/algorithm/string/split.hpp> // for boost::split
 #include <boost/algorithm/string.hpp> // for boost::trim
+#include <boost/date_time/gregorian/gregorian.hpp> 
 #include <boost/lexical_cast.hpp>
 
 #include "re2/re2.h"
@@ -112,7 +113,9 @@ enum SkyOpType {
     SOT_in,
     SOT_not_in,
     // DATE (SQL)  (TODO)
+    SOT_before,
     SOT_between,
+    SOT_after,
     // LOGICAL
     SOT_logical_or,
     SOT_logical_and,
@@ -314,6 +317,7 @@ public:
                 case SOT_sum:
                 case SOT_cnt:
                     assert (
+                         col_type==SDT_DATE or (
                             std::is_arithmetic<T>::value
                             && (
                             col_type==SDT_INT8 ||
@@ -328,7 +332,7 @@ public:
                             col_type==SDT_CHAR ||
                             col_type==SDT_UCHAR ||
                             col_type==SDT_FLOAT ||
-                            col_type==SDT_DOUBLE));
+                            col_type==SDT_DOUBLE)));
                     break;
 
                 // LEXICAL (regex)
@@ -351,8 +355,10 @@ public:
                     break;
 
                 // DATE (SQL)
+                case SOT_before:
                 case SOT_between:
-                    assert (TablesErrCodes::OpNotImplemented==0);  // TODO
+                case SOT_after:
+                    assert (col_type==SDT_DATE);  // TODO
                     break;
 
                 // LOGICAL
@@ -679,6 +685,10 @@ bool compare(const bool& val1, const bool& val2, const int& op);
 
 inline
 bool compare(const std::string& val1, const re2::RE2& regx, const int& op);
+
+inline
+bool compare(const std::string& val1, const std::string& val2, const int& op, const int& data_type); //date
+
 
 template <typename T>
 T computeAgg(const T& val, const T& oldval, const int& op) {
