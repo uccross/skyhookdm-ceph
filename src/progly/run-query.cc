@@ -20,6 +20,7 @@ int main(int argc, char **argv)
   unsigned num_objs;
   int wthreads;
   bool build_index;
+  bool transform_db;
   std::string logfile;
   int qdepth;
   std::string dir;
@@ -97,6 +98,7 @@ int main(int argc, char **argv)
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
     ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
+    ("transform-db", po::bool_switch(&transform_db)->default_value(false), "transform DB")
     // query parameters (old)
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
     ("order-key", po::value<int>(&order_key)->default_value(0.0), "order key")
@@ -553,6 +555,25 @@ int main(int argc, char **argv)
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
       threads.push_back(std::thread(worker_exec_runstats_op, ioctx, op));
+    }
+
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    return 0;
+  }
+
+  // launch transform operation here.
+  if (query == "flatbuf" && transform_db) {
+
+    // kick off the workers
+    std::vector<std::thread> threads;
+    for (int i = 0; i < wthreads; i++) {
+      auto ioctx = new librados::IoCtx;
+      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+      checkret(ret, 0);
+      threads.push_back(std::thread(worker_transform_db_op, ioctx));
     }
 
     for (auto& thread : threads) {

@@ -227,6 +227,27 @@ void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op)
   ioctx->close();
 }
 
+void worker_transform_db_op(librados::IoCtx *ioctx)
+{
+  while (true) {
+    work_lock.lock();
+    if (target_objects.empty()) {
+      work_lock.unlock();
+      break;
+    }
+    std::string oid = target_objects.back();
+    target_objects.pop_back();
+    std::cout << "trasforming database:";
+    work_lock.unlock();
+
+    ceph::bufferlist inbl, outbl;
+    int ret = ioctx->exec(oid, "tabular", "transform_db_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+  }
+  ioctx->close();
+}
+
 
 void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op)
 {
