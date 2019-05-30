@@ -20,7 +20,6 @@
 #include "cls_tabular_utils.h"
 #include "cls_tabular.h"
 
-
 CLS_VER(1,0)
 CLS_NAME(tabular)
 
@@ -1670,7 +1669,39 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+    //TODO: Determine the data layout (data_layout = ARROW)
     CLS_LOG(20, "Called transform_db_op!! ");
+
+    // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb
+    bufferlist wrapped_bls;
+    int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+        return ret;
+    }
+
+    using namespace Tables;
+    ceph::bufferlist::iterator it = wrapped_bls.begin();
+    while (it.get_remaining() > 0) {
+        bufferlist bl;
+        try {
+            ::decode(bl, it);  // unpack the next bl (flatbuf)
+        } catch (const buffer::error &err) {
+            CLS_ERR("ERROR: decoding flatbuf from BL");
+            return -EINVAL;
+        }
+
+        // Get our data as contiguous bytes before accessing as flatbuf
+        const char* fb = bl.c_str();
+        size_t fb_size = bl.length();
+        std::shared_ptr<arrow::Table> table;
+        ret = transform_row_to_col(fb, fb_size, &table);
+
+        if (ret != 0) {
+            CLS_ERR("ERROR: transforming flatbuf");
+            return -1;
+        }
+    }
     return 0;
 }
 

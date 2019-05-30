@@ -712,7 +712,9 @@ bool check_predicate_ops_all_equality(predicate_vec index_preds);
 // returning as uint64, which is then used to build a key-data value string
 void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val);
 void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val);
-
+int transform_row_to_col(const char* fb,
+                         const size_t fb_size,
+                         std::shared_ptr<arrow::Table>* table);
 } // end namespace Tables
 
 

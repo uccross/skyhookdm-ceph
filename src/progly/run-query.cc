@@ -18,6 +18,7 @@ int main(int argc, char **argv)
 {
   std::string pool;
   unsigned num_objs;
+  unsigned start_obj;
   int wthreads;
   bool build_index;
   bool transform_db;
@@ -86,6 +87,7 @@ int main(int argc, char **argv)
     ("help,h", "show help message")
     ("pool", po::value<std::string>(&pool)->required(), "pool")
     ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
+    ("start-obj", po::value<unsigned>(&start_obj)->default_value(0), "start object (for transform operation")
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
     ("query", po::value<std::string>(&query)->required(), "query name")
@@ -159,12 +161,20 @@ int main(int argc, char **argv)
 
   timings.reserve(num_objs);
 
-  // generate the names of the objects to process
-  for (unsigned oidx = 0; oidx < num_objs; oidx++) {
-    std::stringstream oid_ss;
-    oid_ss << "obj." << oidx;
-    const std::string oid = oid_ss.str();
-    target_objects.push_back(oid);
+  {
+      unsigned oidx = 0;
+      if (transform_db) {
+          oidx = start_obj;
+          num_objs += start_obj;
+      }
+
+      // generate the names of the objects to process
+      for (; oidx < num_objs; oidx++) {
+          std::stringstream oid_ss;
+          oid_ss << "obj." << oidx;
+          const std::string oid = oid_ss.str();
+          target_objects.push_back(oid);
+      }
   }
 
   if (dir == "fwd") {
@@ -565,7 +575,7 @@ int main(int argc, char **argv)
   }
 
   // launch transform operation here.
-  if (query == "flatbuf" && transform_db) {
+  if (transform_db) {
 
     // kick off the workers
     std::vector<std::thread> threads;
