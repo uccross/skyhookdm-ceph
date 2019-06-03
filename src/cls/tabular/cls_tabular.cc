@@ -96,6 +96,41 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
     return 0;
 }
 
+// Get sky_obj_type from xattr, if not present set to Flatbuffer
+static
+int get_sky_obj_type(cls_method_context_t hctx, int& obj_type) {
+
+    bufferlist bl;
+    int ret = cls_cxx_getxattr(hctx, "sky_obj_type", &bl);
+    if (ret < 0) {
+        return ret;
+    }
+    else {
+        try {
+            bufferlist::iterator it = bl.begin();
+            ::decode(obj_type, it);
+        } catch (const buffer::error &err) {
+            CLS_ERR("ERROR: cls_tabular:get_sky_obj_type: decoding obj_type");
+            return -EINVAL;
+        }
+    }
+    return 0;
+
+}
+
+// Set object type to xattr
+static
+int set_sky_obj_type(cls_method_context_t hctx, int obj_type) {
+
+    bufferlist bl;
+    ::encode(obj_type, bl);
+    int ret = cls_cxx_setxattr(hctx, "sky_obj_type", &bl);
+    if( ret < 0 ) {
+        return ret;
+    }
+    return 0;
+}
+
 /*
  * Build a skyhook index, insert to omap.
  * Index types are
@@ -1669,12 +1704,50 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    //TODO: Determine the data layout (data_layout = ARROW)
-    CLS_LOG(20, "Called transform_db_op!! ");
+    int obj_type = 0;
+    transform_op op;
+
+    // unpack the requested op from the inbl.
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:transform_db_op: decoding transform_op");
+        return -EINVAL;
+    }
+
+    CLS_LOG(20, "transform_db_op: table_name=%s", op.table_name.c_str());
+    CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
+    CLS_LOG(20, "transform_db_op: transform_obj_type=%d", op.required_type);
+
+    assert (op.required_type != SKY_TYPE_INVALID);
+
+    int ret = get_sky_obj_type(hctx, obj_type);
+    if (ret == -ENOENT || ret == -ENODATA) {
+        // If sky_obj_type is not present then insert it in xattr.
+        // Default value is set as a Flatbuffer
+        ret = set_sky_obj_type(hctx, SKY_TYPE_FLATBUFFER);
+        if(ret < 0) {
+            CLS_ERR("transform_db_op: error setting sky_obj_type entry to xattr %d", ret);
+            return ret;
+        }
+    }
+    else if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: sky_obj_type entry from xattr %d", ret);
+        return ret;
+    }
+
+    // Check if transformation is required or not
+    if (obj_type == op.required_type) {
+        // Source and destination object types are same, therefore no tranformation
+        // is required.
+        CLS_LOG(20, "No Transforming required");
+        return 0;
+    }
 
     // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb
     bufferlist wrapped_bls;
-    int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
         return ret;
@@ -1694,13 +1767,27 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // Get our data as contiguous bytes before accessing as flatbuf
         const char* fb = bl.c_str();
         size_t fb_size = bl.length();
-        std::shared_ptr<arrow::Table> table;
-        ret = transform_row_to_col(fb, fb_size, &table);
+        std::string errmsg;
+
+        if (op.required_type == SKY_TYPE_ARROW) {
+            std::shared_ptr<arrow::Table> table;
+            ret = transform_fb_to_arrow(fb, fb_size, errmsg, &table);
+        } else if (op.required_type == SKY_TYPE_FLATBUFFER) {
+            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+            ret = transform_arrow_to_fb(fb, fb_size, errmsg, flatbldr);
+        }
 
         if (ret != 0) {
-            CLS_ERR("ERROR: transforming flatbuf");
-            return -1;
+            CLS_ERR("ERROR: transforming object");
+            return ret;
         }
+    }
+
+    // Set the destination object type
+    ret = set_sky_obj_type(hctx, op.required_type);
+    if(ret < 0) {
+        CLS_ERR("transform_db_op: error setting sky_obj_type entry to xattr %d", ret);
+        return ret;
     }
     return 0;
 }

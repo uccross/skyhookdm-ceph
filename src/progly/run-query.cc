@@ -33,6 +33,8 @@ int main(int argc, char **argv)
   bool mem_constrain;
   bool text_index_ignore_stopwords;
   int index_plan_type;
+  int trans_obj_type;
+  std::string trans_obj_str;
   std::string text_index_delims;
   std::string db_schema;
   std::string table_name;
@@ -128,6 +130,7 @@ int main(int argc, char **argv)
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
+    ("transform-obj-type", po::value<std::string>(&trans_obj_str)->default_value("flatbuffer"), "Destination object type ")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -204,6 +207,15 @@ int main(int argc, char **argv)
     }
 
     return 0;
+  }
+
+  // Get the destination object type for the transform operation
+  if (trans_obj_str == "flatbuffer") {
+    trans_obj_type = SKY_TYPE_FLATBUFFER;
+  } else if (trans_obj_str == "arrow") {
+    trans_obj_type = SKY_TYPE_ARROW;
+  } else {
+    assert(0);
   }
 
   /*
@@ -518,6 +530,7 @@ int main(int argc, char **argv)
     idx_op_idx_schema = schemaToString(sky_idx_schema);
     idx_op_ignore_stopwords = text_index_ignore_stopwords;
     idx_op_text_delims = text_index_delims;
+    trans_op_type = trans_obj_type;
 
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
@@ -577,13 +590,16 @@ int main(int argc, char **argv)
   // launch transform operation here.
   if (transform_db) {
 
+    // create idx_op for workers
+    transform_op op(qop_table_name, qop_data_schema, trans_op_type);
+
     // kick off the workers
     std::vector<std::thread> threads;
     for (int i = 0; i < wthreads; i++) {
       auto ioctx = new librados::IoCtx;
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
-      threads.push_back(std::thread(worker_transform_db_op, ioctx));
+      threads.push_back(std::thread(worker_transform_db_op, ioctx, op));
     }
 
     for (auto& thread : threads) {

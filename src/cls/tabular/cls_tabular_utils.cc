@@ -1471,9 +1471,10 @@ void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val) {
     }
 }
 
-int transform_row_to_col(const char* fb,
-                         const size_t fb_size,
-                         std::shared_ptr<arrow::Table>* table)
+int transform_fb_to_arrow(const char* fb,
+                          const size_t fb_size,
+                          std::string& errmsg,
+                          std::shared_ptr<arrow::Table>* table)
 {
     int errcode = 0;
     sky_root root = getSkyRoot(fb, fb_size);
@@ -1520,6 +1521,15 @@ int transform_row_to_col(const char* fb,
             }
         }
     }
+    return 0;
+}
+
+int transform_arrow_to_fb(const char* fb,
+                          const size_t fb_size,
+                          std::string& errmsg,
+                          flatbuffers::FlatBufferBuilder& flatbldr)
+{
+    // Placeholder function
     return 0;
 }
 

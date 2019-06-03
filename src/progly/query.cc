@@ -66,6 +66,9 @@ int idx_op_idx_type;
 std::string idx_op_idx_schema;
 std::string idx_op_text_delims;
 
+// transform op params
+int trans_op_type;
+
 // for runstats op on a given table name
 bool runstats;
 
@@ -227,7 +230,7 @@ void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op)
   ioctx->close();
 }
 
-void worker_transform_db_op(librados::IoCtx *ioctx)
+void worker_transform_db_op(librados::IoCtx *ioctx, transform_op op)
 {
   while (true) {
     work_lock.lock();
@@ -237,10 +240,11 @@ void worker_transform_db_op(librados::IoCtx *ioctx)
     }
     std::string oid = target_objects.back();
     target_objects.pop_back();
-    std::cout << "trasforming database:";
+    std::cout << "transforming object...oid:" << oid << std::endl;
     work_lock.unlock();
 
     ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
     int ret = ioctx->exec(oid, "tabular", "transform_db_op",
                           inbl, outbl);
     checkret(ret, 0);
