@@ -712,14 +712,6 @@ bool check_predicate_ops_all_equality(predicate_vec index_preds);
 // returning as uint64, which is then used to build a key-data value string
 void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val);
 void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val);
-int transform_fb_to_arrow(const char* fb,
-                          const size_t fb_size,
-                          std::string& errmsg,
-                          std::shared_ptr<arrow::Table>* table);
-int transform_arrow_to_fb(const char* fb,
-                          const size_t fb_size,
-                          std::string& errmsg,
-                          flatbuffers::FlatBufferBuilder& flatbldr);
 } // end namespace Tables
 
 
