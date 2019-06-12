@@ -29,7 +29,7 @@ void exp0_read_obj( std::string ) ;
 int main( int argc, char **argv ) {
   std::cout << "in run-papertests..." << std::endl ;
 
-  std::string PATH = "/home/minion/projects/skyhookdb-ceph/src/progly/kat_stuff/" ;
+  std::string PATH = "/home/minion/projects/skyhookdb-ceph/src/progly/paper0/" ;
 
   // --------------- 1 mb --------------- //
   // read raw data
