@@ -15,6 +15,9 @@
 #include "include/types.h"
 
 #include <arrow/api.h>
+#include <arrow/io/file.h>
+#include <arrow/ipc/writer.h>
+#include <arrow/ipc/reader.h>
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
 

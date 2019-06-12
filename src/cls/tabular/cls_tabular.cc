@@ -1703,90 +1703,238 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
 using namespace Tables;
 
-static int print_arrow_table(std::shared_ptr<arrow::Table>& table)
+static int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
 {
-    int num_col = table->num_columns();
     std::vector<std::shared_ptr<arrow::Array>> array_list;
-    std::string schema_str;
 
-    // Get the names of each column and create required array vector
-    for (int i = 0; i < num_col; i++) {
-        arrow::Type::type type = table->column(i)->type()->id();
-        switch(type) {
-            case arrow::Type::BOOL: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::BooleanArray>(table->column(i)->data()->chunk(0)));
+    /* From Table get the schema and from schema get the skyhook schema
+     * which is stored as a metadata */
+    auto schema = table->schema();
+    auto metadata = schema->metadata();
+    schema_vec sc = schemaFromString(metadata->value(0));
+
+    // Get the names of each column and array builder for each type
+    for (auto it = sc.begin(); it != sc.end(); ++it) {
+        col_info col = *it;
+        std::string col_str (table->column(col.idx)->name());
+        col_str.append(" | ");
+        std::shared_ptr<arrow::Array> array;
+
+        switch(col.type) {
+            case SDT_BOOL: {
+                array = std::static_pointer_cast<arrow::BooleanArray>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::INT8: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::Int8Array>(table->column(i)->data()->chunk(0)));
+            case SDT_INT8: {
+                array = std::static_pointer_cast<arrow::Int8Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::INT16: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::Int16Array>(table->column(i)->data()->chunk(0)));
+            case SDT_INT16: {
+                array = std::static_pointer_cast<arrow::Int16Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::INT32: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::Int32Array>(table->column(i)->data()->chunk(0)));
+            case SDT_INT32: {
+                array = std::static_pointer_cast<arrow::Int32Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::INT64: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::Int64Array>(table->column(i)->data()->chunk(0)));
+            case SDT_INT64: {
+                array = std::static_pointer_cast<arrow::Int64Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::UINT8: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::UInt8Array>(table->column(i)->data()->chunk(0)));
+            case SDT_UINT8: {
+                array = std::static_pointer_cast<arrow::UInt8Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::UINT16: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::UInt16Array>(table->column(i)->data()->chunk(0)));
+            case SDT_UINT16: {
+                array = std::static_pointer_cast<arrow::UInt16Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::UINT32: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::UInt32Array>(table->column(i)->data()->chunk(0)));
+            case SDT_UINT32: {
+                array = std::static_pointer_cast<arrow::UInt32Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::UINT64: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::UInt64Array>(table->column(i)->data()->chunk(0)));
+            case SDT_UINT64: {
+                array = std::static_pointer_cast<arrow::UInt64Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::FLOAT: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::FloatArray>(table->column(i)->data()->chunk(0)));
+            case SDT_CHAR: {
+                array = std::static_pointer_cast<arrow::Int8Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::DOUBLE: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::DoubleArray>(table->column(i)->data()->chunk(0)));
+            case SDT_UCHAR: {
+                array = std::static_pointer_cast<arrow::UInt8Array>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
-            case arrow::Type::STRING: {
-                schema_str.append(table->column(i)->name());
-                schema_str.append(" | ");
-                array_list.emplace_back(std::static_pointer_cast<arrow::StringArray>(table->column(i)->data()->chunk(0)));
+            case SDT_FLOAT: {
+                array = std::static_pointer_cast<arrow::FloatArray>(table->column(col.idx)->data()->chunk(0));
+                break;
+            }
+            case SDT_DOUBLE: {
+                array = std::static_pointer_cast<arrow::DoubleArray>(table->column(col.idx)->data()->chunk(0));
+                break;
+            }
+            case SDT_DATE:
+            case SDT_STRING: {
+                array = std::static_pointer_cast<arrow::StringArray>(table->column(col.idx)->data()->chunk(0));
                 break;
             }
             default: {
-                CLS_LOG(20, "Schema Unsupported type %d", type);
+                CLS_LOG(20, "Schema Unsupported type %s", std::to_string(col.type).c_str());
+                return TablesErrCodes::UnsupportedSkyDataType;
+            }
+        }
+
+        // Get the data from each column
+        for (int i = 0; i < table->column(col.idx)->length(); i++) {
+            switch(col.type) {
+                case SDT_BOOL: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::BooleanArray>(array)->Value(i)));
+                    break;
+                }
+                case SDT_INT8: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::Int8Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_INT16: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::Int16Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_INT32: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::Int32Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_INT64: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::Int64Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_UINT8: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::UInt8Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_UINT16: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::UInt16Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_UINT32: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::UInt32Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_UINT64: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::UInt64Array>(array)->Value(i)));
+                    break;
+                }
+                case SDT_CHAR: {
+                    col_str.push_back((char)std::static_pointer_cast<arrow::Int8Array>(array)->Value(i));
+                    break;
+                }
+                case SDT_UCHAR: {
+                    col_str.push_back((char)std::static_pointer_cast<arrow::UInt8Array>(array)->Value(i));
+                    break;
+                }
+                case SDT_FLOAT: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::FloatArray>(array)->Value(i)));
+                    break;
+                }
+                case SDT_DOUBLE: {
+                    col_str.append(std::to_string(std::static_pointer_cast<arrow::DoubleArray>(array)->Value(i)));
+                    break;
+                }
+                case SDT_DATE:
+                case SDT_STRING: {
+
+                    col_str.append(std::static_pointer_cast<arrow::StringArray>(array)->GetString(i));
+                    break;
+                }
+                default: {
+                    CLS_LOG(20, "Row Unsupported type %s", std::to_string(col.type).c_str());
+                    return TablesErrCodes::UnsupportedSkyDataType;
+                }
+            }
+            col_str.append(" | ");
+        }
+        CLS_LOG(20, "%s", col_str.c_str());
+    }
+    return 0;
+}
+
+static int print_arrowbuf_rowwise(std::shared_ptr<arrow::Table>& table)
+{
+    std::vector<std::shared_ptr<arrow::Array>> array_list;
+    std::string schema_str;
+
+    /* From Table get the schema and from schema get the skyhook schema
+     * which is stored as a metadata */
+    auto schema = table->schema();
+    auto metadata = schema->metadata();
+    schema_vec sc = schemaFromString(metadata->value(0));
+
+    // Get the names of each column and create required array vector
+    for (auto it = sc.begin(); it != sc.end(); ++it) {
+        col_info col = *it;
+        schema_str.append(table->column(col.idx)->name());
+        schema_str.append(" | ");
+
+        // Create the builder instances for repsective datatypes
+        switch(col.type) {
+            case SDT_BOOL: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::BooleanArray>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_INT8: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::Int8Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_INT16: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::Int16Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_INT32: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::Int32Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_INT64: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::Int64Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_UINT8: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::UInt8Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_UINT16: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::UInt16Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_UINT32: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::UInt32Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_UINT64: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::UInt64Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_CHAR: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::Int8Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_UCHAR: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::UInt8Array>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_FLOAT: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::FloatArray>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_DOUBLE: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::DoubleArray>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            case SDT_DATE:
+            case SDT_STRING: {
+                array_list.emplace_back(std::static_pointer_cast<arrow::StringArray>(table->column(col.idx)->data()->chunk(0)));
+                break;
+            }
+            default: {
+                CLS_LOG(20, "Schema Unsupported type %s", std::to_string(col.type).c_str());
                 return TablesErrCodes::UnsupportedSkyDataType;
             }
         }
@@ -1796,81 +1944,130 @@ static int print_arrow_table(std::shared_ptr<arrow::Table>& table)
     for (int i = 0; i < table->num_rows(); i++) {
         std::string row_str;
 
-        for (auto it = array_list.begin(); it != array_list.end(); ++it) {
-            arrow::Type::type type = table->column(std::distance(array_list.begin(), it))->type()->id();
-            auto array = *it;
-            switch(type) {
-                case arrow::Type::BOOL: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::BooleanArray>(*it)->Value(i)));
-                    row_str.append(" | ");
+        // For this row get the data from each columns
+        for (auto it = sc.begin(); it != sc.end(); ++it) {
+            col_info col = *it;
+            auto array = array_list[std::distance(sc.begin(), it)];
+            switch(col.type) {
+                case SDT_BOOL: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::BooleanArray>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::INT8: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int8Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_INT8: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int8Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::INT16: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int16Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_INT16: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int16Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::INT32: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int32Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_INT32: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int32Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::INT64: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int64Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_INT64: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::Int64Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::UINT8: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt8Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_UINT8: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt8Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::UINT16: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt16Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_UINT16: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt16Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::UINT32: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt32Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_UINT32: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt32Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::UINT64: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt64Array>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_UINT64: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::UInt64Array>(array)->Value(i)));
                     break;
                 }
-                case arrow::Type::FLOAT: {
-                    row_str.append(std::to_string((float)std::static_pointer_cast<arrow::FloatArray>(array)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_CHAR: {
+                    row_str.push_back((char)std::static_pointer_cast<arrow::Int8Array>(array)->Value(i));
                     break;
                 }
-                case arrow::Type::DOUBLE: {
-                    row_str.append(std::to_string(std::static_pointer_cast<arrow::DoubleArray>(*it)->Value(i)));
-                    row_str.append(" | ");
+                case SDT_UCHAR: {
+                    row_str.push_back((char)std::static_pointer_cast<arrow::UInt8Array>(array)->Value(i));
                     break;
                 }
-                case arrow::Type::STRING: {
-                    row_str.append(std::static_pointer_cast<arrow::StringArray>(*it)->GetString(i));
-                    row_str.append(" | ");
+                case SDT_FLOAT: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::FloatArray>(array)->Value(i)));
+                    break;
+                }
+                case SDT_DOUBLE: {
+                    row_str.append(std::to_string(std::static_pointer_cast<arrow::DoubleArray>(array)->Value(i)));
+                    break;
+                }
+                case SDT_DATE:
+                case SDT_STRING: {
+                    row_str.append(std::static_pointer_cast<arrow::StringArray>(array)->GetString(i));
                     break;
                 }
                 default: {
-                    CLS_LOG(20, "Row Unsupported type");
+                    CLS_LOG(20, "Row Unsupported type %s", std::to_string(col.type).c_str());
                     return TablesErrCodes::UnsupportedSkyDataType;
                 }
             }
+            row_str.append(" | ");
         }
-        CLS_LOG(20, "Row %s", row_str.c_str());
-        std::string str = std::to_string((float)32.000);
-        CLS_LOG(20, "%s", str.c_str());
-
+        CLS_LOG(20, "%s", row_str.c_str());
     }
+    return 0;
+}
+
+#define ARROWFILE "/tmp/skyhook.arrow"
+
+static
+int read_arrow_from_file(std::shared_ptr<arrow::Table>* table)
+{
+    CLS_LOG(20, "Reading arrow from file %s", ARROWFILE);
+
+    // Initialization related to reading from a file
+    std::shared_ptr<arrow::io::ReadableFile> in_file;
+    std::shared_ptr<arrow::ipc::RecordBatchFileReader> reader;
+    arrow::io::ReadableFile::Open(ARROWFILE, &in_file);
+    arrow::ipc::RecordBatchFileReader::Open(in_file.get(), &reader);
+
+    // Initilaization related to read to apache arrow
+    std::vector<std::shared_ptr<arrow::RecordBatch>> batch_vec;
+
+    for (int i = 0; i < reader->num_record_batches(); ++i) {
+        std::shared_ptr<arrow::RecordBatch> chunk;
+        reader->ReadRecordBatch(i, &chunk);
+        batch_vec.push_back(chunk);
+    }
+    arrow::Table::FromRecordBatches(batch_vec, table);
+    return 0;
+}
+
+static
+int write_arrow_to_file(const std::shared_ptr<arrow::Table> &table)
+{
+    CLS_LOG(20, "Writing arrow to file %s", ARROWFILE);
+
+    // Get the table ptr
+    arrow::Table *raw_table = table.get();
+
+    // Initilization realted to writing to the the file
+    std::shared_ptr<arrow::io::OutputStream> out;
+    arrow::io::FileOutputStream::Open(ARROWFILE, &out);
+    std::shared_ptr<arrow::ipc::RecordBatchWriter> writer;
+    arrow::io::OutputStream *raw_out = out.get();
+    arrow::ipc::RecordBatchFileWriter::Open(raw_out, raw_table->schema(), &writer);
+
+    // Initilization related to reading from arrow
+    arrow::TableBatchReader reader(*raw_table);
+    std::shared_ptr<arrow::RecordBatch> batch;
+
+    while(true) {
+        reader.ReadNext(&batch);
+        if (batch == nullptr) break;
+        writer->WriteRecordBatch(*batch);
+    }
+    writer->Close();
     return 0;
 }
 
@@ -1891,6 +2088,10 @@ int transform_fb_to_arrow(const char* fb,
     std::vector<arrow::ArrayBuilder *> builder_list;
     std::vector<std::shared_ptr<arrow::Array>> array_list;
     std::vector<std::shared_ptr<arrow::Field>> schema_vector;
+    std::shared_ptr<arrow::KeyValueMetadata> metadata (new arrow::KeyValueMetadata);
+
+    // Add skyhook schema as a metadata.
+    metadata->Append("schema_vec", root.schema);
 
     for (auto it=sc.begin(); it != sc.end() && !errcode; ++it) {
         col_info col = *it;
@@ -2085,11 +2286,12 @@ int transform_fb_to_arrow(const char* fb,
         delete builder;
     }
 
-    // Generate schema from schema vector
+    // Generate schema from schema vector and add the metadata
     auto schema = std::make_shared<arrow::Schema>(schema_vector);
+    auto new_schema = schema->AddMetadata(metadata);
 
     // Finally, create a arrow table from schema and array vector
-    *table = arrow::Table::Make(schema, array_list);
+    *table = arrow::Table::Make(new_schema, array_list);
 
     return errcode;
 }
@@ -2181,7 +2383,19 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 return ret;
             }
 
-            ret = print_arrow_table(table);
+            ret = print_arrowbuf_rowwise(table);
+            if (ret != 0) {
+                CLS_ERR("ERROR: Printing arrow object rowwise");
+                return ret;
+            }
+
+            // Write arrow to the file
+            write_arrow_to_file(table);
+
+            // Read arrow from the file
+            std::shared_ptr<arrow::Table> read_table;
+            read_arrow_from_file(&read_table);
+            ret = print_arrowbuf_colwise(read_table);
             if (ret != 0) {
                 CLS_ERR("ERROR: Printing object");
                 return ret;
