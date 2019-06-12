@@ -11,7 +11,7 @@
 
 #include <fstream>
 #include "query.h"
-
+#include "../cls/tabular/cls_tabular_utils.h"
 static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   const char* copyupto = std::find(buffer, buffer + buffer_size, 0);
   return std::string(buffer, copyupto);
@@ -144,8 +144,7 @@ static void print_row(const char *row)
   print_lock.unlock();
 }
 
-static void print_fb(const char *fb, size_t fb_size,
-                     vector<Tables::col_info> &schema)
+static void print_fb(const char *fb, size_t fb_size)
 {
     if (quiet)
         return;
@@ -263,6 +262,7 @@ static void add_extra_row_cost(uint64_t cost)
 void worker()
 {
   std::unique_lock<std::mutex> lock(work_lock);
+
   while (true) {
     // wait for work, or done
     if (ready_ios.empty()) {
@@ -322,65 +322,54 @@ void worker()
         while (it.get_remaining() > 0) {
             ceph::bufferlist bl;
             try {
-                ::decode(bl, it);  // unpack the next bl (flatbuf)
+                ::decode(bl, it);  // unpack the next data struct
             } catch (ceph::buffer::error&) {
                 int decode_runquery_noncls = 0;
                 assert(decode_runquery_noncls);
             }
 
-            // get our data as contiguous bytes before accessing as flatbuf
-            const char* fb = bl.c_str();
-            size_t fb_size = bl.length();
-            sky_root root = Tables::getSkyRoot(fb, fb_size);
-
-            // local counter to accumulate nrows in all flatbuffers received.
+            // get our data as contiguous bytes before accessing
+            const char* char_data_ptr = bl.c_str();
+            sky_root root = Tables::getSkyRoot(char_data_ptr, 0);
             rows_returned += root.nrows;
 
-            int ret = 0;
-            if (use_cls) {
-                /* Server side processing already done at this point.
-                 * TODO: any further client-side processing required here,
-                 * such as possibly aggregate global ops here (e.g.,count/sort)
-                 * then convert rows to valid db tuple format.
-                 */
-
-                // server has already applied its predicates, so count all rows
-                // here that pass after applying the remaining global ops.
-                result_count += root.nrows;
-                print_fb(fb, fb_size, sky_qry_schema);
-            } else {
-                // perform any extra project/select/agg if needed.
-                bool more_processing = false;
-                const char *fb_out;
-                size_t fb_out_size;
-                nrows_processed += root.nrows;
-
-                if (projection || sky_qry_preds.size() > 0) more_processing = true;
-
-                if (!more_processing) {  // nothing left to do here.
-                    fb_out = fb;
-                    fb_out_size = fb_size;
-                    result_count += root.nrows;
-                } else {
-                    flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
-                    std::string errmsg;
-                    bool processedOK = true;
-                    ret = processSkyFb(flatbldr, sky_tbl_schema, sky_qry_schema,
-                                       sky_qry_preds, fb, fb_size, errmsg);
-                    if (ret != 0) {
-                        processedOK = false;
-                        std::cerr << "ERROR: run-query() processing flatbuf: "
-                                  << errmsg << endl;
-                        std::cerr << "ERROR: Tables::ErrCodes=" << ret << endl;
-                        assert(processedOK);
-                    }
-                    fb_out = reinterpret_cast<char*>(
-                            flatbldr.GetBufferPointer());
-                    fb_out_size = flatbldr.GetSize();
-                    sky_root root = getSkyRoot(fb_out, fb_out_size);
-                    result_count += root.nrows;
+            // check if we need to do any more processing: project/select/agg
+            // TODO: check for/add global aggs here.
+            bool more_processing = false;
+            if (!use_cls) {
+                if (projection || sky_qry_preds.size() > 0) {
+                    more_processing = true;
                 }
-                print_fb(fb_out, fb_out_size, sky_qry_schema);
+            }
+
+            if (!more_processing) {  // nothing left to do here.
+                result_count += root.nrows;
+                print_fb(char_data_ptr, 0);
+            }
+            else {
+                flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
+                std::string errmsg;
+                int ret = processSkyFb(flatbldr,
+                                       sky_tbl_schema,
+                                       sky_qry_schema,
+                                       sky_qry_preds,
+                                       char_data_ptr,
+                                       0, /* size in bytes unused */
+                                       errmsg);
+                if (ret != 0) {
+                    int more_processing_failure = true;
+                    std::cerr << "ERROR: query.cc: processing flatbuf: "
+                              << errmsg << "\n Tables::ErrCodes=" << ret
+                              << endl;
+                    assert(more_processing_failure);
+                }
+                else {
+                    char_data_ptr = \
+                        reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                    sky_root root = getSkyRoot(char_data_ptr, 0);
+                    result_count += root.nrows;
+                    print_fb(char_data_ptr, 0);
+                }
             }
         } // endloop of processing sequence of encoded bls
 

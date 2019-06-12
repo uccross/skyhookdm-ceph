@@ -29,7 +29,7 @@
 
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
-#include "skyhookv1_generated.h"
+#include "skyhookv2_generated.h"
 
 namespace Tables {
 
@@ -491,7 +491,7 @@ bool compareColInfo(const struct col_info& l, const struct col_info& r) {
 
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
-typedef const flatbuffers::Vector<flatbuffers::Offset<Row>>* row_offs;
+typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
@@ -500,7 +500,7 @@ typedef flexbuffers::Reference row_data_ref;
 // skyhookdb root metadata, refering to a (sub)partition of rows
 // abstracts a partition from its underlying data format/layout
 struct root_table {
-    const int skyhook_version;
+    /*const int skyhook_version;
     int schema_version;
     std::string schema_name;
     std::string table_name;
@@ -508,8 +508,19 @@ struct root_table {
     delete_vector delete_vec;
     row_offs offs;
     uint32_t nrows;
+	*/
 
-    root_table(int skyver, int scver, std::string scname, std::string tname,
+    int32_t data_structure_type;
+    int32_t fb_version;
+    int32_t data_structure_version;
+    std::string table_schema;
+    std::string db_schema;
+    std::string table_name;
+    delete_vector delete_vec;
+    row_offs offs;
+    uint32_t nrows;
+
+    /*root_table(int skyver, int scver, std::string scname, std::string tname,
                std::string sc, delete_vector d, row_offs ro, uint32_t n) :
         skyhook_version(skyver),
         schema_version(scver),
@@ -518,7 +529,20 @@ struct root_table {
         schema(sc),
         delete_vec(d),
         offs(ro),
-        nrows(n) {};
+        nrows(n) {};*/
+
+    root_table(int32_t data_structure_type, int32_t fb_version, int32_t data_structure_version,
+	       std::string table_schema, std::string db_schema, std::string table_name,
+	       delete_vector d, row_offs ro, uint32_t n) :
+	data_structure_type(data_structure_type),
+	fb_version(fb_version),
+	data_structure_version(data_structure_version),
+	table_schema(table_schema),
+	db_schema(db_schema),
+	table_name(table_name),
+	delete_vec(d),
+	offs(ro),
+	nrows(n) {};
 
 };
 typedef struct root_table sky_root;
@@ -625,7 +649,7 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
 sky_root getSkyRoot(const char *fb, size_t fb_size);
-sky_rec getSkyRec(const Tables::Row *rec);
+sky_rec getSkyRec(const Tables::Record *rec);
 
 // print functions (debug only)
 void printSkyRoot(sky_root *r);

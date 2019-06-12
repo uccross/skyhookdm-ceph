@@ -9,9 +9,14 @@
 */
 
 /*
-
-Program takes in file, schema file, number of objects (aka buckets), number of rows till bucket flushes, and number of rows to be read. The main function then enters a while loop till the number of lines are read from the data file. It hashes the bucket number to put in the row, and if the number of rows till the bucket flushes is reached, then the contents of the bucket are "finished", writen to disk, and the bucket is deleted. 
-
+ * The program starts in the main function. The function takes in a data file, 
+ * schema file, number of objects (aka buckets), number of rows till object 
+ * flushes, and total number of rows to be read. The main function then enters 
+ * a while loop till the specified number of lines are read from the data file. 
+ * In the while loop, each data row is parsed, processed, and hashed into a 
+ * bucket. If the number of rows till the bucket flushes is reached or all the 
+ * data rows have been read, then the contents of the bucket are "finished", 
+ * writen to disk, and the bucket is deleted. 
 */
 
 #include <fcntl.h>     // system call open
@@ -21,7 +26,7 @@ Program takes in file, schema file, number of objects (aka buckets), number of r
 #include <map>
 #include <unistd.h>    // for getOpt
 #include <limits.h>
-#include "skyhookv1_generated.h"
+//#include "skyhookv2_generated.h"
 
 #include "cls_tabular_utils.h"
 
@@ -36,7 +41,7 @@ typedef flatbuffers::FlatBufferBuilder fbBuilder;
 typedef flatbuffers::FlatBufferBuilder* fbb;
 typedef flexbuffers::Builder flxBuilder;
 typedef vector<uint8_t> delete_vector;
-typedef vector<flatbuffers::Offset<Row>> rows_vector;
+typedef vector<flatbuffers::Offset<Record>> rows_vector;
 
 typedef struct {
 	uint64_t oid;
@@ -47,12 +52,12 @@ typedef struct {
 	rows_vector *rowsv;
 } bucket_t;
 
-//********** check inputs ***************
+//----------------- check inputs ------------------
 std::vector<std::string> split(const std::string &s, char delim);
 void promptDataFile(ifstream&, string&);
 uint32_t promptIntVariable(string, string);
 void helpMenu();
-//***************************************
+//-------------------------------------------------
 Tables::schema_vec getSchema(vector<int>&, string&);
 uint64_t getNextRID();
 vector<string> getNextRow(ifstream& inFile);
@@ -61,12 +66,12 @@ uint64_t hashCompositeKey(vector<int>, vector<string>);
 uint64_t jumpConsistentHash(uint64_t, uint64_t);
 bucket_t *retrieveBucketFromOID(map<uint64_t, bucket_t *> &, uint64_t);
 void insertRowIntoBucket(fbb, uint64_t, vector<uint64_t> *, vector<uint8_t>, delete_vector *, rows_vector *);
-//********** Finishing flatbuffer **************
+//------------- Finishing flatbuffer --------------
 void flushFlatBuffer(uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr, string schema, uint64_t numOfObjs);
 void finishFlatBuffer(fbb, uint8_t, uint8_t, string, string, delete_vector *, rows_vector *, uint32_t);
 int writeToDisk(uint64_t, uint8_t, bucket_t*, uint64_t);
 void deleteBucket(bucket_t *bucketPtr, fbb fbPtr, delete_vector *deletePtr, rows_vector *rowsPtr);
-//**********************************************
+//-------------------------------------------------
 vector<uint8_t> initializeFlexBuffer(vector<string> parsedRow, Tables::schema_vec schema,vector<uint64_t> *nullbits);
 bucket_t *GetAndInitializeBucket(map<uint64_t, bucket_t *> &FBmap,uint64_t oid,vector<uint64_t> *nullbits,vector<uint8_t> flxPtr);
 
@@ -396,23 +401,23 @@ void getFlxBuffer(flxBuilder *flx, vector<string> parsedRow, Tables::schema_vec 
 					}
                                         case Tables::SDT_INT64:{
                                                 flx->Add(static_cast<int64_t>(stoi(parsedRow[col.idx].c_str())));
-                                                break;
+						break;
                                         } 
 					case Tables::SDT_UINT8: {
                                                 flx->Add(static_cast<uint8_t>(stoul(parsedRow[col.idx].c_str())));
-                                                break;
+						break;
                                         }
 					case Tables::SDT_UINT16: {
                                                 flx->Add(static_cast<uint16_t>(stoul(parsedRow[col.idx].c_str())));
-                                                break;
+						break;
                                         }
 					case Tables::SDT_UINT32: {
                                                 flx->Add(static_cast<uint32_t>(stoul(parsedRow[col.idx].c_str())));
-                                                break;
+						break;
                                         }
                                         case Tables::SDT_UINT64: {
                                                 flx->Add(static_cast<uint64_t>(stoul(parsedRow[col.idx].c_str())));
-                                                break;
+						break;
                                         }
  					case Tables::SDT_CHAR: {
                                                 flx->Add(static_cast<char>(parsedRow[col.idx][0]));
@@ -523,7 +528,7 @@ void insertRowIntoBucket(fbb fbPtr, uint64_t RID, vector<uint64_t> *nullbits, ve
         // Serialize FlexBuffer row into FlatBufferBuilder
         auto flxSerial = fbPtr->CreateVector(flxPtr);
         auto nullbitsSerial = fbPtr->CreateVector(*nullbits);
-        auto rowOffset = CreateRow(*fbPtr, RID, nullbitsSerial, flxSerial);
+        auto rowOffset = CreateRecord(*fbPtr, RID, nullbitsSerial, flxSerial);
         deletePtr->push_back(0);
         rowsPtr->push_back(rowOffset);
 }
@@ -550,20 +555,30 @@ void flushFlatBuffer(uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr, s
         deleteBucket(bucketPtr, fbPtr, deletePtr, rowsPtr);
 }
 
+
+/* TODO: set default version numbers to version fields (i.e. data_structure_type, fb_version, data_structure_version). */
 void finishFlatBuffer(fbb fbPtr, uint8_t skyhook_v, uint8_t schema_v, string table_name, string schema, delete_vector *deletePtr, rows_vector *rowsPtr, uint32_t nrows) {
-        auto table_nameOffset = fbPtr->CreateString(table_name);
-        auto schema_Offset = fbPtr->CreateString(schema);
-        auto delete_vecOffset = fbPtr->CreateVector(*deletePtr);
-        auto rows_vecOffset = fbPtr->CreateVector(*rowsPtr);
-        auto tableOffset = CreateTable(*fbPtr, skyhook_v, schema_v, table_nameOffset, schema_Offset, delete_vecOffset, rows_vecOffset, nrows);
+        auto data_structure_type = skyhook_v;
+        auto fb_version = 2;
+        auto data_structure_version = schema_v;           
+        auto table_schema = fbPtr->CreateString(schema);                
+        auto db_schema = fbPtr->CreateString("*");     
+        auto table_n = fbPtr->CreateString(table_name);               
+        auto delete_vector = fbPtr->CreateVector(*deletePtr);             
+        auto rows = fbPtr->CreateVector(*rowsPtr);
+
+        auto tableOffset = CreateTable(*fbPtr, data_structure_type, fb_version, data_structure_version, table_schema, db_schema, table_n, delete_vector, rows, nrows);
+
         fbPtr->Finish(tableOffset);
-        cout<<"finishflatbuffer\n"<<schema<<"\n";
 }
 
+
+/* TODO: instead of writing objects to disk, write directly to ceph. */
 int writeToDisk(uint64_t oid, uint8_t schema_v, bucket_t *bucketPtr, uint64_t numOfObjs) {
 
 	string table_name = bucketPtr->table_name;
 	fbb fbPtr = bucketPtr->fb;
+
         int buff_size = fbPtr->GetSize();
         const char *fb_ptr_char = reinterpret_cast<char*>(fbPtr->GetBufferPointer());
         bufferlist bl;
