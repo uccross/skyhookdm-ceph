@@ -508,6 +508,13 @@ predicate_vec predsFromString(schema_vec &schema, std::string preds_string) {
                 preds.push_back(p);
                 break;
             }
+            case SDT_DATE: {
+                TypedPredicate<std::string>* p = \
+                        new TypedPredicate<std::string> \
+                        (ci.idx, ci.type, op_type, val);
+                preds.push_back(p);
+                break;
+            }            
             default: assert (TablesErrCodes::UnknownSkyDataType==0);
         }
     }
@@ -662,6 +669,12 @@ std::string predsToString(predicate_vec &preds, schema_vec &schema) {
                         val = p->Val();
                         break;
                     }
+                    case SDT_DATE: {
+                        TypedPredicate<std::string>* p = \
+                            dynamic_cast<TypedPredicate<std::string>*>(*it_prd);
+                        val = p->Val();
+                        break;
+                    }                    
                     default: assert (!val.empty());
                 }
                 preds_str.append(val);
@@ -693,7 +706,9 @@ int skyOpTypeFromString(std::string op) {
     else if (op=="like") op_type = SOT_like;
     else if (op=="in") op_type = SOT_in;
     else if (op=="not_in") op_type = SOT_not_in;
+    else if (op=="before") op_type = SOT_before;    
     else if (op=="between") op_type = SOT_between;
+    else if (op=="after") op_type = SOT_after;     
     else if (op=="logical_or") op_type = SOT_logical_or;
     else if (op=="logical_and") op_type = SOT_logical_and;
     else if (op=="logical_not") op_type = SOT_logical_not;
@@ -725,7 +740,9 @@ std::string skyOpTypeToString(int op) {
     else if (op==SOT_like) op_str = "like";
     else if (op==SOT_in) op_str = "in";
     else if (op==SOT_not_in) op_str = "not_in";
+    else if (op==SOT_before) op_str = "before";
     else if (op==SOT_between) op_str = "between";
+    else if (op==SOT_after) op_str = "after";
     else if (op==SOT_logical_or) op_str = "logical_or";
     else if (op==SOT_logical_and) op_str = "logical_and";
     else if (op==SOT_logical_not) op_str = "logical_not";
@@ -1082,7 +1099,7 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
                 TypedPredicate<std::string>* p= \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
                 string colval = row[p->colIdx()].AsString().str();
-                colpass = compare(colval,p->Val(),p->opType());
+                colpass = compare(colval,p->Val(),p->opType(),p->colType());
                 break;
             }
 
@@ -1210,6 +1227,38 @@ bool compare(const double& val1, const double& val2, const int& op) {
     }
     return false;  // should be unreachable
 }
+
+
+bool compare(const string& val1, const string& val2, const int& op, const int& data_type) {
+switch(data_type){
+    case SDT_DATE:{
+        boost::gregorian::date d1 = boost::gregorian::from_string(val1); // here
+        boost::gregorian::date d2 = boost::gregorian::from_string(val2);
+        switch (op) {
+            case SOT_before: return d1 < d2;
+            case SOT_after: return d1 > d2;            
+            case SOT_leq: return d1 <= d2;
+            case SOT_lt: return d1 < d2;     
+            case SOT_geq: return d1 >= d2;                  
+            case SOT_gt: return d1 > d2;  
+            case SOT_eq: return d1 == d2;
+            case SOT_ne: return d1 != d2;
+            default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+        }
+    }
+    break;
+    case SDT_STRING:
+        
+            if (op == SOT_like) return RE2::PartialMatch(val1, RE2(val2));
+             else {
+                 assert (TablesErrCodes::PredicateComparisonNotDefined==0);               
+             }
+        break;
+    }
+    return false;  // should be unreachable
+}
+
+
 
 bool compare(const bool& val1, const bool& val2, const int& op) {
     switch (op) {
