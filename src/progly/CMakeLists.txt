@@ -1,19 +1,4 @@
 # --------------------------------- #
-add_executable(test_rowstransposecol test_rowstransposecol.cc 
-                                     query_utils.cc 
-                                     ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc
-                                     ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_transform_utils.cc )
-target_link_libraries(test_rowstransposecol librados global ${CMAKE_DL_LIBS}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS test_rowstransposecol DESTINATION bin)
-
-# --------------------------------- #
-add_executable(test_fbvfile test_fbvfile.cc 
-                            ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_test_utils.cc )
-target_link_libraries(test_fbvfile librados global ${CMAKE_DL_LIBS}
-    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
-install(TARGETS test_fbvfile DESTINATION bin)
-
 # --------------------------------- #
 add_executable(run-transforms run-transforms.cc query_utils.cc 
                                                 ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc

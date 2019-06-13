@@ -1,0 +1,8 @@
+--->exp : raw_whole_1mbnum_bytes_read : 1048000duration : 0.0057s
+--->exp : raw_iter_1mbnum_bytes_read : 1746660duration : 0.01062s
+--->exp : flatbuffer_rows_1mbnum_bytes_read : 2794784duration : 0.016991s
+--->exp : flatbuffer_colint_1mbnum_bytes_read : 2794784duration : 0.01438s
+--->exp : raw_whole_10mbnum_bytes_read : 10480000duration : 0.044039s
+--->exp : raw_iter_10mbnum_bytes_read : 17466660duration : 0.068176s
+--->exp : flatbuffer_rows_10mbnum_bytes_read : 27946784duration : 0.092274s
+--->exp : flatbuffer_colint_10mbnum_bytes_read : 27946784duration : 0.082294s
