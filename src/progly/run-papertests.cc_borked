@@ -8,12 +8,6 @@
 *
 */
 
-/*
-bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/paper0/dataset_case1_1mb.txt /home/minion/projects/skyhookdb-ceph/src/progly/paper0/res_test.txt paper_exps 0 test0
-
-bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/paper0/dataset_newline_1mb.txt /home/minion/projects/skyhookdb-ceph/src/progly/paper0/res_test.txt paper_exps 1 test1
-*/
-
 #include <iostream>
 #include <ctime>
 
@@ -85,7 +79,8 @@ int main( int argc, char **argv ) {
     flatbuffer_write_rows( oidname, DATA_PATH, poolname ) ;
   }
   else {
-    std::cout << "unrecognized write_type '" << std::to_string( write_type ) << "'" << std::endl ;
+    std::cout << "unrecognized write_type = " << write_type << std::endl ;
+    exit(1) ;
   }
   std::string res = read_obj( oidname ) ;
   res_file << res << "\n" ;
