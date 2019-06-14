@@ -10,7 +10,6 @@
 
 /*
 bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/paper0/dataset_case1_1mb.txt /home/minion/projects/skyhookdb-ceph/src/progly/paper0/res_test.txt paper_exps 0 test0
-
 bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/paper0/dataset_newline_1mb.txt /home/minion/projects/skyhookdb-ceph/src/progly/paper0/res_test.txt paper_exps 1 test1
 */
 
@@ -60,6 +59,9 @@ int main( int argc, char **argv ) {
   int write_type           = std::atoi( argv[4] ) ;
   std::string oidname      = argv[5] ;
 
+  std::ofstream res_file ;
+  res_file.open( RES_PATH, ios::out | ios::app ) ;
+
   std::cout << "================================" << std::endl ;
   std::cout << "running with params:" << std::endl ;
   std::cout << "DATA_PATH    = " << DATA_PATH << std::endl ;
@@ -68,8 +70,13 @@ int main( int argc, char **argv ) {
   std::cout << "write_type   = " << write_type << std::endl ;
   std::cout << "oidname      = " << oidname << std::endl ;
 
-  std::ofstream res_file ;
-  res_file.open( RES_PATH ) ;
+  res_file << "================================" << std::endl ;
+  res_file << "running with params:" << std::endl ;
+  res_file << "DATA_PATH    = " << DATA_PATH << std::endl ;
+  res_file << "RES_PATH     = " << RES_PATH << std::endl ;
+  res_file << "poolname     = " << poolname << std::endl ;
+  res_file << "write_type   = " << write_type << std::endl ;
+  res_file << "oidname      = " << oidname << std::endl ;
 
   std::cout << "--->exp : " << oidname << std::endl ;
   if( write_type == 0 ) {
