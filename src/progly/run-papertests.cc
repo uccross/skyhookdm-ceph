@@ -69,6 +69,7 @@ int main( int argc, char **argv ) {
   std::cout << "poolname     = " << poolname << std::endl ;
   std::cout << "write_type   = " << write_type << std::endl ;
   std::cout << "oidname      = " << oidname << std::endl ;
+  std::cout << "timestamp    = " << str << std::endl ;
 
   res_file << "================================" << std::endl ;
   res_file << "running with params:" << std::endl ;
@@ -77,6 +78,7 @@ int main( int argc, char **argv ) {
   res_file << "poolname     = " << poolname << std::endl ;
   res_file << "write_type   = " << write_type << std::endl ;
   res_file << "oidname      = " << oidname << std::endl ;
+  res_file << "timestamp    = " << str << std::endl ;
 
   std::cout << "--->exp : " << oidname << std::endl ;
   if( write_type == 0 ) {

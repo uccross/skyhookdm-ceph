@@ -17,3 +17,15 @@ oidname      = test0
 num_bytes_read : 1048000
 duration : 0.006099s
 
+================================
+running with params:
+DATA_PATH    = /home/minion/projects/skyhookdb-ceph/src/progly/paper0/dataset_case1_1mb.txt
+RES_PATH     = /home/minion/projects/skyhookdb-ceph/src/progly/paper0/res_test.txt
+poolname     = paper_exps
+write_type   = 0
+oidname      = test0
+timestamp    = 20190613_190250
+--->exp : test0
+num_bytes_read : 1048000
+duration : 0.00842s
+
