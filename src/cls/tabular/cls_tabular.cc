@@ -177,7 +177,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
         // IDX_FB get the key prefix and key_data (fb sequence num)
         ++fb_seq_num;
-        key_fb_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
+        key_fb_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.db_schema,
                                        root.table_name);
         std::string str_seq_num = Tables::u64tostr(fb_seq_num); // key data
         int len = str_seq_num.length();
@@ -199,7 +199,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
             std::vector<std::string> index_cols;
             index_cols.push_back(Tables::RID_INDEX);
             key_data_prefix = buildKeyPrefix(Tables::SIT_IDX_RID,
-                                             root.schema_name,
+                                             root.db_schema,
                                              root.table_name,
                                              index_cols);
         }
@@ -211,7 +211,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
                 keycols.push_back(it->name);
             }
             key_data_prefix = Tables::buildKeyPrefix(op.idx_type,
-                                                     root.schema_name,
+                                                     root.db_schema,
                                                      root.table_name,
                                                      keycols);
         }
