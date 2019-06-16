@@ -33,8 +33,8 @@ int main(int argc, char **argv)
   bool mem_constrain;
   bool text_index_ignore_stopwords;
   int index_plan_type;
-  int trans_obj_type;
-  std::string trans_obj_str;
+  int trans_layout_type;
+  std::string trans_layout_str;
   std::string text_index_delims;
   std::string db_schema;
   std::string table_name;
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
-    ("transform-obj-type", po::value<std::string>(&trans_obj_str)->default_value("flatbuffer"), "Destination object type ")
+    ("transform-layout-type", po::value<std::string>(&trans_layout_str)->default_value("flatbuffer"), "Destination layout type ")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -210,10 +210,10 @@ int main(int argc, char **argv)
   }
 
   // Get the destination object type for the transform operation
-  if (trans_obj_str == "flatbuffer") {
-    trans_obj_type = SKY_TYPE_FLATBUFFER;
-  } else if (trans_obj_str == "arrow") {
-    trans_obj_type = SKY_TYPE_ARROW;
+  if (trans_layout_str == "flatbuffer") {
+    trans_layout_type = LAYOUT_FLATBUFFER;
+  } else if (trans_layout_str == "arrow") {
+    trans_layout_type = LAYOUT_ARROW;
   } else {
     assert(0);
   }
@@ -530,7 +530,7 @@ int main(int argc, char **argv)
     idx_op_idx_schema = schemaToString(sky_idx_schema);
     idx_op_ignore_stopwords = text_index_ignore_stopwords;
     idx_op_text_delims = text_index_delims;
-    trans_op_type = trans_obj_type;
+    trans_op_type = trans_layout_type;
 
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;

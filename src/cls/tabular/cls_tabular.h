@@ -15,17 +15,44 @@
 #include "include/types.h"
 
 #include <arrow/api.h>
-#include <arrow/io/file.h>
+#include <arrow/io/memory.h>
 #include <arrow/ipc/writer.h>
 #include <arrow/ipc/reader.h>
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
 
-enum sky_obj_type_t {
-    SKY_TYPE_FLATBUFFER = 1,
-    SKY_TYPE_ARROW,
-    SKY_TYPE_INVALID
+#define STREAM_CAPACITY 1024
+#define ARROW_RID_INDEX(cols) (cols)
+#define ARROW_DELVEC_INDEX(cols) (cols + 1)
+
+enum layout_type_t {
+    LAYOUT_FLATBUFFER = 1,
+    LAYOUT_ARROW,
+    LAYOUT_INVALID
 };
+
+enum arrow_metadata_t {
+    METADATA_SKYHOOK_VERSION,
+    METADATA_SCHEMA_VERSION,
+    METADATA_SCHEMA_DATA,
+    METADATA_SCHEMA_NAME,
+    METADATA_TABLE_NAME,
+    METADATA_NUM_ROWS
+};
+
+inline const char* ToString(arrow_metadata_t m)
+{
+    switch (m)
+    {
+        case METADATA_SKYHOOK_VERSION: return "skyhook_version";
+        case METADATA_SCHEMA_VERSION:  return "schema_version";
+        case METADATA_SCHEMA_DATA:     return "schema_data";
+        case METADATA_SCHEMA_NAME:     return "schema_name";
+        case METADATA_TABLE_NAME:      return "table_name";
+        case METADATA_NUM_ROWS:        return "num_rows";
+        default:                       return "[Unknown Metadata]";
+    }
+}
 
 /*
  * Stores the query request parameters.  This is encoded by the client and

@@ -98,7 +98,7 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
 
 // Get sky_obj_type from xattr, if not present set to Flatbuffer
 static
-int get_sky_obj_type(cls_method_context_t hctx, int& obj_type) {
+int sky_layout_type(cls_method_context_t hctx, int& obj_type) {
 
     bufferlist bl;
     int ret = cls_cxx_getxattr(hctx, "sky_obj_type", &bl);
@@ -1711,7 +1711,7 @@ static int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
      * which is stored as a metadata */
     auto schema = table->schema();
     auto metadata = schema->metadata();
-    schema_vec sc = schemaFromString(metadata->value(0));
+    schema_vec sc = schemaFromString(metadata->value(METADATA_SCHEMA_DATA));
 
     // Get the names of each column and array builder for each type
     for (auto it = sc.begin(); it != sc.end(); ++it) {
@@ -1866,7 +1866,8 @@ static int print_arrowbuf_rowwise(std::shared_ptr<arrow::Table>& table)
      * which is stored as a metadata */
     auto schema = table->schema();
     auto metadata = schema->metadata();
-    schema_vec sc = schemaFromString(metadata->value(0));
+    schema_vec sc = schemaFromString(metadata->value(METADATA_SCHEMA_DATA));
+    int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
 
     // Get the names of each column and create required array vector
     for (auto it = sc.begin(); it != sc.end(); ++it) {
@@ -1941,7 +1942,7 @@ static int print_arrowbuf_rowwise(std::shared_ptr<arrow::Table>& table)
     }
     CLS_LOG(20, "%s", schema_str.c_str());
 
-    for (int i = 0; i < table->num_rows(); i++) {
+    for (int i = 0; i < num_rows; i++) {
         std::string row_str;
 
         // For this row get the data from each columns
@@ -2020,58 +2021,124 @@ static int print_arrowbuf_rowwise(std::shared_ptr<arrow::Table>& table)
 
 #define ARROWFILE "/tmp/skyhook.arrow"
 
-static
-int read_arrow_from_file(std::shared_ptr<arrow::Table>* table)
+/* @todo: This is a temporary function to demonstrate buffer is read from the file.
+ * In reality, Ceph will return a bufferlist containing a buffer.
+ */
+int read_from_file(std::shared_ptr<arrow::Buffer> *buffer)
 {
-    CLS_LOG(20, "Reading arrow from file %s", ARROWFILE);
+  // Open file
+  std::ifstream infile("/tmp/skyhook.arrow");
 
-    // Initialization related to reading from a file
-    std::shared_ptr<arrow::io::ReadableFile> in_file;
-    std::shared_ptr<arrow::ipc::RecordBatchFileReader> reader;
-    arrow::io::ReadableFile::Open(ARROWFILE, &in_file);
-    arrow::ipc::RecordBatchFileReader::Open(in_file.get(), &reader);
+  // Get length of file
+  infile.seekg(0, infile.end);
+  size_t length = infile.tellg();
+  infile.seekg(0, infile.beg);
+
+  std::unique_ptr<char[]> cdata{new char [length + 1]};
+
+  // Read file
+  infile.read(cdata.get(), length);
+  std::string data(cdata.get(), length);
+  arrow::Buffer::FromString(data, buffer);
+  return 0;
+}
+
+/* @todo: This is a temporary function to demonstrate buffer is written on to a file.
+ * In reality, the buffer is given to Ceph which takes care of writing.
+ */
+int write_to_file(arrow::Buffer* buffer)
+{
+    std::ofstream ofile("/tmp/skyhook.arrow");
+    std::string str(buffer->ToString());
+    ofile.write(buffer->ToString().c_str(), buffer->size());
+    return 0;
+}
+
+/*
+ * Function: read_arrow_from_buffer
+ * Description: Convert buffer to arrow table.
+ *  a. Where to read - In this case we are using buffer, but it can be streams or
+ *                     files as well.
+ *  b. InputStream - We connect a buffer (or file) to the stream and reader will read
+ *                   data from this stream. We are using arrow::InputStream as an
+ *                   input stream.
+ *  c. Reader - Reads the data from InputStream. We are using arrow::RecordBatchReader
+ *              which will read the data from input stream.
+ * @param[out] table  : Arrow table to be converted
+ * @param[in] buffer  : Input buffer
+ * Return Value: error code
+ */
+static
+int read_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::shared_ptr<arrow::Buffer> &buffer)
+{
+    CLS_LOG(20, "Reading arrow from a buffer");
+
+    // Initialization related to reading from a buffer
+    const std::shared_ptr<arrow::io::InputStream> buf_reader = std::make_shared<arrow::io::BufferReader>(buffer);
+    std::shared_ptr<arrow::ipc::RecordBatchReader> reader;
+    arrow::ipc::RecordBatchStreamReader::Open(buf_reader, &reader);
 
     // Initilaization related to read to apache arrow
     std::vector<std::shared_ptr<arrow::RecordBatch>> batch_vec;
-
-    for (int i = 0; i < reader->num_record_batches(); ++i) {
+    while (true){
         std::shared_ptr<arrow::RecordBatch> chunk;
-        reader->ReadRecordBatch(i, &chunk);
+        reader->ReadNext(&chunk);
+        if (chunk == nullptr) break;
         batch_vec.push_back(chunk);
     }
+
     arrow::Table::FromRecordBatches(batch_vec, table);
     return 0;
 }
 
+/*
+ * Function: write_arrow_to_buffer
+ * Description: Convert arrow table into record batches which are dumped on to a
+ *              output buffer. For converting arrow table three things are essential.
+ *  a. Where to write - In this case we are using buffer, but it can be streams or
+ *                      files as well
+ *  b. OutputStream - We connect a buffer (or file) to the stream and writer writes
+ *                    data from this stream. We are using arrow::BufferOutputStream
+ *                    as an output stream.
+ *  c. Writer - Does writing data to OutputStream. We are using arrow::RecordBatchStreamWriter
+ *              which will write the data to output stream.
+ * @param[in] table   : Arrow table to be converted
+ * @param[out] buffer : Output buffer
+ * Return Value: error code
+ */
 static
-int write_arrow_to_file(const std::shared_ptr<arrow::Table> &table)
+int write_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table, std::shared_ptr<arrow::Buffer>* buffer)
 {
-    CLS_LOG(20, "Writing arrow to file %s", ARROWFILE);
+    CLS_LOG(20, "Writing arrow to a buffer");
 
-    // Get the table ptr
-    arrow::Table *raw_table = table.get();
-
-    // Initilization realted to writing to the the file
-    std::shared_ptr<arrow::io::OutputStream> out;
-    arrow::io::FileOutputStream::Open(ARROWFILE, &out);
+    // Initilization related to writing to the the file
     std::shared_ptr<arrow::ipc::RecordBatchWriter> writer;
+    std::shared_ptr<arrow::io::BufferOutputStream> out;
+    arrow::io::BufferOutputStream::Create(STREAM_CAPACITY, arrow::default_memory_pool(), &out);
     arrow::io::OutputStream *raw_out = out.get();
-    arrow::ipc::RecordBatchFileWriter::Open(raw_out, raw_table->schema(), &writer);
+    arrow::Table *raw_table = table.get();
+    arrow::ipc::RecordBatchStreamWriter::Open(raw_out, raw_table->schema(), &writer);
 
     // Initilization related to reading from arrow
-    arrow::TableBatchReader reader(*raw_table);
-    std::shared_ptr<arrow::RecordBatch> batch;
-
-    while(true) {
-        reader.ReadNext(&batch);
-        if (batch == nullptr) break;
-        writer->WriteRecordBatch(*batch);
-    }
+    writer->WriteTable(*(table.get()));
     writer->Close();
+    out->Finish(buffer);
     return 0;
 }
 
 
+/*
+ * Function: transform_fb_to_arrow
+ * Description: Build arrow schema vector using skyhook schema information. Get the
+ *              details of columns from skyhook schema and using array builders for
+ *              each datatype add the data to array vectors. Finally, create arrow
+ *              table using array vectors and schema vector.
+ * @param[in] fb      : Flatbuffer to be converted
+ * @param[in] size    : Size of the flatbuffer
+ * @param[out] errmsg : errmsg buffer
+ * @param[out] buffer : arrow table
+ * Return Value: error code
+ */
 static
 int transform_fb_to_arrow(const char* fb,
                           const size_t fb_size,
@@ -2081,6 +2148,7 @@ int transform_fb_to_arrow(const char* fb,
     int errcode = 0;
     sky_root root = getSkyRoot(fb, fb_size);
     schema_vec sc = schemaFromString(root.schema);
+    delete_vector del_vec = root.delete_vec;
     uint32_t nrows = root.nrows;
 
     // Initialization related to Apache Arrow
@@ -2090,13 +2158,24 @@ int transform_fb_to_arrow(const char* fb,
     std::vector<std::shared_ptr<arrow::Field>> schema_vector;
     std::shared_ptr<arrow::KeyValueMetadata> metadata (new arrow::KeyValueMetadata);
 
-    // Add skyhook schema as a metadata.
-    metadata->Append("schema_vec", root.schema);
+    // Add skyhook metadata to arrow metadata.
+    metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
+                     std::to_string(root.skyhook_version));
+    metadata->Append(ToString(METADATA_SCHEMA_VERSION),
+                     std::to_string(root.schema_version));
+    metadata->Append(ToString(METADATA_SCHEMA_DATA), root.schema);
+    metadata->Append(ToString(METADATA_SCHEMA_NAME), root.schema_name);
+    metadata->Append(ToString(METADATA_TABLE_NAME), root.table_name);
+    metadata->Append(ToString(METADATA_NUM_ROWS), std::to_string(root.nrows));
 
-    for (auto it=sc.begin(); it != sc.end() && !errcode; ++it) {
+    // Iterate through schema vector to get the details of columns i.e name and type.
+    for (auto it = sc.begin(); it != sc.end() && !errcode; ++it) {
         col_info col = *it;
 
-        // Create the builder instances for repsective datatypes
+        // Create the array builders for respective datatypes. Use these array
+        // builders to store data to array vectors. These array vectors holds the
+        // actual column values. Also, add the details of column
+
         switch(col.type) {
 
             case SDT_BOOL: {
@@ -2208,7 +2287,19 @@ int transform_fb_to_arrow(const char* fb,
             }
         }
     }
+    // Add RID column
+    auto rid_ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int64Builder(pool));
+    builder_list.emplace_back(rid_ptr.get());
+    rid_ptr.release();
+    schema_vector.push_back(arrow::field("RID", arrow::int64()));
 
+    // Add deleted vector column
+    auto dv_ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::BooleanBuilder(pool));
+    builder_list.emplace_back(dv_ptr.get());
+    dv_ptr.release();
+    schema_vector.push_back(arrow::field("DELETED_VECTOR", arrow::boolean()));
+
+    // Iterate through rows and store data in each row in respective columns.
     for (uint32_t i = 0; i < nrows; i++) {
 
         // Get a skyhook record struct
@@ -2217,7 +2308,9 @@ int transform_fb_to_arrow(const char* fb,
         // Get the row as a vector.
         auto row = rec.data.AsVector();
 
-        for (auto it=sc.begin(); it != sc.end() && !errcode; ++it) {
+        // For the current row, go from 0 to num_cols and append the data into array
+        // builders.
+        for (auto it = sc.begin(); it != sc.end() && !errcode; ++it) {
             auto builder = builder_list[std::distance(sc.begin(), it)];
             col_info col = *it;
             // Append data to the respective data type builders
@@ -2275,6 +2368,11 @@ int transform_fb_to_arrow(const char* fb,
                 }
             }
         }
+        // Add entries for RID and Deleted vector
+        int num_cols = std::distance(sc.begin(), sc.end());
+        static_cast<arrow::Int64Builder *>(builder_list[ARROW_RID_INDEX(num_cols)])->Append(rec.RID);
+        static_cast<arrow::UInt8Builder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(del_vec[i]);
+
     }
 
     // Finalize the arrays holding the data
@@ -2306,10 +2404,18 @@ int transform_arrow_to_fb(const char* fb,
     return 0;
 }
 
+/*
+ * Function: transform_db_op
+ * Description: Method to convert database layout.
+ * @param[in] hctx    : CLS method context
+ * @param[out] in     : input bufferlist
+ * @param[out] out    : output bufferlist
+ * Return Value: error code
+ */
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    int obj_type = 0;
+    int layout_type = 0;
     transform_op op;
 
     // unpack the requested op from the inbl.
@@ -2325,26 +2431,26 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
     CLS_LOG(20, "transform_db_op: transform_obj_type=%d", op.required_type);
 
-    assert (op.required_type != SKY_TYPE_INVALID);
+    assert (op.required_type != LAYOUT_INVALID);
 
-    int ret = get_sky_obj_type(hctx, obj_type);
+    int ret = sky_layout_type(hctx, layout_type);
     if (ret == -ENOENT || ret == -ENODATA) {
-        // If sky_obj_type is not present then insert it in xattr.
+        // If sky_layout_type is not present then insert it in xattr.
         // Default value is set as a Flatbuffer
-        ret = set_sky_obj_type(hctx, SKY_TYPE_FLATBUFFER);
+        ret = set_sky_obj_type(hctx, LAYOUT_FLATBUFFER);
         if(ret < 0) {
-            CLS_ERR("transform_db_op: error setting sky_obj_type entry to xattr %d", ret);
+            CLS_ERR("transform_db_op: error setting sky_layout_type entry to xattr %d", ret);
             return ret;
         }
-        obj_type = SKY_TYPE_FLATBUFFER;
+        layout_type = LAYOUT_FLATBUFFER;
     }
     else if (ret < 0) {
-        CLS_ERR("ERROR: transform_db_op: sky_obj_type entry from xattr %d", ret);
+        CLS_ERR("ERROR: transform_db_op: sky_layout_type entry from xattr %d", ret);
         return ret;
     }
 
     // Check if transformation is required or not
-    if (obj_type == op.required_type) {
+    if (layout_type == op.required_type) {
         // Source and destination object types are same, therefore no tranformation
         // is required.
         CLS_LOG(20, "No Transforming required");
@@ -2375,7 +2481,7 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         size_t fb_size = bl.length();
         std::string errmsg;
 
-        if (op.required_type == SKY_TYPE_ARROW) {
+        if (op.required_type == LAYOUT_ARROW) {
             std::shared_ptr<arrow::Table> table;
             ret = transform_fb_to_arrow(fb, fb_size, errmsg, &table);
             if (ret != 0) {
@@ -2389,18 +2495,23 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 return ret;
             }
 
-            // Write arrow to the file
-            write_arrow_to_file(table);
+            // Write arrow to a buffer
+            std::shared_ptr<arrow::Buffer> buffer;
+            write_arrow_to_buffer(table, &buffer);
+            write_to_file(buffer.get());
 
-            // Read arrow from the file
+            // Read arrow from the buffer
             std::shared_ptr<arrow::Table> read_table;
-            read_arrow_from_file(&read_table);
+            std::shared_ptr<arrow::Buffer> read_buffer;
+            read_from_file(&read_buffer);
+            read_arrow_from_buffer(&read_table, read_buffer);
+
             ret = print_arrowbuf_colwise(read_table);
             if (ret != 0) {
                 CLS_ERR("ERROR: Printing object");
                 return ret;
             }
-        } else if (op.required_type == SKY_TYPE_FLATBUFFER) {
+        } else if (op.required_type == LAYOUT_FLATBUFFER) {
             flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
             ret = transform_arrow_to_fb(fb, fb_size, errmsg, flatbldr);
             if (ret != 0) {
