@@ -124,6 +124,7 @@ int main(int argc, char **argv)
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
+    ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record headers and metadata.")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -566,6 +567,7 @@ int main(int argc, char **argv)
   rows_returned = 0;
   nrows_processed = 0;
   fastpath |= false;
+  print_csv_header = true;
 
   outstanding_ios = 0;
   stop = false;
@@ -653,7 +655,11 @@ int main(int argc, char **argv)
       break;
     }
     lock.unlock();
-    std::cout << "draining ios: " << outstanding_ios << " remaining" << std::endl;
+
+    // only report status messages during quiet operation
+    // since otherwise we are printing as csv data to std out
+    if (quiet)
+        std::cout << "draining ios: " << outstanding_ios << " remaining\n";
     sleep(1);
   }
 
@@ -670,14 +676,17 @@ int main(int argc, char **argv)
 
   ioctx.close();
 
-  if (query == "a" && use_cls) {
-    std::cout << "total result row count: " << result_count
-      << " / -1" << "; nrows_processed=" << nrows_processed
-      << std::endl;
-  } else {
-    std::cout << "total result row count: " << result_count
-      << " / " << rows_returned  << "; nrows_processed=" << nrows_processed
-      << std::endl;
+  // only report status messages during quiet operation
+  // since otherwise we are printing as csv data to std out
+  if (quiet) {
+      if (query == "a" && use_cls) {
+        std::cout << "total result row count: " << result_count << " / -1"
+                  << "; nrows_processed=" << nrows_processed << std::endl;
+      } else {
+        std::cout << "total result row count: " << result_count << " / "
+                  << rows_returned  << "; nrows_processed=" << nrows_processed
+                  << std::endl;
+      }
   }
 
   if (logfile.length()) {

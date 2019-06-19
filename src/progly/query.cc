@@ -69,6 +69,9 @@ std::string idx_op_text_delims;
 // for runstats op on a given table name
 bool runstats;
 
+// for debugging, prints full record header and metadata
+bool print_verbose;
+
 // to convert strings <=> skyhook data structs
 Tables::schema_vec sky_tbl_schema;
 Tables::schema_vec sky_qry_schema;
@@ -78,11 +81,11 @@ Tables::predicate_vec sky_qry_preds;
 Tables::predicate_vec sky_idx_preds;
 Tables::predicate_vec sky_idx2_preds;
 
+ // these are all intialized in run-query
 std::atomic<unsigned> result_count;
 std::atomic<unsigned> rows_returned;
-
-// total number of rows processed, client side or server side (cls).
-std::atomic<unsigned> nrows_processed;
+std::atomic<bool> print_csv_header;
+std::atomic<unsigned> nrows_processed;  // TODO: remove
 
 // rename work_lock
 int outstanding_ios;
@@ -144,13 +147,26 @@ static void print_row(const char *row)
   print_lock.unlock();
 }
 
-static void print_fb(const char *fb, size_t fb_size)
+// TODO: change to generic name, printData
+static void print_fb(const char *dataptr, const size_t datasz, const SkyFormatType format=SFT_FLATBUF_FLEX_ROW)
 {
+
+    // NOTE: quiet and print_verbose are exec flags in run-query
     if (quiet)
         return;
 
-    print_lock.lock();
-    Tables::printSkyFb(fb, fb_size);
+    // NOTE: print_csv_header is atomic, and declared in query.h
+    // used here to prevent duplicate printing of csv header at runtime
+
+    print_lock.lock();  // prevent multiple worker threads from concurr write
+    switch (format) {
+        case SFT_FLATBUF_FLEX_ROW:
+            Tables::printFlatbufFlexRowAsCsv(dataptr, datasz, print_csv_header, print_verbose);
+            break;
+        default:
+            assert (Tables::TablesErrCodes::SkyFormatTypeNotImplemented==0);
+    }
+    print_csv_header = false;
     print_lock.unlock();
 }
 

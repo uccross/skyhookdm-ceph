@@ -887,6 +887,86 @@ void printSkyFb(const char* fb, size_t fb_size) {
     std::cout << std::endl;
 }
 
+void printFlatbufFlexRowAsCsv(const char* dataptr,
+                              const size_t datasz,
+                              bool print_header,
+                              bool verbose) {
+
+    // get root table ptr as sky struct
+    sky_root skyroot = getSkyRoot(dataptr, datasz);
+    schema_vec sc = schemaFromString(skyroot.data_schema);
+    assert(!sc.empty());
+
+    if (verbose)
+        printSkyRootHeader(skyroot);
+
+    // print header row showing schema
+    if (print_header) {
+        for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
+            std::cout << "|" << it->name;
+            if (it->is_key) std::cout << "(key)";
+            if (!it->nullable) std::cout << "(NOT NULL)";
+        }
+        std::cout << "|" << std::endl; // newline to start first row.
+    }
+
+    if (skyroot.nrows == 0) return;  // nothing to print, empty data struct
+
+    for (uint32_t i = 0; i < skyroot.nrows; i++) {
+
+        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+
+        // get the record struct, then the row data
+        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
+        auto row = skyrec.data.AsVector();
+
+        if (verbose)
+            printSkyRecHeader(skyrec);
+
+        // for each col in the row, print a NULL or the col's value/
+        for (uint32_t j = 0; j < sc.size(); j++ ) {
+            std::cout << "|";
+            col_info col = sc.at(j);
+
+            if (col.nullable) {  // check nullbit
+                bool is_null = false;
+                int pos = col.idx / (8*sizeof(skyrec.nullbits.at(0)));
+                int col_bitmask = 1 << col.idx;
+                if ((col_bitmask & skyrec.nullbits.at(pos)) != 0)  {
+                    is_null =true;
+                }
+                if (is_null) {
+                    std::cout << "NULL";
+                    continue;
+                }
+            }
+            switch (col.type) {
+                case SDT_BOOL: std::cout << row[j].AsBool(); break;
+                case SDT_INT8: std::cout << row[j].AsInt8(); break;
+                case SDT_INT16: std::cout << row[j].AsInt16(); break;
+                case SDT_INT32: std::cout << row[j].AsInt32(); break;
+                case SDT_INT64: std::cout << row[j].AsInt64(); break;
+                case SDT_UINT8: std::cout << row[j].AsUInt8(); break;
+                case SDT_UINT16: std::cout << row[j].AsUInt16(); break;
+                case SDT_UINT32: std::cout << row[j].AsUInt32(); break;
+                case SDT_UINT64: std::cout << row[j].AsUInt64(); break;
+                case SDT_FLOAT: std::cout << row[j].AsFloat(); break;
+                case SDT_DOUBLE: std::cout << row[j].AsDouble(); break;
+                case SDT_CHAR: std::cout <<
+                    std::string(1, row[j].AsInt8()); break;
+                case SDT_UCHAR: std::cout <<
+                    std::string(1, row[j].AsUInt8()); break;
+                case SDT_DATE: std::cout <<
+                    row[j].AsString().str(); break;
+                case SDT_STRING: std::cout <<
+                    row[j].AsString().str(); break;
+                default: assert (TablesErrCodes::UnknownSkyDataType);
+            }
+        }
+        std::cout << "|" << std::endl;  // newline to start next row.
+    }
+}
+
 sky_root getSkyRoot(const char *fb, size_t fb_size) {
 
     const Table* root = GetTable(fb);

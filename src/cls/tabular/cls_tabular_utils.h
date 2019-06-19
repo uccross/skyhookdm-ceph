@@ -58,6 +58,7 @@ enum TablesErrCodes {
     SkyIndexUnsupportedOpType,
     SkyIndexColNotPresent,
     RowIndexOOB,
+    SkyFormatTypeNotImplemented
 };
 
 // skyhook data types, as supported by underlying data format
@@ -648,6 +649,7 @@ sky_rec getSkyRec(const Tables::Record *rec);
 void printSkyRoot(sky_root *r);
 void printSkyRec(sky_rec *r);
 void printSkyFb(const char* fb, size_t fb_size);
+void printFlatbufFlexRowAsCsv(const char* fb, const size_t fb_size, bool print_header, bool verbose);
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,
