@@ -22,7 +22,7 @@
 #include <boost/algorithm/string/classification.hpp> // for boost::is_any_of
 #include <boost/algorithm/string/split.hpp> // for boost::split
 #include <boost/algorithm/string.hpp> // for boost::trim
-#include <boost/date_time/gregorian/gregorian.hpp> 
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include "re2/re2.h"
@@ -112,9 +112,10 @@ enum SkyOpType {
     // MEMBERSHIP (collections) (TODO)
     SOT_in,
     SOT_not_in,
-    // DATE (SQL)  (TODO)
-    SOT_before,
+    // RANGE (TODO)
     SOT_between,
+    // DATE (SQL)
+    SOT_before,
     SOT_after,
     // LOGICAL
     SOT_logical_or,
@@ -317,34 +318,35 @@ public:
                 case SOT_sum:
                 case SOT_cnt:
                     assert (
-                         col_type==SDT_DATE or (
-                            std::is_arithmetic<T>::value
-                            && (
-                            col_type==SDT_INT8 ||
-                            col_type==SDT_INT16 ||
-                            col_type==SDT_INT32 ||
-                            col_type==SDT_INT64 ||
-                            col_type==SDT_UINT8 ||
-                            col_type==SDT_UINT16 ||
-                            col_type==SDT_UINT32 ||
-                            col_type==SDT_UINT64 ||
-                            col_type==SDT_BOOL ||
-                            col_type==SDT_CHAR ||
-                            col_type==SDT_UCHAR ||
-                            col_type==SDT_FLOAT ||
-                            col_type==SDT_DOUBLE)));
+                            (col_type==SDT_DATE) or
+                            (std::is_arithmetic<T>::value and
+                            (col_type==SDT_INT8 ||
+                             col_type==SDT_INT16 ||
+                             col_type==SDT_INT32 ||
+                             col_type==SDT_INT64 ||
+                             col_type==SDT_UINT8 ||
+                             col_type==SDT_UINT16 ||
+                             col_type==SDT_UINT32 ||
+                             col_type==SDT_UINT64 ||
+                             col_type==SDT_BOOL ||
+                             col_type==SDT_CHAR ||
+                             col_type==SDT_UCHAR ||
+                             col_type==SDT_FLOAT ||
+                             col_type==SDT_DOUBLE))
+                            );
                     break;
 
                 // LEXICAL (regex)
                 case SOT_like:
-                    assert ((
-                        (std::is_same<T, std::string>::value) == true ||
-                        (std::is_same<T, unsigned char>::value) == true ||
-                        (std::is_same<T, char>::value) == true)
-                        && (
-                        col_type==SDT_STRING ||
-                        col_type==SDT_CHAR ||
-                        col_type==SDT_UCHAR));
+                    assert (
+                            ((std::is_same<T, std::string>::value) == true ||
+                             (std::is_same<T, unsigned char>::value) == true ||
+                             (std::is_same<T, char>::value) == true)
+                            and
+                            (col_type==SDT_STRING ||
+                             col_type==SDT_CHAR ||
+                             col_type==SDT_UCHAR)
+                            );
                     break;
 
                 // MEMBERSHIP (collections)
@@ -506,50 +508,35 @@ typedef flexbuffers::Reference row_data_ref;
 // skyhookdb root metadata, refering to a (sub)partition of rows
 // abstracts a partition from its underlying data format/layout
 struct root_table {
-    /*const int skyhook_version;
-    int schema_version;
-    std::string schema_name;
-    std::string table_name;
-    std::string schema;
-    delete_vector delete_vec;
-    row_offs offs;
-    uint32_t nrows;
-	*/
 
-    int32_t data_structure_type;
-    int32_t fb_version;
+    int32_t skyhook_version;
+    int32_t data_format_type;
     int32_t data_structure_version;
-    std::string table_schema;
+    std::string data_schema;
     std::string db_schema;
     std::string table_name;
     delete_vector delete_vec;
     row_offs offs;
     uint32_t nrows;
 
-    /*root_table(int skyver, int scver, std::string scname, std::string tname,
-               std::string sc, delete_vector d, row_offs ro, uint32_t n) :
-        skyhook_version(skyver),
-        schema_version(scver),
-        schema_name(scname),
-        table_name(tname),
-        schema(sc),
-        delete_vec(d),
-        offs(ro),
-        nrows(n) {};*/
-
-    root_table(int32_t data_structure_type, int32_t fb_version, int32_t data_structure_version,
-	       std::string table_schema, std::string db_schema, std::string table_name,
-	       delete_vector d, row_offs ro, uint32_t n) :
-	data_structure_type(data_structure_type),
-	fb_version(fb_version),
-	data_structure_version(data_structure_version),
-	table_schema(table_schema),
-	db_schema(db_schema),
-	table_name(table_name),
-	delete_vec(d),
-	offs(ro),
-	nrows(n) {};
-
+    root_table(
+        int32_t _skyhook_version,
+        int32_t _data_format_type,
+        int32_t _data_structure_version,
+        std::string _data_schema,
+        std::string _db_schema,
+        std::string _table_name,
+        delete_vector _delete_vec,
+        row_offs _offs,
+        uint32_t _nrows) :  skyhook_version(_skyhook_version),
+                            data_format_type(_data_format_type),
+                            data_structure_version(_data_structure_version),
+                            data_schema(_data_schema),
+                            db_schema(_db_schema),
+                            table_name(_table_name),
+                            delete_vec(_delete_vec),
+                            offs(_offs),
+                            nrows(_nrows) {};
 };
 typedef struct root_table sky_root;
 
@@ -560,10 +547,10 @@ struct rec_table {
     nullbits_vector nullbits;
     const row_data_ref data;
 
-    rec_table(int64_t rid, nullbits_vector n, row_data_ref d) :
-        RID(rid),
-        nullbits(n),
-        data(d) {
+    rec_table(int64_t _RID, nullbits_vector _nullbits, row_data_ref _data) :
+        RID(_RID),
+        nullbits(_nullbits),
+        data(_data) {
             // ensure one nullbit per col
             int num_nullbits = nullbits.size() * sizeof(nullbits[0]) * 8;
             assert (num_nullbits == MAX_TABLE_COLS);
@@ -707,12 +694,8 @@ bool compare(const double& val1, const double& val2, const int& op);
 inline
 bool compare(const bool& val1, const bool& val2, const int& op);
 
-inline
-bool compare(const std::string& val1, const re2::RE2& regx, const int& op);
-
-inline
-bool compare(const std::string& val1, const std::string& val2, const int& op, const int& data_type); //date
-
+inline  // used for date types or regex on alphanumeric types
+bool compare(const std::string& val1, const std::string& val2, const int& op, const int& data_type);
 
 template <typename T>
 T computeAgg(const T& val, const T& oldval, const int& op) {
