@@ -84,8 +84,12 @@ Tables::predicate_vec sky_idx2_preds;
  // these are all intialized in run-query
 std::atomic<unsigned> result_count;
 std::atomic<unsigned> rows_returned;
-std::atomic<bool> print_csv_header;
 std::atomic<unsigned> nrows_processed;  // TODO: remove
+
+// used for print csv
+std::atomic<bool> print_header;
+std::atomic<long long int> row_counter;
+long long int row_limit;
 
 // rename work_lock
 int outstanding_ios;
@@ -148,25 +152,34 @@ static void print_row(const char *row)
 }
 
 // TODO: change to generic name, printData
-static void print_fb(const char *dataptr, const size_t datasz, const SkyFormatType format=SFT_FLATBUF_FLEX_ROW)
+static void print_data(const char *dataptr,
+                       const size_t datasz,
+                       const SkyFormatType format=SFT_FLATBUF_FLEX_ROW)
 {
 
     // NOTE: quiet and print_verbose are exec flags in run-query
     if (quiet)
         return;
 
-    // NOTE: print_csv_header is atomic, and declared in query.h
+    // NOTE: print_header is atomic, and declared in query.h
     // used here to prevent duplicate printing of csv header at runtime
+    // row_counter used to limit num rows returned in result (csv output)
+    // print_lock prevents multiple worker threads from concurrent write output
 
-    print_lock.lock();  // prevent multiple worker threads from concurr write
+    print_lock.lock();
     switch (format) {
         case SFT_FLATBUF_FLEX_ROW:
-            Tables::printFlatbufFlexRowAsCsv(dataptr, datasz, print_csv_header, print_verbose);
+            row_counter += \
+                Tables::printFlatbufFlexRowAsCsv(dataptr,
+                                                 datasz,
+                                                 print_header,
+                                                 print_verbose,
+                                                 row_limit - row_counter);
             break;
         default:
             assert (Tables::TablesErrCodes::SkyFormatTypeNotImplemented==0);
     }
-    print_csv_header = false;
+    print_header = false;
     print_lock.unlock();
 }
 
@@ -360,7 +373,7 @@ void worker()
 
             if (!more_processing) {  // nothing left to do here.
                 result_count += root.nrows;
-                print_fb(char_data_ptr, 0);
+                print_data(char_data_ptr, 0);
             }
             else {
                 flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
@@ -384,7 +397,7 @@ void worker()
                         reinterpret_cast<char*>(flatbldr.GetBufferPointer());
                     sky_root root = getSkyRoot(char_data_ptr, 0);
                     result_count += root.nrows;
-                    print_fb(char_data_ptr, 0);
+                    print_data(char_data_ptr, 0);
                 }
             }
         } // endloop of processing sequence of encoded bls

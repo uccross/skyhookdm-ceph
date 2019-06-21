@@ -214,8 +214,9 @@ const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
 const int MAX_COLSIZE = 4096; // primarily for text cols TODO: blobs
 const int MAX_TABLE_COLS = 128; // affects nullbits vector size (skyroot)
 const int MAX_INDEX_COLS = 4;
-const unsigned int FB_SEQ_NUM_MIN = 0;
-const unsigned int FB_SEQ_NUM_MAX = 1000;  // max num fbs per obj.
+const int DATASTRUCT_SEQ_NUM_MIN = 0;
+const int DATASTRUCT_SEQ_NUM_MAX = 10000;  // max per obj, before compaction
+const char CSV_DELIM = '|';
 const std::string IDX_KEY_DELIM_INNER = "-";
 const std::string IDX_KEY_DELIM_OUTER = ":";
 const std::string IDX_KEY_DELIM_UNIQUE = "ENFORCEUNIQ";
@@ -224,6 +225,7 @@ const std::string SCHEMA_NAME_DEFAULT = "*";
 const std::string TABLE_NAME_DEFAULT = "*";
 const std::string RID_INDEX = "_RID_INDEX_";
 const int RID_COL_INDEX = -99; // magic number...
+const long long int ROW_LIMIT_DEFAULT = LLONG_MAX;
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -649,7 +651,11 @@ sky_rec getSkyRec(const Tables::Record *rec);
 void printSkyRoot(sky_root *r);
 void printSkyRec(sky_rec *r);
 void printSkyFb(const char* fb, size_t fb_size);
-void printFlatbufFlexRowAsCsv(const char* fb, const size_t fb_size, bool print_header, bool verbose);
+long long int printFlatbufFlexRowAsCsv(const char* dataptr,
+                                       const size_t datasz,
+                                       bool print_header,
+                                       bool print_verbose,
+                                       long long int max_to_print);
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,

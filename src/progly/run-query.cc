@@ -50,6 +50,7 @@ int main(int argc, char **argv)
   int index2_type = Tables::SIT_IDX_UNK;
   bool fastpath = false;
   bool idx_unique = false;
+  bool header;  // print csv header
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -124,7 +125,9 @@ int main(int argc, char **argv)
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
-    ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record headers and metadata.")
+    ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record metadata.")
+    ("header", po::bool_switch(&header)->default_value(true), "Print csv row header.")
+    ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -567,7 +570,7 @@ int main(int argc, char **argv)
   rows_returned = 0;
   nrows_processed = 0;
   fastpath |= false;
-  print_csv_header = true;
+  print_header = header;  // used for csv printing
 
   outstanding_ios = 0;
   stop = false;

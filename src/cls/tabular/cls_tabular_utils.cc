@@ -887,32 +887,38 @@ void printSkyFb(const char* fb, size_t fb_size) {
     std::cout << std::endl;
 }
 
-void printFlatbufFlexRowAsCsv(const char* dataptr,
+long long int printFlatbufFlexRowAsCsv(const char* dataptr,
                               const size_t datasz,
                               bool print_header,
-                              bool verbose) {
+                              bool print_verbose,
+                              long long int max_to_print) {
 
     // get root table ptr as sky struct
     sky_root skyroot = getSkyRoot(dataptr, datasz);
     schema_vec sc = schemaFromString(skyroot.data_schema);
     assert(!sc.empty());
 
-    if (verbose)
+    if (print_verbose)
         printSkyRootHeader(skyroot);
 
     // print header row showing schema
     if (print_header) {
+        bool first = true;
         for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
-            std::cout << "|" << it->name;
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
+            std::cout << it->name;
             if (it->is_key) std::cout << "(key)";
             if (!it->nullable) std::cout << "(NOT NULL)";
+
         }
-        std::cout << "|" << std::endl; // newline to start first row.
+        std::cout << std::endl; // newline to start first row.
     }
 
-    if (skyroot.nrows == 0) return;  // nothing to print, empty data struct
-
-    for (uint32_t i = 0; i < skyroot.nrows; i++) {
+    long long int counter = 0;
+    for (uint32_t i = 0; i < skyroot.nrows; i++, counter++) {
+        if (counter >= max_to_print)
+            break;
 
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
@@ -920,12 +926,14 @@ void printFlatbufFlexRowAsCsv(const char* dataptr,
         sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
         auto row = skyrec.data.AsVector();
 
-        if (verbose)
+        if (print_verbose)
             printSkyRecHeader(skyrec);
 
         // for each col in the row, print a NULL or the col's value/
+        bool first = true;
         for (uint32_t j = 0; j < sc.size(); j++ ) {
-            std::cout << "|";
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
             col_info col = sc.at(j);
 
             if (col.nullable) {  // check nullbit
@@ -963,8 +971,9 @@ void printFlatbufFlexRowAsCsv(const char* dataptr,
                 default: assert (TablesErrCodes::UnknownSkyDataType);
             }
         }
-        std::cout << "|" << std::endl;  // newline to start next row.
+        std::cout << std::endl;  // newline to start next row.
     }
+    return counter;
 }
 
 sky_root getSkyRoot(const char *fb, size_t fb_size) {

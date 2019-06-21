@@ -114,10 +114,12 @@ extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
-extern std::atomic<bool> print_csv_header;
+extern std::atomic<unsigned> nrows_processed;  // TODO: remove
 
-// total number of rows processed, client side or server side (cls).
-extern std::atomic<unsigned> nrows_processed;
+// used for print csv
+extern std::atomic<bool> print_header;
+extern std::atomic<long long int> row_counter;
+extern long long int row_limit;
 
 // rename work_lock
 extern int outstanding_ios;
