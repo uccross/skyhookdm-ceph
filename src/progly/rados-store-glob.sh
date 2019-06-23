@@ -2,14 +2,16 @@
 
 set -e
 
-if [[ $# < 1 ]]; then
-  echo "usage: <pool> <glob>"
+if [[ $# < 2 ]]; then
+  echo "usage: <pool> <layout_type> <glob>"
   exit 1
 fi
 
 groupsize=5
 
 pool=$1
+shift
+layout=$1
 shift
 objects=($@)
 
@@ -25,6 +27,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
       rados -p $pool rm $objname || true
       echo "writing $objfile into $pool/$objname"
       rados -p $pool put $objname $objfile &
+      rados -p $pool setxattr $objname sky_layout_type $layout
       count=$((count+1))
     done
     wait

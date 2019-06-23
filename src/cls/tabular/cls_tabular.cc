@@ -2043,15 +2043,14 @@ static int print_arrowbuf_rowwise(std::shared_ptr<arrow::Table>& table)
     return 0;
 }
 
-#define ARROWFILE "/tmp/skyhook.arrow"
 
 /* @todo: This is a temporary function to demonstrate buffer is read from the file.
  * In reality, Ceph will return a bufferlist containing a buffer.
  */
-int read_from_file(std::shared_ptr<arrow::Buffer> *buffer)
+int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 {
   // Open file
-  std::ifstream infile("/tmp/skyhook.arrow");
+  std::ifstream infile(filename);
 
   // Get length of file
   infile.seekg(0, infile.end);
@@ -2070,7 +2069,7 @@ int read_from_file(std::shared_ptr<arrow::Buffer> *buffer)
 /* @todo: This is a temporary function to demonstrate buffer is written on to a file.
  * In reality, the buffer is given to Ceph which takes care of writing.
  */
-int write_to_file(arrow::Buffer* buffer)
+int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
     std::ofstream ofile("/tmp/skyhook.arrow");
     std::string str(buffer->ToString());
@@ -2508,12 +2507,48 @@ int transform_fb_to_arrow(const char* fb,
 }
 
 static
-int transform_arrow_to_fb(const char* fb,
-                          const size_t fb_size,
+int transform_arrow_to_fb(const char* data,
+                          const size_t data_size,
                           std::string& errmsg,
                           flatbuffers::FlatBufferBuilder& flatbldr)
 {
+    int ret;
+
     // Placeholder function
+    std::shared_ptr<arrow::Table> table;
+    std::shared_ptr<arrow::Buffer> buffer;
+
+    std::string str_data(data, data_size);
+    arrow::Buffer::FromString(str_data, &buffer);
+
+    extract_arrow_from_buffer(&table, buffer);
+
+    ret = print_arrowbuf_colwise(table);
+    if (ret != 0) {
+        CLS_ERR("ERROR: Printing object");
+        return ret;
+    }
+    return 0;
+}
+
+//TODO: This is a test code for checking decode arrow table works fine or not
+int test_bls(bufferlist *wrapped_bls)
+{
+    // Create bl1
+    bufferlist bl1;
+    std::shared_ptr<arrow::Table> table1;
+    std::shared_ptr<arrow::Buffer> buffer1;
+    read_from_file("/tmp/skyhook_1.arrow", &buffer1);
+    bl1.append(buffer1->ToString().c_str(), buffer1->size());
+    ::encode(bl1, *wrapped_bls);
+
+    // Create bl2
+    bufferlist bl2;
+    std::shared_ptr<arrow::Table> table2;
+    std::shared_ptr<arrow::Buffer> buffer2;
+    read_from_file("/tmp/skyhook_2.arrow", &buffer2);
+    bl2.append(buffer2->ToString().c_str(), buffer2->size());
+    ::encode(bl2, *wrapped_bls);
     return 0;
 }
 
@@ -2570,33 +2605,34 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return 0;
     }
 
-    // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb
+    // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb/arrow
     bufferlist wrapped_bls;
-    ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
-    if (ret < 0) {
-        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
-        return ret;
-    }
+    test_bls(&wrapped_bls);
+    // ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    // if (ret < 0) {
+    //     CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+    //     return ret;
+    // }
 
     using namespace Tables;
     ceph::bufferlist::iterator it = wrapped_bls.begin();
     while (it.get_remaining() > 0) {
         bufferlist bl;
         try {
-            ::decode(bl, it);  // unpack the next bl (flatbuf)
+            ::decode(bl, it);  // unpack the next bl
         } catch (const buffer::error &err) {
-            CLS_ERR("ERROR: decoding flatbuf from BL");
+            CLS_ERR("ERROR: decoding object format from BL");
             return -EINVAL;
         }
 
-        // Get our data as contiguous bytes before accessing as flatbuf
-        const char* fb = bl.c_str();
-        size_t fb_size = bl.length();
+        // Get our data as contiguous bytes
+        const char* data = bl.c_str();
+        size_t data_size = bl.length();
         std::string errmsg;
 
         if (op.required_type == LAYOUT_ARROW) {
             std::shared_ptr<arrow::Table> table;
-            ret = transform_fb_to_arrow(fb, fb_size, errmsg, &table);
+            ret = transform_fb_to_arrow(data, data_size, errmsg, &table);
             if (ret != 0) {
                 CLS_ERR("ERROR: transforming object from flatbuffer to arrow");
                 return ret;
@@ -2611,12 +2647,12 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // Convert arrow to a buffer
             std::shared_ptr<arrow::Buffer> buffer;
             convert_arrow_to_buffer(table, &buffer);
-            write_to_file(buffer.get());
+            write_to_file("/tmp/skyhook.arrow", buffer.get());
 
             // Extract arrow from the buffer
             std::shared_ptr<arrow::Table> read_table;
             std::shared_ptr<arrow::Buffer> read_buffer;
-            read_from_file(&read_buffer);
+            read_from_file("/tmp/skyhook.arrow", &read_buffer);
             extract_arrow_from_buffer(&read_table, read_buffer);
 
             ret = print_arrowbuf_colwise(read_table);
@@ -2626,7 +2662,8 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             }
         } else if (op.required_type == LAYOUT_FLATBUFFER) {
             flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
-            ret = transform_arrow_to_fb(fb, fb_size, errmsg, flatbldr);
+
+            ret = transform_arrow_to_fb(data, data_size, errmsg, flatbldr);
             if (ret != 0) {
                 CLS_ERR("ERROR: transforming object from arrow to flatbuffer");
                 return ret;
