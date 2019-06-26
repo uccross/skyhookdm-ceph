@@ -15,27 +15,31 @@ struct Record;
 
 struct Table FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_DATA_STRUCTURE_TYPE = 4,
-    VT_FB_VERSION = 6,
+    VT_DATA_FORMAT_TYPE = 4,
+    VT_SKYHOOK_VERSION = 6,
     VT_DATA_STRUCTURE_VERSION = 8,
-    VT_TABLE_SCHEMA = 10,
-    VT_DB_SCHEMA = 12,
-    VT_TABLE_NAME = 14,
-    VT_DELETE_VECTOR = 16,
-    VT_ROWS = 18,
-    VT_NROWS = 20
+    VT_DATA_SCHEMA_VERSION = 10,
+    VT_DATA_SCHEMA = 12,
+    VT_DB_SCHEMA = 14,
+    VT_TABLE_NAME = 16,
+    VT_DELETE_VECTOR = 18,
+    VT_ROWS = 20,
+    VT_NROWS = 22
   };
-  int32_t data_structure_type() const {
-    return GetField<int32_t>(VT_DATA_STRUCTURE_TYPE, 0);
+  int32_t data_format_type() const {
+    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
   }
-  int32_t fb_version() const {
-    return GetField<int32_t>(VT_FB_VERSION, 0);
+  int32_t skyhook_version() const {
+    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
   }
   int32_t data_structure_version() const {
     return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
   }
-  const flatbuffers::String *table_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_TABLE_SCHEMA);
+  int32_t data_schema_version() const {
+    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
+  }
+  const flatbuffers::String *data_schema() const {
+    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
   }
   const flatbuffers::String *db_schema() const {
     return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA);
@@ -46,19 +50,20 @@ struct Table FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<uint8_t> *delete_vector() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
   }
-  const flatbuffers::Vector<flatbuffers::Offset<Record>> *rows() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Record>> *>(VT_ROWS);
+  const flatbuffers::Vector<flatbuffers::Offset<Tables::Record>> *rows() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Tables::Record>> *>(VT_ROWS);
   }
   uint32_t nrows() const {
     return GetField<uint32_t>(VT_NROWS, 0);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_FB_VERSION) &&
+           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
+           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
            VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
-           VerifyOffset(verifier, VT_TABLE_SCHEMA) &&
-           verifier.VerifyString(table_schema()) &&
+           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
+           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
+           verifier.VerifyString(data_schema()) &&
            VerifyOffset(verifier, VT_DB_SCHEMA) &&
            verifier.VerifyString(db_schema()) &&
            VerifyOffset(verifier, VT_TABLE_NAME) &&
@@ -76,17 +81,20 @@ struct Table FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct TableBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_data_structure_type(int32_t data_structure_type) {
-    fbb_.AddElement<int32_t>(Table::VT_DATA_STRUCTURE_TYPE, data_structure_type, 0);
+  void add_data_format_type(int32_t data_format_type) {
+    fbb_.AddElement<int32_t>(Table::VT_DATA_FORMAT_TYPE, data_format_type, 0);
   }
-  void add_fb_version(int32_t fb_version) {
-    fbb_.AddElement<int32_t>(Table::VT_FB_VERSION, fb_version, 0);
+  void add_skyhook_version(int32_t skyhook_version) {
+    fbb_.AddElement<int32_t>(Table::VT_SKYHOOK_VERSION, skyhook_version, 0);
   }
   void add_data_structure_version(int32_t data_structure_version) {
     fbb_.AddElement<int32_t>(Table::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
   }
-  void add_table_schema(flatbuffers::Offset<flatbuffers::String> table_schema) {
-    fbb_.AddOffset(Table::VT_TABLE_SCHEMA, table_schema);
+  void add_data_schema_version(int32_t data_schema_version) {
+    fbb_.AddElement<int32_t>(Table::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
+  }
+  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
+    fbb_.AddOffset(Table::VT_DATA_SCHEMA, data_schema);
   }
   void add_db_schema(flatbuffers::Offset<flatbuffers::String> db_schema) {
     fbb_.AddOffset(Table::VT_DB_SCHEMA, db_schema);
@@ -97,7 +105,7 @@ struct TableBuilder {
   void add_delete_vector(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> delete_vector) {
     fbb_.AddOffset(Table::VT_DELETE_VECTOR, delete_vector);
   }
-  void add_rows(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Record>>> rows) {
+  void add_rows(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Tables::Record>>> rows) {
     fbb_.AddOffset(Table::VT_ROWS, rows);
   }
   void add_nrows(uint32_t nrows) {
@@ -117,14 +125,15 @@ struct TableBuilder {
 
 inline flatbuffers::Offset<Table> CreateTable(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_structure_type = 0,
-    int32_t fb_version = 0,
+    int32_t data_format_type = 0,
+    int32_t skyhook_version = 0,
     int32_t data_structure_version = 0,
-    flatbuffers::Offset<flatbuffers::String> table_schema = 0,
+    int32_t data_schema_version = 0,
+    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
     flatbuffers::Offset<flatbuffers::String> db_schema = 0,
     flatbuffers::Offset<flatbuffers::String> table_name = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> delete_vector = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Record>>> rows = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Tables::Record>>> rows = 0,
     uint32_t nrows = 0) {
   TableBuilder builder_(_fbb);
   builder_.add_nrows(nrows);
@@ -132,35 +141,38 @@ inline flatbuffers::Offset<Table> CreateTable(
   builder_.add_delete_vector(delete_vector);
   builder_.add_table_name(table_name);
   builder_.add_db_schema(db_schema);
-  builder_.add_table_schema(table_schema);
+  builder_.add_data_schema(data_schema);
+  builder_.add_data_schema_version(data_schema_version);
   builder_.add_data_structure_version(data_structure_version);
-  builder_.add_fb_version(fb_version);
-  builder_.add_data_structure_type(data_structure_type);
+  builder_.add_skyhook_version(skyhook_version);
+  builder_.add_data_format_type(data_format_type);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<Table> CreateTableDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_structure_type = 0,
-    int32_t fb_version = 0,
+    int32_t data_format_type = 0,
+    int32_t skyhook_version = 0,
     int32_t data_structure_version = 0,
-    const char *table_schema = nullptr,
+    int32_t data_schema_version = 0,
+    const char *data_schema = nullptr,
     const char *db_schema = nullptr,
     const char *table_name = nullptr,
     const std::vector<uint8_t> *delete_vector = nullptr,
-    const std::vector<flatbuffers::Offset<Record>> *rows = nullptr,
+    const std::vector<flatbuffers::Offset<Tables::Record>> *rows = nullptr,
     uint32_t nrows = 0) {
-  auto table_schema__ = table_schema ? _fbb.CreateString(table_schema) : 0;
+  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
   auto db_schema__ = db_schema ? _fbb.CreateString(db_schema) : 0;
   auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
   auto delete_vector__ = delete_vector ? _fbb.CreateVector<uint8_t>(*delete_vector) : 0;
-  auto rows__ = rows ? _fbb.CreateVector<flatbuffers::Offset<Record>>(*rows) : 0;
+  auto rows__ = rows ? _fbb.CreateVector<flatbuffers::Offset<Tables::Record>>(*rows) : 0;
   return Tables::CreateTable(
       _fbb,
-      data_structure_type,
-      fb_version,
+      data_format_type,
+      skyhook_version,
       data_structure_version,
-      table_schema__,
+      data_schema_version,
+      data_schema__,
       db_schema__,
       table_name__,
       delete_vector__,
