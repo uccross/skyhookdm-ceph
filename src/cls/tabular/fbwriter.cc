@@ -85,10 +85,9 @@ int main(int argc, char *argv[])
 	uint64_t num_objs = UINT_MAX;
 	uint32_t flush_rows = UINT_MAX;
 	uint32_t read_rows = UINT_MAX;
-
 // -------------- Verify Configurable Variables or Prompt For Them ---------------
 	int opt;
-	while( (opt = getopt(argc, argv, "hf:s:o:r:n:")) != -1) {
+	while( (opt = getopt(argc, argv, "hf:s:o:r:n:i:")) != -1) {
 		switch(opt) {
 			case 'f':
 				// Open .csv file
@@ -105,6 +104,9 @@ int main(int argc, char *argv[])
 				// Set # of Objects
 				num_objs = promptIntVariable("objects", optarg);
 				break;
+			case 'i':
+				RID = promptIntVariable("RID start value", optarg);
+		   		break;
 			case 'r':
 				// Set # of Rows to Read Until Flushed
 				flush_rows = promptIntVariable("rows until flush", optarg);
@@ -117,6 +119,8 @@ int main(int argc, char *argv[])
 				helpMenu();
 				exit(0);
 				break;
+			default:
+				std::cout<<"Opt "<<opt<<" not valid"<<endl;
 		}
 	}
 // ----------- Read Rows and Load into Corresponding FlatBuffer -----------
@@ -195,6 +199,7 @@ void helpMenu() {
 	printf("\t-s [schema_file_name]\n");
 	printf("\t-o [number_of_objects]\n");
 	printf("\t-r [number_of_rows_until_flush]\n");
+	printf("\t-i [rid_start_value]\n");
 	printf("\t-n [number_of_rows_to_read]\n");
 }
 
@@ -558,16 +563,17 @@ void flushFlatBuffer(uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr, s
 
 /* TODO: set default version numbers to version fields (i.e. data_structure_type, fb_version, data_structure_version). */
 void finishFlatBuffer(fbb fbPtr, uint8_t skyhook_v, uint8_t schema_v, string table_name, string schema, delete_vector *deletePtr, rows_vector *rowsPtr, uint32_t nrows) {
-        auto data_structure_type = skyhook_v;
-        auto fb_version = 2;
-        auto data_structure_version = schema_v;           
-        auto table_schema = fbPtr->CreateString(schema);                
+        auto data_format_type = skyhook_v;
+        auto skyhook_version = 2; //skyhook_v
+        auto data_structure_version = schema_v;
+	auto data_schema_version = schema_v;	
+        auto data_schema = fbPtr->CreateString(schema);                
         auto db_schema = fbPtr->CreateString("*");     
         auto table_n = fbPtr->CreateString(table_name);               
         auto delete_vector = fbPtr->CreateVector(*deletePtr);             
         auto rows = fbPtr->CreateVector(*rowsPtr);
 
-        auto tableOffset = CreateTable(*fbPtr, data_structure_type, fb_version, data_structure_version, table_schema, db_schema, table_n, delete_vector, rows, nrows);
+        auto tableOffset = CreateTable(*fbPtr, data_format_type, skyhook_version, data_structure_version, data_schema_version, data_schema, db_schema, table_n, delete_vector, rows, nrows);
 
         fbPtr->Finish(tableOffset);
 }

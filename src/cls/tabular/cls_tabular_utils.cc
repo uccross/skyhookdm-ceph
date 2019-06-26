@@ -263,6 +263,7 @@ int processSkyFb(
         root.data_format_type,
         root.skyhook_version,
         root.data_structure_version,
+	root.data_schema_version,
         data_schema,
         db_schema,
         table_name,
@@ -981,10 +982,11 @@ sky_root getSkyRoot(const char *fb, size_t fb_size) {
     const Table* root = GetTable(fb);
 
     return sky_root(
-        root->fb_version(), // TODO: this should be skyhook version in v2.fbs
-        root->data_structure_type(),
+	root->data_format_type(),
+        root->skyhook_version(), // TODO: this should be skyhook version in v2.fbs
         root->data_structure_version(), // TODO: add data_schema_version to v2.fbs
-        root->table_schema()->str(),
+	root->data_schema_version(),
+        root->data_schema()->str(),
         root->db_schema()->str(),
         root->table_name()->str(),
         delete_vector(root->delete_vector()->begin(),

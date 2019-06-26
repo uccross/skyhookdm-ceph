@@ -515,6 +515,7 @@ struct root_table {
     int32_t skyhook_version;
     int32_t data_format_type;
     int32_t data_structure_version;
+    int32_t data_schema_version;
     std::string data_schema;
     std::string db_schema;
     std::string table_name;
@@ -523,17 +524,19 @@ struct root_table {
     uint32_t nrows;
 
     root_table(
-        int32_t _skyhook_version,
         int32_t _data_format_type,
-        int32_t _data_structure_version,
+        int32_t _skyhook_version,
+	int32_t _data_structure_version,
+	int32_t _data_schema_version,
         std::string _data_schema,
         std::string _db_schema,
         std::string _table_name,
         delete_vector _delete_vec,
         row_offs _offs,
-        uint32_t _nrows) :  skyhook_version(_skyhook_version),
-                            data_format_type(_data_format_type),
+        uint32_t _nrows) :  data_format_type(_data_format_type),
+	    		    skyhook_version(_skyhook_version),
                             data_structure_version(_data_structure_version),
+			    data_schema_version(_data_schema_version),
                             data_schema(_data_schema),
                             db_schema(_db_schema),
                             table_name(_table_name),
