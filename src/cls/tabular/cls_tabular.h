@@ -25,12 +25,6 @@ void cls_log_message(std::string msg, bool is_err, int log_level);
 #define ARROW_RID_INDEX(cols) (cols)
 #define ARROW_DELVEC_INDEX(cols) (cols + 1)
 
-enum layout_type_t {
-    LAYOUT_FLATBUFFER = 1,
-    LAYOUT_ARROW,
-    LAYOUT_INVALID
-};
-
 enum arrow_metadata_t {
     METADATA_SKYHOOK_VERSION,
     METADATA_SCHEMA_VERSION,
@@ -53,6 +47,16 @@ inline const char* ToString(arrow_metadata_t m)
         default:                       return "[Unknown Metadata]";
     }
 }
+
+// refers to data format stored in objects
+enum SkyFormatType {
+    SFT_FLATBUF_FLEX_ROW,
+    SFT_FLATBUF_UNION_ROW,
+    SFT_FLATBUF_UNION_COL,
+    SFT_ARROW,
+    SFT_POSTGRESQL,
+    SFT_CSV
+};
 
 /*
  * Stores the query request parameters.  This is encoded by the client and

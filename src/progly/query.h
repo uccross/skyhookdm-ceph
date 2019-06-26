@@ -100,9 +100,11 @@ extern std::string idx_op_idx_schema;
 extern std::string idx_op_text_delims;
 
 // Transform op params
-extern int trans_op_type;
+extern int trans_op_format_type;
 
+// other exec flags
 extern bool runstats;
+extern bool print_verbose;
 
 // to convert strings <=> skyhook data structs
 extern Tables::schema_vec sky_tbl_schema;
@@ -115,9 +117,12 @@ extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
+extern std::atomic<unsigned> nrows_processed;  // TODO: remove
 
-// total number of rows processed, client side or server side (cls).
-extern std::atomic<unsigned> nrows_processed;
+// used for print csv
+extern std::atomic<bool> print_header;
+extern std::atomic<long long int> row_counter;
+extern long long int row_limit;
 
 // rename work_lock
 extern int outstanding_ios;

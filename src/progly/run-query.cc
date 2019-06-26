@@ -33,8 +33,8 @@ int main(int argc, char **argv)
   bool mem_constrain;
   bool text_index_ignore_stopwords;
   int index_plan_type;
-  int trans_layout_type;
-  std::string trans_layout_str;
+  int trans_format_type;
+  std::string trans_format_str;
   std::string text_index_delims;
   std::string db_schema;
   std::string table_name;
@@ -54,6 +54,7 @@ int main(int argc, char **argv)
   int index2_type = Tables::SIT_IDX_UNK;
   bool fastpath = false;
   bool idx_unique = false;
+  bool header;  // print csv header
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -130,7 +131,10 @@ int main(int argc, char **argv)
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
-    ("transform-layout-type", po::value<std::string>(&trans_layout_str)->default_value("flatbuffer"), "Destination layout type ")
+    ("transform-format-type", po::value<std::string>(&trans_format_str)->default_value("flatbuffer"), "Destination format type ")
+    ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record metadata.")
+    ("header", po::bool_switch(&header)->default_value(true), "Print csv row header.")
+    ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -210,10 +214,10 @@ int main(int argc, char **argv)
   }
 
   // Get the destination object type for the transform operation
-  if (trans_layout_str == "flatbuffer") {
-    trans_layout_type = LAYOUT_FLATBUFFER;
-  } else if (trans_layout_str == "arrow") {
-    trans_layout_type = LAYOUT_ARROW;
+  if (trans_format_str == "flatbuffer") {
+    trans_format_type = SFT_FLATBUF_FLEX_ROW;
+  } else if (trans_format_str == "arrow") {
+    trans_format_type = SFT_ARROW;
   } else {
     assert(0);
   }
@@ -530,7 +534,7 @@ int main(int argc, char **argv)
     idx_op_idx_schema = schemaToString(sky_idx_schema);
     idx_op_ignore_stopwords = text_index_ignore_stopwords;
     idx_op_text_delims = text_index_delims;
-    trans_op_type = trans_layout_type;
+    trans_op_format_type = trans_format_type;
 
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
@@ -613,6 +617,7 @@ int main(int argc, char **argv)
   rows_returned = 0;
   nrows_processed = 0;
   fastpath |= false;
+  print_header = header;  // used for csv printing
 
   outstanding_ios = 0;
   stop = false;
@@ -700,7 +705,11 @@ int main(int argc, char **argv)
       break;
     }
     lock.unlock();
-    std::cout << "draining ios: " << outstanding_ios << " remaining" << std::endl;
+
+    // only report status messages during quiet operation
+    // since otherwise we are printing as csv data to std out
+    if (quiet)
+        std::cout << "draining ios: " << outstanding_ios << " remaining\n";
     sleep(1);
   }
 
@@ -717,14 +726,17 @@ int main(int argc, char **argv)
 
   ioctx.close();
 
-  if (query == "a" && use_cls) {
-    std::cout << "total result row count: " << result_count
-      << " / -1" << "; nrows_processed=" << nrows_processed
-      << std::endl;
-  } else {
-    std::cout << "total result row count: " << result_count
-      << " / " << rows_returned  << "; nrows_processed=" << nrows_processed
-      << std::endl;
+  // only report status messages during quiet operation
+  // since otherwise we are printing as csv data to std out
+  if (quiet) {
+      if (query == "a" && use_cls) {
+        std::cout << "total result row count: " << result_count << " / -1"
+                  << "; nrows_processed=" << nrows_processed << std::endl;
+      } else {
+        std::cout << "total result row count: " << result_count << " / "
+                  << rows_returned  << "; nrows_processed=" << nrows_processed
+                  << std::endl;
+      }
   }
 
   if (logfile.length()) {

@@ -64,7 +64,7 @@ int get_fb_seq_num(cls_method_context_t hctx, unsigned int& fb_seq_num) {
     bufferlist fb_bl;
     int ret = cls_cxx_getxattr(hctx, "fb_seq_num", &fb_bl);
     if (ret == -ENOENT || ret == -ENODATA) {
-        fb_seq_num = Tables::FB_SEQ_NUM_MIN;
+        fb_seq_num = Tables::DATASTRUCT_SEQ_NUM_MIN;
         // If fb_seq_num is not present then insert it in xattr.
     }
     else if (ret < 0) {
@@ -156,7 +156,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
     // fb_seq_num is stored in xattrs and used as a stable counter of the
     // current number of fbs in the object.
-    unsigned int fb_seq_num = Tables::FB_SEQ_NUM_MIN;
+    unsigned int fb_seq_num = Tables::DATASTRUCT_SEQ_NUM_MIN;
     int ret = get_fb_seq_num(hctx, fb_seq_num);
     if (ret < 0) {
         CLS_ERR("ERROR: exec_build_sky_index_op: fb_seq_num entry from xattr %d", ret);
@@ -212,7 +212,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
         // IDX_FB get the key prefix and key_data (fb sequence num)
         ++fb_seq_num;
-        key_fb_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.schema_name,
+        key_fb_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.db_schema,
                                        root.table_name);
         std::string str_seq_num = Tables::u64tostr(fb_seq_num); // key data
         int len = str_seq_num.length();
@@ -234,7 +234,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
             std::vector<std::string> index_cols;
             index_cols.push_back(Tables::RID_INDEX);
             key_data_prefix = buildKeyPrefix(Tables::SIT_IDX_RID,
-                                             root.schema_name,
+                                             root.db_schema,
                                              root.table_name,
                                              index_cols);
         }
@@ -246,7 +246,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
                 keycols.push_back(it->name);
             }
             key_data_prefix = Tables::buildKeyPrefix(op.idx_type,
-                                                     root.schema_name,
+                                                     root.db_schema,
                                                      root.table_name,
                                                      keycols);
         }
@@ -628,8 +628,8 @@ read_fbs_index(
     using namespace Tables;
     int ret = 0;
 
-    unsigned int seq_min = Tables::FB_SEQ_NUM_MIN;
-    unsigned int seq_max = Tables::FB_SEQ_NUM_MIN;
+    unsigned int seq_min = Tables::DATASTRUCT_SEQ_NUM_MIN;
+    unsigned int seq_max = Tables::DATASTRUCT_SEQ_NUM_MIN;
 
     // get the actual max fb seq number
     ret = get_fb_seq_num(hctx, seq_max);
@@ -1318,7 +1318,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 // if we must read the full object, we set the reads[] to
                 // contain a single read, indicating the entire object.
                 if (read_full_object) {
-                    int fb_seq_num = Tables::FB_SEQ_NUM_MIN;
+                    int fb_seq_num = Tables::DATASTRUCT_SEQ_NUM_MIN;
                     int off = 0;
                     int len = 0;
                     std::vector<unsigned int> rnums = {};

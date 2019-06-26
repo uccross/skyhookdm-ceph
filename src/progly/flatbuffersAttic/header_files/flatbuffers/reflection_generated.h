@@ -70,7 +70,7 @@ inline const BaseType (&EnumValuesBaseType())[17] {
 }
 
 inline const char * const *EnumNamesBaseType() {
-  static const char * const names[18] = {
+  static const char * const names[] = {
     "None",
     "UType",
     "Bool",
