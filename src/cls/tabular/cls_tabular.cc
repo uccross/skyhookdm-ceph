@@ -1720,7 +1720,7 @@ static int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
      * which is stored as a metadata */
     auto schema = table->schema();
     auto metadata = schema->metadata();
-    schema_vec sc = schemaFromString(metadata->value(METADATA_SCHEMA_DATA));
+    schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
 
     // Iterate through each column in print the data inside it
     for (auto it = sc.begin(); it != sc.end(); ++it) {
@@ -1890,7 +1890,7 @@ static int print_arrowbuf_rowwise(std::shared_ptr<arrow::Table>& table)
      * which is stored as a metadata */
     auto schema = table->schema();
     auto metadata = schema->metadata();
-    schema_vec sc = schemaFromString(metadata->value(METADATA_SCHEMA_DATA));
+    schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
     int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
 
     // Get the names of each column and create required array vector
@@ -2201,18 +2201,24 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
         std::shared_ptr<arrow::KeyValueMetadata> metadata (new arrow::KeyValueMetadata);
         metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
                          orig_metadata->value(METADATA_SKYHOOK_VERSION));
-        metadata->Append(ToString(METADATA_SCHEMA_VERSION),
-                         orig_metadata->value(METADATA_SCHEMA_VERSION));
-        metadata->Append(ToString(METADATA_SCHEMA_DATA),
-                         orig_metadata->value(METADATA_SCHEMA_DATA));
-        metadata->Append(ToString(METADATA_SCHEMA_NAME),
-                         orig_metadata->value(METADATA_SCHEMA_NAME));
-
+        metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),
+                         orig_metadata->value(METADATA_DATA_SCHEMA_VERSION));
+        metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
+                         orig_metadata->value(METADATA_DATA_STRUCTURE_VERSION));
+        metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
+                         orig_metadata->value(METADATA_DATA_FORMAT_TYPE));
+        metadata->Append(ToString(METADATA_DATA_SCHEMA),
+                         orig_metadata->value(METADATA_DATA_SCHEMA));
+        metadata->Append(ToString(METADATA_DB_SCHEMA),
+                         orig_metadata->value(METADATA_DB_SCHEMA));
+        metadata->Append(ToString(METADATA_TABLE_NAME),
+                         orig_metadata->value(METADATA_TABLE_NAME));
+        
         if (remaining_rows <= max_rows)
-            metadata->Append(ToString(METADATA_SCHEMA_VERSION),
+            metadata->Append(ToString(METADATA_NUM_ROWS),
                              std::to_string(remaining_rows));
         else
-            metadata->Append(ToString(METADATA_SCHEMA_VERSION),
+            metadata->Append(ToString(METADATA_NUM_ROWS),
                              std::to_string(max_rows));
 
         // Generate the schema for new table using original table schema
@@ -2258,7 +2264,7 @@ int transform_fb_to_arrow(const char* fb,
 {
     int errcode = 0;
     sky_root root = getSkyRoot(fb, fb_size);
-    schema_vec sc = schemaFromString(root.schema);
+    schema_vec sc = schemaFromString(root.data_schema);
     delete_vector del_vec = root.delete_vec;
     uint32_t nrows = root.nrows;
 
@@ -2272,10 +2278,14 @@ int transform_fb_to_arrow(const char* fb,
     // Add skyhook metadata to arrow metadata.
     metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
                      std::to_string(root.skyhook_version));
-    metadata->Append(ToString(METADATA_SCHEMA_VERSION),
-                     std::to_string(root.schema_version));
-    metadata->Append(ToString(METADATA_SCHEMA_DATA), root.schema);
-    metadata->Append(ToString(METADATA_SCHEMA_NAME), root.schema_name);
+    metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),
+                     std::to_string(root.data_schema_version));
+    metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
+                     std::to_string(root.data_structure_version));
+    metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
+                     std::to_string(root.data_format_type));
+    metadata->Append(ToString(METADATA_DATA_SCHEMA), root.data_schema);
+    metadata->Append(ToString(METADATA_DB_SCHEMA), root.db_schema);
     metadata->Append(ToString(METADATA_TABLE_NAME), root.table_name);
     metadata->Append(ToString(METADATA_NUM_ROWS), std::to_string(root.nrows));
 
@@ -2579,18 +2589,16 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
     CLS_LOG(20, "transform_db_op: transform_layout_type=%d", op.required_type);
 
-    assert (op.required_type != LAYOUT_INVALID);
-
     int ret = get_sky_layout_type(hctx, layout_type);
     if (ret == -ENOENT || ret == -ENODATA) {
         // If sky_layout_type is not present then insert it in xattr.
         // Default value is set as a Flatbuffer
-        ret = set_sky_layout_type(hctx, LAYOUT_FLATBUFFER);
+        ret = set_sky_layout_type(hctx, SFT_FLATBUF_FLEX_ROW);
         if(ret < 0) {
             CLS_ERR("transform_db_op: error setting sky_layout_type entry to xattr %d", ret);
             return ret;
         }
-        layout_type = LAYOUT_FLATBUFFER;
+        layout_type = SFT_FLATBUF_FLEX_ROW;
     }
     else if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: sky_layout_type entry from xattr %d", ret);
@@ -2607,12 +2615,11 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
     // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb/arrow
     bufferlist wrapped_bls;
-    test_bls(&wrapped_bls);
-    // ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
-    // if (ret < 0) {
-    //     CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
-    //     return ret;
-    // }
+    ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+        return ret;
+    }
 
     using namespace Tables;
     ceph::bufferlist::iterator it = wrapped_bls.begin();
@@ -2630,7 +2637,7 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         size_t data_size = bl.length();
         std::string errmsg;
 
-        if (op.required_type == LAYOUT_ARROW) {
+        if (op.required_type == SFT_ARROW) {
             std::shared_ptr<arrow::Table> table;
             ret = transform_fb_to_arrow(data, data_size, errmsg, &table);
             if (ret != 0) {
@@ -2660,7 +2667,7 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 CLS_ERR("ERROR: Printing object");
                 return ret;
             }
-        } else if (op.required_type == LAYOUT_FLATBUFFER) {
+        } else if (op.required_type == SFT_FLATBUF_FLEX_ROW) {
             flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
 
             ret = transform_arrow_to_fb(data, data_size, errmsg, flatbldr);

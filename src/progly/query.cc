@@ -67,7 +67,7 @@ std::string idx_op_idx_schema;
 std::string idx_op_text_delims;
 
 // transform op params
-int trans_op_type;
+int trans_op_format_type;
 
 // for runstats op on a given table name
 bool runstats;

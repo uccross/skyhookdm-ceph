@@ -595,7 +595,7 @@ int main(int argc, char **argv)
   if (transform_db) {
 
     // create idx_op for workers
-    transform_op op(qop_table_name, qop_data_schema, trans_op_type);
+    transform_op op(qop_table_name, qop_data_schema, trans_op_format_type);
 
     // kick off the workers
     std::vector<std::thread> threads;

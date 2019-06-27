@@ -27,9 +27,11 @@ void cls_log_message(std::string msg, bool is_err, int log_level);
 
 enum arrow_metadata_t {
     METADATA_SKYHOOK_VERSION,
-    METADATA_SCHEMA_VERSION,
-    METADATA_SCHEMA_DATA,
-    METADATA_SCHEMA_NAME,
+    METADATA_DATA_SCHEMA_VERSION,
+    METADATA_DATA_STRUCTURE_VERSION,
+    METADATA_DATA_FORMAT_TYPE,
+    METADATA_DATA_SCHEMA,
+    METADATA_DB_SCHEMA,
     METADATA_TABLE_NAME,
     METADATA_NUM_ROWS
 };
@@ -38,13 +40,15 @@ inline const char* ToString(arrow_metadata_t m)
 {
     switch (m)
     {
-        case METADATA_SKYHOOK_VERSION: return "skyhook_version";
-        case METADATA_SCHEMA_VERSION:  return "schema_version";
-        case METADATA_SCHEMA_DATA:     return "schema_data";
-        case METADATA_SCHEMA_NAME:     return "schema_name";
-        case METADATA_TABLE_NAME:      return "table_name";
-        case METADATA_NUM_ROWS:        return "num_rows";
-        default:                       return "[Unknown Metadata]";
+        case METADATA_SKYHOOK_VERSION:         return "skyhook_version";
+        case METADATA_DATA_SCHEMA_VERSION:     return "data_schema_version";
+        case METADATA_DATA_STRUCTURE_VERSION:  return "data_structure_version";
+        case METADATA_DATA_FORMAT_TYPE:        return "data_format_type";
+        case METADATA_DATA_SCHEMA:             return "data_schema";
+        case METADATA_DB_SCHEMA:               return "db_schema";
+        case METADATA_TABLE_NAME:              return "table_name";
+        case METADATA_NUM_ROWS:                return "num_rows";
+        default:                               return "[Unknown Metadata]";
     }
 }
 
