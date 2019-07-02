@@ -387,7 +387,7 @@ int process_fb_union( flatbuffers::FlatBufferBuilder& res_builder,
   //   }
   //
 
-  std::cout << "----- ouside while loop -----" << std::endl ;
+  std::cout << "----- outside while loop -----" << std::endl ;
 
   if( col_flag ) {
     std::cout << "--col_flag is true--"<< std::endl ;
