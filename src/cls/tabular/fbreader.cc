@@ -27,7 +27,6 @@
 namespace po = boost::program_options ;
 
 void do_read( bool, std::string, std::string ) ;
-std::string printVect( std::vector< std::string > ) ;
 
 int main( int argc, char *argv[] ) {
 
@@ -55,18 +54,6 @@ int main( int argc, char *argv[] ) {
   do_read( debug, oid, pool ) ;
 
   return 0 ;
-}
-
-// =========== //
-//  printVect  //
-// =========== //
-std::string printVect( std::vector< std::string > vec ) {
-  std::ostringstream oss ;
-  std::copy( vec.begin(), 
-             vec.end()-1, 
-             std::ostream_iterator< std::string >( oss, "," ) ) ;
-  oss << vec.back();
-  return oss.str() ;
 }
 
 // ========== //
