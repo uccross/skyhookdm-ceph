@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+cp -r data /data
+
+cd build/
+
+# launch a one-monitor/one-osd cluster
+MON=1 OSD=3 ../src/vstart.sh -d -n -x
+
+# run test
+bin/ceph_test_skyhook_query
