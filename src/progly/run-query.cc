@@ -282,7 +282,7 @@ int main(int argc, char **argv)
     assert(!projection); // not supported
     std::cout << "select * from lineitem" << std::endl;
 
-  } else if (query == "flatbuf") {
+  } else if (query == "flatbuf" || query == "arrow") {
 
     // verify and prep client input
     using namespace Tables;
