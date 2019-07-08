@@ -127,29 +127,17 @@ struct cmdline_inputs_t {
   std::string targetpool ;
 } ;
 
-int writeToDisk( const char* fb, int bufsz, std::string target_oid ) {
+int writeToDisk( librados::bufferlist wrapper_bl, int bufsz, std::string target_oid ) {
 
-  librados::bufferlist bl;
-  bl.append( fb, bufsz ) ;
-  librados::bufferlist wrapper_bl ;
-  ::encode( bl, wrapper_bl ) ;
   int mode = 0600 ;
-
   std::string fname = "Skyhook.v2."+ target_oid ;
   wrapper_bl.write_file( fname.c_str(), mode ) ;
-  printf( "buff size: %d, bl size: %d, wrapper_bl size: %d\n", bufsz, bl.length(), wrapper_bl.length() ) ;
+  printf( "buff size: %d, wrapper_bl size: %d\n", bufsz, wrapper_bl.length() ) ;
 
   return 0;
 }
 
-int writeToCeph( const char* fb, int bufsz, std::string target_oid, std::string target_pool ) {
-
-  librados::bufferlist bl ;
-  bl.append( fb, bufsz ) ;
-
-  // write to flatbuffer
-  librados::bufferlist bl_seq ;
-  ::encode( bl, bl_seq ) ;
+int writeToCeph( librados::bufferlist bl_seq, int bufsz, std::string target_oid, std::string target_pool ) {
 
   // save to ceph object
   // connect to rados
@@ -285,16 +273,18 @@ void do_write( cmdline_inputs_t inputs ) {
   }
 
   // -----------------------------------------------
+  // flatbuffer prelims
+  // -----------------------------------------------
+  flatbuffers::FlatBufferBuilder builder( 1024 ) ;
+  librados::bufferlist bl_seq ;
+
+  // -----------------------------------------------
   // | FBMeta flatbuffer     | Rows flatbuffer     |
   // -----------------------------------------------
   if( inputs.write_type == "rows" ) {
 
-    flatbuffers::FlatBufferBuilder builder( 1024 ) ;
-    librados::bufferlist bl_seq ;
-
     // --------------------------------------------- //
-    // build fb meta bufferlist
-
+    // --------------------------------------------- //
     uint64_t nrows = inputs.nrows ;
     uint64_t ncols = inputs.ncols ;
 
@@ -336,8 +326,11 @@ void do_write( cmdline_inputs_t inputs ) {
     for( int i = 0; i < nrows; i++ ) {
       rids_vect.push_back( i+1 ) ;
     }
-    auto rids_vect_fb   = builder.CreateVector( rids_vect ) ;
+    auto rids_vect_fb = builder.CreateVector( rids_vect ) ;
 
+    // --------------------------------------------- //
+    // read data from file into general structure
+    // --------------------------------------------- //
     filedata_t filedata ;
     // initialize struct with empty vects
     for( int i = 0; i < schema_datatypes.size(); i++ ) {
@@ -427,6 +420,9 @@ void do_write( cmdline_inputs_t inputs ) {
 
     filedata.toString() ;
 
+    // --------------------------------------------- //
+    // build out Rows flatbuffer
+    // --------------------------------------------- //
     std::vector< flatbuffers::Offset< Tables::Record > > row_records ;
 
     // create Records as lists of Datas
@@ -500,12 +496,16 @@ void do_write( cmdline_inputs_t inputs ) {
 
     const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
     int bufsz      = builder.GetSize() ;
+    librados::bufferlist bl;
+    bl.append( fb, bufsz ) ;
+    librados::bufferlist wrapper_bl ;
+    ::encode( bl, wrapper_bl ) ;
 
     if( inputs.writeto == "ceph" ) {
-      writeToCeph( fb, bufsz, inputs.targetoid, inputs.targetpool ) ;
+      writeToCeph( wrapper_bl, bufsz, inputs.targetoid, inputs.targetpool ) ;
     }
     else if( inputs.writeto == "disk" ) {
-      writeToDisk( fb, bufsz, inputs.targetoid ) ;
+      writeToDisk( wrapper_bl, bufsz, inputs.targetoid ) ;
     } 
     else {
       std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
@@ -517,7 +517,267 @@ void do_write( cmdline_inputs_t inputs ) {
   // | FBMeta flatbuffer     | Col flatbuffer     |
   // -----------------------------------------------
   else if( inputs.write_type == "col" ) {
+
+    // --------------------------------------------- //
+    // --------------------------------------------- //
+    uint64_t nrows = inputs.nrows ;
+    uint64_t ncols = inputs.ncols ;
+
+    // from commandline
+    // place these before record_builder declare
+    auto table_name     = builder.CreateString( inputs.table_name ) ;
+    auto layout         = builder.CreateString( inputs.write_type ) ;
+
+    // parse schema csv strings
+    std::vector< std::string > schema_attnames = parse_csv_str( inputs.schema_attnames ) ;
+    std::vector< flatbuffers::Offset< flatbuffers::String > > schema ;
+    for( int i = 0; i < schema_attnames.size(); i++ ) {
+      schema.push_back( builder.CreateString( schema_attnames[i] ) ) ;
+    }
+    auto schema_fb = builder.CreateVector( schema ) ;
+
+    std::vector< std::string > schema_datatypes = parse_csv_str( inputs.schema_datatypes ) ;
+    std::vector< uint8_t > record_data_type_vect ;
+    for( int i = 0; i < schema_datatypes.size(); i++ ) {
+      std::string this_dt = schema_datatypes[i] ;
+      if( this_dt == "int" )
+        record_data_type_vect.push_back( Tables::Data_IntData ) ;
+      else if( this_dt == "float" )
+        record_data_type_vect.push_back( Tables::Data_FloatData ) ;
+      else if( this_dt == "string" )
+        record_data_type_vect.push_back( Tables::Data_StringData ) ;
+      else {
+        std::cout << ">> unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
+        exit( 1 ) ;
+      }
+    }
+    auto record_data_types = builder.CreateVector( record_data_type_vect ) ;
+
+    // establish rids_vect
+    std::vector< uint64_t > rids_vect ;
+    rids_vect.push_back( 1 ) ;
+    rids_vect.push_back( 2 ) ;
+    rids_vect.push_back( 3 ) ;
+    for( int i = 0; i < nrows; i++ ) {
+      rids_vect.push_back( i+1 ) ;
+    }
+    auto rids_vect_fb = builder.CreateVector( rids_vect ) ;
+
+    // --------------------------------------------- //
+    // read data from file into general structure
+    // --------------------------------------------- //
+    filedata_t filedata ;
+    // initialize struct with empty vects
+    for( int i = 0; i < schema_datatypes.size(); i++ ) {
+      std::string this_dt = schema_datatypes[i] ;
+      if( this_dt == "int" ) {
+        std::string key = "att" + std::to_string( i ) + "-int" ;
+        // ---- >>>>
+        std::vector< std::string > an_index_pair ;
+        an_index_pair.push_back( key ) ;
+        an_index_pair.push_back( std::to_string( filedata.int_vect_cnt ) ) ;
+        filedata.indexer.push_back( an_index_pair ) ;
+        // <<<< ----
+        std::vector< uint64_t > an_empty_vect ;
+        filedata.listof_int_vect_raw.push_back( an_empty_vect ) ;
+        filedata.int_vect_cnt++ ;
+      }
+      else if( this_dt == "float" ) {
+        std::string key = "att" + std::to_string( i ) + "-float" ;
+        // ---- >>>>
+        std::vector< std::string > an_index_pair ;
+        an_index_pair.push_back( key ) ;
+        an_index_pair.push_back( std::to_string( filedata.float_vect_cnt ) ) ;
+        filedata.indexer.push_back( an_index_pair ) ;
+        // <<<< ----
+        std::vector< float > an_empty_vect ;
+        filedata.listof_float_vect_raw.push_back( an_empty_vect ) ;
+        filedata.float_vect_cnt++ ;
+      }
+      else if( this_dt == "string" ) {
+        std::string key = "att" + std::to_string( i ) + "-string" ;
+        // ---- >>>>
+        std::vector< std::string > an_index_pair ;
+        an_index_pair.push_back( key ) ;
+        an_index_pair.push_back( std::to_string( filedata.string_vect_cnt ) ) ;
+        filedata.indexer.push_back( an_index_pair ) ;
+        // <<<< ----
+        std::vector< std::string > an_empty_vect_strs ;
+        std::vector< flatbuffers::Offset<flatbuffers::String> > an_empty_vect ;
+        filedata.listof_string_vect_raw_strs.push_back( an_empty_vect_strs ) ;
+        filedata.listof_string_vect_raw.push_back( an_empty_vect ) ;
+        filedata.string_vect_cnt++ ;
+      }
+      else {
+        std::cout << ">>2 unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
+        exit( 1 ) ;
+      }
+    } //for loop
+
+    // read csv (pipe delimited) from file
+    std::ifstream infile( inputs.filename ) ;
+    std::string line ;
+    int itnum = 0 ; //need this for some reason?
+    while ( infile.good() && itnum < nrows ) {
+      getline ( infile, line ) ;
+      std::vector< std::string > data_vect = parse_psv_str( line ) ;
+      for( int i = 0; i < data_vect.size(); i++ ) {
+        int attnum = i ;
+        std::string atttype = schema_datatypes[i] ;
+        std::string attkey  = "att" + std::to_string( attnum ) + "-" + atttype ;
+        uint64_t att_vect_id = filedata.get_index( attkey ) ;
+        std::string datum = data_vect[i] ;
+        std::cout << attkey << "," << att_vect_id <<  "," << datum << ";" ;
+
+        // int
+        if( atttype == "int" ) {
+          filedata.listof_int_vect_raw[ att_vect_id ].push_back( std::stoi( datum ) ) ;
+        }
+        // float
+        else if( atttype == "float" ) {
+          filedata.listof_float_vect_raw[ att_vect_id ].push_back( std::stof( datum ) ) ;
+        }
+        // string
+        else if( atttype == "string" ) {
+          filedata.listof_string_vect_raw_strs[ att_vect_id ].push_back( datum ) ;
+          filedata.listof_string_vect_raw[ att_vect_id ].push_back( builder.CreateString( datum ) ) ;
+        }
+        // oops
+        else {
+          std::cout << ">>3 unrecognized atttype '" << atttype << "'" << std::endl ;
+          exit( 1 ) ;
+        }
+      }
+      std::cout << std::endl ;
+      itnum++ ;
+    }
+    infile.close();
+
+    filedata.toString() ;
+
+    // --------------------------------------------- //
+    // build out Col flatbuffers
+    // --------------------------------------------- //
+
+    // bufferlist collecting all Col flatbuffer bufferlists
+    librados::bufferlist bl_seq ;
+    int buffer_size = 0 ;
+
+    for( unsigned int i = 0; i < ncols; i++ ) {
+      auto col_name     = schema[ i ] ;
+      uint8_t col_index = (uint8_t)i ;
+      uint8_t nrows_fb  = (uint8_t)nrows ;
+      auto RIDs         = builder.CreateVector( rids_vect ) ;
+
+      auto key   = filedata.indexer[i][0] ;
+      auto index = filedata.indexer[i][1] ;
+
+      if( boost::algorithm::ends_with( key, "-int" ) ) {
+        std::vector< uint64_t > int_vect = filedata.listof_int_vect_raw[ std::stoi(index) ] ;
+        auto int_vect_fb = builder.CreateVector( int_vect ) ;
+        auto data = Tables::CreateIntData( builder, int_vect_fb ) ;
+        auto col = Tables::CreateCol(
+          builder,
+          0,
+          0,
+          col_name,
+          col_index,
+          nrows_fb,
+          RIDs,
+          Tables::Data_IntData,
+          data.Union() ) ;
+
+        Tables::RootBuilder root_builder( builder ) ;
+        root_builder.add_relationData_type( Tables::Relation_Col ) ;
+        root_builder.add_relationData( col.Union() ) ;
+        auto res = root_builder.Finish() ;
+        builder.Finish( res ) ;
+
+        // save each Col flatbuffer in one bufferlist and
+        // append the bufferlist to a larger bufferlist.
+        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+        int bufsz = builder.GetSize() ;
+        librados::bufferlist bl ;
+        bl.append( fb, bufsz ) ;
+        ::encode( bl, bl_seq ) ;
+        buffer_size = buffer_size + bufsz ;
+      }
+      else if( boost::algorithm::ends_with( key, "-float" ) ) {
+        std::vector< float > float_vect = filedata.listof_float_vect_raw[ std::stoi(index) ] ;
+        auto float_vect_fb = builder.CreateVector( float_vect ) ;
+        auto data = Tables::CreateFloatData( builder, float_vect_fb ) ;
+        auto col = Tables::CreateCol(
+          builder,
+          0,
+          0,
+          col_name,
+          col_index,
+          nrows_fb,
+          RIDs,
+          Tables::Data_FloatData,
+          data.Union() ) ;
+
+        Tables::RootBuilder root_builder( builder ) ;
+        root_builder.add_relationData_type( Tables::Relation_Col ) ;
+        root_builder.add_relationData( col.Union() ) ;
+        auto res = root_builder.Finish() ;
+        builder.Finish( res ) ;
+
+        // save each Col flatbuffer in one bufferlist and
+        // append the bufferlist to a larger bufferlist.
+        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+        int bufsz = builder.GetSize() ;
+        librados::bufferlist bl ;
+        bl.append( fb, bufsz ) ;
+        ::encode( bl, bl_seq ) ;
+        buffer_size = buffer_size + bufsz ;
+      }
+      else if( boost::algorithm::ends_with( key, "-string" ) ) {
+        std::vector< flatbuffers::Offset<flatbuffers::String> > string_vect = filedata.listof_string_vect_raw[ std::stoi(index) ] ;
+        auto string_vect_fb = builder.CreateVector( string_vect ) ;
+        auto data = Tables::CreateStringData( builder, string_vect_fb ) ;
+        auto col = Tables::CreateCol(
+          builder,
+          0,
+          0,
+          col_name,
+          col_index,
+          nrows_fb,
+          RIDs,
+          Tables::Data_StringData,
+          data.Union() ) ;
+
+        Tables::RootBuilder root_builder( builder ) ;
+        root_builder.add_relationData_type( Tables::Relation_Col ) ;
+        root_builder.add_relationData( col.Union() ) ;
+        auto res = root_builder.Finish() ;
+        builder.Finish( res ) ;
+
+        // save each Col flatbuffer in one bufferlist and
+        // append the bufferlist to a larger bufferlist.
+        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+        int bufsz = builder.GetSize() ;
+        librados::bufferlist bl ;
+        bl.append( fb, bufsz ) ;
+        ::encode( bl, bl_seq ) ;
+        buffer_size = buffer_size + bufsz ;
+      }
+    }
+
+    // write bufferlist
+    if( inputs.writeto == "ceph" ) {
+      writeToCeph( bl_seq, buffer_size, inputs.targetoid, inputs.targetpool ) ;
+    }
+    else if( inputs.writeto == "disk" ) {
+      writeToDisk( bl_seq, buffer_size, inputs.targetoid ) ;
+    } 
+    else {
+      std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
+      exit( 1 ) ;
+    }
   }
+
+  // otherwise oops
   else {
     std::cout << ">> unrecognized inputs.write_type = '" << inputs.write_type << "'" << std::endl ;
   }
