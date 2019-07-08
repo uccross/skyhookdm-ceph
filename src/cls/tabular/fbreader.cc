@@ -116,17 +116,17 @@ void do_read( bool debug,
         std::cout << "if data_type == Tables::Relation_Rows" << std::endl ;
       }
 
-      auto schema    = root->schema() ;
-      if( debug ) {
-        std::cout << "schema : " << std::endl ;
-        for( unsigned int i = 0; i < schema->Length(); i++ )
-          std::cout << (unsigned)schema->Get(i) << std::endl ;
-      }
+      //auto schema    = root->schema() ;
+      //if( debug ) {
+      //  std::cout << "schema : " << std::endl ;
+      //  for( unsigned int i = 0; i < schema->Length(); i++ )
+      //    std::cout << (unsigned)schema->Get(i) << std::endl ;
+      //}
  
       auto rows = static_cast< const Tables::Rows* >( root->relationData() ) ;
       auto table_name_read = rows->table_name() ;
 
-      auto schema_read     = rows->schema() ;
+      //auto schema_read     = rows->schema() ;
       auto nrows_read      = rows->nrows() ;
       auto ncols_read      = rows->ncols() ;
       auto rids_read       = rows->RIDs() ;
@@ -134,19 +134,19 @@ void do_read( bool debug,
 
       if( debug ) {
         std::cout << "table_name_read->str() : " << table_name_read->str() << std::endl ;
-        std::cout << "schema_read->Length() : " << schema_read->Length() << std::endl ;
+        //std::cout << "schema_read->Length() : " << schema_read->Length() << std::endl ;
         std::cout << "nrows_read     : " << nrows_read     << std::endl ;
         std::cout << "ncols_read     : " << ncols_read     << std::endl ;
       }
 
       // print schema to stdout
-      if( debug ) {
-        std::cout << "RID\t" ;
-        for( unsigned int i = 0; i < ncols_read; i++ ) {
-          std::cout << schema_read->Get(i)->str() << "\t" ;
-        }
-        std::cout << std::endl ;
-      }
+      //if( debug ) {
+      //  std::cout << "RID\t" ;
+      //  for( unsigned int i = 0; i < ncols_read; i++ ) {
+      //    std::cout << schema_read->Get(i)->str() << "\t" ;
+      //  }
+      //  std::cout << std::endl ;
+      //}
 
       //auto int_data = static_cast< const Tables::IntData* >( rows_data->Get(0) ) ;
       //std::cout << int_data->data()->Get(0) << std::endl ;
