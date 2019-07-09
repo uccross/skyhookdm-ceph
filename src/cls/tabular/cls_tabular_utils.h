@@ -22,6 +22,7 @@
 #include <boost/algorithm/string/classification.hpp> // for boost::is_any_of
 #include <boost/algorithm/string/split.hpp> // for boost::split
 #include <boost/algorithm/string.hpp> // for boost::trim
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include "re2/re2.h"
@@ -29,7 +30,7 @@
 
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
-#include "skyhookv1_generated.h"
+#include "skyhookv2_generated.h"
 
 namespace Tables {
 
@@ -57,6 +58,7 @@ enum TablesErrCodes {
     SkyIndexUnsupportedOpType,
     SkyIndexColNotPresent,
     RowIndexOOB,
+    SkyFormatTypeNotImplemented
 };
 
 // skyhook data types, as supported by underlying data format
@@ -111,8 +113,11 @@ enum SkyOpType {
     // MEMBERSHIP (collections) (TODO)
     SOT_in,
     SOT_not_in,
-    // DATE (SQL)  (TODO)
+    // RANGE (TODO)
     SOT_between,
+    // DATE (SQL)
+    SOT_before,
+    SOT_after,
     // LOGICAL
     SOT_logical_or,
     SOT_logical_and,
@@ -156,6 +161,13 @@ const std::map<SkyIdxType, std::string> SkyIdxTypeMap = {
     {SIT_IDX_REC, "IDX_REC"},
     {SIT_IDX_TXT, "IDX_TXT"},
     {SIT_IDX_UNK, "IDX_UNK"}
+};
+
+// sampling density of statistics collected
+enum StatsLevel {
+    LOW=1,
+    MED,
+    HIGH,
 };
 
 enum AggColIdx {
@@ -202,8 +214,9 @@ const std::string REGEX_DEFAULT_PATTERN = "/.^/";  // matches nothing.
 const int MAX_COLSIZE = 4096; // primarily for text cols TODO: blobs
 const int MAX_TABLE_COLS = 128; // affects nullbits vector size (skyroot)
 const int MAX_INDEX_COLS = 4;
-const unsigned int FB_SEQ_NUM_MIN = 0;
-const unsigned int FB_SEQ_NUM_MAX = 1000;  // max num fbs per obj.
+const int DATASTRUCT_SEQ_NUM_MIN = 0;
+const int DATASTRUCT_SEQ_NUM_MAX = 10000;  // max per obj, before compaction
+const char CSV_DELIM = '|';
 const std::string IDX_KEY_DELIM_INNER = "-";
 const std::string IDX_KEY_DELIM_OUTER = ":";
 const std::string IDX_KEY_DELIM_UNIQUE = "ENFORCEUNIQ";
@@ -212,6 +225,7 @@ const std::string SCHEMA_NAME_DEFAULT = "*";
 const std::string TABLE_NAME_DEFAULT = "*";
 const std::string RID_INDEX = "_RID_INDEX_";
 const int RID_COL_INDEX = -99; // magic number...
+const long long int ROW_LIMIT_DEFAULT = LLONG_MAX;
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -307,33 +321,35 @@ public:
                 case SOT_sum:
                 case SOT_cnt:
                     assert (
-                            std::is_arithmetic<T>::value
-                            && (
-                            col_type==SDT_INT8 ||
-                            col_type==SDT_INT16 ||
-                            col_type==SDT_INT32 ||
-                            col_type==SDT_INT64 ||
-                            col_type==SDT_UINT8 ||
-                            col_type==SDT_UINT16 ||
-                            col_type==SDT_UINT32 ||
-                            col_type==SDT_UINT64 ||
-                            col_type==SDT_BOOL ||
-                            col_type==SDT_CHAR ||
-                            col_type==SDT_UCHAR ||
-                            col_type==SDT_FLOAT ||
-                            col_type==SDT_DOUBLE));
+                            (col_type==SDT_DATE) or
+                            (std::is_arithmetic<T>::value and
+                            (col_type==SDT_INT8 ||
+                             col_type==SDT_INT16 ||
+                             col_type==SDT_INT32 ||
+                             col_type==SDT_INT64 ||
+                             col_type==SDT_UINT8 ||
+                             col_type==SDT_UINT16 ||
+                             col_type==SDT_UINT32 ||
+                             col_type==SDT_UINT64 ||
+                             col_type==SDT_BOOL ||
+                             col_type==SDT_CHAR ||
+                             col_type==SDT_UCHAR ||
+                             col_type==SDT_FLOAT ||
+                             col_type==SDT_DOUBLE))
+                            );
                     break;
 
                 // LEXICAL (regex)
                 case SOT_like:
-                    assert ((
-                        (std::is_same<T, std::string>::value) == true ||
-                        (std::is_same<T, unsigned char>::value) == true ||
-                        (std::is_same<T, char>::value) == true)
-                        && (
-                        col_type==SDT_STRING ||
-                        col_type==SDT_CHAR ||
-                        col_type==SDT_UCHAR));
+                    assert (
+                            ((std::is_same<T, std::string>::value) == true ||
+                             (std::is_same<T, unsigned char>::value) == true ||
+                             (std::is_same<T, char>::value) == true)
+                            and
+                            (col_type==SDT_STRING ||
+                             col_type==SDT_CHAR ||
+                             col_type==SDT_UCHAR)
+                            );
                     break;
 
                 // MEMBERSHIP (collections)
@@ -344,8 +360,10 @@ public:
                     break;
 
                 // DATE (SQL)
+                case SOT_before:
                 case SOT_between:
-                    assert (TablesErrCodes::OpNotImplemented==0);  // TODO
+                case SOT_after:
+                    assert (col_type==SDT_DATE);  // TODO
                     break;
 
                 // LOGICAL
@@ -432,13 +450,22 @@ struct col_info {
         }
 
     col_info(std::string i, std::string t, std::string key, std::string nulls,
-        std::string n) :
+             std::string n) :
         idx(std::stoi(i.c_str())),
         type(std::stoi(t.c_str())),
         is_key(key[0]=='1'),
         nullable(nulls[0]=='1'),
         name(n) {
             assert(type >= SDT_FIRST && type <= SDT_LAST);
+        }
+
+    col_info(std::vector<std::string> s) : // unsafe, for testing only
+        idx(stoll(s[0])),
+        type(stoll(s[1])),
+        is_key(s[2]=="1"),
+        nullable(s[3]=="1"),
+        name(s[4]) {
+            assert (s.size() == NUM_COL_INFO_FIELDS);
         }
 
     col_info(const col_info& c) :
@@ -475,7 +502,7 @@ bool compareColInfo(const struct col_info& l, const struct col_info& r) {
 
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
-typedef const flatbuffers::Vector<flatbuffers::Offset<Row>>* row_offs;
+typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
@@ -484,24 +511,38 @@ typedef flexbuffers::Reference row_data_ref;
 // skyhookdb root metadata, refering to a (sub)partition of rows
 // abstracts a partition from its underlying data format/layout
 struct root_table {
-    const int skyhook_version;
-    int schema_version;
-    string table_name;
-    string schema_name;
+
+    int32_t skyhook_version;
+    int32_t data_format_type;
+    int32_t data_structure_version;
+    int32_t data_schema_version;
+    std::string data_schema;
+    std::string db_schema;
+    std::string table_name;
     delete_vector delete_vec;
     row_offs offs;
     uint32_t nrows;
 
-    root_table(int skyver, int schmver, std::string tblname, std::string schm,
-               delete_vector d, row_offs ro, uint32_t n) :
-        skyhook_version(skyver),
-        schema_version(schmver),
-        table_name(tblname),
-        schema_name(schm),
-        delete_vec(d),
-        offs(ro),
-        nrows(n) {};
-
+    root_table(
+        int32_t _data_format_type,
+        int32_t _skyhook_version,
+	int32_t _data_structure_version,
+	int32_t _data_schema_version,
+        std::string _data_schema,
+        std::string _db_schema,
+        std::string _table_name,
+        delete_vector _delete_vec,
+        row_offs _offs,
+        uint32_t _nrows) :  data_format_type(_data_format_type),
+	    		    skyhook_version(_skyhook_version),
+                            data_structure_version(_data_structure_version),
+			    data_schema_version(_data_schema_version),
+                            data_schema(_data_schema),
+                            db_schema(_db_schema),
+                            table_name(_table_name),
+                            delete_vec(_delete_vec),
+                            offs(_offs),
+                            nrows(_nrows) {};
 };
 typedef struct root_table sky_root;
 
@@ -512,10 +553,10 @@ struct rec_table {
     nullbits_vector nullbits;
     const row_data_ref data;
 
-    rec_table(int64_t rid, nullbits_vector n, row_data_ref d) :
-        RID(rid),
-        nullbits(n),
-        data(d) {
+    rec_table(int64_t _RID, nullbits_vector _nullbits, row_data_ref _data) :
+        RID(_RID),
+        nullbits(_nullbits),
+        data(_data) {
             // ensure one nullbit per col
             int num_nullbits = nullbits.size() * sizeof(nullbits[0]) * 8;
             assert (num_nullbits == MAX_TABLE_COLS);
@@ -575,11 +616,11 @@ const std::string SCHEMA_FORMAT ( \
 // A test schema for the TPC-H lineitem table.
 // format: "col_idx col_type is_key is_nullable name"
 // note the col_idx always refers to the index in the table's current schema
-const std::string TEST_SCHEMA_STRING (" \
-    0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
+const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING (" \
+    0 " +  std::to_string(SDT_INT32) + " 1 0 ORDERKEY \n\
     1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
     2 " +  std::to_string(SDT_INT32) + " 0 1 SUPPKEY \n\
-    3 " +  std::to_string(SDT_INT64) + " 1 0 LINENUMBER \n\
+    3 " +  std::to_string(SDT_INT32) + " 1 0 LINENUMBER \n\
     4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     6 " +  std::to_string(SDT_FLOAT) + " 0 1 DISCOUNT \n\
@@ -595,10 +636,10 @@ const std::string TEST_SCHEMA_STRING (" \
     ");
 
 // A test schema for projection over the TPC-H lineitem table.
-const std::string TEST_SCHEMA_STRING_PROJECT = " \
-    0 " +  std::to_string(SDT_INT64) + " 1 0 ORDERKEY \n\
+const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
+    0 " +  std::to_string(SDT_INT32) + " 1 0 ORDERKEY \n\
     1 " +  std::to_string(SDT_INT32) + " 0 1 PARTKEY \n\
-    3 " +  std::to_string(SDT_INT64) + " 1 0 LINENUMBER \n\
+    3 " +  std::to_string(SDT_INT32) + " 1 0 LINENUMBER \n\
     4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     ";
@@ -607,12 +648,17 @@ const std::string TEST_SCHEMA_STRING_PROJECT = " \
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
 sky_root getSkyRoot(const char *fb, size_t fb_size);
-sky_rec getSkyRec(const Tables::Row *rec);
+sky_rec getSkyRec(const Tables::Record *rec);
 
 // print functions (debug only)
 void printSkyRoot(sky_root *r);
 void printSkyRec(sky_rec *r);
-void printSkyFb(const char* fb, size_t fb_size, schema_vec &schema);
+void printSkyFb(const char* fb, size_t fb_size);
+long long int printFlatbufFlexRowAsCsv(const char* dataptr,
+                                       const size_t datasz,
+                                       bool print_header,
+                                       bool print_verbose,
+                                       long long int max_to_print);
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,
@@ -659,8 +705,8 @@ bool compare(const double& val1, const double& val2, const int& op);
 inline
 bool compare(const bool& val1, const bool& val2, const int& op);
 
-inline
-bool compare(const std::string& val1, const re2::RE2& regx, const int& op);
+inline  // used for date types or regex on alphanumeric types
+bool compare(const std::string& val1, const std::string& val2, const int& op, const int& data_type);
 
 template <typename T>
 T computeAgg(const T& val, const T& oldval, const int& op) {
@@ -687,7 +733,13 @@ bool compare_keys(std::string key1, std::string key2);
 
 // used for matching lt/leq index predicates
 bool check_predicate_ops(predicate_vec index_preds, int opType);
+bool check_predicate_ops_all_include_equality(predicate_vec index_preds);
 bool check_predicate_ops_all_equality(predicate_vec index_preds);
+
+// for extracting the typed value from a typed predicate then
+// returning as uint64, which is then used to build a key-data value string
+void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val);
+void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val);
 
 } // end namespace Tables
 

@@ -50,6 +50,7 @@ int main(int argc, char **argv)
   int index2_type = Tables::SIT_IDX_UNK;
   bool fastpath = false;
   bool idx_unique = false;
+  bool header;  // print csv header
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -79,7 +80,7 @@ int main(int argc, char **argv)
         " max number of cols = " + std::to_string(Tables::MAX_INDEX_COLS));
 
   std::string schema_help_msg = Tables::SCHEMA_FORMAT + "\nEX: \n" +
-        Tables::TEST_SCHEMA_STRING_PROJECT;
+        Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT;
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
@@ -110,7 +111,7 @@ int main(int argc, char **argv)
     // query parameters (new) flatbufs
     ("db-schema-name", po::value<std::string>(&db_schema)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
     ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
-    ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TEST_SCHEMA_STRING), schema_help_msg.c_str())
+    ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING), schema_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
     ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")
@@ -123,6 +124,10 @@ int main(int argc, char **argv)
     ("index-delims", po::value<std::string>(&text_index_delims)->default_value(""), "Use delim for text indexes (def=whitespace")
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
+    ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
+    ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record metadata.")
+    ("header", po::bool_switch(&header)->default_value(true), "Print csv row header.")
+    ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
   ;
 
   po::options_description all_opts("Allowed options");
@@ -276,10 +281,16 @@ int main(int argc, char **argv)
     boost::to_upper(index2_cols);
     boost::to_upper(project_cols);
 
-    assert (!table_name.empty());
+    // current minimum required info for formulating IO requests.
     assert (!db_schema.empty());
+    assert (!table_name.empty());
+    assert (!data_schema.empty());
+
     if(index_create or index_read) {
         assert (!index_cols.empty());
+        assert (use_cls);
+    }
+    if (runstats) {
         assert (use_cls);
     }
 
@@ -505,7 +516,7 @@ int main(int argc, char **argv)
     exit(1);
   }  // end verify query params
 
-  // launch index creation for flatbufs here.
+  // launch index creation on given table and cols here.
   if (query == "flatbuf" && index_create) {
 
     // create idx_op for workers
@@ -522,7 +533,30 @@ int main(int argc, char **argv)
       auto ioctx = new librados::IoCtx;
       int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
       checkret(ret, 0);
-      threads.push_back(std::thread(worker_build_sky_index, ioctx, op));
+      threads.push_back(std::thread(worker_exec_build_sky_index_op, ioctx, op));
+    }
+
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    return 0;
+  }
+
+
+  // launch run statistics on given table here.
+  if (query == "flatbuf" && runstats) {
+
+    // create idx_op for workers
+    stats_op op(qop_db_schema, qop_table_name, qop_data_schema);
+
+    // kick off the workers
+    std::vector<std::thread> threads;
+    for (int i = 0; i < wthreads; i++) {
+      auto ioctx = new librados::IoCtx;
+      int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+      checkret(ret, 0);
+      threads.push_back(std::thread(worker_exec_runstats_op, ioctx, op));
     }
 
     for (auto& thread : threads) {
@@ -536,6 +570,7 @@ int main(int argc, char **argv)
   rows_returned = 0;
   nrows_processed = 0;
   fastpath |= false;
+  print_header = header;  // used for csv printing
 
   outstanding_ios = 0;
   stop = false;
@@ -599,7 +634,7 @@ int main(int argc, char **argv)
         ceph::bufferlist inbl;
         ::encode(op, inbl);
         int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "query_op", inbl, &s->bl);
+            "tabular", "exec_query_op", inbl, &s->bl);
         checkret(ret, 0);
       } else {
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
@@ -623,7 +658,11 @@ int main(int argc, char **argv)
       break;
     }
     lock.unlock();
-    std::cout << "draining ios: " << outstanding_ios << " remaining" << std::endl;
+
+    // only report status messages during quiet operation
+    // since otherwise we are printing as csv data to std out
+    if (quiet)
+        std::cout << "draining ios: " << outstanding_ios << " remaining\n";
     sleep(1);
   }
 
@@ -640,14 +679,17 @@ int main(int argc, char **argv)
 
   ioctx.close();
 
-  if (query == "a" && use_cls) {
-    std::cout << "total result row count: " << result_count
-      << " / -1" << "; nrows_processed=" << nrows_processed
-      << std::endl;
-  } else {
-    std::cout << "total result row count: " << result_count
-      << " / " << rows_returned  << "; nrows_processed=" << nrows_processed
-      << std::endl;
+  // only report status messages during quiet operation
+  // since otherwise we are printing as csv data to std out
+  if (quiet) {
+      if (query == "a" && use_cls) {
+        std::cout << "total result row count: " << result_count << " / -1"
+                  << "; nrows_processed=" << nrows_processed << std::endl;
+      } else {
+        std::cout << "total result row count: " << result_count << " / "
+                  << rows_returned  << "; nrows_processed=" << nrows_processed
+                  << std::endl;
+      }
   }
 
   if (logfile.length()) {

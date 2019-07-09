@@ -99,6 +99,10 @@ extern int idx_op_idx_type;
 extern std::string idx_op_idx_schema;
 extern std::string idx_op_text_delims;
 
+// other exec flags
+extern bool runstats;
+extern bool print_verbose;
+
 // to convert strings <=> skyhook data structs
 extern Tables::schema_vec sky_tbl_schema;
 extern Tables::schema_vec sky_qry_schema;
@@ -110,9 +114,12 @@ extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
+extern std::atomic<unsigned> nrows_processed;  // TODO: remove
 
-// total number of rows processed, client side or server side (cls).
-extern std::atomic<unsigned> nrows_processed;
+// used for print csv
+extern std::atomic<bool> print_header;
+extern std::atomic<long long int> row_counter;
+extern long long int row_limit;
 
 // rename work_lock
 extern int outstanding_ios;
@@ -128,6 +135,7 @@ extern std::condition_variable work_cond;
 extern bool stop;
 
 void worker_build_index(librados::IoCtx *ioctx);
-void worker_build_sky_index(librados::IoCtx *ioctx, idx_op op);
+void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op);
+void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op);
 void worker();
 void handle_cb(librados::completion_t cb, void *arg);

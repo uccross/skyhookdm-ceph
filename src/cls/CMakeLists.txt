@@ -274,7 +274,22 @@ add_library(cls_tabular SHARED tabular/cls_tabular.cc
                                tabular/cls_tabular_utils.cc 
                                tabular/cls_transform_utils.cc )
 #                               tabular/cls_test_utils.cc )
-target_link_libraries(cls_tabular re2)
+target_link_libraries(cls_tabular re2 Boost::date_time)
 set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_tabular DESTINATION ${cls_dir})
+
+# skyhook fbwriter
+add_executable(fbwriter tabular/fbwriter.cc  tabular/cls_tabular_utils.cc)
+target_link_libraries(fbwriter librados global re2)
+install(TARGETS fbwriter DESTINATION bin)
+
+# skyhook fbreader
+add_executable(fbreader tabular/fbreader.cc)
+target_link_libraries(fbreader librados global re2)
+install(TARGETS fbreader DESTINATION bin)
+
+# skyhook fbwriter_skyroot
+add_executable(fbwriter_skyroot tabular/fbwriter_skyroot.cc)
+target_link_libraries(fbwriter_skyroot librados global re2)
+install(TARGETS fbwriter_skyroot DESTINATION bin)
 

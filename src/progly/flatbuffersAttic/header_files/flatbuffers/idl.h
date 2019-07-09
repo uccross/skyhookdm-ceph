@@ -123,8 +123,6 @@ inline bool IsLong   (BaseType t) { return t == BASE_TYPE_LONG ||
 inline bool IsBool   (BaseType t) { return t == BASE_TYPE_BOOL; }
 inline bool IsOneByte(BaseType t) { return t >= BASE_TYPE_UTYPE &&
                                            t <= BASE_TYPE_UCHAR; }
-<<<<<<< HEAD
-=======
 
 inline bool IsUnsigned(BaseType t) {
   return (t == BASE_TYPE_UTYPE)  || (t == BASE_TYPE_UCHAR) ||
@@ -132,7 +130,6 @@ inline bool IsUnsigned(BaseType t) {
          (t == BASE_TYPE_ULONG);
 }
 
->>>>>>> skyhook-kat
 // clang-format on
 
 extern const char *const kTypeNames[];
@@ -233,15 +230,6 @@ struct Namespace {
   std::vector<std::string> components;
   size_t from_table;  // Part of the namespace corresponds to a message/table.
 };
-
-inline bool operator<(const Namespace &a, const Namespace &b) {
-  size_t min_size = std::min(a.components.size(), b.components.size());
-  for (size_t i = 0; i < min_size; ++i) {
-    if (a.components[i] != b.components[i])
-      return a.components[i] < b.components[i];
-  }
-  return a.components.size() < b.components.size();
-}
 
 // Base class for all definition types (fields, structs_, enums_).
 struct Definition {
@@ -346,28 +334,19 @@ inline size_t InlineAlignment(const Type &type) {
   return IsStruct(type) ? type.struct_def->minalign : SizeOf(type.base_type);
 }
 
-<<<<<<< HEAD
-struct EnumVal {
-  EnumVal(const std::string &_name, int64_t _val) : name(_name), value(_val) {}
-  EnumVal() : value(0) {}
-=======
 struct EnumDef;
 struct EnumValBuilder;
->>>>>>> skyhook-kat
 
 struct EnumVal {
   Offset<reflection::EnumVal> Serialize(FlatBufferBuilder *builder, const Parser &parser) const;
 
   bool Deserialize(const Parser &parser, const reflection::EnumVal *val);
 
-<<<<<<< HEAD
-=======
   uint64_t GetAsUInt64() const { return static_cast<uint64_t>(value); }
   int64_t GetAsInt64() const { return value; }
   bool IsZero() const { return 0 == value; }
   bool IsNonZero() const { return !IsZero(); }
 
->>>>>>> skyhook-kat
   std::string name;
   std::vector<std::string> doc_comment;
   Type union_type;
@@ -423,12 +402,6 @@ struct EnumDef : public Definition {
     return vals.Lookup(enum_name);
   }
 
-<<<<<<< HEAD
-  bool Deserialize(Parser &parser, const reflection::Enum *values);
-
-  SymbolTable<EnumVal> vals;
-=======
->>>>>>> skyhook-kat
   bool is_union;
   // Type is a union which uses type aliases where at least one type is
   // available under two different names.
@@ -777,21 +750,12 @@ class Parser : public ParserState {
   bool ParseFlexBuffer(const char *source, const char *source_filename,
                        flexbuffers::Builder *builder);
 
-<<<<<<< HEAD
-  FLATBUFFERS_CHECKED_ERROR InvalidNumber(const char *number,
-                                          const std::string &msg);
-
-=======
->>>>>>> skyhook-kat
   StructDef *LookupStruct(const std::string &id) const;
 
   std::string UnqualifiedName(std::string fullQualifiedName);
 
-<<<<<<< HEAD
-=======
   FLATBUFFERS_CHECKED_ERROR Error(const std::string &msg);
 
->>>>>>> skyhook-kat
  private:
   void Message(const std::string &msg);
   void Warning(const std::string &msg);
@@ -815,13 +779,9 @@ class Parser : public ParserState {
   FLATBUFFERS_CHECKED_ERROR ParseComma();
   FLATBUFFERS_CHECKED_ERROR ParseAnyValue(Value &val, FieldDef *field,
                                           size_t parent_fieldn,
-<<<<<<< HEAD
-                                          const StructDef *parent_struct_def);
-=======
                                           const StructDef *parent_struct_def,
                                           uoffset_t count,
                                           bool inside_vector = false);
->>>>>>> skyhook-kat
   template<typename F>
   FLATBUFFERS_CHECKED_ERROR ParseTableDelimiters(size_t &fieldn,
                                                  const StructDef *struct_def,
@@ -830,14 +790,9 @@ class Parser : public ParserState {
                                        std::string *value, uoffset_t *ovalue);
   void SerializeStruct(const StructDef &struct_def, const Value &val);
   template<typename F>
-<<<<<<< HEAD
-  FLATBUFFERS_CHECKED_ERROR ParseVectorDelimiters(size_t &count, F body);
-  FLATBUFFERS_CHECKED_ERROR ParseVector(const Type &type, uoffset_t *ovalue);
-=======
   FLATBUFFERS_CHECKED_ERROR ParseVectorDelimiters(uoffset_t &count, F body);
   FLATBUFFERS_CHECKED_ERROR ParseVector(const Type &type, uoffset_t *ovalue,
                                         FieldDef *field, size_t fieldn);
->>>>>>> skyhook-kat
   FLATBUFFERS_CHECKED_ERROR ParseNestedFlatbuffer(Value &val, FieldDef *field,
                                                   size_t fieldn,
                                                   const StructDef *parent_struct_def);
@@ -847,11 +802,7 @@ class Parser : public ParserState {
   FLATBUFFERS_CHECKED_ERROR ParseHash(Value &e, FieldDef* field);
   FLATBUFFERS_CHECKED_ERROR TokenError();
   FLATBUFFERS_CHECKED_ERROR ParseSingleValue(const std::string *name, Value &e, bool check_now);
-<<<<<<< HEAD
-  FLATBUFFERS_CHECKED_ERROR ParseEnumFromString(Type &type, int64_t *result);
-=======
   FLATBUFFERS_CHECKED_ERROR ParseEnumFromString(const Type &type, std::string *result);
->>>>>>> skyhook-kat
   StructDef *LookupCreateStruct(const std::string &name,
                                 bool create_if_new = true,
                                 bool definition = false);

@@ -16,7 +16,7 @@ namespace Tables {
 
 int processSkyFb(
     flatbuffers::FlatBufferBuilder& flatbldr,
-    schema_vec& data_schema,
+    schema_vec& tbl_schema,
     schema_vec& query_schema,
     predicate_vec& preds,
     const char* fb,
@@ -26,17 +26,17 @@ int processSkyFb(
 {
     int errcode = 0;
     delete_vector dead_rows;
-    std::vector<flatbuffers::Offset<Tables::Row>> offs;
+    std::vector<flatbuffers::Offset<Tables::Record>> offs;
     sky_root root = getSkyRoot(fb, fb_size);
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
-    for (auto it=data_schema.begin(); it!=data_schema.end(); ++it) {
+    for (auto it=tbl_schema.begin(); it!=tbl_schema.end(); ++it) {
         if (it->idx > col_idx_max)
             col_idx_max = it->idx;
     }
 
-    bool project_all = std::equal (data_schema.begin(), data_schema.end(),
+    bool project_all = std::equal (tbl_schema.begin(), tbl_schema.end(),
                                    query_schema.begin(), compareColInfo);
 
     // build the flexbuf with computed aggregates, aggs are computed for
@@ -92,12 +92,12 @@ int processSkyFb(
         auto row = rec.data.AsVector();
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
-        flexbldr->Vector([&]() {
+
+	flexbldr->Vector([&]() {
 
             // iter over the query schema, locating it within the data schema
             for (auto it=query_schema.begin();
                       it!=query_schema.end() && !errcode; ++it) {
-
                 col_info col = *it;
                 if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
                     errcode = TablesErrCodes::RequestedColIndexOOB;
@@ -110,18 +110,15 @@ int processSkyFb(
 
                     switch(col.type) {  // encode data val into flexbuf
 
-                        case SDT_BOOL:
-                            flexbldr->Add(row[col.idx].AsBool());
-                            break;
                         case SDT_INT8:
                             flexbldr->Add(row[col.idx].AsInt8());
-                            break;
+			    break;
                         case SDT_INT16:
                             flexbldr->Add(row[col.idx].AsInt16());
-                            break;
+			    break;
                         case SDT_INT32:
                             flexbldr->Add(row[col.idx].AsInt32());
-                            break;
+			    break;
                         case SDT_INT64:
                             flexbldr->Add(row[col.idx].AsInt64());
                             break;
@@ -137,19 +134,22 @@ int processSkyFb(
                         case SDT_UINT64:
                             flexbldr->Add(row[col.idx].AsUInt64());
                             break;
-                        case SDT_FLOAT:
-                            flexbldr->Add(row[col.idx].AsFloat());
-                            break;
-                        case SDT_DOUBLE:
-                            flexbldr->Add(row[col.idx].AsDouble());
-                            break;
                         case SDT_CHAR:
                             flexbldr->Add(row[col.idx].AsInt8());
                             break;
                         case SDT_UCHAR:
                             flexbldr->Add(row[col.idx].AsUInt8());
                             break;
-                        case SDT_DATE:
+			case SDT_BOOL:
+                            flexbldr->Add(row[col.idx].AsBool());
+                            break;
+			case SDT_FLOAT:
+                            flexbldr->Add(row[col.idx].AsFloat());
+                            break;
+                        case SDT_DOUBLE:
+                            flexbldr->Add(row[col.idx].AsDouble());
+                            break;
+			case SDT_DATE:
                             flexbldr->Add(row[col.idx].AsString().str());
                             break;
                         case SDT_STRING:
@@ -177,8 +177,8 @@ int processSkyFb(
 
         // TODO: update nullbits
         auto nullbits = flatbldr.CreateVector(rec.nullbits);
-        flatbuffers::Offset<Tables::Row> row_off = \
-                Tables::CreateRow(flatbldr, rec.RID, nullbits, row_data);
+        flatbuffers::Offset<Tables::Record> row_off = \
+                Tables::CreateRecord(flatbldr, rec.RID, nullbits, row_data);
 
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
         dead_rows.push_back(0);
@@ -234,12 +234,12 @@ int processSkyFb(
         auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
         delete flexbldr;
 
-        // assume no nullbits in the agg results.  ?
+        // assume no nullbits in the agg results. ?
         nullbits_vector nb(2,0);
         auto nullbits = flatbldr.CreateVector(nb);
-        int RID = 0;
-        flatbuffers::Offset<Tables::Row> row_off = \
-                Tables::CreateRow(flatbldr, RID, nullbits, row_data);
+        int RID = -1;  // agg recs only, since these are derived data
+        flatbuffers::Offset<Tables::Record> row_off = \
+            Tables::CreateRecord(flatbldr, RID, nullbits, row_data);
 
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
         dead_rows.push_back(0);
@@ -247,22 +247,34 @@ int processSkyFb(
     }
 
     // now build the return ROOT flatbuf wrapper
-    std::string schema_str;
+    std::string query_schema_str;
     for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
-        schema_str.append(it->toString() + "\n");
+        query_schema_str.append(it->toString() + "\n");
     }
+
+    auto data_schema = flatbldr.CreateString(query_schema_str);
+    auto db_schema = flatbldr.CreateString(root.db_schema);
     auto table_name = flatbldr.CreateString(root.table_name);
-    auto ret_schema = flatbldr.CreateString(schema_str);
     auto delete_v = flatbldr.CreateVector(dead_rows);
     auto rows_v = flatbldr.CreateVector(offs);
-    auto tableOffset = CreateTable(flatbldr, root.skyhook_version,
-        root.schema_version, table_name, ret_schema,
-        delete_v, rows_v, offs.size());
+
+    auto table = CreateTable(
+        flatbldr,
+        root.data_format_type,
+        root.skyhook_version,
+        root.data_structure_version,
+	root.data_schema_version,
+        data_schema,
+        db_schema,
+        table_name,
+        delete_v,
+        rows_v,
+        offs.size());
 
     // NOTE: the fb may be incomplete/empty, but must finish() else internal
     // fb lib assert finished() fails, hence we must always return a valid fb
     // and catch any ret error code upstream
-    flatbldr.Finish(tableOffset);
+    flatbldr.Finish(table);
 
     return errcode;
 }
@@ -508,6 +520,13 @@ predicate_vec predsFromString(schema_vec &schema, std::string preds_string) {
                 preds.push_back(p);
                 break;
             }
+            case SDT_DATE: {
+                TypedPredicate<std::string>* p = \
+                        new TypedPredicate<std::string> \
+                        (ci.idx, ci.type, op_type, val);
+                preds.push_back(p);
+                break;
+            }
             default: assert (TablesErrCodes::UnknownSkyDataType==0);
         }
     }
@@ -656,7 +675,8 @@ std::string predsToString(predicate_vec &preds, schema_vec &schema) {
                         val = std::to_string(p->Val());
                         break;
                     }
-                    case SDT_STRING: {
+                    case SDT_STRING:
+                    case SDT_DATE: {
                         TypedPredicate<std::string>* p = \
                             dynamic_cast<TypedPredicate<std::string>*>(*it_prd);
                         val = p->Val();
@@ -693,7 +713,9 @@ int skyOpTypeFromString(std::string op) {
     else if (op=="like") op_type = SOT_like;
     else if (op=="in") op_type = SOT_in;
     else if (op=="not_in") op_type = SOT_not_in;
+    else if (op=="before") op_type = SOT_before;
     else if (op=="between") op_type = SOT_between;
+    else if (op=="after") op_type = SOT_after;
     else if (op=="logical_or") op_type = SOT_logical_or;
     else if (op=="logical_and") op_type = SOT_logical_and;
     else if (op=="logical_not") op_type = SOT_logical_not;
@@ -725,7 +747,9 @@ std::string skyOpTypeToString(int op) {
     else if (op==SOT_like) op_str = "like";
     else if (op==SOT_in) op_str = "in";
     else if (op==SOT_not_in) op_str = "not_in";
+    else if (op==SOT_before) op_str = "before";
     else if (op==SOT_between) op_str = "between";
+    else if (op==SOT_after) op_str = "after";
     else if (op==SOT_logical_or) op_str = "logical_or";
     else if (op==SOT_logical_and) op_str = "logical_and";
     else if (op==SOT_logical_not) op_str = "logical_not";
@@ -740,10 +764,12 @@ std::string skyOpTypeToString(int op) {
 
 void printSkyRootHeader(sky_root &r) {
     std::cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< std::endl;
-    std::cout << "skyhookdb version: "<< r.skyhook_version << std::endl;
-    std::cout << "schema version: "<< r.schema_version << std::endl;
+    std::cout << "data_format_type: "<< r.data_format_type << std::endl;
+    std::cout << "schema version: "<< r.data_structure_version << std::endl;
+    std::cout << "db_schema: "<< r.db_schema << std::endl;
     std::cout << "table name: "<< r.table_name << std::endl;
-    std::cout << "schema_name: \n"<< r.schema_name << std::endl;
+    std::cout << "data_schema: \n"<< r.data_schema << std::endl;
+
     std::cout << "delete vector: [";
     for (int i=0; i< (int)r.delete_vec.size(); i++) {
         std::cout << (int)r.delete_vec[i];
@@ -778,17 +804,21 @@ void printSkyRecHeader(sky_rec &r) {
 }
 
 // parent print function for skyhook flatbuffer data layout
-void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
+void printSkyFb(const char* fb, size_t fb_size) {
 
     // get root table ptr
-    sky_root skyroot = Tables::getSkyRoot(fb, fb_size);
+    sky_root skyroot = getSkyRoot(fb, fb_size);
     if (skyroot.nrows == 0) return;  // nothing to see here...
 
     printSkyRootHeader(skyroot);
+    schema_vec sc = schemaFromString(skyroot.data_schema);
 
-    // print col metadata (only names for now).
-    std::cout  << "Flatbuffer schema for the following rows:" << std::endl;
-    for (schema_vec::iterator it = sch.begin(); it != sch.end(); ++it) {
+    // TODO: remove this temporary workaround for compatibility w/old test data
+    if (sc.empty()) {
+    	assert(!sc.empty());
+    }
+    std::cout  << "Schema for the following set of rows:" << std::endl;
+    for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
         std::cout << " | " << it->name;
         if (it->is_key) std::cout << "(key)";
         if (!it->nullable) std::cout << "(NOT NULL)";
@@ -799,16 +829,15 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
     for (uint32_t i = 0; i < skyroot.nrows; i++) {
 
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
-
         sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
-        printSkyRecHeader(skyrec);
+	printSkyRecHeader(skyrec);
 
         auto row = skyrec.data.AsVector();
 
         std::cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << std::endl;
-        for (uint32_t j = 0; j < sch.size(); j++ ) {
+        for (uint32_t j = 0; j < sc.size(); j++ ) {
 
-            col_info col = sch.at(j);
+            col_info col = sc.at(j);
 
             // check our nullbit vector
             if (col.nullable) {
@@ -859,28 +888,120 @@ void printSkyFb(const char* fb, size_t fb_size, schema_vec &sch) {
     std::cout << std::endl;
 }
 
+long long int printFlatbufFlexRowAsCsv(const char* dataptr,
+                              const size_t datasz,
+                              bool print_header,
+                              bool print_verbose,
+                              long long int max_to_print) {
+
+    // get root table ptr as sky struct
+    sky_root skyroot = getSkyRoot(dataptr, datasz);
+    schema_vec sc = schemaFromString(skyroot.data_schema);
+    assert(!sc.empty());
+
+    if (print_verbose)
+        printSkyRootHeader(skyroot);
+
+    // print header row showing schema
+    if (print_header) {
+        bool first = true;
+        for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
+            std::cout << it->name;
+            if (it->is_key) std::cout << "(key)";
+            if (!it->nullable) std::cout << "(NOT NULL)";
+
+        }
+        std::cout << std::endl; // newline to start first row.
+    }
+
+    long long int counter = 0;
+    for (uint32_t i = 0; i < skyroot.nrows; i++, counter++) {
+        if (counter >= max_to_print)
+            break;
+
+        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+
+        // get the record struct, then the row data
+        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
+        auto row = skyrec.data.AsVector();
+
+        if (print_verbose)
+            printSkyRecHeader(skyrec);
+
+        // for each col in the row, print a NULL or the col's value/
+        bool first = true;
+        for (uint32_t j = 0; j < sc.size(); j++ ) {
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
+            col_info col = sc.at(j);
+
+            if (col.nullable) {  // check nullbit
+                bool is_null = false;
+                int pos = col.idx / (8*sizeof(skyrec.nullbits.at(0)));
+                int col_bitmask = 1 << col.idx;
+                if ((col_bitmask & skyrec.nullbits.at(pos)) != 0)  {
+                    is_null =true;
+                }
+                if (is_null) {
+                    std::cout << "NULL";
+                    continue;
+                }
+            }
+            switch (col.type) {
+                case SDT_BOOL: std::cout << row[j].AsBool(); break;
+                case SDT_INT8: std::cout << row[j].AsInt8(); break;
+                case SDT_INT16: std::cout << row[j].AsInt16(); break;
+                case SDT_INT32: std::cout << row[j].AsInt32(); break;
+                case SDT_INT64: std::cout << row[j].AsInt64(); break;
+                case SDT_UINT8: std::cout << row[j].AsUInt8(); break;
+                case SDT_UINT16: std::cout << row[j].AsUInt16(); break;
+                case SDT_UINT32: std::cout << row[j].AsUInt32(); break;
+                case SDT_UINT64: std::cout << row[j].AsUInt64(); break;
+                case SDT_FLOAT: std::cout << row[j].AsFloat(); break;
+                case SDT_DOUBLE: std::cout << row[j].AsDouble(); break;
+                case SDT_CHAR: std::cout <<
+                    std::string(1, row[j].AsInt8()); break;
+                case SDT_UCHAR: std::cout <<
+                    std::string(1, row[j].AsUInt8()); break;
+                case SDT_DATE: std::cout <<
+                    row[j].AsString().str(); break;
+                case SDT_STRING: std::cout <<
+                    row[j].AsString().str(); break;
+                default: assert (TablesErrCodes::UnknownSkyDataType);
+            }
+        }
+        std::cout << std::endl;  // newline to start next row.
+    }
+    return counter;
+}
+
 sky_root getSkyRoot(const char *fb, size_t fb_size) {
 
     const Table* root = GetTable(fb);
 
-    return sky_root (
-            root->skyhook_version(),
-            root->schema_version(),
-            root->table_name()->str(),
-            root->schema()->str(),
-            delete_vector (root->delete_vector()->begin(),
-                           root->delete_vector()->end()),
-            root->rows(),
-            root->nrows()
+    return sky_root(
+	root->data_format_type(),
+        root->skyhook_version(), // TODO: this should be skyhook version in v2.fbs
+        root->data_structure_version(), // TODO: add data_schema_version to v2.fbs
+	root->data_schema_version(),
+        root->data_schema()->str(),
+        root->db_schema()->str(),
+        root->table_name()->str(),
+        delete_vector(root->delete_vector()->begin(),
+                      root->delete_vector()->end()),
+                      root->rows(),
+                      root->nrows()
     );
 }
 
-sky_rec getSkyRec(const Tables::Row* rec) {
+sky_rec getSkyRec(const Tables::Record* rec) {
 
     return sky_rec(
-            rec->RID(),
-            nullbits_vector (rec->nullbits()->begin(), rec->nullbits()->end()),
-                             rec->data_flexbuffer_root()
+        rec->RID(),
+        nullbits_vector(rec->nullbits()->begin(), rec->nullbits()->end()),
+        rec->data_flexbuffer_root()
     );
 }
 
@@ -1046,7 +1167,7 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
             }
 
             case SDT_FLOAT: {
-                TypedPredicate<float>* p= \
+                TypedPredicate<float>* p = \
                         dynamic_cast<TypedPredicate<float>*>(*it);
                 float colval = row[p->colIdx()].AsFloat();
                 float predval = p->Val();
@@ -1060,7 +1181,7 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
             }
 
             case SDT_DOUBLE: {
-                TypedPredicate<double>* p= \
+                TypedPredicate<double>* p = \
                         dynamic_cast<TypedPredicate<double>*>(*it);
                 double colval = row[p->colIdx()].AsDouble();
                 double predval = p->Val();
@@ -1071,22 +1192,14 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
                 break;
             }
 
-            case SDT_DATE: {
-                TypedPredicate<std::string>* p= \
-                        dynamic_cast<TypedPredicate<std::string>*>(*it);
-                string colval = row[p->colIdx()].AsString().str();
-                colpass = compare(colval,p->Val(),p->opType());
-                break;
-            }
-
             case SDT_CHAR: {
                 TypedPredicate<char>* p= \
                         dynamic_cast<TypedPredicate<char>*>(*it);
                 if (p->opType() == SOT_like) {
-                    // use regex for strings
+                    // use strings for regex
                     std::string colval = row[p->colIdx()].AsString().str();
                     std::string predval = std::to_string(p->Val());
-                    colpass = compare(colval,predval,p->opType());
+                    colpass = compare(colval,predval,p->opType(),p->colType());
                 }
                 else {
                     // use int val comparision method
@@ -1103,13 +1216,13 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
             }
 
             case SDT_UCHAR: {
-                TypedPredicate<unsigned char>* p= \
+                TypedPredicate<unsigned char>* p = \
                         dynamic_cast<TypedPredicate<unsigned char>*>(*it);
                 if (p->opType() == SOT_like) {
-                    // use regex for strings
+                    // use strings for regex
                     std::string colval = row[p->colIdx()].AsString().str();
                     std::string predval = std::to_string(p->Val());
-                    colpass = compare(colval,predval,p->opType());
+                    colpass = compare(colval,predval,p->opType(),p->colType());
                 }
                 else {
                     // use int val comparision method
@@ -1125,11 +1238,12 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
                 break;
             }
 
-            case SDT_STRING: {
-                TypedPredicate<std::string>* p= \
+            case SDT_STRING:
+            case SDT_DATE: {
+                TypedPredicate<std::string>* p = \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
                 string colval = row[p->colIdx()].AsString().str();
-                colpass = compare(colval,p->Val(),p->opType());
+                colpass = compare(colval,p->Val(),p->opType(),p->colType());
                 break;
             }
 
@@ -1204,6 +1318,35 @@ bool compare(const double& val1, const double& val2, const int& op) {
     return false;  // should be unreachable
 }
 
+// used for date types or regex on alphanumeric types
+bool compare(const std::string& val1, const std::string& val2, const int& op, const int& data_type) {
+switch(data_type){
+    case SDT_DATE:{
+        boost::gregorian::date d1 = boost::gregorian::from_string(val1);
+        boost::gregorian::date d2 = boost::gregorian::from_string(val2);
+        switch (op) {
+            case SOT_before: return d1 < d2;
+            case SOT_after: return d1 > d2;
+            case SOT_leq: return d1 <= d2;
+            case SOT_lt: return d1 < d2;
+            case SOT_geq: return d1 >= d2;
+            case SOT_gt: return d1 > d2;
+            case SOT_eq: return d1 == d2;
+            case SOT_ne: return d1 != d2;
+            default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+        }
+        break;
+    }
+    case SDT_CHAR:
+    case SDT_UCHAR:
+    case SDT_STRING:
+            if (op == SOT_like) return RE2::PartialMatch(val1, RE2(val2));
+            else assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+        break;
+    }
+    return false;  // should be unreachable
+}
+
 bool compare(const bool& val1, const bool& val2, const int& op) {
     switch (op) {
         case SOT_lt: return val1 < val2;
@@ -1223,15 +1366,6 @@ bool compare(const bool& val1, const bool& val2, const int& op) {
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
     }
     return false;  // should be unreachable
-}
-
-bool compare(const std::string& val1, const re2::RE2& regx, const int& op) {
-    switch (op) {
-        case SOT_like:
-            return RE2::PartialMatch(val1, regx);
-        default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
-    }
-   return false;  // should be unreachable
 }
 
 std::string buildKeyData(int data_type, uint64_t new_data) {
@@ -1334,14 +1468,14 @@ bool check_predicate_ops(predicate_vec index_preds, int opType)
     return true;
 }
 
-bool check_predicate_ops_all_equality(predicate_vec index_preds)
+bool check_predicate_ops_all_include_equality(predicate_vec index_preds)
 {
     for (unsigned i = 0; i < index_preds.size(); i++) {
         switch (index_preds[i]->opType()) {
             case SOT_eq:
             case SOT_leq:
             case SOT_geq:
-                continue;
+                break;
             default:
                 return false;
         }
@@ -1349,6 +1483,18 @@ bool check_predicate_ops_all_equality(predicate_vec index_preds)
     return true;
 }
 
+bool check_predicate_ops_all_equality(predicate_vec index_preds)
+{
+    for (unsigned i = 0; i < index_preds.size(); i++) {
+        switch (index_preds[i]->opType()) {
+            case SOT_eq:
+                break;
+            default:
+                return false;
+        }
+    }
+    return true;
+}
 
 // used for index prefix matching during index range queries
 bool compare_keys(std::string key1, std::string key2)
@@ -1385,6 +1531,74 @@ bool compare_keys(std::string key1, std::string key2)
     }
     return false;
 }
+
+void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val) {
+
+    switch(pb->colType()) {
+
+        case SDT_INT8: {
+            TypedPredicate<int8_t>* p = \
+                dynamic_cast<TypedPredicate<int8_t>*>(pb);
+            val = static_cast<int64_t>(p->Val());
+            break;
+        }
+        case SDT_INT16: {
+            TypedPredicate<int16_t>* p = \
+                dynamic_cast<TypedPredicate<int16_t>*>(pb);
+            val = static_cast<int64_t>(p->Val());
+            break;
+        }
+        case SDT_INT32: {
+            TypedPredicate<int32_t>* p = \
+                dynamic_cast<TypedPredicate<int32_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_INT64: {
+            TypedPredicate<int64_t>* p = \
+                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+            val = static_cast<int64_t>(p->Val());
+            break;
+        }
+        default:
+            assert (BuildSkyIndexUnsupportedColType==0);
+    }
+}
+
+void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val) {
+
+    switch(pb->colType()) {
+
+        case SDT_UINT8: {
+            TypedPredicate<uint8_t>* p = \
+                dynamic_cast<TypedPredicate<uint8_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_UINT16: {
+            TypedPredicate<uint16_t>* p = \
+                dynamic_cast<TypedPredicate<uint16_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_UINT32: {
+            TypedPredicate<uint32_t>* p = \
+                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        case SDT_UINT64: {
+            TypedPredicate<uint64_t>* p = \
+                dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+            val = static_cast<uint64_t>(p->Val());
+            break;
+        }
+        default:
+            assert (BuildSkyIndexUnsupportedColType==0);
+    }
+}
+
+
 
 
 } // end namespace Tables
