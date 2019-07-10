@@ -3,7 +3,7 @@ workflow "smoke tests" {
 }
 
 action "build ceph and skyhook cls" {
-  uses = "popperized/cmake@master"
+  uses = "popperized/cmake@ubuntu-18.04"
   args = "vstart cls_tabular run-query ceph_test_skyhook_query"
   env = {
     CMAKE_PROJECT_DIR = "./"

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-if [ ! -d ./data ]; then
+if [ -d ./data ]; then
   echo "Folder 'data' exists; skipping download task"
   exit 0
 fi
