@@ -1,3 +1,10 @@
+# --------------------------------- #
+add_executable(run-papertests run-papertests.cc )
+target_link_libraries(run-papertests librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS run-papertests DESTINATION bin)
+
+# --------------------------------- #
 add_executable(run-query run-query.cc query.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
 target_link_libraries(run-query librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
