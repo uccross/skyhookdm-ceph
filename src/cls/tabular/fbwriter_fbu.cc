@@ -32,7 +32,9 @@
 #include <condition_variable>
 #include "re2/re2.h"
 #include "include/rados/librados.hpp"
-#include "skyroot_generated.h"
+#include "fbu_generated.h"
+
+#include "cls_tabular_utils.h"
 
 namespace po = boost::program_options ;
 
@@ -161,7 +163,7 @@ int writeToCeph( librados::bufferlist bl_seq, int bufsz, std::string target_oid,
   return 0 ;
 }
 
-void do_write( cmdline_inputs_t ) ;
+void do_write( cmdline_inputs_t, bool ) ;
 
 std::vector< std::string > parse_csv_str( std::string instr ) {
   std::stringstream ss( instr ) ;
@@ -248,7 +250,7 @@ int main( int argc, char *argv[] ) {
   inputs.targetoid = targetoid ;
   inputs.targetpool = targetpool ;
 
-  do_write( inputs ) ;
+  do_write( inputs, debug ) ;
 
   return 0 ;
 } // main
@@ -256,7 +258,7 @@ int main( int argc, char *argv[] ) {
 // =========== //
 //   DO WRITE  //
 // =========== //
-void do_write( cmdline_inputs_t inputs ) {
+void do_write( cmdline_inputs_t inputs, bool debug ) {
 
   if( inputs.debug ) {
     std::cout << "inputs.debug            : " << inputs.debug                   << std::endl ;
@@ -306,11 +308,11 @@ void do_write( cmdline_inputs_t inputs ) {
     for( int i = 0; i < schema_datatypes.size(); i++ ) {
       std::string this_dt = schema_datatypes[i] ;
       if( this_dt == "int" )
-        record_data_type_vect.push_back( Tables::Data_IntData ) ;
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT64_FBU ) ;
       else if( this_dt == "float" )
-        record_data_type_vect.push_back( Tables::Data_FloatData ) ;
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_FLOAT_FBU ) ;
       else if( this_dt == "string" )
-        record_data_type_vect.push_back( Tables::Data_StringData ) ;
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_STRING_FBU ) ;
       else {
         std::cout << ">> unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
         exit( 1 ) ;
@@ -423,7 +425,7 @@ void do_write( cmdline_inputs_t inputs ) {
     // --------------------------------------------- //
     // build out Rows flatbuffer
     // --------------------------------------------- //
-    std::vector< flatbuffers::Offset< Tables::Record > > row_records ;
+    std::vector< flatbuffers::Offset< Tables::Record_FBU > > row_records ;
 
     // create Records as lists of Datas
     for( unsigned int i = 0; i < nrows; i++ ) {
@@ -440,21 +442,21 @@ void do_write( cmdline_inputs_t inputs ) {
           std::vector< uint64_t > single_iv ;
           single_iv.push_back( filedata.listof_int_vect_raw[ std::stoi( index ) ][ i ] ) ;
           auto int_vect_fb = builder.CreateVector( single_iv ) ;
-          auto iv = Tables::CreateIntData( builder, int_vect_fb ) ;
+          auto iv = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
           data_vect.push_back( iv.Union() ) ;
         }
         else if( boost::algorithm::ends_with( key, "-float" ) ) {
           std::vector< float > single_fv ;
           single_fv.push_back( filedata.listof_float_vect_raw[ std::stoi( index ) ][ i ] ) ;
           auto float_vect_fb  = builder.CreateVector( single_fv ) ;
-          auto fv = Tables::CreateFloatData( builder, float_vect_fb ) ;
+          auto fv = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
           data_vect.push_back( fv.Union() ) ;
         }
         else if( boost::algorithm::ends_with( key, "-string" ) ) {
           std::vector< flatbuffers::Offset<flatbuffers::String> > single_sv ;
           single_sv.push_back( filedata.listof_string_vect_raw[ std::stoi( index ) ][ i ] ) ;
           auto string_vect_fb = builder.CreateVector( single_sv ) ;
-          auto sv = Tables::CreateStringData( builder, string_vect_fb ) ;
+          auto sv = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
           data_vect.push_back( sv.Union() ) ;
         }
         else {
@@ -464,7 +466,11 @@ void do_write( cmdline_inputs_t inputs ) {
       } // for loop : creates one data_vect row
 
       auto data = builder.CreateVector( data_vect ) ;
-      auto rec = Tables::CreateRecord( builder, record_data_types, data ) ;
+      auto rec = Tables::CreateRecord_FBU(
+        builder,
+        0,
+        record_data_types,
+        data ) ;
       row_records.push_back( rec ) ;
 
     } // for loop : processes and saves all rows
@@ -472,27 +478,54 @@ void do_write( cmdline_inputs_t inputs ) {
     auto row_records_fb = builder.CreateVector( row_records ) ;
 
     // create the Rows flatbuffer:
-    auto rows = Tables::CreateRows(
+    auto rows = Tables::CreateRows_FBU(
       builder,
       0,
-      0,
       table_name,
-      schema_fb,
       nrows,
       ncols,
       layout,
       rids_vect_fb,
       row_records_fb ) ;
 
-    Tables::RootBuilder root_builder( builder ) ;
-    //root_builder.add_schema( a ) ;
+    //KD -------------------------------- KD //
+    // generate schema string
+    std::string schema_string = "" ;
+    for( int i = 0; i < ncols; i++ ) {
+      std::string att_name = schema_attnames[ i ] ;
+      std::string att_type = schema_datatypes[ i ] ;
+      std::string this_entry = " " + std::to_string( i ) + " " ;
+      if( att_type == "int" )
+        this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+      else if( att_type == "float" )
+        this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+      else if( att_type == "string" )
+        this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+      else {
+        std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+        exit( 1 ) ;
+      }
+      this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+      schema_string = schema_string + this_entry ;
+    }
+    auto schema_string_fb = builder.CreateString( schema_string ) ;
+    if( debug )
+      std::cout << "schema_string = " << schema_string << std::endl ;
 
-    // save the Rows flatbuffer to the root flatbuffer
-    root_builder.add_relationData_type( Tables::Relation_Rows ) ;
-    root_builder.add_relationData( rows.Union() ) ;
+    auto db_schema_name = builder.CreateString( "kats_test" ) ;
 
-    auto res = root_builder.Finish() ;
-    builder.Finish( res ) ;
+    auto root = CreateRoot_FBU(
+      builder,
+      0,
+      0,
+      0,
+      0,
+      schema_string_fb,
+      db_schema_name,
+      Tables::Relation_FBU_Rows_FBU,
+      rows.Union() ) ;
+    builder.Finish( root ) ;
+    //KD -------------------------------- KD //
 
     const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
     int bufsz      = builder.GetSize() ;
@@ -541,11 +574,11 @@ void do_write( cmdline_inputs_t inputs ) {
     for( int i = 0; i < schema_datatypes.size(); i++ ) {
       std::string this_dt = schema_datatypes[i] ;
       if( this_dt == "int" )
-        record_data_type_vect.push_back( Tables::Data_IntData ) ;
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT64_FBU ) ;
       else if( this_dt == "float" )
-        record_data_type_vect.push_back( Tables::Data_FloatData ) ;
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_FLOAT_FBU ) ;
       else if( this_dt == "string" )
-        record_data_type_vect.push_back( Tables::Data_StringData ) ;
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_STRING_FBU ) ;
       else {
         std::cout << ">> unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
         exit( 1 ) ;
@@ -675,23 +708,55 @@ void do_write( cmdline_inputs_t inputs ) {
       if( boost::algorithm::ends_with( key, "-int" ) ) {
         std::vector< uint64_t > int_vect = filedata.listof_int_vect_raw[ std::stoi(index) ] ;
         auto int_vect_fb = builder.CreateVector( int_vect ) ;
-        auto data = Tables::CreateIntData( builder, int_vect_fb ) ;
-        auto col = Tables::CreateCol(
+        auto data = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
+        auto col = Tables::CreateCol_FBU(
           builder,
-          0,
           0,
           col_name,
           col_index,
           nrows_fb,
           RIDs,
-          Tables::Data_IntData,
+          Tables::DataTypes_FBU_SDT_UINT64_FBU,
           data.Union() ) ;
 
-        Tables::RootBuilder root_builder( builder ) ;
-        root_builder.add_relationData_type( Tables::Relation_Col ) ;
-        root_builder.add_relationData( col.Union() ) ;
-        auto res = root_builder.Finish() ;
-        builder.Finish( res ) ;
+        //KD -------------------------------- KD //
+        // generate schema string
+        std::string schema_string = "" ;
+        for( int i = 0; i < ncols; i++ ) {
+          std::string att_name = schema_attnames[ i ] ;
+          std::string att_type = schema_datatypes[ i ] ;
+          std::string this_entry = " " + std::to_string( i ) + " " ;
+          if( att_type == "int" )
+            this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+          else if( att_type == "float" )
+            this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+          else if( att_type == "string" )
+            this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+          else {
+            std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+            exit( 1 ) ;
+          }
+          this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+          schema_string = schema_string + this_entry ;
+        }
+        auto schema_string_fb = builder.CreateString( schema_string ) ;
+        if( debug )
+          std::cout << "schema_string = " << schema_string << std::endl ;
+
+        auto db_schema_name = builder.CreateString( "kats_test" ) ;
+
+        auto root = CreateRoot_FBU(
+          builder,
+          0,
+          0,
+          0,
+          0,
+          schema_string_fb,
+          db_schema_name,
+          Tables::Relation_FBU_Col_FBU,
+          col.Union() ) ;
+         builder.Finish( root ) ;
+        //KD -------------------------------- KD //
 
         // save each Col flatbuffer in one bufferlist and
         // append the bufferlist to a larger bufferlist.
@@ -705,23 +770,55 @@ void do_write( cmdline_inputs_t inputs ) {
       else if( boost::algorithm::ends_with( key, "-float" ) ) {
         std::vector< float > float_vect = filedata.listof_float_vect_raw[ std::stoi(index) ] ;
         auto float_vect_fb = builder.CreateVector( float_vect ) ;
-        auto data = Tables::CreateFloatData( builder, float_vect_fb ) ;
-        auto col = Tables::CreateCol(
+        auto data = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
+        auto col = Tables::CreateCol_FBU(
           builder,
-          0,
           0,
           col_name,
           col_index,
           nrows_fb,
           RIDs,
-          Tables::Data_FloatData,
+          Tables::DataTypes_FBU_SDT_FLOAT_FBU,
           data.Union() ) ;
 
-        Tables::RootBuilder root_builder( builder ) ;
-        root_builder.add_relationData_type( Tables::Relation_Col ) ;
-        root_builder.add_relationData( col.Union() ) ;
-        auto res = root_builder.Finish() ;
-        builder.Finish( res ) ;
+        //KD -------------------------------- KD //
+        // generate schema string
+        std::string schema_string = "" ;
+        for( int i = 0; i < ncols; i++ ) {
+          std::string att_name = schema_attnames[ i ] ;
+          std::string att_type = schema_datatypes[ i ] ;
+          std::string this_entry = " " + std::to_string( i ) + " " ;
+          if( att_type == "int" )
+            this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+          else if( att_type == "float" )
+            this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+          else if( att_type == "string" )
+            this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+          else {
+            std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+            exit( 1 ) ;
+          }
+          this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+          schema_string = schema_string + this_entry ;
+        }
+        auto schema_string_fb = builder.CreateString( schema_string ) ;
+        if( debug )
+          std::cout << "schema_string = " << schema_string << std::endl ;
+
+        auto db_schema_name = builder.CreateString( "kats_test" ) ;
+
+        auto root = CreateRoot_FBU(
+          builder,
+          0,
+          0,
+          0,
+          0,
+          schema_string_fb,
+          db_schema_name,
+          Tables::Relation_FBU_Col_FBU,
+          col.Union() ) ;
+        builder.Finish( root ) ;
+        //KD -------------------------------- KD //
 
         // save each Col flatbuffer in one bufferlist and
         // append the bufferlist to a larger bufferlist.
@@ -735,23 +832,55 @@ void do_write( cmdline_inputs_t inputs ) {
       else if( boost::algorithm::ends_with( key, "-string" ) ) {
         std::vector< flatbuffers::Offset<flatbuffers::String> > string_vect = filedata.listof_string_vect_raw[ std::stoi(index) ] ;
         auto string_vect_fb = builder.CreateVector( string_vect ) ;
-        auto data = Tables::CreateStringData( builder, string_vect_fb ) ;
-        auto col = Tables::CreateCol(
+        auto data = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
+        auto col = Tables::CreateCol_FBU(
           builder,
-          0,
           0,
           col_name,
           col_index,
           nrows_fb,
           RIDs,
-          Tables::Data_StringData,
+          Tables::DataTypes_FBU_SDT_STRING_FBU,
           data.Union() ) ;
 
-        Tables::RootBuilder root_builder( builder ) ;
-        root_builder.add_relationData_type( Tables::Relation_Col ) ;
-        root_builder.add_relationData( col.Union() ) ;
-        auto res = root_builder.Finish() ;
-        builder.Finish( res ) ;
+        //KD -------------------------------- KD //
+        // generate schema string
+        std::string schema_string = "" ;
+        for( int i = 0; i < ncols; i++ ) {
+          std::string att_name = schema_attnames[ i ] ;
+          std::string att_type = schema_datatypes[ i ] ;
+          std::string this_entry = " " + std::to_string( i ) + " " ;
+          if( att_type == "int" )
+            this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+          else if( att_type == "float" )
+            this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+          else if( att_type == "string" )
+            this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+          else {
+            std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+            exit( 1 ) ;
+          }
+          this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+          schema_string = schema_string + this_entry ;
+        }
+        auto schema_string_fb = builder.CreateString( schema_string ) ;
+        if( debug )
+          std::cout << "schema_string = " << schema_string << std::endl ;
+
+        auto db_schema_name = builder.CreateString( "kats_test" ) ;
+
+        auto root = CreateRoot_FBU(
+          builder,
+          0,
+          0,
+          0,
+          0,
+          schema_string_fb,
+          db_schema_name,
+          Tables::Relation_FBU_Col_FBU,
+          col.Union() ) ;
+        builder.Finish( root ) ;
+        //KD -------------------------------- KD //
 
         // save each Col flatbuffer in one bufferlist and
         // append the bufferlist to a larger bufferlist.

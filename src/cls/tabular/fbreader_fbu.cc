@@ -22,7 +22,8 @@
 #include <condition_variable>
 #include "re2/re2.h"
 #include "include/rados/librados.hpp"
-#include "skyroot_generated.h"
+
+#include "fbu_generated.h"
 
 namespace po = boost::program_options ;
 
@@ -103,7 +104,7 @@ void do_read( bool debug,
     ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
     const char* fb = bl.c_str() ;
 
-    auto root      = Tables::GetRoot( fb ) ;
+    auto root      = Tables::GetRoot_FBU( fb ) ;
     auto data_type = root->relationData_type() ;
 
     if( debug ) {
@@ -111,9 +112,9 @@ void do_read( bool debug,
     }
 
     // process one Root>Rows flatbuffer
-    if( data_type == Tables::Relation_Rows ) {
+    if( data_type == Tables::Relation_FBU_Rows_FBU ) {
       if( debug ) {
-        std::cout << "if data_type == Tables::Relation_Rows" << std::endl ;
+        std::cout << "if data_type == Tables::Relation_FBU_Rows_FBU" << std::endl ;
       }
 
       //auto schema    = root->schema() ;
@@ -123,7 +124,7 @@ void do_read( bool debug,
       //    std::cout << (unsigned)schema->Get(i) << std::endl ;
       //}
  
-      auto rows = static_cast< const Tables::Rows* >( root->relationData() ) ;
+      auto rows = static_cast< const Tables::Rows_FBU* >( root->relationData() ) ;
       auto table_name_read = rows->table_name() ;
 
       //auto schema_read     = rows->schema() ;
@@ -134,22 +135,10 @@ void do_read( bool debug,
 
       if( debug ) {
         std::cout << "table_name_read->str() : " << table_name_read->str() << std::endl ;
-        //std::cout << "schema_read->Length() : " << schema_read->Length() << std::endl ;
         std::cout << "nrows_read     : " << nrows_read     << std::endl ;
         std::cout << "ncols_read     : " << ncols_read     << std::endl ;
       }
 
-      // print schema to stdout
-      //if( debug ) {
-      //  std::cout << "RID\t" ;
-      //  for( unsigned int i = 0; i < ncols_read; i++ ) {
-      //    std::cout << schema_read->Get(i)->str() << "\t" ;
-      //  }
-      //  std::cout << std::endl ;
-      //}
-
-      //auto int_data = static_cast< const Tables::IntData* >( rows_data->Get(0) ) ;
-      //std::cout << int_data->data()->Get(0) << std::endl ;
       // print data to stdout
       for( unsigned int i = 0; i < rows_data->Length(); i++ ) {
         if( debug ) {
@@ -164,21 +153,21 @@ void do_read( bool debug,
 
         for( unsigned int j = 0; j < curr_rec_data->Length(); j++ ) {
           // column of ints
-          if( (unsigned)curr_rec_data_type->Get(j) == Tables::Data_IntData ) {
+          if( (unsigned)curr_rec_data_type->Get(j) == Tables::DataTypes_FBU_SDT_UINT64_FBU ) {
             //std::cout << "int" << "\t" ;
-            auto int_col_data = static_cast< const Tables::IntData* >( curr_rec_data->Get(j) ) ;
+            auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( curr_rec_data->Get(j) ) ;
             std::cout << int_col_data->data()->Get(0) ;
           }
           // column of floats
-          else if( (unsigned)curr_rec_data_type->Get(j) == Tables::Data_FloatData ) {
+          else if( (unsigned)curr_rec_data_type->Get(j) == Tables::DataTypes_FBU_SDT_FLOAT_FBU ) {
             //std::cout << "float" << "\t" ;
-            auto float_col_data = static_cast< const Tables::FloatData* >( curr_rec_data->Get(j) ) ;
+            auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( curr_rec_data->Get(j) ) ;
             std::cout << float_col_data->data()->Get(0) ;
           }
           // column of strings
-          else if( (unsigned)curr_rec_data_type->Get(j) == Tables::Data_StringData ) {
+          else if( (unsigned)curr_rec_data_type->Get(j) == Tables::DataTypes_FBU_SDT_STRING_FBU ) {
             //std::cout << "str" << "\t" ;
-            auto string_col_data = static_cast< const Tables::StringData* >( curr_rec_data->Get(j) ) ;
+            auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( curr_rec_data->Get(j) ) ;
             std::cout << string_col_data->data()->Get(0)->str() ;
           }
           else {
@@ -194,12 +183,12 @@ void do_read( bool debug,
     } // Relation_Rows 
 
     // process one Root>Col flatbuffer
-    else if( data_type == Tables::Relation_Col ) {
+    else if( data_type == Tables::Relation_FBU_Col_FBU ) {
       if( debug ) {
-        std::cout << "else if data_type == Tables::Relation_Col" << std::endl ;
+        std::cout << "else if data_type == Tables::Relation_FBU_Col_FBU" << std::endl ;
       }
 
-      auto col = static_cast< const Tables::Col* >( root->relationData() ) ;
+      auto col = static_cast< const Tables::Col_FBU* >( root->relationData() ) ;
       auto col_name_read  = col->col_name() ;
       auto col_index_read = col->col_index() ;
       auto nrows_read     = col->nrows() ;
@@ -220,18 +209,18 @@ void do_read( bool debug,
           std::cout << rids_read->Get(i) << ":\t" ;
         }
         // column of ints
-        if( (unsigned)col_data_type == Tables::Data_IntData ) {
-          auto int_col_data = static_cast< const Tables::IntData* >( col_data ) ;
+        if( (unsigned)col_data_type == Tables::DataTypes_FBU_SDT_UINT64_FBU ) {
+          auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( col_data ) ;
           std::cout << int_col_data->data()->Get(i) ;
         }
         // column of floats
-        else if( (unsigned)col_data_type == Tables::Data_FloatData ) {
-          auto float_col_data = static_cast< const Tables::FloatData* >( col_data ) ;
+        else if( (unsigned)col_data_type == Tables::DataTypes_FBU_SDT_FLOAT_FBU ) {
+          auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( col_data ) ;
           std::cout << float_col_data->data()->Get(i) ;
         }
         // column of strings
-        else if( (unsigned)col_data_type == Tables::Data_StringData ) {
-          auto string_col_data = static_cast< const Tables::StringData* >( col_data ) ;
+        else if( (unsigned)col_data_type == Tables::DataTypes_FBU_SDT_STRING_FBU ) {
+          auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( col_data ) ;
           std::cout << string_col_data->data()->Get(i)->str() ;
         }
         else {
