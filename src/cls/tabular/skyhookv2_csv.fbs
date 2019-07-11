@@ -15,7 +15,7 @@ table Table_FBX {
   db_schema_name         : string ; // group name for that database
   table_name             : string ; // table name
   delete_vector          : [ ubyte ] ; // used to signal a deleted row (dead records)
-  rows_vec               : [ Record_FBX ] ; // vector of Row Tables
+  rows_vec               : [ Record_FBX ] ; // vector of Record Tables
   nrows                  : uint32 ;         // number of rows in buffer
 }
 
