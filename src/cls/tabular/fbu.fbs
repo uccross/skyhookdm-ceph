@@ -1,0 +1,127 @@
+namespace Tables;
+
+union Relation_FBU { 
+  Rows_FBU,
+  Col_FBU,
+  ColInt_FBU,
+  ColFloat_FBU,
+  ColString_FBU
+}
+
+union DataTypes_FBU { 
+  SDT_UINT64_FBU,
+  SDT_FLOAT_FBU,
+  SDT_STRING_FBU
+}
+
+table Root_FBU {
+  relationData : Relation_FBU  ;
+}
+
+table Rows_FBU {
+  data_format_type       : int32 ;               
+  skyhook_version        : int32 ;
+  data_structure_version : int32 ;
+  data_schema_version    : int32 ;
+  data_schema            : string ;  // schema descriptor
+  db_schema              : string ;  // group name for that database
+
+  delete_vector : [ ubyte ] ;  // used to signal a deleted row (dead records)
+
+  table_name : string     ;
+  nrows      : uint32     ;
+  ncols      : uint32     ;
+  layout     : string     ;
+
+  RIDs : [ uint64 ] ;
+  data : [ Record_FBU ] ;  // data contained in a row
+}
+
+table Record_FBU {
+  nullbits : [ uint64 ] ;    
+  data     : [ DataTypes_FBU ] ;
+}
+
+table Col_FBU {
+  data_format_type       : int32 ;               
+  skyhook_version        : int32 ;
+  data_structure_version : int32 ;
+  data_schema_version    : int32 ;
+  data_schema            : string ;  // schema descriptor
+  db_schema              : string ;  // group name for that database
+
+  nullbits : [ uint64 ] ;    
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : uint32 ;
+
+  RIDs : [ uint64 ] ;
+  data : DataTypes_FBU    ;
+}
+
+table SDT_UINT64_FBU {
+  data : [ uint64 ] ;
+}
+table SDT_FLOAT_FBU {
+  data : [ float ] ;
+}
+table SDT_STRING_FBU {
+  data : [ string ] ;
+}
+
+table ColInt_FBU {
+  data_format_type       : int32 ;               
+  skyhook_version        : int32 ;
+  data_structure_version : int32 ;
+  data_schema_version    : int32 ;
+  data_schema            : string ;  // schema descriptor
+  db_schema              : string ;  // group name for that database
+
+  nullbits : [ uint64 ] ;    
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : uint32 ;
+
+  RIDs : [ uint64 ] ;
+  data : [ uint64 ] ;
+}
+
+table ColFloat_FBU {
+  data_format_type       : int32 ;               
+  skyhook_version        : int32 ;
+  data_structure_version : int32 ;
+  data_schema_version    : int32 ;
+  data_schema            : string ;  // schema descriptor
+  db_schema              : string ;  // group name for that database
+
+  nullbits : [ uint64 ] ;    
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : uint32 ;
+
+  RIDs : [ uint64 ] ;
+  data : [ float ] ;
+}
+
+table ColString_FBU {
+  data_format_type       : int32 ;               
+  skyhook_version        : int32 ;
+  data_structure_version : int32 ;
+  data_schema_version    : int32 ;
+  data_schema            : string ;  // schema descriptor
+  db_schema              : string ;  // group name for that database
+
+  nullbits : [ uint64 ] ;    
+
+  col_name  : string ;
+  col_index : ubyte  ;
+  nrows     : uint32 ;
+
+  RIDs : [ uint64 ] ;
+  data : [ string ] ;
+}
+
+root_type Root_FBU ;
