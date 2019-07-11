@@ -1,4 +1,6 @@
 # --------------------------------- #
+# driver for baseline experiments for paper.
+# can delete later.
 add_executable(run-papertests run-papertests.cc )
 target_link_libraries(run-papertests librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
