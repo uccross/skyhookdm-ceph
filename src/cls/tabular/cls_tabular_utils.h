@@ -31,6 +31,7 @@
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
 #include "skyhookv2_generated.h"
+#include "fbu_generated.h"
 
 namespace Tables {
 
@@ -659,6 +660,7 @@ long long int printFlatbufFlexRowAsCsv(const char* dataptr,
                                        bool print_header,
                                        bool print_verbose,
                                        long long int max_to_print);
+void print_fbu(const char* fb, size_t fb_size, bool debug ) ;
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,

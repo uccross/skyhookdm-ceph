@@ -281,7 +281,7 @@ target_link_libraries(fbwriter librados global re2)
 install(TARGETS fbwriter DESTINATION bin)
 
 # skyhook fbreader_fbu
-add_executable(fbreader_fbu tabular/fbreader_fbu.cc)
+add_executable(fbreader_fbu tabular/fbreader_fbu.cc tabular/cls_tabular_utils.cc)
 target_link_libraries(fbreader_fbu librados global re2)
 install(TARGETS fbreader_fbu DESTINATION bin)
 
