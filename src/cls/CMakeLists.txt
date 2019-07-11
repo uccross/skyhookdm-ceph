@@ -279,3 +279,4 @@ install(TARGETS cls_tabular DESTINATION ${cls_dir})
 add_executable(fbwriter tabular/fbwriter.cc  tabular/cls_tabular_utils.cc)
 target_link_libraries(fbwriter librados global re2)
 install(TARGETS fbwriter DESTINATION bin)
+
