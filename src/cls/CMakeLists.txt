@@ -280,13 +280,13 @@ add_executable(fbwriter tabular/fbwriter.cc  tabular/cls_tabular_utils.cc)
 target_link_libraries(fbwriter librados global re2)
 install(TARGETS fbwriter DESTINATION bin)
 
-# skyhook fbreader
-add_executable(fbreader tabular/fbreader.cc)
-target_link_libraries(fbreader librados global re2)
-install(TARGETS fbreader DESTINATION bin)
+# skyhook fbreader_fbu
+add_executable(fbreader_fbu tabular/fbreader_fbu.cc)
+target_link_libraries(fbreader_fbu librados global re2)
+install(TARGETS fbreader_fbu DESTINATION bin)
 
-# skyhook fbwriter_skyroot
-add_executable(fbwriter_skyroot tabular/fbwriter_skyroot.cc)
-target_link_libraries(fbwriter_skyroot librados global re2)
-install(TARGETS fbwriter_skyroot DESTINATION bin)
+# skyhook fbwriter_fbu
+add_executable(fbwriter_fbu tabular/fbwriter_fbu.cc)
+target_link_libraries(fbwriter_fbu librados global re2)
+install(TARGETS fbwriter_fbu DESTINATION bin)
 
