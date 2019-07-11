@@ -80,7 +80,7 @@ int main( int argc, char **argv ) {
     raw_whole_write( oidname, DATA_PATH, poolname, debug ) ;
   }
   else if( write_type == 1 ) {
-    raw_whole_write( oidname, DATA_PATH, poolname, debug ) ;
+    raw_iter_write( oidname, DATA_PATH, poolname, debug ) ;
   }
   else {
     std::cout << "unrecognized write_type '" << std::to_string( write_type ) << "'" << std::endl ;
@@ -129,12 +129,12 @@ void raw_iter_write( std::string oid, std::string filename, std::string poolname
 
   std::ifstream infile ;
   infile.open( filename ) ;
-
   std::string line ;
   librados::bufferlist bl ;
   while( std::getline( infile, line ) ) {
-    //line.erase( std::remove( line.begin(), line.end(), '\n' ), line.end() ) ;
-    ::encode( line, bl ) ;
+    line.erase( std::remove( line.begin(), line.end(), '\n' ), line.end() ) ;
+    uint64_t this_int = std::stoi(line) ;
+    ::encode( this_int, bl ) ;
   }
 
   // save to ceph object
@@ -191,12 +191,11 @@ void do_sum( librados::bufferlist bl_seq, int write_type, bool debug ) {
   else if( write_type == 1 ) {
     ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
     while( it_bl_seq.get_remaining() > 0 ) {
-      ceph::bufferlist bl ;
-      ::decode( bl, it_bl_seq ) ;
-      const char* raw = bl.c_str() ;
+      uint64_t raw ;
+      ::decode( raw, it_bl_seq ) ;
       if( debug )
-        std::cout << "appending raw = " << raw << std::endl ;
-      these_ints.push_back( std::stoi( raw ) ) ;
+        std::cout << "appending raw = " << std::to_string( raw ) << std::endl ;
+      these_ints.push_back( raw ) ;
     }
   }
   else {
@@ -245,12 +244,11 @@ void do_randomsearch( librados::bufferlist bl_seq, int write_type, bool debug ) 
   else if( write_type == 1 ) {
     ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
     while( it_bl_seq.get_remaining() > 0 ) {
-      ceph::bufferlist bl ;
-      ::decode( bl, it_bl_seq ) ;
-      const char* raw = bl.c_str() ;
+      uint64_t raw ;
+      ::decode( raw, it_bl_seq ) ;
       if( debug )
-        std::cout << "checking raw = " << raw << std::endl ;
-      if( std::stoi( raw ) == search_for )
+        std::cout << "checking raw = " << std::to_string( raw ) << std::endl ;
+      if( raw == search_for )
         found_it = true ;
     }
   }
