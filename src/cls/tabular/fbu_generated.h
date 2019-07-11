@@ -154,9 +154,33 @@ bool VerifyDataTypes_FBUVector(flatbuffers::Verifier &verifier, const flatbuffer
 
 struct Root_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_RELATIONDATA_TYPE = 4,
-    VT_RELATIONDATA = 6
+    VT_DATA_FORMAT_TYPE = 4,
+    VT_SKYHOOK_VERSION = 6,
+    VT_DATA_STRUCTURE_VERSION = 8,
+    VT_DATA_SCHEMA_VERSION = 10,
+    VT_DATA_SCHEMA = 12,
+    VT_DB_SCHEMA_NAME = 14,
+    VT_RELATIONDATA_TYPE = 16,
+    VT_RELATIONDATA = 18
   };
+  int32_t data_format_type() const {
+    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
+  }
+  int32_t skyhook_version() const {
+    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
+  }
+  int32_t data_structure_version() const {
+    return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
+  }
+  int32_t data_schema_version() const {
+    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
+  }
+  const flatbuffers::String *data_schema() const {
+    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
+  }
+  const flatbuffers::String *db_schema_name() const {
+    return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA_NAME);
+  }
   Relation_FBU relationData_type() const {
     return static_cast<Relation_FBU>(GetField<uint8_t>(VT_RELATIONDATA_TYPE, 0));
   }
@@ -181,6 +205,14 @@ struct Root_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
+           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
+           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
+           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
+           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
+           verifier.VerifyString(data_schema()) &&
+           VerifyOffset(verifier, VT_DB_SCHEMA_NAME) &&
+           verifier.VerifyString(db_schema_name()) &&
            VerifyField<uint8_t>(verifier, VT_RELATIONDATA_TYPE) &&
            VerifyOffset(verifier, VT_RELATIONDATA) &&
            VerifyRelation_FBU(verifier, relationData(), relationData_type()) &&
@@ -211,6 +243,24 @@ template<> inline const ColString_FBU *Root_FBU::relationData_as<ColString_FBU>(
 struct Root_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
+  void add_data_format_type(int32_t data_format_type) {
+    fbb_.AddElement<int32_t>(Root_FBU::VT_DATA_FORMAT_TYPE, data_format_type, 0);
+  }
+  void add_skyhook_version(int32_t skyhook_version) {
+    fbb_.AddElement<int32_t>(Root_FBU::VT_SKYHOOK_VERSION, skyhook_version, 0);
+  }
+  void add_data_structure_version(int32_t data_structure_version) {
+    fbb_.AddElement<int32_t>(Root_FBU::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
+  }
+  void add_data_schema_version(int32_t data_schema_version) {
+    fbb_.AddElement<int32_t>(Root_FBU::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
+  }
+  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
+    fbb_.AddOffset(Root_FBU::VT_DATA_SCHEMA, data_schema);
+  }
+  void add_db_schema_name(flatbuffers::Offset<flatbuffers::String> db_schema_name) {
+    fbb_.AddOffset(Root_FBU::VT_DB_SCHEMA_NAME, db_schema_name);
+  }
   void add_relationData_type(Relation_FBU relationData_type) {
     fbb_.AddElement<uint8_t>(Root_FBU::VT_RELATIONDATA_TYPE, static_cast<uint8_t>(relationData_type), 0);
   }
@@ -231,48 +281,60 @@ struct Root_FBUBuilder {
 
 inline flatbuffers::Offset<Root_FBU> CreateRoot_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
+    int32_t data_format_type = 0,
+    int32_t skyhook_version = 0,
+    int32_t data_structure_version = 0,
+    int32_t data_schema_version = 0,
+    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
+    flatbuffers::Offset<flatbuffers::String> db_schema_name = 0,
     Relation_FBU relationData_type = Relation_FBU_NONE,
     flatbuffers::Offset<void> relationData = 0) {
   Root_FBUBuilder builder_(_fbb);
   builder_.add_relationData(relationData);
+  builder_.add_db_schema_name(db_schema_name);
+  builder_.add_data_schema(data_schema);
+  builder_.add_data_schema_version(data_schema_version);
+  builder_.add_data_structure_version(data_structure_version);
+  builder_.add_skyhook_version(skyhook_version);
+  builder_.add_data_format_type(data_format_type);
   builder_.add_relationData_type(relationData_type);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<Root_FBU> CreateRoot_FBUDirect(
+    flatbuffers::FlatBufferBuilder &_fbb,
+    int32_t data_format_type = 0,
+    int32_t skyhook_version = 0,
+    int32_t data_structure_version = 0,
+    int32_t data_schema_version = 0,
+    const char *data_schema = nullptr,
+    const char *db_schema_name = nullptr,
+    Relation_FBU relationData_type = Relation_FBU_NONE,
+    flatbuffers::Offset<void> relationData = 0) {
+  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
+  auto db_schema_name__ = db_schema_name ? _fbb.CreateString(db_schema_name) : 0;
+  return Tables::CreateRoot_FBU(
+      _fbb,
+      data_format_type,
+      skyhook_version,
+      data_structure_version,
+      data_schema_version,
+      data_schema__,
+      db_schema_name__,
+      relationData_type,
+      relationData);
+}
+
 struct Rows_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_DATA_FORMAT_TYPE = 4,
-    VT_SKYHOOK_VERSION = 6,
-    VT_DATA_STRUCTURE_VERSION = 8,
-    VT_DATA_SCHEMA_VERSION = 10,
-    VT_DATA_SCHEMA = 12,
-    VT_DB_SCHEMA = 14,
-    VT_DELETE_VECTOR = 16,
-    VT_TABLE_NAME = 18,
-    VT_NROWS = 20,
-    VT_NCOLS = 22,
-    VT_LAYOUT = 24,
-    VT_RIDS = 26,
-    VT_DATA = 28
+    VT_DELETE_VECTOR = 4,
+    VT_TABLE_NAME = 6,
+    VT_NROWS = 8,
+    VT_NCOLS = 10,
+    VT_LAYOUT = 12,
+    VT_RIDS = 14,
+    VT_DATA = 16
   };
-  int32_t data_format_type() const {
-    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
-  }
-  int32_t skyhook_version() const {
-    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
-  }
-  int32_t data_structure_version() const {
-    return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
-  }
-  int32_t data_schema_version() const {
-    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
-  }
-  const flatbuffers::String *data_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
-  }
-  const flatbuffers::String *db_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA);
-  }
   const flatbuffers::Vector<uint8_t> *delete_vector() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
   }
@@ -296,14 +358,6 @@ struct Rows_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
-           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
-           verifier.VerifyString(data_schema()) &&
-           VerifyOffset(verifier, VT_DB_SCHEMA) &&
-           verifier.VerifyString(db_schema()) &&
            VerifyOffset(verifier, VT_DELETE_VECTOR) &&
            verifier.VerifyVector(delete_vector()) &&
            VerifyOffset(verifier, VT_TABLE_NAME) &&
@@ -324,24 +378,6 @@ struct Rows_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct Rows_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_data_format_type(int32_t data_format_type) {
-    fbb_.AddElement<int32_t>(Rows_FBU::VT_DATA_FORMAT_TYPE, data_format_type, 0);
-  }
-  void add_skyhook_version(int32_t skyhook_version) {
-    fbb_.AddElement<int32_t>(Rows_FBU::VT_SKYHOOK_VERSION, skyhook_version, 0);
-  }
-  void add_data_structure_version(int32_t data_structure_version) {
-    fbb_.AddElement<int32_t>(Rows_FBU::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
-  }
-  void add_data_schema_version(int32_t data_schema_version) {
-    fbb_.AddElement<int32_t>(Rows_FBU::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
-  }
-  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
-    fbb_.AddOffset(Rows_FBU::VT_DATA_SCHEMA, data_schema);
-  }
-  void add_db_schema(flatbuffers::Offset<flatbuffers::String> db_schema) {
-    fbb_.AddOffset(Rows_FBU::VT_DB_SCHEMA, db_schema);
-  }
   void add_delete_vector(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> delete_vector) {
     fbb_.AddOffset(Rows_FBU::VT_DELETE_VECTOR, delete_vector);
   }
@@ -377,12 +413,6 @@ struct Rows_FBUBuilder {
 
 inline flatbuffers::Offset<Rows_FBU> CreateRows_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
-    flatbuffers::Offset<flatbuffers::String> db_schema = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> delete_vector = 0,
     flatbuffers::Offset<flatbuffers::String> table_name = 0,
     uint32_t nrows = 0,
@@ -398,23 +428,11 @@ inline flatbuffers::Offset<Rows_FBU> CreateRows_FBU(
   builder_.add_nrows(nrows);
   builder_.add_table_name(table_name);
   builder_.add_delete_vector(delete_vector);
-  builder_.add_db_schema(db_schema);
-  builder_.add_data_schema(data_schema);
-  builder_.add_data_schema_version(data_schema_version);
-  builder_.add_data_structure_version(data_structure_version);
-  builder_.add_skyhook_version(skyhook_version);
-  builder_.add_data_format_type(data_format_type);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<Rows_FBU> CreateRows_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    const char *data_schema = nullptr,
-    const char *db_schema = nullptr,
     const std::vector<uint8_t> *delete_vector = nullptr,
     const char *table_name = nullptr,
     uint32_t nrows = 0,
@@ -422,8 +440,6 @@ inline flatbuffers::Offset<Rows_FBU> CreateRows_FBUDirect(
     const char *layout = nullptr,
     const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<flatbuffers::Offset<Record_FBU>> *data = nullptr) {
-  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
-  auto db_schema__ = db_schema ? _fbb.CreateString(db_schema) : 0;
   auto delete_vector__ = delete_vector ? _fbb.CreateVector<uint8_t>(*delete_vector) : 0;
   auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
   auto layout__ = layout ? _fbb.CreateString(layout) : 0;
@@ -431,12 +447,6 @@ inline flatbuffers::Offset<Rows_FBU> CreateRows_FBUDirect(
   auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<Record_FBU>>(*data) : 0;
   return Tables::CreateRows_FBU(
       _fbb,
-      data_format_type,
-      skyhook_version,
-      data_structure_version,
-      data_schema_version,
-      data_schema__,
-      db_schema__,
       delete_vector__,
       table_name__,
       nrows,
@@ -527,38 +537,14 @@ inline flatbuffers::Offset<Record_FBU> CreateRecord_FBUDirect(
 
 struct Col_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_DATA_FORMAT_TYPE = 4,
-    VT_SKYHOOK_VERSION = 6,
-    VT_DATA_STRUCTURE_VERSION = 8,
-    VT_DATA_SCHEMA_VERSION = 10,
-    VT_DATA_SCHEMA = 12,
-    VT_DB_SCHEMA = 14,
-    VT_NULLBITS = 16,
-    VT_COL_NAME = 18,
-    VT_COL_INDEX = 20,
-    VT_NROWS = 22,
-    VT_RIDS = 24,
-    VT_DATA_TYPE = 26,
-    VT_DATA = 28
+    VT_NULLBITS = 4,
+    VT_COL_NAME = 6,
+    VT_COL_INDEX = 8,
+    VT_NROWS = 10,
+    VT_RIDS = 12,
+    VT_DATA_TYPE = 14,
+    VT_DATA = 16
   };
-  int32_t data_format_type() const {
-    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
-  }
-  int32_t skyhook_version() const {
-    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
-  }
-  int32_t data_structure_version() const {
-    return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
-  }
-  int32_t data_schema_version() const {
-    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
-  }
-  const flatbuffers::String *data_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
-  }
-  const flatbuffers::String *db_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA);
-  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
@@ -592,14 +578,6 @@ struct Col_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
-           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
-           verifier.VerifyString(data_schema()) &&
-           VerifyOffset(verifier, VT_DB_SCHEMA) &&
-           verifier.VerifyString(db_schema()) &&
            VerifyOffset(verifier, VT_NULLBITS) &&
            verifier.VerifyVector(nullbits()) &&
            VerifyOffset(verifier, VT_COL_NAME) &&
@@ -630,24 +608,6 @@ template<> inline const SDT_STRING_FBU *Col_FBU::data_as<SDT_STRING_FBU>() const
 struct Col_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_data_format_type(int32_t data_format_type) {
-    fbb_.AddElement<int32_t>(Col_FBU::VT_DATA_FORMAT_TYPE, data_format_type, 0);
-  }
-  void add_skyhook_version(int32_t skyhook_version) {
-    fbb_.AddElement<int32_t>(Col_FBU::VT_SKYHOOK_VERSION, skyhook_version, 0);
-  }
-  void add_data_structure_version(int32_t data_structure_version) {
-    fbb_.AddElement<int32_t>(Col_FBU::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
-  }
-  void add_data_schema_version(int32_t data_schema_version) {
-    fbb_.AddElement<int32_t>(Col_FBU::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
-  }
-  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
-    fbb_.AddOffset(Col_FBU::VT_DATA_SCHEMA, data_schema);
-  }
-  void add_db_schema(flatbuffers::Offset<flatbuffers::String> db_schema) {
-    fbb_.AddOffset(Col_FBU::VT_DB_SCHEMA, db_schema);
-  }
   void add_nullbits(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits) {
     fbb_.AddOffset(Col_FBU::VT_NULLBITS, nullbits);
   }
@@ -683,12 +643,6 @@ struct Col_FBUBuilder {
 
 inline flatbuffers::Offset<Col_FBU> CreateCol_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
-    flatbuffers::Offset<flatbuffers::String> db_schema = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits = 0,
     flatbuffers::Offset<flatbuffers::String> col_name = 0,
     uint8_t col_index = 0,
@@ -702,12 +656,6 @@ inline flatbuffers::Offset<Col_FBU> CreateCol_FBU(
   builder_.add_nrows(nrows);
   builder_.add_col_name(col_name);
   builder_.add_nullbits(nullbits);
-  builder_.add_db_schema(db_schema);
-  builder_.add_data_schema(data_schema);
-  builder_.add_data_schema_version(data_schema_version);
-  builder_.add_data_structure_version(data_structure_version);
-  builder_.add_skyhook_version(skyhook_version);
-  builder_.add_data_format_type(data_format_type);
   builder_.add_data_type(data_type);
   builder_.add_col_index(col_index);
   return builder_.Finish();
@@ -715,12 +663,6 @@ inline flatbuffers::Offset<Col_FBU> CreateCol_FBU(
 
 inline flatbuffers::Offset<Col_FBU> CreateCol_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    const char *data_schema = nullptr,
-    const char *db_schema = nullptr,
     const std::vector<uint64_t> *nullbits = nullptr,
     const char *col_name = nullptr,
     uint8_t col_index = 0,
@@ -728,19 +670,11 @@ inline flatbuffers::Offset<Col_FBU> CreateCol_FBUDirect(
     const std::vector<uint64_t> *RIDs = nullptr,
     DataTypes_FBU data_type = DataTypes_FBU_NONE,
     flatbuffers::Offset<void> data = 0) {
-  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
-  auto db_schema__ = db_schema ? _fbb.CreateString(db_schema) : 0;
   auto nullbits__ = nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0;
   auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   return Tables::CreateCol_FBU(
       _fbb,
-      data_format_type,
-      skyhook_version,
-      data_structure_version,
-      data_schema_version,
-      data_schema__,
-      db_schema__,
       nullbits__,
       col_name__,
       col_index,
@@ -903,37 +837,13 @@ inline flatbuffers::Offset<SDT_STRING_FBU> CreateSDT_STRING_FBUDirect(
 
 struct ColInt_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_DATA_FORMAT_TYPE = 4,
-    VT_SKYHOOK_VERSION = 6,
-    VT_DATA_STRUCTURE_VERSION = 8,
-    VT_DATA_SCHEMA_VERSION = 10,
-    VT_DATA_SCHEMA = 12,
-    VT_DB_SCHEMA = 14,
-    VT_NULLBITS = 16,
-    VT_COL_NAME = 18,
-    VT_COL_INDEX = 20,
-    VT_NROWS = 22,
-    VT_RIDS = 24,
-    VT_DATA = 26
+    VT_NULLBITS = 4,
+    VT_COL_NAME = 6,
+    VT_COL_INDEX = 8,
+    VT_NROWS = 10,
+    VT_RIDS = 12,
+    VT_DATA = 14
   };
-  int32_t data_format_type() const {
-    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
-  }
-  int32_t skyhook_version() const {
-    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
-  }
-  int32_t data_structure_version() const {
-    return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
-  }
-  int32_t data_schema_version() const {
-    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
-  }
-  const flatbuffers::String *data_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
-  }
-  const flatbuffers::String *db_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA);
-  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
@@ -954,14 +864,6 @@ struct ColInt_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
-           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
-           verifier.VerifyString(data_schema()) &&
-           VerifyOffset(verifier, VT_DB_SCHEMA) &&
-           verifier.VerifyString(db_schema()) &&
            VerifyOffset(verifier, VT_NULLBITS) &&
            verifier.VerifyVector(nullbits()) &&
            VerifyOffset(verifier, VT_COL_NAME) &&
@@ -979,24 +881,6 @@ struct ColInt_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ColInt_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_data_format_type(int32_t data_format_type) {
-    fbb_.AddElement<int32_t>(ColInt_FBU::VT_DATA_FORMAT_TYPE, data_format_type, 0);
-  }
-  void add_skyhook_version(int32_t skyhook_version) {
-    fbb_.AddElement<int32_t>(ColInt_FBU::VT_SKYHOOK_VERSION, skyhook_version, 0);
-  }
-  void add_data_structure_version(int32_t data_structure_version) {
-    fbb_.AddElement<int32_t>(ColInt_FBU::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
-  }
-  void add_data_schema_version(int32_t data_schema_version) {
-    fbb_.AddElement<int32_t>(ColInt_FBU::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
-  }
-  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
-    fbb_.AddOffset(ColInt_FBU::VT_DATA_SCHEMA, data_schema);
-  }
-  void add_db_schema(flatbuffers::Offset<flatbuffers::String> db_schema) {
-    fbb_.AddOffset(ColInt_FBU::VT_DB_SCHEMA, db_schema);
-  }
   void add_nullbits(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits) {
     fbb_.AddOffset(ColInt_FBU::VT_NULLBITS, nullbits);
   }
@@ -1029,12 +913,6 @@ struct ColInt_FBUBuilder {
 
 inline flatbuffers::Offset<ColInt_FBU> CreateColInt_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
-    flatbuffers::Offset<flatbuffers::String> db_schema = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits = 0,
     flatbuffers::Offset<flatbuffers::String> col_name = 0,
     uint8_t col_index = 0,
@@ -1047,44 +925,24 @@ inline flatbuffers::Offset<ColInt_FBU> CreateColInt_FBU(
   builder_.add_nrows(nrows);
   builder_.add_col_name(col_name);
   builder_.add_nullbits(nullbits);
-  builder_.add_db_schema(db_schema);
-  builder_.add_data_schema(data_schema);
-  builder_.add_data_schema_version(data_schema_version);
-  builder_.add_data_structure_version(data_structure_version);
-  builder_.add_skyhook_version(skyhook_version);
-  builder_.add_data_format_type(data_format_type);
   builder_.add_col_index(col_index);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<ColInt_FBU> CreateColInt_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    const char *data_schema = nullptr,
-    const char *db_schema = nullptr,
     const std::vector<uint64_t> *nullbits = nullptr,
     const char *col_name = nullptr,
     uint8_t col_index = 0,
     uint32_t nrows = 0,
     const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<uint64_t> *data = nullptr) {
-  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
-  auto db_schema__ = db_schema ? _fbb.CreateString(db_schema) : 0;
   auto nullbits__ = nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0;
   auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   auto data__ = data ? _fbb.CreateVector<uint64_t>(*data) : 0;
   return Tables::CreateColInt_FBU(
       _fbb,
-      data_format_type,
-      skyhook_version,
-      data_structure_version,
-      data_schema_version,
-      data_schema__,
-      db_schema__,
       nullbits__,
       col_name__,
       col_index,
@@ -1095,37 +953,13 @@ inline flatbuffers::Offset<ColInt_FBU> CreateColInt_FBUDirect(
 
 struct ColFloat_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_DATA_FORMAT_TYPE = 4,
-    VT_SKYHOOK_VERSION = 6,
-    VT_DATA_STRUCTURE_VERSION = 8,
-    VT_DATA_SCHEMA_VERSION = 10,
-    VT_DATA_SCHEMA = 12,
-    VT_DB_SCHEMA = 14,
-    VT_NULLBITS = 16,
-    VT_COL_NAME = 18,
-    VT_COL_INDEX = 20,
-    VT_NROWS = 22,
-    VT_RIDS = 24,
-    VT_DATA = 26
+    VT_NULLBITS = 4,
+    VT_COL_NAME = 6,
+    VT_COL_INDEX = 8,
+    VT_NROWS = 10,
+    VT_RIDS = 12,
+    VT_DATA = 14
   };
-  int32_t data_format_type() const {
-    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
-  }
-  int32_t skyhook_version() const {
-    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
-  }
-  int32_t data_structure_version() const {
-    return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
-  }
-  int32_t data_schema_version() const {
-    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
-  }
-  const flatbuffers::String *data_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
-  }
-  const flatbuffers::String *db_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA);
-  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
@@ -1146,14 +980,6 @@ struct ColFloat_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
-           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
-           verifier.VerifyString(data_schema()) &&
-           VerifyOffset(verifier, VT_DB_SCHEMA) &&
-           verifier.VerifyString(db_schema()) &&
            VerifyOffset(verifier, VT_NULLBITS) &&
            verifier.VerifyVector(nullbits()) &&
            VerifyOffset(verifier, VT_COL_NAME) &&
@@ -1171,24 +997,6 @@ struct ColFloat_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ColFloat_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_data_format_type(int32_t data_format_type) {
-    fbb_.AddElement<int32_t>(ColFloat_FBU::VT_DATA_FORMAT_TYPE, data_format_type, 0);
-  }
-  void add_skyhook_version(int32_t skyhook_version) {
-    fbb_.AddElement<int32_t>(ColFloat_FBU::VT_SKYHOOK_VERSION, skyhook_version, 0);
-  }
-  void add_data_structure_version(int32_t data_structure_version) {
-    fbb_.AddElement<int32_t>(ColFloat_FBU::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
-  }
-  void add_data_schema_version(int32_t data_schema_version) {
-    fbb_.AddElement<int32_t>(ColFloat_FBU::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
-  }
-  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
-    fbb_.AddOffset(ColFloat_FBU::VT_DATA_SCHEMA, data_schema);
-  }
-  void add_db_schema(flatbuffers::Offset<flatbuffers::String> db_schema) {
-    fbb_.AddOffset(ColFloat_FBU::VT_DB_SCHEMA, db_schema);
-  }
   void add_nullbits(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits) {
     fbb_.AddOffset(ColFloat_FBU::VT_NULLBITS, nullbits);
   }
@@ -1221,12 +1029,6 @@ struct ColFloat_FBUBuilder {
 
 inline flatbuffers::Offset<ColFloat_FBU> CreateColFloat_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
-    flatbuffers::Offset<flatbuffers::String> db_schema = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits = 0,
     flatbuffers::Offset<flatbuffers::String> col_name = 0,
     uint8_t col_index = 0,
@@ -1239,44 +1041,24 @@ inline flatbuffers::Offset<ColFloat_FBU> CreateColFloat_FBU(
   builder_.add_nrows(nrows);
   builder_.add_col_name(col_name);
   builder_.add_nullbits(nullbits);
-  builder_.add_db_schema(db_schema);
-  builder_.add_data_schema(data_schema);
-  builder_.add_data_schema_version(data_schema_version);
-  builder_.add_data_structure_version(data_structure_version);
-  builder_.add_skyhook_version(skyhook_version);
-  builder_.add_data_format_type(data_format_type);
   builder_.add_col_index(col_index);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<ColFloat_FBU> CreateColFloat_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    const char *data_schema = nullptr,
-    const char *db_schema = nullptr,
     const std::vector<uint64_t> *nullbits = nullptr,
     const char *col_name = nullptr,
     uint8_t col_index = 0,
     uint32_t nrows = 0,
     const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<float> *data = nullptr) {
-  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
-  auto db_schema__ = db_schema ? _fbb.CreateString(db_schema) : 0;
   auto nullbits__ = nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0;
   auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   auto data__ = data ? _fbb.CreateVector<float>(*data) : 0;
   return Tables::CreateColFloat_FBU(
       _fbb,
-      data_format_type,
-      skyhook_version,
-      data_structure_version,
-      data_schema_version,
-      data_schema__,
-      db_schema__,
       nullbits__,
       col_name__,
       col_index,
@@ -1287,37 +1069,13 @@ inline flatbuffers::Offset<ColFloat_FBU> CreateColFloat_FBUDirect(
 
 struct ColString_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_DATA_FORMAT_TYPE = 4,
-    VT_SKYHOOK_VERSION = 6,
-    VT_DATA_STRUCTURE_VERSION = 8,
-    VT_DATA_SCHEMA_VERSION = 10,
-    VT_DATA_SCHEMA = 12,
-    VT_DB_SCHEMA = 14,
-    VT_NULLBITS = 16,
-    VT_COL_NAME = 18,
-    VT_COL_INDEX = 20,
-    VT_NROWS = 22,
-    VT_RIDS = 24,
-    VT_DATA = 26
+    VT_NULLBITS = 4,
+    VT_COL_NAME = 6,
+    VT_COL_INDEX = 8,
+    VT_NROWS = 10,
+    VT_RIDS = 12,
+    VT_DATA = 14
   };
-  int32_t data_format_type() const {
-    return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
-  }
-  int32_t skyhook_version() const {
-    return GetField<int32_t>(VT_SKYHOOK_VERSION, 0);
-  }
-  int32_t data_structure_version() const {
-    return GetField<int32_t>(VT_DATA_STRUCTURE_VERSION, 0);
-  }
-  int32_t data_schema_version() const {
-    return GetField<int32_t>(VT_DATA_SCHEMA_VERSION, 0);
-  }
-  const flatbuffers::String *data_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DATA_SCHEMA);
-  }
-  const flatbuffers::String *db_schema() const {
-    return GetPointer<const flatbuffers::String *>(VT_DB_SCHEMA);
-  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
@@ -1338,14 +1096,6 @@ struct ColString_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_DATA_FORMAT_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_SKYHOOK_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_STRUCTURE_VERSION) &&
-           VerifyField<int32_t>(verifier, VT_DATA_SCHEMA_VERSION) &&
-           VerifyOffset(verifier, VT_DATA_SCHEMA) &&
-           verifier.VerifyString(data_schema()) &&
-           VerifyOffset(verifier, VT_DB_SCHEMA) &&
-           verifier.VerifyString(db_schema()) &&
            VerifyOffset(verifier, VT_NULLBITS) &&
            verifier.VerifyVector(nullbits()) &&
            VerifyOffset(verifier, VT_COL_NAME) &&
@@ -1364,24 +1114,6 @@ struct ColString_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct ColString_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_data_format_type(int32_t data_format_type) {
-    fbb_.AddElement<int32_t>(ColString_FBU::VT_DATA_FORMAT_TYPE, data_format_type, 0);
-  }
-  void add_skyhook_version(int32_t skyhook_version) {
-    fbb_.AddElement<int32_t>(ColString_FBU::VT_SKYHOOK_VERSION, skyhook_version, 0);
-  }
-  void add_data_structure_version(int32_t data_structure_version) {
-    fbb_.AddElement<int32_t>(ColString_FBU::VT_DATA_STRUCTURE_VERSION, data_structure_version, 0);
-  }
-  void add_data_schema_version(int32_t data_schema_version) {
-    fbb_.AddElement<int32_t>(ColString_FBU::VT_DATA_SCHEMA_VERSION, data_schema_version, 0);
-  }
-  void add_data_schema(flatbuffers::Offset<flatbuffers::String> data_schema) {
-    fbb_.AddOffset(ColString_FBU::VT_DATA_SCHEMA, data_schema);
-  }
-  void add_db_schema(flatbuffers::Offset<flatbuffers::String> db_schema) {
-    fbb_.AddOffset(ColString_FBU::VT_DB_SCHEMA, db_schema);
-  }
   void add_nullbits(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits) {
     fbb_.AddOffset(ColString_FBU::VT_NULLBITS, nullbits);
   }
@@ -1414,12 +1146,6 @@ struct ColString_FBUBuilder {
 
 inline flatbuffers::Offset<ColString_FBU> CreateColString_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    flatbuffers::Offset<flatbuffers::String> data_schema = 0,
-    flatbuffers::Offset<flatbuffers::String> db_schema = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits = 0,
     flatbuffers::Offset<flatbuffers::String> col_name = 0,
     uint8_t col_index = 0,
@@ -1432,44 +1158,24 @@ inline flatbuffers::Offset<ColString_FBU> CreateColString_FBU(
   builder_.add_nrows(nrows);
   builder_.add_col_name(col_name);
   builder_.add_nullbits(nullbits);
-  builder_.add_db_schema(db_schema);
-  builder_.add_data_schema(data_schema);
-  builder_.add_data_schema_version(data_schema_version);
-  builder_.add_data_structure_version(data_structure_version);
-  builder_.add_skyhook_version(skyhook_version);
-  builder_.add_data_format_type(data_format_type);
   builder_.add_col_index(col_index);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<ColString_FBU> CreateColString_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t data_format_type = 0,
-    int32_t skyhook_version = 0,
-    int32_t data_structure_version = 0,
-    int32_t data_schema_version = 0,
-    const char *data_schema = nullptr,
-    const char *db_schema = nullptr,
     const std::vector<uint64_t> *nullbits = nullptr,
     const char *col_name = nullptr,
     uint8_t col_index = 0,
     uint32_t nrows = 0,
     const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<flatbuffers::Offset<flatbuffers::String>> *data = nullptr) {
-  auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
-  auto db_schema__ = db_schema ? _fbb.CreateString(db_schema) : 0;
   auto nullbits__ = nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0;
   auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
   auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*data) : 0;
   return Tables::CreateColString_FBU(
       _fbb,
-      data_format_type,
-      skyhook_version,
-      data_structure_version,
-      data_schema_version,
-      data_schema__,
-      db_schema__,
       nullbits__,
       col_name__,
       col_index,
