@@ -4,9 +4,15 @@ set -e
 # copy test data
 cp -r data /data
 
+# copy cls
+mkdir -p /usr/lib/rados-classes/
+cp -a build/lib/libcls_tabular.so* /usr/lib/rados-classes/
+
 # launch cluster
-cd build/
-MON=1 OSD=1 ../src/vstart.sh -d -n -x
+ci/scripts/micro-osd.sh test
+
+# copy conf to default location
+cp test/ceph.conf .
 
 # run test
-bin/ceph_test_skyhook_query
+build/bin/ceph_test_skyhook_query
