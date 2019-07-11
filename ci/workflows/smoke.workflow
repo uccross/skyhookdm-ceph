@@ -40,7 +40,8 @@ action "download test data" {
 # }
 
 action "run tests" {
-  needs = "build ceph image"
+#  needs = "build ceph image"
+  needs = "download test data"
   uses = "docker://popperized/ceph:luminous"
   runs = [
     "sh", "-c", "ci/scripts/run-skyhook-test.sh"
