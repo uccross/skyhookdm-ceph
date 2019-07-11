@@ -7,22 +7,22 @@
 namespace Tables;
 
 table Table_FBX {
-  data_format_type:int32;               
-  skyhook_version:int32;                    
-  data_structure_version:int32;            // schema version
-  data_schema_version:int32;
-  data_schema:string;                      // schema descriptor
-  db_schema:string;                        // group name for that database
-  table_name:string;                       // table name
-  delete_vector:[ubyte];                   // used to signal a deleted row (dead records)
-  rows:[ Record_FBX ];                           // vector of Row Tables
-  nrows:uint32;                            // number of rows in buffer
+  data_format_type       : int32 ;               
+  skyhook_version        : int32 ;                    
+  data_structure_version : int32 ;  // schema version
+  data_schema_version    : int32 ;
+  data_schema            : string ; // schema descriptor
+  db_schema_name         : string ; // group name for that database
+  table_name             : string ; // table name
+  delete_vector          : [ ubyte ] ; // used to signal a deleted row (dead records)
+  rows_vec               : [ Record_FBX ] ; // vector of Row Tables
+  nrows                  : uint32 ;         // number of rows in buffer
 }
 
 table Record_FBX {
-    RID:uint64;            // record ID
-    nullbits:[uint64];        // keeps track of null fields within the data
-    data:[string];    // row data
+  RID      : uint64 ;     // record ID
+  nullbits : [ uint64 ] ; // keeps track of null fields within the data
+  data     : [ string ] ; // row data
 }
 
-root_type Table_FBX;
+root_type Table_FBX ;
