@@ -23,6 +23,11 @@ To execute a single workflow:
 popper run --wfile ci/workflows/smoke.workflow
 ```
 
+> **NOTE**: to retain the state of an action container, you can use 
+> the `--reuse` flag of `popper run`. In the case of `smoke.workflow`, 
+> this avoids having to reinstall dependencies (run 
+> `install-deps.sh`).
+
 [docker]: https://get.docker.com
 [popper]: https://github.com/systemslab/popper
 [singularity]: https://github.com/sylabs/singularity
