@@ -5,8 +5,8 @@ set -e
 cp -r data /data
 
 # copy cls
-mkdir -p /usr/lib/rados-classes/
-cp -a build/lib/libcls_tabular.so* /usr/lib/rados-classes/
+mkdir -p /usr/lib/x86_64-linux-gnu/rados-classes/
+cp -a build/lib/libcls_tabular.so* /usr/lib/x86_64-linux-gnu/rados-classes/
 
 # launch cluster
 ci/scripts/micro-osd.sh test
