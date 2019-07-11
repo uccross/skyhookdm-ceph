@@ -132,7 +132,7 @@ void raw_iter_write( std::string oid, std::string filename, std::string poolname
   std::string line ;
   librados::bufferlist bl ;
   while( std::getline( infile, line ) ) {
-    line.erase( std::remove( line.begin(), line.end(), '\n' ), line.end() ) ;
+    line.pop_back() ;
     uint64_t this_int = std::stoi(line) ;
     ::encode( this_int, bl ) ;
   }
