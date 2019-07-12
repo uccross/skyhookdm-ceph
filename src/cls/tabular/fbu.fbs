@@ -21,6 +21,7 @@ table Root_FBU {
   data_schema_version    : int32 ;
   data_schema            : string ;  // schema descriptor
   db_schema_name         : string ;  // group name for that database
+  nrows                  : uint32     ;
 
   relationData : Relation_FBU  ;
 }
@@ -29,7 +30,6 @@ table Rows_FBU {
   delete_vector : [ ubyte ] ;  // used to signal a deleted row (dead records)
 
   table_name : string     ;
-  nrows      : uint32     ;
   ncols      : uint32     ;
   layout     : string     ;
 
@@ -47,7 +47,6 @@ table Col_FBU {
 
   col_name  : string ;
   col_index : ubyte  ;
-  nrows     : uint32 ;
 
   RIDs : [ uint64 ] ;
   data : DataTypes_FBU    ;
@@ -68,7 +67,6 @@ table ColInt_FBU {
 
   col_name  : string ;
   col_index : ubyte  ;
-  nrows     : uint32 ;
 
   RIDs : [ uint64 ] ;
   data : [ uint64 ] ;
@@ -79,7 +77,6 @@ table ColFloat_FBU {
 
   col_name  : string ;
   col_index : ubyte  ;
-  nrows     : uint32 ;
 
   RIDs : [ uint64 ] ;
   data : [ float ] ;
@@ -90,7 +87,6 @@ table ColString_FBU {
 
   col_name  : string ;
   col_index : ubyte  ;
-  nrows     : uint32 ;
 
   RIDs : [ uint64 ] ;
   data : [ string ] ;

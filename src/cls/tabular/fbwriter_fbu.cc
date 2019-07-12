@@ -482,7 +482,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       builder,
       0,
       table_name,
-      nrows,
       ncols,
       layout,
       rids_vect_fb,
@@ -522,6 +521,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       0,
       schema_string_fb,
       db_schema_name,
+      (uint32_t)nrows,
       Tables::Relation_FBU_Rows_FBU,
       rows.Union() ) ;
     builder.Finish( root ) ;
@@ -699,7 +699,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     for( unsigned int i = 0; i < ncols; i++ ) {
       auto col_name     = schema[ i ] ;
       uint8_t col_index = (uint8_t)i ;
-      uint8_t nrows_fb  = (uint8_t)nrows ;
       auto RIDs         = builder.CreateVector( rids_vect ) ;
 
       auto key   = filedata.indexer[i][0] ;
@@ -714,7 +713,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           0,
           col_name,
           col_index,
-          nrows_fb,
           RIDs,
           Tables::DataTypes_FBU_SDT_UINT64_FBU,
           data.Union() ) ;
@@ -753,6 +751,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           0,
           schema_string_fb,
           db_schema_name,
+          (uint32_t)nrows,
           Tables::Relation_FBU_Col_FBU,
           col.Union() ) ;
          builder.Finish( root ) ;
@@ -776,7 +775,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           0,
           col_name,
           col_index,
-          nrows_fb,
           RIDs,
           Tables::DataTypes_FBU_SDT_FLOAT_FBU,
           data.Union() ) ;
@@ -815,6 +813,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           0,
           schema_string_fb,
           db_schema_name,
+          (uint32_t)nrows,
           Tables::Relation_FBU_Col_FBU,
           col.Union() ) ;
         builder.Finish( root ) ;
@@ -838,7 +837,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           0,
           col_name,
           col_index,
-          nrows_fb,
           RIDs,
           Tables::DataTypes_FBU_SDT_STRING_FBU,
           data.Union() ) ;
@@ -877,6 +875,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           0,
           schema_string_fb,
           db_schema_name,
+          (uint32_t)nrows,
           Tables::Relation_FBU_Col_FBU,
           col.Union() ) ;
         builder.Finish( root ) ;
