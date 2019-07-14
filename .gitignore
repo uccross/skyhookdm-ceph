@@ -1,3 +1,6 @@
+data/
+test
+ceph.conf
 *~
 *.co
 *.diff
