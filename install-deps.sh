@@ -117,14 +117,15 @@ else
     debian|ubuntu|devuan)
         echo "Using apt-get to install dependencies"
         # Depdencies for Apache Arrow
-        curl https://dist.apache.org/repos/dist/dev/arrow/KEYS | sudo apt-key add -
+        $SUDO apt-get install -y curl
+        curl https://dist.apache.org/repos/dist/dev/arrow/KEYS | $SUDO apt-key add -
         $SUDO tee /etc/apt/sources.list.d/apache-arrow.list <<APT_LINE
 deb [arch=amd64] https://dl.bintray.com/apache/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/ $(lsb_release --codename --short) main
 deb-src https://dl.bintray.com/apache/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/ $(lsb_release --codename --short) main
 APT_LINE
-        $sudo apt-get update -y
+        $SUDO apt-get update -y
         $SUDO apt-get install -y lsb-release devscripts equivs
-        $SUDO apt-get install -y dpkg-dev gcc apt-transport-https curl gnupg libarrow-dev
+        $SUDO apt-get install -y dpkg-dev gcc apt-transport-https gnupg libarrow-dev libparquet-dev
         case "$VERSION" in
             *Trusty*)
                 ensure_decent_gcc_on_deb 4.8

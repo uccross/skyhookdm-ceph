@@ -32,7 +32,6 @@ int processArrow(
 
     auto schema = proj_table->schema();
     auto metadata = schema->metadata();
-    int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
