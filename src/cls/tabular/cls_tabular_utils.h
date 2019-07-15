@@ -523,6 +523,7 @@ struct root_table {
     delete_vector delete_vec;
     row_offs offs;
     uint32_t nrows;
+    SkyFormatType format_type ;
 
     root_table(
         int32_t _data_format_type,
@@ -544,6 +545,24 @@ struct root_table {
                             delete_vec(_delete_vec),
                             offs(_offs),
                             nrows(_nrows) {};
+
+    // constructor for fbu
+    root_table( int32_t _data_format_type,
+                int32_t _skyhook_version,
+                int32_t _data_structure_version,
+                int32_t _data_schema_version,
+                std::string _data_schema,
+                std::string _db_schema_name,
+                uint32_t _nrows,
+                SkyFormatType _format_type) :  
+      data_format_type(_data_format_type),
+      skyhook_version(_skyhook_version),
+      data_structure_version(_data_structure_version),
+      data_schema_version(_data_schema_version),
+      data_schema(_data_schema),
+      db_schema(_db_schema_name),
+      nrows(_nrows),
+      format_type( _format_type ) {} ;
 };
 typedef struct root_table sky_root;
 
@@ -564,6 +583,23 @@ struct rec_table {
         };
 };
 typedef struct rec_table sky_rec;
+
+struct rec_table_fbu {
+  int64_t RID ;
+  //nullbits_vector nullbits ;
+
+  // data type vectors
+  //std::vector<uint64_t>      int_data ;
+  //std::vector<float>         float_data ;
+  //std::vector< std::string > string_data ;
+
+  // column number ---> [ data type string, index in data type vector ]
+  //std::vector< std::pair< std::string, int > > col_data_mapper ;
+
+  rec_table_fbu( int64_t _RID ) :
+    RID( _RID ) {} ;
+};
+typedef struct rec_table_fbu sky_rec_fbu ;
 
 // holds the result of a read to be done, resulting from an index lookup
 // regarding specific flatbufs+rows to be read or else a seq of all flatbufs
@@ -649,7 +685,9 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
 sky_root getSkyRoot(const char *fb, size_t fb_size);
+sky_root getSkyRoot_FBU(const char *fb, size_t fb_size) ;
 sky_rec getSkyRec(const Tables::Record *rec);
+sky_rec_fbu getSkyRec_FBU(int rec_num, bool debug) ;
 
 // print functions (debug only)
 void printSkyRoot(sky_root *r);
@@ -691,6 +729,16 @@ int processSkyFb(
         const size_t fb_size,
         std::string& errmsg,
         const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
+int process_fbu(
+    flatbuffers::FlatBufferBuilder& flatbldr,
+    schema_vec& tbl_schema,
+    schema_vec& query_schema,
+    predicate_vec& preds,
+    const char* fb,
+    const size_t fb_size,
+    std::string& errmsg,
+    bool debug,
+    const std::vector<uint32_t>& row_nums=std::vector<uint32_t>() );
 
 inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);

@@ -20,7 +20,7 @@ void cls_log_message(std::string msg, bool is_err, int log_level);
 // refers to data format stored in objects
 enum SkyFormatType {
     SFT_FLATBUF_FLEX_ROW,
-    SFT_FLATBUF_UNION_ROW,
+    SFT_FLATBUF_UNION_ROWS,
     SFT_FLATBUF_UNION_COL,
     SFT_ARROW,
     SFT_POSTGRESQL,
