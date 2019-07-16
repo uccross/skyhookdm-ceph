@@ -28,12 +28,8 @@ action "build ceph image" {
 action "run tests" {
   needs = "build ceph image"
   uses = "actions/docker/cli@master"
-  args = [
+  runs = [
     "sh", "-c",
-    "docker", "run", "--rm",
-    "--volume", "$GITHUB_WORKSPACE:/ws",
-    "--workdir=/ws",
-    "--entrypoint=/ws/ci/scripts/run-skyhook-test.sh",
-    "popperized/ceph:luminous",
+    "docker run --rm --volume $GITHUB_WORKSPACE:/ws --workdir=/ws --entrypoint=/ws/ci/scripts/run-skyhook-test.sh popperized/ceph:luminous"
   ]
 }
