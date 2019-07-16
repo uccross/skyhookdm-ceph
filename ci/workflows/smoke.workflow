@@ -20,28 +20,28 @@ action "download test data" {
 }
 
 # NOTE: done offline to speedup travis build time
-#
-# action "build ceph image" {
-#   needs = "download test data"
-#   uses = "actions/docker/cli@master"
-#   args = "build -t popperized/ceph:luminous ci/docker"
-# }
-#
-# action "registry login" {
-#   needs = "build ceph image"
-#   uses = "actions/docker/login@master"
-#   secrets = ["DOCKER_USERNAME", "DOCKER_PASSWORD"]
-# }
-#
-# action "push image" {
-#   needs = "registry login"
-#   uses = "actions/docker/cli@master"
-#   args = "push popperized/ceph:luminous"
-# }
+
+action "build ceph image" {
+  needs = "download test data"
+  uses = "actions/docker/cli@master"
+  args = "build -t popperized/ceph:luminous ci/docker"
+}
+
+action "registry login" {
+  needs = "build ceph image"
+  uses = "actions/docker/login@master"
+  secrets = ["DOCKER_USERNAME", "DOCKER_PASSWORD"]
+}
+
+action "push image" {
+  needs = "registry login"
+  uses = "actions/docker/cli@master"
+  args = "push popperized/ceph:luminous"
+}
 
 action "run tests" {
-#  needs = "push image"
-  needs = "download test data"
+  needs = "push image"
+#  needs = "download test data"
   uses = "docker://popperized/ceph:luminous"
   runs = [
     "sh", "-c", "ci/scripts/run-skyhook-test.sh"
