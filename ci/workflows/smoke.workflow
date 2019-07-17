@@ -19,6 +19,8 @@ action "download test data" {
   runs = ["sh", "-c", "ci/scripts/download-test-data.sh"]
 }
 
+# build an image with upstream ceph-mon/ceph-osd packages and add skyhook
+# runtime dependencies such as libarrow and libhdf5
 action "build ceph image" {
   needs = "download test data"
   uses = "actions/docker/cli@master"
