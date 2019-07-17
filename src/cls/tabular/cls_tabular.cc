@@ -20,7 +20,6 @@
 #include "cls_tabular_utils.h"
 #include "cls_tabular.h"
 
-
 CLS_VER(1,0)
 CLS_NAME(tabular)
 
@@ -29,6 +28,7 @@ cls_method_handle_t h_exec_query_op;
 cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_exec_build_sky_index_op;
+cls_method_handle_t h_transform_db_op;
 
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
@@ -90,6 +90,41 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
     bufferlist fb_bl;
     ::encode(fb_seq_num, fb_bl);
     int ret = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl);
+    if( ret < 0 ) {
+        return ret;
+    }
+    return 0;
+}
+
+// Get sky_format_type from xattr, if not present set to Flatbuffer
+static
+int get_sky_format_type(cls_method_context_t hctx, int& format_type) {
+
+    bufferlist bl;
+    int ret = cls_cxx_getxattr(hctx, "sky_format_type", &bl);
+    if (ret < 0) {
+        return ret;
+    }
+    else {
+        try {
+            bufferlist::iterator it = bl.begin();
+            ::decode(format_type, it);
+        } catch (const buffer::error &err) {
+            CLS_ERR("ERROR: cls_tabular:get_sky_format_type: decoding format_type");
+            return -EINVAL;
+        }
+    }
+    return 0;
+
+}
+
+// Set object type to xattr
+static
+int set_sky_format_type(cls_method_context_t hctx, int format_type) {
+
+    bufferlist bl;
+    ::encode(format_type, bl);
+    int ret = cls_cxx_setxattr(hctx, "sky_format_type", &bl);
     if( ret < 0 ) {
         return ret;
     }
@@ -1297,6 +1332,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // NOTE: 1 bl contains exactly 1 flatbuf.
             // weak ordering in map will iterate over fb nums in sequence
             for (auto it = reads.begin(); it != reads.end(); ++it) {
+                int format_type = 0;
                 bufferlist b;
                 size_t off = it->second.off;
                 size_t len = it->second.len;
@@ -1305,6 +1341,23 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                         + ";len=" + std::to_string(len);
                 CLS_LOG(20, "exec_query_op: READING %s", msg.c_str());
                 uint64_t start = getns();
+
+                ret = get_sky_format_type(hctx, format_type);
+                if (ret == -ENOENT || ret == -ENODATA) {
+                    // If sky_format_type is not present then insert it in xattr.
+                    // Default value is set as a Flatbuffer
+                    ret = set_sky_format_type(hctx, SFT_FLATBUF_FLEX_ROW);
+                    if(ret < 0) {
+                        CLS_ERR("exec_query_op: error setting sky_format_type entry to xattr %d", ret);
+                        return ret;
+                    }
+                    format_type = SFT_FLATBUF_FLEX_ROW;
+                }
+                else if (ret < 0) {
+                    CLS_ERR("ERROR: exec_query_op: sky_format_type entry from xattr %d", ret);
+                    return ret;
+                }
+
                 ret = cls_cxx_read(hctx, off, len, &b);
                 if (ret < 0) {
                   CLS_ERR("ERROR: reading flatbuf obj %d", ret);
@@ -1323,38 +1376,57 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     }
 
                     // get our data as contiguous bytes before accessing as flatbuf
-                    const char* fb = bl.c_str();
-                    size_t fb_size = bl.length();
-                    sky_root root = Tables::getSkyRoot(fb, fb_size);
-                    flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+                    const char* data = bl.c_str();
+                    size_t data_size = bl.length();
                     std::string errmsg;
-                    ret = processSkyFb(flatbldr,
+
+                    // add processed fb to our sequence of bls
+                    bufferlist ans;
+
+                    if (format_type == SFT_ARROW) {
+                        std::shared_ptr<arrow::Table> table;
+                        ret = processArrow(&table,
+                                           data_schema,
+                                           query_schema,
+                                           query_preds,
+                                           data,
+                                           data_size,
+                                           errmsg,
+                                           row_nums);
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1;
+                        }
+                        // TODO: Add the output to result fb
+                    }
+                    else if(format_type == SFT_FLATBUF_FLEX_ROW) {
+                        sky_root root = Tables::getSkyRoot(data, data_size);
+                        flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+                        ret = processSkyFb(flatbldr,
                                        data_schema,
                                        query_schema,
                                        query_preds,
-                                       fb,
-                                       fb_size,
+                                       data,
+                                       data_size,
                                        errmsg,
                                        row_nums);
 
-                    if (ret != 0) {
-                        CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                        CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                        return -1;
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1;
+                        }
+                        if (op.index_read)
+                            rows_processed += row_nums.size();
+                        else
+                            rows_processed += root.nrows;
+                        const char *processed_fb =                      \
+                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                        int bufsz = flatbldr.GetSize();
+                        ans.append(processed_fb, bufsz);
                     }
-                    if (op.index_read)
-                        rows_processed += row_nums.size();
-                    else
-                        rows_processed += root.nrows;
-                    const char *processed_fb = \
-                        reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                    int bufsz = flatbldr.GetSize();
-
-                    // add this processed fb to our sequence of bls
-                    bufferlist ans;
-                    ans.append(processed_fb, bufsz);
                     ::encode(ans, result_bl);
-
                 }
                 eval_ns += getns() - start;
             }
@@ -1639,7 +1711,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   return 0;
 }
 
-
 static
 int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
@@ -1667,6 +1738,126 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+
+/*
+ * Function: transform_db_op
+ * Description: Method to convert database format.
+ * @param[in] hctx    : CLS method context
+ * @param[out] in     : input bufferlist
+ * @param[out] out    : output bufferlist
+ * Return Value: error code
+ */
+static
+int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    int format_type = 0;
+    transform_op op;
+
+    // unpack the requested op from the inbl.
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:transform_db_op: decoding transform_op");
+        return -EINVAL;
+    }
+
+    CLS_LOG(20, "transform_db_op: table_name=%s", op.table_name.c_str());
+    CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
+    CLS_LOG(20, "transform_db_op: transform_format_type=%d", op.required_type);
+
+    int ret = get_sky_format_type(hctx, format_type);
+    if (ret == -ENOENT || ret == -ENODATA) {
+        // If sky_format_type is not present then insert it in xattr.
+        // Default value is set as a Flatbuffer
+        ret = set_sky_format_type(hctx, SFT_FLATBUF_FLEX_ROW);
+        if(ret < 0) {
+            CLS_ERR("transform_db_op: error setting sky_format_type entry to xattr %d", ret);
+            return ret;
+        }
+        format_type = SFT_FLATBUF_FLEX_ROW;
+    }
+    else if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: sky_format_type entry from xattr %d", ret);
+        return ret;
+    }
+
+    // Check if transformation is required or not
+    if (format_type == op.required_type) {
+        // Source and destination object types are same, therefore no tranformation
+        // is required.
+        CLS_LOG(20, "No Transforming required");
+        return 0;
+    }
+
+    // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb/arrow
+    bufferlist wrapped_bls;
+    bufferlist trans_wrapped_bls;
+    ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+        return ret;
+    }
+
+    using namespace Tables;
+    ceph::bufferlist::iterator it = wrapped_bls.begin();
+    while (it.get_remaining() > 0) {
+        bufferlist bl;
+        bufferlist trans_bl;
+        try {
+            ::decode(bl, it);  // unpack the next bl
+        } catch (const buffer::error &err) {
+            CLS_ERR("ERROR: decoding object format from BL");
+            return -EINVAL;
+        }
+
+        // Get our data as contiguous bytes
+        const char* data = bl.c_str();
+        size_t data_size = bl.length();
+        std::string errmsg;
+
+        if (op.required_type == SFT_ARROW) {
+            std::shared_ptr<arrow::Table> table;
+            ret = transform_fb_to_arrow(data, data_size, errmsg, &table);
+            if (ret != 0) {
+                CLS_ERR("ERROR: transforming object from flatbuffer to arrow");
+                return ret;
+            }
+
+            // Convert arrow to a buffer
+            std::shared_ptr<arrow::Buffer> buffer;
+            convert_arrow_to_buffer(table, &buffer);
+            trans_bl.append(buffer->ToString().c_str(), buffer->size());
+            ::encode(trans_bl, trans_wrapped_bls);
+
+        } else if (op.required_type == SFT_FLATBUF_FLEX_ROW) {
+            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+
+            ret = transform_arrow_to_fb(data, data_size, errmsg, flatbldr);
+            if (ret != 0) {
+                CLS_ERR("ERROR: transforming object from arrow to flatbuffer");
+                return ret;
+            }
+        }
+    }
+
+    // Write the object back to Ceph
+    ret = cls_cxx_write_full(hctx, &trans_wrapped_bls);
+    if (ret < 0) {
+        CLS_ERR("ERROR: writing obj full %d", ret);
+        return ret;
+    }
+
+    // Set the destination object format type
+    ret = set_sky_format_type(hctx, op.required_type);
+    if(ret < 0) {
+        CLS_ERR("transform_db_op: error setting sky_format_type entry to xattr %d", ret);
+        return ret;
+    }
+    return 0;
+}
+
+
 void __cls_init()
 {
   CLS_LOG(20, "Loaded tabular class!");
@@ -1684,5 +1875,10 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "exec_build_sky_index_op",
       CLS_METHOD_RD | CLS_METHOD_WR, exec_build_sky_index_op, &h_exec_build_sky_index_op);
+
+  cls_register_cxx_method(h_class, "transform_db_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, transform_db_op, &h_transform_db_op);
+
+
 }
 

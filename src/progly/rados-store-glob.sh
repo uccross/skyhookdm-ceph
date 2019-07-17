@@ -2,7 +2,8 @@
 
 set -e
 
-if [[ $# < 1 ]]; then
+# @todo Add option for format type
+if [[ $# < 2 ]]; then
   echo "usage: <pool> <glob>"
   exit 1
 fi

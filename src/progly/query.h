@@ -99,6 +99,9 @@ extern int idx_op_idx_type;
 extern std::string idx_op_idx_schema;
 extern std::string idx_op_text_delims;
 
+// Transform op params
+extern int trans_op_format_type;
+
 // other exec flags
 extern bool runstats;
 extern bool print_verbose;
@@ -137,5 +140,6 @@ extern bool stop;
 void worker_build_index(librados::IoCtx *ioctx);
 void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op);
 void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op);
+void worker_transform_db_op(librados::IoCtx *ioctx, transform_op op);
 void worker();
 void handle_cb(librados::completion_t cb, void *arg);

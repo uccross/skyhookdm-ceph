@@ -116,8 +116,16 @@ else
     case $ID in
     debian|ubuntu|devuan)
         echo "Using apt-get to install dependencies"
-        $SUDO apt-get install -y lsb-release devscripts equivs
-        $SUDO apt-get install -y dpkg-dev gcc
+        # Depdencies for Apache Arrow
+        $SUDO apt-get install -y curl lsb-release
+        curl https://dist.apache.org/repos/dist/dev/arrow/KEYS | $SUDO apt-key add -
+        $SUDO tee /etc/apt/sources.list.d/apache-arrow.list <<APT_LINE
+deb [arch=amd64] https://dl.bintray.com/apache/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/ $(lsb_release --codename --short) main
+deb-src https://dl.bintray.com/apache/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/ $(lsb_release --codename --short) main
+APT_LINE
+        $SUDO apt-get update -y
+        $SUDO apt-get install -y devscripts equivs
+        $SUDO apt-get install -y dpkg-dev gcc apt-transport-https gnupg libarrow-dev libparquet-dev
         case "$VERSION" in
             *Trusty*)
                 ensure_decent_gcc_on_deb 4.8

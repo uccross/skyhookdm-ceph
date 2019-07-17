@@ -25,6 +25,11 @@
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <arrow/api.h>
+#include <arrow/io/memory.h>
+#include <arrow/ipc/writer.h>
+#include <arrow/ipc/reader.h>
+
 #include "re2/re2.h"
 #include "objclass/objclass.h"
 
@@ -58,7 +63,8 @@ enum TablesErrCodes {
     SkyIndexUnsupportedOpType,
     SkyIndexColNotPresent,
     RowIndexOOB,
-    SkyFormatTypeNotImplemented
+    SkyFormatTypeNotImplemented,
+    ArrowStatusErr
 };
 
 // skyhook data types, as supported by underlying data format
@@ -526,17 +532,17 @@ struct root_table {
     root_table(
         int32_t _data_format_type,
         int32_t _skyhook_version,
-	int32_t _data_structure_version,
-	int32_t _data_schema_version,
+        int32_t _data_structure_version,
+        int32_t _data_schema_version,
         std::string _data_schema,
         std::string _db_schema,
         std::string _table_name,
         delete_vector _delete_vec,
         row_offs _offs,
-        uint32_t _nrows) :  data_format_type(_data_format_type),
-	    		    skyhook_version(_skyhook_version),
+        uint32_t _nrows) :  skyhook_version(_skyhook_version),
+                            data_format_type(_data_format_type),
                             data_structure_version(_data_structure_version),
-			    data_schema_version(_data_schema_version),
+                            data_schema_version(_data_schema_version),
                             data_schema(_data_schema),
                             db_schema(_db_schema),
                             table_name(_table_name),
@@ -659,6 +665,24 @@ long long int printFlatbufFlexRowAsCsv(const char* dataptr,
                                        bool print_header,
                                        bool print_verbose,
                                        long long int max_to_print);
+void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
+int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);
+long long int printArrowbufRowAsCsv(const char* dataptr,
+                                    const size_t datasz,
+                                    bool print_header,
+                                    bool print_verbose,
+                                    long long int max_to_print);
+
+// Transform functions
+int transform_fb_to_arrow(const char* fb,
+                          const size_t fb_size,
+                          std::string& errmsg,
+                          std::shared_ptr<arrow::Table>* table);
+int transform_arrow_to_fb(const char* data,
+                          const size_t data_size,
+                          std::string& errmsg,
+                          flatbuffers::FlatBufferBuilder& flatbldr);
+
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,
@@ -687,6 +711,16 @@ int processSkyFb(
         predicate_vec& preds,
         const char* fb,
         const size_t fb_size,
+        std::string& errmsg,
+        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
+
+int processArrow(
+        std::shared_ptr<arrow::Table>* table,
+        schema_vec& tbl_schema,
+        schema_vec& query_schema,
+        predicate_vec& preds,
+        const char* dataptr,
+        const size_t datasz,
         std::string& errmsg,
         const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
@@ -740,6 +774,26 @@ bool check_predicate_ops_all_equality(predicate_vec index_preds);
 // returning as uint64, which is then used to build a key-data value string
 void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val);
 void extract_typedpred_val(Tables::PredicateBase* pb, int64_t& val);
+
+/* Apache Arrow related functions */
+
+// Read/Write apache buffer on disk
+int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer);
+int write_to_file(const char *filename, arrow::Buffer* buffer);
+
+// Function related to extract/convert arrow buffer
+int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table,
+                              const std::shared_ptr<arrow::Buffer> &buffer);
+int convert_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table,
+                            std::shared_ptr<arrow::Buffer>* buffer);
+
+int compress_arrow_tables(std::vector<std::shared_ptr<arrow::Table>> &table_vec,
+                          std::shared_ptr<arrow::Table> *table);
+int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
+                      std::vector<std::shared_ptr<arrow::Table>>* table_vec);
+
+
+
 
 } // end namespace Tables
 

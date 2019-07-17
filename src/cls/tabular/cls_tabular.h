@@ -14,8 +14,38 @@
 
 #include "include/types.h"
 
-
 void cls_log_message(std::string msg, bool is_err, int log_level);
+
+#define STREAM_CAPACITY 1024
+#define ARROW_RID_INDEX(cols) (cols)
+#define ARROW_DELVEC_INDEX(cols) (cols + 1)
+
+enum arrow_metadata_t {
+    METADATA_SKYHOOK_VERSION,
+    METADATA_DATA_SCHEMA_VERSION,
+    METADATA_DATA_STRUCTURE_VERSION,
+    METADATA_DATA_FORMAT_TYPE,
+    METADATA_DATA_SCHEMA,
+    METADATA_DB_SCHEMA,
+    METADATA_TABLE_NAME,
+    METADATA_NUM_ROWS
+};
+
+inline const char* ToString(arrow_metadata_t m)
+{
+    switch (m)
+    {
+        case METADATA_SKYHOOK_VERSION:         return "skyhook_version";
+        case METADATA_DATA_SCHEMA_VERSION:     return "data_schema_version";
+        case METADATA_DATA_STRUCTURE_VERSION:  return "data_structure_version";
+        case METADATA_DATA_FORMAT_TYPE:        return "data_format_type";
+        case METADATA_DATA_SCHEMA:             return "data_schema";
+        case METADATA_DB_SCHEMA:               return "db_schema";
+        case METADATA_TABLE_NAME:              return "table_name";
+        case METADATA_NUM_ROWS:                return "num_rows";
+        default:                               return "[Unknown Metadata]";
+    }
+}
 
 // refers to data format stored in objects
 enum SkyFormatType {
@@ -201,6 +231,45 @@ struct stats_op {
   }
 };
 WRITE_CLASS_ENCODER(stats_op)
+
+struct transform_op {
+
+  std::string table_name;
+  std::string data_schema;
+  int required_type;
+
+  transform_op() {}
+  transform_op(std::string tname, std::string dtscma, int req_type) :
+    table_name(tname), data_schema(dtscma), required_type(req_type) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(table_name, bl);
+    ::encode(data_schema, bl);
+    ::encode(required_type, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(table_name, bl);
+    ::decode(data_schema, bl);
+    ::decode(required_type, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("transform_op:");
+    s.append(" .table_name=" + table_name);
+    s.append(" .data_schema=" + data_schema);
+    s.append(" .required_type=" + std::to_string(required_type));
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(transform_op)
 
 // holds an omap entry containing flatbuffer location
 // this entry type contains physical location info
