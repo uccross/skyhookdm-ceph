@@ -41,6 +41,7 @@ namespace Tables {
 
 enum TablesErrCodes {
     EmptySchema = 1, // note: must start at 1
+    BadSchemaFormat,
     BadColInfoFormat,
     BadColInfoConversion,
     UnsupportedSkyDataType,
@@ -64,6 +65,7 @@ enum TablesErrCodes {
     SkyIndexColNotPresent,
     RowIndexOOB,
     SkyFormatTypeNotImplemented,
+    SkyFormatTypeNotRecognized,
     ArrowStatusErr
 };
 
@@ -518,39 +520,41 @@ typedef flexbuffers::Reference row_data_ref;
 // abstracts a partition from its underlying data format/layout
 struct root_table {
 
-    int32_t skyhook_version;
-    int32_t data_format_type;
-    int32_t data_structure_version;
-    int32_t data_schema_version;
+    int skyhook_version;
+    int data_format_type;
+    int data_structure_version;
+    int data_schema_version;
     std::string data_schema;
-    std::string db_schema;
+    std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    row_offs offs;
+    row_offs rows_vec;
     uint32_t nrows;
 
     root_table(
-        int32_t _data_format_type,
-        int32_t _skyhook_version,
-        int32_t _data_structure_version,
-        int32_t _data_schema_version,
+        int _skyhook_version,
+        int _data_format_type,
+        int _data_structure_version,
+        int _data_schema_version,
         std::string _data_schema,
-        std::string _db_schema,
+        std::string _db_schema_name,
         std::string _table_name,
         delete_vector _delete_vec,
-        row_offs _offs,
-        uint32_t _nrows) :  skyhook_version(_skyhook_version),
-                            data_format_type(_data_format_type),
-                            data_structure_version(_data_structure_version),
-                            data_schema_version(_data_schema_version),
-                            data_schema(_data_schema),
-                            db_schema(_db_schema),
-                            table_name(_table_name),
-                            delete_vec(_delete_vec),
-                            offs(_offs),
-                            nrows(_nrows) {};
+        row_offs _rows_vec,
+        uint32_t _nrows) :
+                        skyhook_version(_skyhook_version),
+                        data_format_type(_data_format_type),
+                        data_structure_version(_data_structure_version),
+                        data_schema_version(_data_schema_version),
+                        data_schema(_data_schema),
+                        db_schema_name(_db_schema_name),
+                        table_name(_table_name),
+                        delete_vec(_delete_vec),
+                        rows_vec(_rows_vec),
+                        nrows(_nrows) {};
 };
 typedef struct root_table sky_root;
+
 
 // skyhookdb row metadata and row data, wraps a row of data
 // abstracts a row from its underlying data format/layout
@@ -653,36 +657,44 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 // these extract the current data format (flatbuf) into the skyhookdb
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
-sky_root getSkyRoot(const char *fb, size_t fb_size);
+sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FLEX_ROW);
 sky_rec getSkyRec(const Tables::Record *rec);
 
-// print functions (debug only)
-void printSkyRoot(sky_root *r);
-void printSkyRec(sky_rec *r);
-void printSkyFb(const char* fb, size_t fb_size);
-long long int printFlatbufFlexRowAsCsv(const char* dataptr,
-                                       const size_t datasz,
-                                       bool print_header,
-                                       bool print_verbose,
-                                       long long int max_to_print);
+// print functions
+void printSkyRootHeader(sky_root &r);
+void printSkyRecHeader(sky_rec &r);
+
+long long int printFlatbufFlexRowAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
+long long int printArrowbufRowAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
+
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
+
 int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);
-long long int printArrowbufRowAsCsv(const char* dataptr,
-                                    const size_t datasz,
-                                    bool print_header,
-                                    bool print_verbose,
-                                    long long int max_to_print);
 
 // Transform functions
-int transform_fb_to_arrow(const char* fb,
-                          const size_t fb_size,
-                          std::string& errmsg,
-                          std::shared_ptr<arrow::Table>* table);
-int transform_arrow_to_fb(const char* data,
-                          const size_t data_size,
-                          std::string& errmsg,
-                          flatbuffers::FlatBufferBuilder& flatbldr);
+int transform_fb_to_arrow(
+        const char* fb,
+        const size_t fb_size,
+        std::string& errmsg,
+        std::shared_ptr<arrow::Table>* table);
 
+int transform_arrow_to_fb(
+        const char* data,
+        const size_t data_size,
+        std::string& errmsg,
+        flatbuffers::FlatBufferBuilder& flatbldr);
 
 // convert provided schema to/from skyhook internal representation
 schema_vec schemaFromColNames(schema_vec &current_schema,
@@ -692,7 +704,7 @@ std::string schemaToString(schema_vec schema);
 
 // convert provided predicates to/from skyhook internal representation
 predicate_vec predsFromString(schema_vec &schema, std::string preds_string);
-std::string predsToString(predicate_vec &preds,  schema_vec &schema);
+std::string predsToString(predicate_vec &preds, schema_vec &schema);
 std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
                                            schema_vec &schema);
 std::vector<std::string> colnamesFromSchema(schema_vec &schema);
@@ -791,9 +803,6 @@ int compress_arrow_tables(std::vector<std::shared_ptr<arrow::Table>> &table_vec,
                           std::shared_ptr<arrow::Table> *table);
 int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
                       std::vector<std::shared_ptr<arrow::Table>>* table_vec);
-
-
-
 
 } // end namespace Tables
 

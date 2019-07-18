@@ -16,6 +16,7 @@
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
 
+// used by Arrow format only
 #define STREAM_CAPACITY 1024
 #define ARROW_RID_INDEX(cols) (cols)
 #define ARROW_DELVEC_INDEX(cols) (cols + 1)
@@ -49,11 +50,12 @@ inline const char* ToString(arrow_metadata_t m)
 
 // refers to data format stored in objects
 enum SkyFormatType {
-    SFT_FLATBUF_FLEX_ROW,
+    SFT_FLATBUF_FLEX_ROW = 1,
     SFT_FLATBUF_UNION_ROW,
     SFT_FLATBUF_UNION_COL,
+    SFT_FLATBUF_CSV_ROW,
     SFT_ARROW,
-    SFT_POSTGRESQL,
+    SFT_PG_TUPLE,
     SFT_CSV
 };
 
@@ -86,7 +88,8 @@ struct query_op {
   int index2_type;
   int index_plan_type;
   int index_batch_size;
-  std::string db_schema;
+  int result_format;  // SkyFormatType enum
+  std::string db_schema_name;
   std::string table_name;
   std::string data_schema;
   std::string query_schema;
@@ -122,7 +125,8 @@ struct query_op {
     ::encode(index2_type, bl);
     ::encode(index_plan_type, bl);
     ::encode(index_batch_size, bl);
-    ::encode(db_schema, bl);
+    ::encode(result_format, bl);
+    ::encode(db_schema_name, bl);
     ::encode(table_name, bl);
     ::encode(data_schema, bl);
     ::encode(query_schema, bl);
@@ -158,7 +162,8 @@ struct query_op {
     ::decode(index2_type, bl);
     ::decode(index_plan_type, bl);
     ::decode(index_batch_size, bl);
-    ::decode(db_schema, bl);
+    ::decode(result_format, bl);
+    ::decode(db_schema_name, bl);
     ::decode(table_name, bl);
     ::decode(data_schema, bl);
     ::decode(query_schema, bl);
@@ -178,7 +183,9 @@ struct query_op {
     s.append(" .index_type=" + std::to_string(index_type));
     s.append(" .index2_type=" + std::to_string(index2_type));
     s.append(" .index_plan_type=" + std::to_string(index_plan_type));
-    s.append(" .db_schema=" + db_schema);
+    s.append(" .index_batch_size=" + std::to_string(index_batch_size));
+    s.append(" .result_format=" + std::to_string(result_format));
+    s.append(" .db_schema_name=" + db_schema_name);
     s.append(" .table_name=" + table_name);
     s.append(" .data_schema=" + data_schema);
     s.append(" .query_schema=" + query_schema);

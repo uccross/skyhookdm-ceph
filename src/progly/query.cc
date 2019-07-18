@@ -48,7 +48,8 @@ int qop_index_type;
 int qop_index2_type;
 int qop_index_plan_type;
 int qop_index_batch_size;
-std::string qop_db_schema;
+int qop_result_format;   // SkyFormatType enum
+std::string qop_db_schema_name;
 std::string qop_table_name;
 std::string qop_data_schema;
 std::string qop_query_schema;
@@ -157,7 +158,7 @@ static void print_row(const char *row)
 // TODO: change to generic name, printData
 static void print_data(const char *dataptr,
                        const size_t datasz,
-                       const SkyFormatType format=SFT_FLATBUF_FLEX_ROW)
+                       const int format=SFT_FLATBUF_FLEX_ROW)
 {
 
     // NOTE: quiet and print_verbose are exec flags in run-query
@@ -186,6 +187,7 @@ static void print_data(const char *dataptr,
                                               print_header,
                                               print_verbose,
                                               row_limit - row_counter);
+
             break;
         default:
             assert (Tables::TablesErrCodes::SkyFormatTypeNotImplemented==0);
@@ -359,7 +361,6 @@ void worker()
         // in both cases, the results are wrapped as a sequence of bufferlists
         // currently each bufferlist is a skyhook flatbuf data structure.
 
-
         bufferlist wrapped_bls;   // to store the seq of bls.
 
         // first extract the top-level statistics encoded during cls processing
@@ -397,6 +398,7 @@ void worker()
                 sky_root root = Tables::getSkyRoot(char_data_ptr, 0);
                 rows_returned += root.nrows;
             }
+
             else if (query == "arrow") {
                 std::shared_ptr<arrow::Buffer> buffer;
                 std::shared_ptr<arrow::Table> table;
@@ -417,7 +419,8 @@ void worker()
                 }
             }
 
-            if (!more_processing) {  // nothing left to do here.
+            if (!more_processing) {
+                // nothing left to do here, we can print results (or not if --quiet)
                 if (query == "flatbuf") {
                     sky_root root = Tables::getSkyRoot(char_data_ptr, 0);
                     result_count += root.nrows;
@@ -436,7 +439,7 @@ void worker()
                     print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
                 }
             }
-            else {
+            else {  // do remaining processing here.
                 std::string errmsg;
                 if (query == "flatbuf") {
                     flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
@@ -445,7 +448,7 @@ void worker()
                                            sky_qry_schema,
                                            sky_qry_preds,
                                            char_data_ptr,
-                                           0, /* size in bytes unused */
+                                           0, // size in bytes, unused
                                            errmsg);
                     if (ret != 0) {
                         int more_processing_failure = true;
@@ -454,13 +457,12 @@ void worker()
                                   << endl;
                         assert(more_processing_failure);
                     }
-                    else {
-                        char_data_ptr =                                 \
-                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                        sky_root root = getSkyRoot(char_data_ptr, 0);
-                        result_count += root.nrows;
-                        print_data(char_data_ptr, 0);
-                    }
+
+                    char_data_ptr =                                 \
+                        reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                    sky_root root = getSkyRoot(char_data_ptr, 0);
+                    result_count += root.nrows;
+                    print_data(char_data_ptr, 0);
                 }
                 else if (query == "arrow") {
                     std::shared_ptr<arrow::Table> table;
@@ -469,7 +471,7 @@ void worker()
                                            sky_qry_schema,
                                            sky_qry_preds,
                                            char_data_ptr,
-                                           bl.length(), /* size in bytes unused */
+                                           bl.length(), // size in bytes, unused
                                            errmsg);
                     if (ret != 0) {
                         int more_processing_failure = true;

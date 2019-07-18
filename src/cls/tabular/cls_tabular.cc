@@ -96,6 +96,9 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
     return 0;
 }
 
+// TODO: remove.
+// get/set format type from fb_meta, instead of xattrs
+/*
 // Get sky_format_type from xattr, if not present set to Flatbuffer
 static
 int get_sky_format_type(cls_method_context_t hctx, int& format_type) {
@@ -115,9 +118,7 @@ int get_sky_format_type(cls_method_context_t hctx, int& format_type) {
         }
     }
     return 0;
-
 }
-
 // Set object type to xattr
 static
 int set_sky_format_type(cls_method_context_t hctx, int format_type) {
@@ -130,6 +131,7 @@ int set_sky_format_type(cls_method_context_t hctx, int format_type) {
     }
     return 0;
 }
+*/
 
 /*
  * Build a skyhook index, insert to omap.
@@ -212,7 +214,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
         // IDX_FB get the key prefix and key_data (fb sequence num)
         ++fb_seq_num;
-        key_fb_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.db_schema,
+        key_fb_prefix = buildKeyPrefix(Tables::SIT_IDX_FB, root.db_schema_name,
                                        root.table_name);
         std::string str_seq_num = Tables::u64tostr(fb_seq_num); // key data
         int len = str_seq_num.length();
@@ -234,7 +236,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
             std::vector<std::string> index_cols;
             index_cols.push_back(Tables::RID_INDEX);
             key_data_prefix = buildKeyPrefix(Tables::SIT_IDX_RID,
-                                             root.db_schema,
+                                             root.db_schema_name,
                                              root.table_name,
                                              index_cols);
         }
@@ -246,14 +248,14 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
                 keycols.push_back(it->name);
             }
             key_data_prefix = Tables::buildKeyPrefix(op.idx_type,
-                                                     root.db_schema,
+                                                     root.db_schema_name,
                                                      root.table_name,
                                                      keycols);
         }
 
         // IDX_REC/IDX_RID/IDX_TXT: create the key data for each row
         for (uint32_t i = 0; i < root.nrows; i++) {
-            Tables::sky_rec rec = Tables::getSkyRec(root.offs->Get(i));
+            Tables::sky_rec rec = Tables::getSkyRec(root.rows_vec->Get(i));
 
             switch (op.idx_type) {
 
@@ -1016,7 +1018,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             predicate_vec index2_preds;
 
             std::string key_fb_prefix = buildKeyPrefix(SIT_IDX_FB,
-                                                       op.db_schema,
+                                                       op.db_schema_name,
                                                        op.table_name);
             // lookup correct flatbuf and potentially set specific row nums
             // to be processed next in processFb()
@@ -1034,7 +1036,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                 std::string key_data_prefix = \
                         buildKeyPrefix(op.index_type,
-                                       op.db_schema,
+                                       op.db_schema_name,
                                        op.table_name,
                                        index_cols);
 
@@ -1049,7 +1051,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                 std::string key2_data_prefix = \
                         buildKeyPrefix(op.index2_type,
-                                       op.db_schema,
+                                       op.db_schema_name,
                                        op.table_name,
                                        index2_cols);
 
@@ -1306,8 +1308,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     int ret = read_fbs_index(hctx, key_fb_prefix, reads);
 
                     if (reads.empty())
-                        CLS_LOG(20,
-                            "exec_query_op: WARN: No FBs index entries found.");
+                        CLS_LOG(20,"exec_query_op: WARN: No FBs index entries found.");
 
                     // if we found the fb sequence of offsets, then we
                     // no longer need to read the full object.
@@ -1332,16 +1333,16 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // NOTE: 1 bl contains exactly 1 flatbuf.
             // weak ordering in map will iterate over fb nums in sequence
             for (auto it = reads.begin(); it != reads.end(); ++it) {
-                int format_type = 0;
+                ///int format_type = 0;
                 bufferlist b;
                 size_t off = it->second.off;
                 size_t len = it->second.len;
                 std::vector<unsigned int> row_nums = it->second.rnums;
-                std::string msg = "off=" + std::to_string(off)
-                                        + ";len=" + std::to_string(len);
-                CLS_LOG(20, "exec_query_op: READING %s", msg.c_str());
-                uint64_t start = getns();
-
+                std::string msg = "off=" + std::to_string(off) +
+                                  ";len=" + std::to_string(len);
+                // TODO: remove.
+                // get format type from fb_meta, instead of xattrs
+                /*
                 ret = get_sky_format_type(hctx, format_type);
                 if (ret == -ENOENT || ret == -ENODATA) {
                     // If sky_format_type is not present then insert it in xattr.
@@ -1357,76 +1358,113 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     CLS_ERR("ERROR: exec_query_op: sky_format_type entry from xattr %d", ret);
                     return ret;
                 }
+                */
 
+                uint64_t start = getns();
                 ret = cls_cxx_read(hctx, off, len, &b);
                 if (ret < 0) {
-                  CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+                  std::string msg = std::to_string(ret) + "reading obj at off="
+                                    + std::to_string(off) + ";len="
+                                    + std::to_string(len);
+                  CLS_ERR("ERROR: %s", msg.c_str());
                   return ret;
                 }
                 read_ns += getns() - start;
                 start = getns();
                 ceph::bufferlist::iterator it2 = b.begin();
                 while (it2.get_remaining() > 0) {
+
+                    // unpack the next data stucture (ds) in sequence
+                    // seq within an object on disk should be:
+                    //  int format, bl ds
+                    //  int format, bl ds
+                    //  int format, bl ds
+                    // ...
+
                     bufferlist bl;
                     try {
-                        ::decode(bl, it2);  // unpack the next bl (flatbuf)
+                        ::decode(bl, it2);  // TODO: decode as FB_META
                     } catch (const buffer::error &err) {
-                        CLS_ERR("ERROR: decoding flatbuf from BL");
+                        CLS_ERR("ERROR: decoding data from it2 (ds sequence");
                         return -EINVAL;
                     }
 
-                    // get our data as contiguous bytes before accessing as flatbuf
-                    const char* data = bl.c_str();
-                    size_t data_size = bl.length();
-                    std::string errmsg;
+                    // TODO: replace with metadata fields from fb_meta
+                    const char* ds = bl.c_str();  // get as contiguous bytes
+                    size_t ds_size = bl.length();
+                    int ds_format = SFT_FLATBUF_FLEX_ROW;  // TODO: use fb_meta
 
-                    // add processed fb to our sequence of bls
+                    // container for sequence of results data structs
                     bufferlist ans;
 
-                    if (format_type == SFT_ARROW) {
+                    // debug/accounting
+                    std::string errmsg;
+                    int ds_rows_processed = 0;
+
+                    // call associated process method based on ds type
+                    switch (ds_format) {
+
+                    case SFT_FLATBUF_FLEX_ROW: {
+                        sky_root root = \
+                            Tables::getSkyRoot(ds, ds_size, ds_format);
+
+                        flatbuffers::FlatBufferBuilder flatbldr(1024);
+                        ret = processSkyFb(flatbldr,
+                                           data_schema,
+                                           query_schema,
+                                           query_preds,
+                                           ds,
+                                           ds_size,
+                                           errmsg,
+                                           row_nums);
+
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1;
+                        }
+
+                        // get serialized data struct and its size
+                        const char *res_ds = \
+                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                        int res_ds_size = flatbldr.GetSize();
+
+                        // add processed data to results
+                        ans.append(res_ds, res_ds_size);
+                        if (op.index_read)
+                            ds_rows_processed = row_nums.size();
+                        else
+                            ds_rows_processed = root.nrows;
+                        break;
+                    }
+
+                    case SFT_ARROW: {
                         std::shared_ptr<arrow::Table> table;
                         ret = processArrow(&table,
                                            data_schema,
                                            query_schema,
                                            query_preds,
-                                           data,
-                                           data_size,
+                                           ds,
+                                           ds_size,
                                            errmsg,
                                            row_nums);
-                        if (ret != 0) {
-                            CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                            return -1;
-                        }
-                        // TODO: Add the output to result fb
+                        // TODO: Add the output to result ds
+                        break;
                     }
-                    else if(format_type == SFT_FLATBUF_FLEX_ROW) {
-                        sky_root root = Tables::getSkyRoot(data, data_size);
-                        flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
-                        ret = processSkyFb(flatbldr,
-                                       data_schema,
-                                       query_schema,
-                                       query_preds,
-                                       data,
-                                       data_size,
-                                       errmsg,
-                                       row_nums);
 
-                        if (ret != 0) {
-                            CLS_ERR("ERROR: processing flatbuf, %s", errmsg.c_str());
-                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                            return -1;
-                        }
-                        if (op.index_read)
-                            rows_processed += row_nums.size();
-                        else
-                            rows_processed += root.nrows;
-                        const char *processed_fb =                      \
-                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                        int bufsz = flatbldr.GetSize();
-                        ans.append(processed_fb, bufsz);
+                    case SFT_FLATBUF_UNION_ROW:
+                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_CSV_ROW:
+                    case SFT_PG_TUPLE:
+                    case SFT_CSV:
+                    default:
+                        assert (SkyFormatTypeNotRecognized==0);
                     }
+                    // accumulate local result ans into our results bl
                     ::encode(ans, result_bl);
+
+                    // add this processed ds to sequence of bls and update counter
+                    rows_processed += ds_rows_processed;
                 }
                 eval_ns += getns() - start;
             }
@@ -1746,11 +1784,11 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  * @param[out] in     : input bufferlist
  * @param[out] out    : output bufferlist
  * Return Value: error code
- */
+*/
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    int format_type = 0;
+    int format_type = SFT_FLATBUF_FLEX_ROW; // TODO: get from fb_meta
     transform_op op;
 
     // unpack the requested op from the inbl.
@@ -1766,6 +1804,9 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
     CLS_LOG(20, "transform_db_op: transform_format_type=%d", op.required_type);
 
+    // TODO:remove
+    // get/set format type using fb_meta
+    /*
     int ret = get_sky_format_type(hctx, format_type);
     if (ret == -ENOENT || ret == -ENODATA) {
         // If sky_format_type is not present then insert it in xattr.
@@ -1781,6 +1822,7 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         CLS_ERR("ERROR: transform_db_op: sky_format_type entry from xattr %d", ret);
         return ret;
     }
+    */
 
     // Check if transformation is required or not
     if (format_type == op.required_type) {
@@ -1793,7 +1835,7 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb/arrow
     bufferlist wrapped_bls;
     bufferlist trans_wrapped_bls;
-    ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
         return ret;
@@ -1848,12 +1890,16 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return ret;
     }
 
+    // TODO:remove
+    // get/set format type using fb_meta
+    /*
     // Set the destination object format type
     ret = set_sky_format_type(hctx, op.required_type);
     if(ret < 0) {
         CLS_ERR("transform_db_op: error setting sky_format_type entry to xattr %d", ret);
         return ret;
     }
+    */
     return 0;
 }
 
@@ -1878,7 +1924,5 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "transform_db_op",
       CLS_METHOD_RD | CLS_METHOD_WR, transform_db_op, &h_transform_db_op);
-
-
 }
 

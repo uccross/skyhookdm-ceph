@@ -78,7 +78,7 @@ int processArrow(
 
 int processSkyFb(
     flatbuffers::FlatBufferBuilder& flatbldr,
-    schema_vec& tbl_schema,
+    schema_vec& data_schema,
     schema_vec& query_schema,
     predicate_vec& preds,
     const char* fb,
@@ -89,17 +89,17 @@ int processSkyFb(
     int errcode = 0;
     delete_vector dead_rows;
     std::vector<flatbuffers::Offset<Tables::Record>> offs;
-    sky_root root = getSkyRoot(fb, fb_size);
+    sky_root root = getSkyRoot(fb, fb_size, SFT_FLATBUF_FLEX_ROW);
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
-    for (auto it=tbl_schema.begin(); it!=tbl_schema.end(); ++it) {
+    for (auto it=data_schema.begin(); it!=data_schema.end(); ++it) {
         if (it->idx > col_idx_max)
             col_idx_max = it->idx;
     }
 
-    bool project_all = std::equal (tbl_schema.begin(), tbl_schema.end(),
-                                   query_schema.begin(), compareColInfo);
+    bool project_all = std::equal(data_schema.begin(), data_schema.end(),
+                                  query_schema.begin(), compareColInfo);
 
     // build the flexbuf with computed aggregates, aggs are computed for
     // each row that passes, and added to flexbuf after loop below.
@@ -135,7 +135,7 @@ int processSkyFb(
         if (root.delete_vec[rnum] == 1) continue;
 
         // get a skyhook record struct
-        sky_rec rec = getSkyRec(root.offs->Get(rnum));
+        sky_rec rec = getSkyRec(root.rows_vec->Get(rnum));
 
         // apply predicates to this record
         if (!preds.empty()) {
@@ -143,11 +143,16 @@ int processSkyFb(
             if (!pass) continue;  // skip non matching rows.
         }
 
-        if (!encode_rows) continue;  // just continue accumulating agg preds.
+        // note: agg preds are accumlated in the predicate itself during
+        // applyPredicates above, then later added to result fb outside
+        // of this loop (i.e., they are not encoded into the result fb yet)
+        // thus we can skip the below encoding of rows into the result fb
+        // and just continue accumulating agg preds in this processing loop.
+        if (!encode_rows) continue;
 
         if (project_all) {
-            // TODO:  just pass through row table offset to root.offs, do not
-            // rebuild row table and flexbuf
+            // TODO:  just pass through row table offset to new rows_vec
+            // (which is also type offs), do not rebuild row table and flexbuf
         }
 
         // build the return projection for this row.
@@ -155,7 +160,7 @@ int processSkyFb(
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
 
-	flexbldr->Vector([&]() {
+        flexbldr->Vector([&]() {
 
             // iter over the query schema, locating it within the data schema
             for (auto it=query_schema.begin();
@@ -174,13 +179,13 @@ int processSkyFb(
 
                         case SDT_INT8:
                             flexbldr->Add(row[col.idx].AsInt8());
-			    break;
+                            break;
                         case SDT_INT16:
                             flexbldr->Add(row[col.idx].AsInt16());
-			    break;
+                            break;
                         case SDT_INT32:
                             flexbldr->Add(row[col.idx].AsInt32());
-			    break;
+                            break;
                         case SDT_INT64:
                             flexbldr->Add(row[col.idx].AsInt64());
                             break;
@@ -202,16 +207,16 @@ int processSkyFb(
                         case SDT_UCHAR:
                             flexbldr->Add(row[col.idx].AsUInt8());
                             break;
-			case SDT_BOOL:
+                        case SDT_BOOL:
                             flexbldr->Add(row[col.idx].AsBool());
                             break;
-			case SDT_FLOAT:
+                        case SDT_FLOAT:
                             flexbldr->Add(row[col.idx].AsFloat());
                             break;
                         case SDT_DOUBLE:
                             flexbldr->Add(row[col.idx].AsDouble());
                             break;
-			case SDT_DATE:
+                        case SDT_DATE:
                             flexbldr->Add(row[col.idx].AsString().str());
                             break;
                         case SDT_STRING:
@@ -247,7 +252,10 @@ int processSkyFb(
         offs.push_back(row_off);
     }
 
-    if (encode_aggs) { //  encode each pred agg into return flexbuf.
+    // here we build the return flatbuf result with agg values that were
+    // accumulated above in applyPredicates (agg predicates do not return
+    // true false but update their internal values each time processed
+    if (encode_aggs) { //  encode accumulated agg pred val into return flexbuf
         PredicateBase* pb;
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flexbldr->Vector([&]() {
@@ -314,8 +322,8 @@ int processSkyFb(
         query_schema_str.append(it->toString() + "\n");
     }
 
-    auto data_schema = flatbldr.CreateString(query_schema_str);
-    auto db_schema = flatbldr.CreateString(root.db_schema);
+    auto return_data_schema = flatbldr.CreateString(query_schema_str);
+    auto db_schema_name = flatbldr.CreateString(root.db_schema_name);
     auto table_name = flatbldr.CreateString(root.table_name);
     auto delete_v = flatbldr.CreateVector(dead_rows);
     auto rows_v = flatbldr.CreateVector(offs);
@@ -325,9 +333,9 @@ int processSkyFb(
         root.data_format_type,
         root.skyhook_version,
         root.data_structure_version,
-	root.data_schema_version,
-        data_schema,
-        db_schema,
+        root.data_schema_version,
+        return_data_schema,
+        db_schema_name,
         table_name,
         delete_v,
         rows_v,
@@ -386,8 +394,19 @@ schema_vec schemaFromString(std::string schema_string) {
 
     schema_vec schema;
     vector<std::string> elems;
-    boost::split(elems, schema_string, boost::is_any_of("\n"),
-                 boost::token_compress_on);
+
+    // schema col info may be delimited by either ; or newline, currently
+    if (schema_string.find(';') != std::string::npos) {
+        boost::split(elems, schema_string, boost::is_any_of(";"),
+                     boost::token_compress_on);
+    }
+    else if (schema_string.find('\n') != std::string::npos) {
+        boost::split(elems, schema_string, boost::is_any_of("\n"),
+                     boost::token_compress_on);
+    }
+    else {
+        assert (TablesErrCodes::BadSchemaFormat==0);
+    }
 
     // assume schema string contains at least one col's info
     if (elems.size() < 1)
@@ -825,19 +844,21 @@ std::string skyOpTypeToString(int op) {
 }
 
 void printSkyRootHeader(sky_root &r) {
-    std::cout << "\n\n\n[SKYHOOKDB ROOT HEADER (flatbuf)]"<< std::endl;
+
+    std::cout << "\n\nSKYHOOK_ROOT HEADER"<< std::endl;
+    std::cout << "skyhook_version: "<< r.skyhook_version << std::endl;
     std::cout << "data_format_type: "<< r.data_format_type << std::endl;
-    std::cout << "schema version: "<< r.data_structure_version << std::endl;
-    std::cout << "db_schema: "<< r.db_schema << std::endl;
+    std::cout << "data_structure_version: "<< r.data_structure_version << std::endl;
+    std::cout << "data_schema_version: "<< r.data_schema_version << std::endl;
+    std::cout << "db_schema_name: "<< r.db_schema_name << std::endl;
     std::cout << "table name: "<< r.table_name << std::endl;
     std::cout << "data_schema: \n"<< r.data_schema << std::endl;
-
     std::cout << "delete vector: [";
-    for (int i=0; i< (int)r.delete_vec.size(); i++) {
-        std::cout << (int)r.delete_vec[i];
-        if (i != (int)r.delete_vec.size()-1)
-            std::cout <<", ";
-    }
+        for (int i=0; i< (int)r.delete_vec.size(); i++) {
+            std::cout << (int)r.delete_vec[i];
+            if (i != (int)r.delete_vec.size()-1)
+                std::cout <<", ";
+        }
     std::cout << "]" << std::endl;
     std::cout << "nrows: " << r.nrows << std::endl;
     std::cout << std::endl;
@@ -845,9 +866,8 @@ void printSkyRootHeader(sky_root &r) {
 
 void printSkyRecHeader(sky_rec &r) {
 
-    std::cout << "\n\n[SKYHOOKDB ROW HEADER (flatbuf)]" << std::endl;
+    std::cout << "\nSKYHOOK_REC HEADER" << std::endl;
     std::cout << "RID: "<< r.RID << std::endl;
-
     std::string bitstring = "";
     int64_t val = 0;
     uint64_t bit = 0;
@@ -865,96 +885,12 @@ void printSkyRecHeader(sky_rec &r) {
     }
 }
 
-// parent print function for skyhook flatbuffer data layout
-void printSkyFb(const char* fb, size_t fb_size) {
-
-    // get root table ptr
-    sky_root skyroot = getSkyRoot(fb, fb_size);
-    if (skyroot.nrows == 0) return;  // nothing to see here...
-
-    printSkyRootHeader(skyroot);
-    schema_vec sc = schemaFromString(skyroot.data_schema);
-
-    // TODO: remove this temporary workaround for compatibility w/old test data
-    if (sc.empty()) {
-    	assert(!sc.empty());
-    }
-    std::cout  << "Schema for the following set of rows:" << std::endl;
-    for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
-        std::cout << " | " << it->name;
-        if (it->is_key) std::cout << "(key)";
-        if (!it->nullable) std::cout << "(NOT NULL)";
-    }
-
-    // print row metadata
-    std::cout << "\nskyroot.nrows=" << skyroot.nrows << endl;
-    for (uint32_t i = 0; i < skyroot.nrows; i++) {
-
-        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
-        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
-	printSkyRecHeader(skyrec);
-
-        auto row = skyrec.data.AsVector();
-
-        std::cout << "[SKYHOOKDB ROW DATA (flexbuf)]" << std::endl;
-        for (uint32_t j = 0; j < sc.size(); j++ ) {
-
-            col_info col = sc.at(j);
-
-            // check our nullbit vector
-            if (col.nullable) {
-                bool is_null = false;
-                int pos = col.idx / (8*sizeof(skyrec.nullbits.at(0)));
-                int col_bitmask = 1 << col.idx;
-                if ((col_bitmask & skyrec.nullbits.at(pos)) != 0)  {
-                    is_null =true;
-                }
-                if (is_null) {
-                    std::cout << "|NULL|";
-                    continue;
-                }
-            }
-
-            // print the col val based on its col type
-            // TODO: add bounds check for col.id < flxbuf max index
-            // note we use index j here as the col index into this row, since
-            // "schema" col.id refers to the col num in the table's schema,
-            // which may not be the same as this flatbuf, which could contain
-            // a different schema if it is a view/project etc.
-            std::cout << "|";
-            switch (col.type) {
-                case SDT_BOOL: std::cout << row[j].AsBool(); break;
-                case SDT_INT8: std::cout << row[j].AsInt8(); break;
-                case SDT_INT16: std::cout << row[j].AsInt16(); break;
-                case SDT_INT32: std::cout << row[j].AsInt32(); break;
-                case SDT_INT64: std::cout << row[j].AsInt64(); break;
-                case SDT_UINT8: std::cout << row[j].AsUInt8(); break;
-                case SDT_UINT16: std::cout << row[j].AsUInt16(); break;
-                case SDT_UINT32: std::cout << row[j].AsUInt32(); break;
-                case SDT_UINT64: std::cout << row[j].AsUInt64(); break;
-                case SDT_FLOAT: std::cout << row[j].AsFloat(); break;
-                case SDT_DOUBLE: std::cout << row[j].AsDouble(); break;
-                case SDT_CHAR: std::cout <<
-                    std::string(1, row[j].AsInt8()); break;
-                case SDT_UCHAR: std::cout <<
-                    std::string(1, row[j].AsUInt8()); break;
-                case SDT_DATE: std::cout <<
-                    row[j].AsString().str(); break;
-                case SDT_STRING: std::cout <<
-                    row[j].AsString().str(); break;
-                default: assert (TablesErrCodes::UnknownSkyDataType==0);
-            }
-        }
-        std::cout << "|";
-    }
-    std::cout << std::endl;
-}
-
-long long int printFlatbufFlexRowAsCsv(const char* dataptr,
-                              const size_t datasz,
-                              bool print_header,
-                              bool print_verbose,
-                              long long int max_to_print) {
+long long int printFlatbufFlexRowAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print) {
 
     // get root table ptr as sky struct
     sky_root skyroot = getSkyRoot(dataptr, datasz);
@@ -986,7 +922,7 @@ long long int printFlatbufFlexRowAsCsv(const char* dataptr,
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
         // get the record struct, then the row data
-        sky_rec skyrec = getSkyRec(skyroot.offs->Get(i));
+        sky_rec skyrec = getSkyRec(skyroot.rows_vec->Get(i));
         auto row = skyrec.data.AsVector();
 
         if (print_verbose)
@@ -1039,22 +975,58 @@ long long int printFlatbufFlexRowAsCsv(const char* dataptr,
     return counter;
 }
 
-sky_root getSkyRoot(const char *fb, size_t fb_size) {
+sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
 
-    const Table* root = GetTable(fb);
+    int skyhook_version;
+    int data_format_type;
+    int data_structure_version;
+    int data_schema_version;
+    std::string data_schema;
+    std::string db_schema_name;
+    std::string table_name;
+    delete_vector delete_vec;
+    row_offs rows_vec;
+    uint32_t nrows;
+
+    switch (ds_format) {
+
+        case SFT_FLATBUF_FLEX_ROW: {
+            const Table* root = GetTable(ds);
+            skyhook_version = root->skyhook_version();
+            data_format_type = root->data_format_type();
+            data_structure_version = root->data_structure_version();
+            data_schema_version = root->data_schema_version();
+            data_schema = root->data_schema()->str();
+            db_schema_name = root->db_schema()->str();
+            table_name = root->table_name()->str();
+            delete_vec = delete_vector(root->delete_vector()->begin(),
+                                       root->delete_vector()->end());
+            rows_vec = root->rows();
+            nrows = root->nrows();
+            break;
+        }
+
+        case SFT_ARROW:
+        case SFT_FLATBUF_UNION_ROW:
+        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_CSV_ROW:
+        case SFT_PG_TUPLE:
+        case SFT_CSV:
+        default:
+            assert (SkyFormatTypeNotRecognized==0);
+    }
 
     return sky_root(
-	root->data_format_type(),
-        root->skyhook_version(), // TODO: this should be skyhook version in v2.fbs
-        root->data_structure_version(), // TODO: add data_schema_version to v2.fbs
-	root->data_schema_version(),
-        root->data_schema()->str(),
-        root->db_schema()->str(),
-        root->table_name()->str(),
-        delete_vector(root->delete_vector()->begin(),
-                      root->delete_vector()->end()),
-                      root->rows(),
-                      root->nrows()
+        skyhook_version,
+        data_format_type,
+        data_structure_version,
+        data_schema_version,
+        data_schema,
+        db_schema_name,
+        table_name,
+        delete_vec,
+        rows_vec,
+        nrows
     );
 }
 
@@ -1660,18 +1632,10 @@ void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val) {
     }
 }
 
-#define RETURN_ON_FAILURE(expr)                                 \
-    do {                                                        \
-        arrow::Status status_ = (expr);                         \
-        if (!status_.ok()) {                                    \
-            return TablesErrCodes::ArrowStatusErr;              \
-        }                                                       \
-    } while (0);
-
-
 /* @todo: This is a temporary function to demonstrate buffer is read from the file.
  * In reality, Ceph will return a bufferlist containing a buffer.
  */
+
 int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 {
   // Open file
@@ -1691,9 +1655,11 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
   return 0;
 }
 
+
 /* @todo: This is a temporary function to demonstrate buffer is written on to a file.
  * In reality, the buffer is given to Ceph which takes care of writing.
  */
+
 int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
     std::ofstream ofile("/tmp/skyhook.arrow");
@@ -1790,9 +1756,9 @@ int compress_arrow_tables(std::vector<std::shared_ptr<arrow::Table>> &table_vec,
     }
 
     // TODO: Change schema metadata for the created table
-    RETURN_ON_FAILURE(arrow::ConcatenateTables(table_vec, table));
     return 0;
 }
+
 
 /*
  * Function: split_arrow_table
@@ -1865,8 +1831,8 @@ int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
 {
     std::vector<std::shared_ptr<arrow::Array>> array_list;
 
-    /* From Table get the schema and from schema get the skyhook schema
-     * which is stored as a metadata */
+    // From Table get the schema and from schema get the skyhook schema
+    // which is stored as a metadata
     auto schema = table->schema();
     auto metadata = schema->metadata();
     schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
@@ -2060,8 +2026,8 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     arrow::Buffer::FromString(str_data, &buffer);
 
     extract_arrow_from_buffer(&table, buffer);
-    /* From Table get the schema and from schema get the skyhook schema
-     * which is stored as a metadata */
+    // From Table get the schema and from schema get the skyhook schema
+    // which is stored as a metadata
     auto schema = table->schema();
     auto metadata = schema->metadata();
     schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
@@ -2213,7 +2179,6 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     return 0;
 }
 
-
 /*
  * Function: transform_fb_to_arrow
  * Description: Build arrow schema vector using skyhook schema information. Get the
@@ -2226,7 +2191,6 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
  * @param[out] buffer : arrow table
  * Return Value: error code
  */
-
 int transform_fb_to_arrow(const char* fb,
                           const size_t fb_size,
                           std::string& errmsg,
@@ -2255,7 +2219,7 @@ int transform_fb_to_arrow(const char* fb,
     metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
                      std::to_string(root.data_format_type));
     metadata->Append(ToString(METADATA_DATA_SCHEMA), root.data_schema);
-    metadata->Append(ToString(METADATA_DB_SCHEMA), root.db_schema);
+    metadata->Append(ToString(METADATA_DB_SCHEMA), root.db_schema_name);
     metadata->Append(ToString(METADATA_TABLE_NAME), root.table_name);
     metadata->Append(ToString(METADATA_NUM_ROWS), std::to_string(root.nrows));
 
@@ -2395,7 +2359,7 @@ int transform_fb_to_arrow(const char* fb,
     for (uint32_t i = 0; i < nrows; i++) {
 
         // Get a skyhook record struct
-        sky_rec rec = getSkyRec(root.offs->Get(i));
+        sky_rec rec = getSkyRec(root.rows_vec->Get(i));
 
         // Get the row as a vector.
         auto row = rec.data.AsVector();
@@ -2523,7 +2487,9 @@ int transform_arrow_to_fb(const char* data,
     return 0;
 }
 
-//TODO: This is a test code for checking decode arrow table works fine or not
+//TODO: remove
+/*
+This is a test code for checking decode arrow table works fine or not
 int test_bls(bufferlist *wrapped_bls)
 {
     // Create bl1
@@ -2542,6 +2508,6 @@ int test_bls(bufferlist *wrapped_bls)
     bl2.append(buffer2->ToString().c_str(), buffer2->size());
     ::encode(bl2, *wrapped_bls);
     return 0;
-}
+}*/
 
 } // end namespace Tables

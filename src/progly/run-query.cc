@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   int trans_format_type;
   std::string trans_format_str;
   std::string text_index_delims;
-  std::string db_schema;
+  std::string db_schema_name;
   std::string table_name;
   std::string data_schema;
   std::string query_schema;
@@ -55,6 +55,7 @@ int main(int argc, char **argv)
   bool fastpath = false;
   bool idx_unique = false;
   bool header;  // print csv header
+  int resformat;  // format type of result set
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -115,7 +116,7 @@ int main(int argc, char **argv)
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
     // query parameters (new) flatbufs
-    ("db-schema-name", po::value<std::string>(&db_schema)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
+    ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
     ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
     ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING), schema_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
@@ -135,6 +136,8 @@ int main(int argc, char **argv)
     ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record metadata.")
     ("header", po::bool_switch(&header)->default_value(true), "Print csv row header.")
     ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
+    ("result-format", po::value<int>(&resformat)->default_value((int)SkyFormatType::SFT_FLATBUF_FLEX_ROW), "desired SkyFormatType (enum) of results")
+
   ;
 
   po::options_description all_opts("Allowed options");
@@ -288,7 +291,7 @@ int main(int argc, char **argv)
     using namespace Tables;
 
     // clean input
-    boost::trim(db_schema);
+    boost::trim(db_schema_name);
     boost::trim(table_name);
     boost::trim(data_schema);
     boost::trim(index_cols);
@@ -299,23 +302,39 @@ int main(int argc, char **argv)
     boost::trim(index2_preds);
     boost::trim(text_index_delims);
 
-    boost::to_upper(db_schema);
+    // standardize naming as uppercase
+    boost::to_upper(db_schema_name);
     boost::to_upper(table_name);
     boost::to_upper(index_cols);
     boost::to_upper(index2_cols);
     boost::to_upper(project_cols);
 
     // current minimum required info for formulating IO requests.
-    assert (!db_schema.empty());
+    assert (!db_schema_name.empty());
     assert (!table_name.empty());
     assert (!data_schema.empty());
 
+    // verify compatible index/stats options
     if(index_create or index_read) {
         assert (!index_cols.empty());
         assert (use_cls);
     }
     if (runstats) {
         assert (use_cls);
+    }
+
+     // verify desired result format is supported
+    switch (resformat) {
+        case SFT_FLATBUF_FLEX_ROW:
+            break;
+        case SFT_FLATBUF_UNION_ROW:
+        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_CSV_ROW:
+        case SFT_ARROW:
+        case SFT_PG_TUPLE:
+        case SFT_CSV:
+        default:
+            assert (SkyFormatTypeNotImplemented==0);
     }
 
     // below we convert user input to skyhook structures for error checking,
@@ -519,7 +538,7 @@ int main(int argc, char **argv)
     qop_index2_type = index2_type;
     qop_index_plan_type = index_plan_type;
     qop_index_batch_size = index_batch_size;
-    qop_db_schema = db_schema;
+    qop_db_schema_name = db_schema_name;
     qop_table_name = table_name;
     qop_data_schema = schemaToString(sky_tbl_schema);
     qop_query_schema = schemaToString(sky_qry_schema);
@@ -528,6 +547,7 @@ int main(int argc, char **argv)
     qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
     qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
     qop_index2_preds = predsToString(sky_idx2_preds, sky_tbl_schema);
+    qop_result_format = resformat;
     idx_op_idx_unique = idx_unique;
     idx_op_batch_size = index_batch_size;
     idx_op_idx_type = index_type;
@@ -573,7 +593,7 @@ int main(int argc, char **argv)
   if (query == "flatbuf" && runstats) {
 
     // create idx_op for workers
-    stats_op op(qop_db_schema, qop_table_name, qop_data_schema);
+    stats_op op(qop_db_schema_name, qop_table_name, qop_data_schema);
 
     // kick off the workers
     std::vector<std::thread> threads;
@@ -669,7 +689,8 @@ int main(int argc, char **argv)
         op.index2_type = qop_index2_type;
         op.index_plan_type = qop_index_plan_type;
         op.index_batch_size = qop_index_batch_size;
-        op.db_schema = qop_db_schema;
+        op.result_format = qop_result_format;
+        op.db_schema_name = qop_db_schema_name;
         op.table_name = qop_table_name;
         op.data_schema = qop_data_schema;
         op.query_schema = qop_query_schema;

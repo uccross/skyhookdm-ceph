@@ -81,7 +81,8 @@ extern int qop_index_type;
 extern int qop_index2_type;
 extern int qop_index_plan_type;
 extern int qop_index_batch_size;
-extern std::string qop_db_schema;
+extern int qop_result_format;  // SkyFormatType enum
+extern std::string qop_db_schema_name;
 extern std::string qop_table_name;
 extern std::string qop_data_schema;
 extern std::string qop_query_schema;
