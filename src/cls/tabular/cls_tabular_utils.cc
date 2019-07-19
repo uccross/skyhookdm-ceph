@@ -135,7 +135,7 @@ int processSkyFb(
         if (root.delete_vec[rnum] == 1) continue;
 
         // get a skyhook record struct
-        sky_rec rec = getSkyRec(root.rows_vec->Get(rnum));
+        sky_rec rec = getSkyRec(root.data_vec->Get(rnum));
 
         // apply predicates to this record
         if (!preds.empty()) {
@@ -151,7 +151,7 @@ int processSkyFb(
         if (!encode_rows) continue;
 
         if (project_all) {
-            // TODO:  just pass through row table offset to new rows_vec
+            // TODO:  just pass through row table offset to new data_vec
             // (which is also type offs), do not rebuild row table and flexbuf
         }
 
@@ -922,7 +922,7 @@ long long int printFlatbufFlexRowAsCsv(
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
         // get the record struct, then the row data
-        sky_rec skyrec = getSkyRec(skyroot.rows_vec->Get(i));
+        sky_rec skyrec = getSkyRec(skyroot.data_vec->Get(i));
         auto row = skyrec.data.AsVector();
 
         if (print_verbose)
@@ -985,7 +985,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
     std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    row_offs rows_vec;
+    row_offs data_vec;
     uint32_t nrows;
 
     switch (ds_format) {
@@ -1001,7 +1001,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             table_name = root->table_name()->str();
             delete_vec = delete_vector(root->delete_vector()->begin(),
                                        root->delete_vector()->end());
-            rows_vec = root->rows();
+            data_vec = root->rows();
             nrows = root->nrows();
             break;
         }
@@ -1025,7 +1025,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
         db_schema_name,
         table_name,
         delete_vec,
-        rows_vec,
+        data_vec,
         nrows
     );
 }
@@ -2359,7 +2359,7 @@ int transform_fb_to_arrow(const char* fb,
     for (uint32_t i = 0; i < nrows; i++) {
 
         // Get a skyhook record struct
-        sky_rec rec = getSkyRec(root.rows_vec->Get(i));
+        sky_rec rec = getSkyRec(root.data_vec->Get(i));
 
         // Get the row as a vector.
         auto row = rec.data.AsVector();

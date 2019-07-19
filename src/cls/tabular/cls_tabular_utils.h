@@ -528,7 +528,7 @@ struct root_table {
     std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    row_offs rows_vec;
+    row_offs data_vec;
     uint32_t nrows;
 
     root_table(
@@ -540,7 +540,7 @@ struct root_table {
         std::string _db_schema_name,
         std::string _table_name,
         delete_vector _delete_vec,
-        row_offs _rows_vec,
+        row_offs _data_vec,
         uint32_t _nrows) :
                         skyhook_version(_skyhook_version),
                         data_format_type(_data_format_type),
@@ -550,7 +550,7 @@ struct root_table {
                         db_schema_name(_db_schema_name),
                         table_name(_table_name),
                         delete_vec(_delete_vec),
-                        rows_vec(_rows_vec),
+                        data_vec(_data_vec),
                         nrows(_nrows) {};
 };
 typedef struct root_table sky_root;

@@ -158,7 +158,7 @@ static void print_row(const char *row)
 // TODO: change to generic name, printData
 static void print_data(const char *dataptr,
                        const size_t datasz,
-                       const int format=SFT_FLATBUF_FLEX_ROW)
+                       const int ds_format=SFT_FLATBUF_FLEX_ROW)
 {
 
     // NOTE: quiet and print_verbose are exec flags in run-query
@@ -171,7 +171,7 @@ static void print_data(const char *dataptr,
     // print_lock prevents multiple worker threads from concurrent write output
 
     print_lock.lock();
-    switch (format) {
+    switch (ds_format) {
         case SFT_FLATBUF_FLEX_ROW:
             row_counter += \
                 Tables::printFlatbufFlexRowAsCsv(dataptr,
@@ -189,8 +189,13 @@ static void print_data(const char *dataptr,
                                               row_limit - row_counter);
 
             break;
+        case SFT_FLATBUF_UNION_ROW:
+        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_CSV_ROW:
+        case SFT_PG_TUPLE:
+        case SFT_CSV:
         default:
-            assert (Tables::TablesErrCodes::SkyFormatTypeNotImplemented==0);
+            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
     }
     print_header = false;
     print_lock.unlock();
@@ -354,6 +359,11 @@ void worker()
 
     if (query == "flatbuf" || query == "arrow") {
 
+        // get our data as contiguous bytes before accessing
+        const char* dataptr;
+        size_t datasz;
+        int ds_format;
+
         using namespace Tables;
 
         // standard librados read will return the raw object data (unprocessed)
@@ -393,22 +403,37 @@ void worker()
             }
 
             // get our data as contiguous bytes before accessing
-            const char* char_data_ptr = bl.c_str();
-            if (query == "flatbuf") {
-                sky_root root = Tables::getSkyRoot(char_data_ptr, 0);
-                rows_returned += root.nrows;
+            dataptr = bl.c_str();
+            datasz = bl.length();
+            ds_format = qop_result_format;   // TODO: get from fb_meta
+
+            // this block is only used for accounting (rows processed etc.)
+            switch (ds_format) {
+                case SFT_FLATBUF_FLEX_ROW: {
+                    sky_root root = Tables::getSkyRoot(dataptr, 0);
+                    rows_returned += root.nrows;
+                    break;
+                }
+                case SFT_ARROW: {
+                    std::shared_ptr<arrow::Buffer> buffer;
+                    std::shared_ptr<arrow::Table> table;
+                    std::string str_data(dataptr, datasz);
+                    arrow::Buffer::FromString(str_data, &buffer);
+                    extract_arrow_from_buffer(&table, buffer);
+                    auto schema = table->schema();
+                    auto metadata = schema->metadata();
+                    rows_returned += std::stoi(metadata->value(METADATA_NUM_ROWS));
+                    break;
+                }
+                case SFT_FLATBUF_UNION_ROW:
+                case SFT_FLATBUF_UNION_COL:
+                case SFT_FLATBUF_CSV_ROW:
+                case SFT_PG_TUPLE:
+                case SFT_CSV:
+                default:
+                    assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
             }
 
-            else if (query == "arrow") {
-                std::shared_ptr<arrow::Buffer> buffer;
-                std::shared_ptr<arrow::Table> table;
-                std::string str_data(bl.c_str(), bl.length());
-                arrow::Buffer::FromString(str_data, &buffer);
-                extract_arrow_from_buffer(&table, buffer);
-                auto schema = table->schema();
-                auto metadata = schema->metadata();
-                rows_returned += std::stoi(metadata->value(METADATA_NUM_ROWS));
-            }
 
             // check if we need to do any more processing: project/select/agg
             // TODO: check for/add global aggs here.
@@ -419,76 +444,105 @@ void worker()
                 }
             }
 
-            if (!more_processing) {
-                // nothing left to do here, we can print results (or not if --quiet)
-                if (query == "flatbuf") {
-                    sky_root root = Tables::getSkyRoot(char_data_ptr, 0);
-                    result_count += root.nrows;
-                    print_data(char_data_ptr, 0);
-                }
-                else if (query == "arrow") {
-                    // TODO Add nrow to rows_returned
-                    std::shared_ptr<arrow::Buffer> buffer;
-                    std::shared_ptr<arrow::Table> table;
-                    std::string str_data(bl.c_str(), bl.length());
-                    arrow::Buffer::FromString(str_data, &buffer);
-                    extract_arrow_from_buffer(&table, buffer);
-                    auto schema = table->schema();
-                    auto metadata = schema->metadata();
-                    result_count += std::stoi(metadata->value(METADATA_NUM_ROWS));
-                    print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
-                }
-            }
-            else {  // do remaining processing here.
-                std::string errmsg;
-                if (query == "flatbuf") {
-                    flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
-                    int ret = processSkyFb(flatbldr,
-                                           sky_tbl_schema,
-                                           sky_qry_schema,
-                                           sky_qry_preds,
-                                           char_data_ptr,
-                                           0, // size in bytes, unused
-                                           errmsg);
-                    if (ret != 0) {
-                        int more_processing_failure = true;
-                        std::cerr << "ERROR: query.cc: processing flatbuf: "
-                                  << errmsg << "\n Tables::ErrCodes=" << ret
-                                  << endl;
-                        assert(more_processing_failure);
-                    }
 
-                    char_data_ptr =                                 \
-                        reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                    sky_root root = getSkyRoot(char_data_ptr, 0);
-                    result_count += root.nrows;
-                    print_data(char_data_ptr, 0);
-                }
-                else if (query == "arrow") {
-                    std::shared_ptr<arrow::Table> table;
-                    int ret = processArrow(&table,
-                                           sky_tbl_schema,
-                                           sky_qry_schema,
-                                           sky_qry_preds,
-                                           char_data_ptr,
-                                           bl.length(), // size in bytes, unused
-                                           errmsg);
-                    if (ret != 0) {
-                        int more_processing_failure = true;
-                        std::cerr << "ERROR: query.cc: processing arrow: "
-                                  << errmsg << "\n Tables::ErrCodes=" << ret
-                                  << endl;
-                        assert(more_processing_failure);
+            // nothing left to do here, so we just print results
+            if (!more_processing) {
+
+                switch (ds_format) {
+                    case SFT_FLATBUF_FLEX_ROW: {
+                        sky_root root = Tables::getSkyRoot(dataptr, 0);
+                        result_count += root.nrows;
+                        print_data(dataptr, datasz, SFT_FLATBUF_FLEX_ROW);
+                        break;
                     }
-                    else {
-                        // TODO Get buffer and buffersize, print the buffer
+                    case SFT_ARROW: {
+                        // TODO Add nrow to rows_returned
                         std::shared_ptr<arrow::Buffer> buffer;
+                        std::shared_ptr<arrow::Table> table;
+                        std::string str_data(dataptr, datasz);
+                        arrow::Buffer::FromString(str_data, &buffer);
+                        extract_arrow_from_buffer(&table, buffer);
                         auto schema = table->schema();
                         auto metadata = schema->metadata();
                         result_count += std::stoi(metadata->value(METADATA_NUM_ROWS));
-                        convert_arrow_to_buffer(table, &buffer);
                         print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
+                        break;
                     }
+
+                    case SFT_FLATBUF_UNION_ROW:
+                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_CSV_ROW:
+                    case SFT_PG_TUPLE:
+                    case SFT_CSV:
+                    default:
+                        assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                }
+            }
+            else {
+
+                // more processing to do such as min, sort, any other remaining preds.
+                std::string errmsg;
+
+                switch (ds_format) {
+                    case SFT_FLATBUF_FLEX_ROW: {
+                        flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
+                        int ret = processSkyFb(flatbldr,
+                                               sky_tbl_schema,
+                                               sky_qry_schema,
+                                               sky_qry_preds,
+                                               dataptr,
+                                               datasz, // size in bytes, unused
+                                               errmsg);
+                        if (ret != 0) {
+                            int more_processing_failure = true;
+                            std::cerr << "ERROR: query.cc: processing flatbuf: "
+                                      << errmsg << "\n Tables::ErrCodes=" << ret
+                                      << endl;
+                            assert(more_processing_failure);
+                        }
+
+                        dataptr =                                 \
+                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                        sky_root root = getSkyRoot(dataptr, datasz);
+                        result_count += root.nrows;
+                        print_data(dataptr, datasz, SFT_FLATBUF_FLEX_ROW);
+                        break;
+                    }
+                    case SFT_ARROW: {
+                        std::shared_ptr<arrow::Table> table;
+                        int ret = processArrow(&table,
+                                               sky_tbl_schema,
+                                               sky_qry_schema,
+                                               sky_qry_preds,
+                                               dataptr,
+                                               datasz, // size in bytes, unused
+                                               errmsg);
+                        if (ret != 0) {
+                            int more_processing_failure = true;
+                            std::cerr << "ERROR: query.cc: processing arrow: "
+                                      << errmsg << "\n Tables::ErrCodes=" << ret
+                                      << endl;
+                            assert(more_processing_failure);
+                        }
+                        else {
+                            // TODO Get buffer and buffersize, print the buffer
+                            std::shared_ptr<arrow::Buffer> buffer;
+                            auto schema = table->schema();
+                            auto metadata = schema->metadata();
+                            result_count += std::stoi(metadata->value(METADATA_NUM_ROWS));
+                            convert_arrow_to_buffer(table, &buffer);
+                            print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
+                        }
+                        break;
+                    }
+
+                    case SFT_FLATBUF_UNION_ROW:
+                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_CSV_ROW:
+                    case SFT_PG_TUPLE:
+                    case SFT_CSV:
+                    default:
+                        assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
                 }
             }
         } // endloop of processing sequence of encoded bls

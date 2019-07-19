@@ -255,7 +255,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
         // IDX_REC/IDX_RID/IDX_TXT: create the key data for each row
         for (uint32_t i = 0; i < root.nrows; i++) {
-            Tables::sky_rec rec = Tables::getSkyRec(root.rows_vec->Get(i));
+            Tables::sky_rec rec = Tables::getSkyRec(root.data_vec->Get(i));
 
             switch (op.idx_type) {
 
@@ -1392,7 +1392,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     // TODO: replace with metadata fields from fb_meta
                     const char* ds = bl.c_str();  // get as contiguous bytes
                     size_t ds_size = bl.length();
-                    int ds_format = SFT_FLATBUF_FLEX_ROW;  // TODO: use fb_meta
+                    int ds_format = op.result_format;  // TODO: use fb_meta
 
                     // container for sequence of results data structs
                     bufferlist ans;
