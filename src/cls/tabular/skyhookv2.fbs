@@ -1,28 +1,27 @@
 // This IDL file represents our flatbuffer schema (Table).
-// The top level Table contains metadata and a vecor of Row Tables where each element
-// is similarly a flatbuffer table.
-// The Row Table also has metadata about the flexbuffer (single row)
-// which contains the row's data
+// The top level Table contains metadata and a vector of Record Tables,
+// The Record Table also has metadata and the actual record data
+// which is contained in a flexbuffer (i.e., a single row)
 
 namespace Tables;
 
 table Table {
-	data_format_type        :int32;
-    skyhook_version         :int32;
-    data_structure_version  :int32;      // schema version
-    data_schema_version     :int32;
+    data_format_type        :int32;      // enum SkyFormatType (e.g., SFT_FLATBUF_FLEX_ROW, SFT_CSV,...)
+    skyhook_version         :int32;      // release ver
+    data_structure_version  :int32;      // version of underlying data format
+    data_schema_version     :int32;      // indicates schema changes
     data_schema             :string;     // schema descriptor
-    db_schema               :string;     // group name for that database
+    db_schema               :string;     // table grouping name (e.g., "acct_dept".table_name)
     table_name              :string;     // table name
     delete_vector           :[ubyte];    // used to signal a deleted row (dead records)
-    rows                    :[Record];   // vector of Row Tables
+    rows                    :[Record];   // vector of Record tables
     nrows                   :uint32;     // number of rows in buffer
 }
 
 table Record {
-	RID:uint64;			// record ID
-	nullbits:[uint64];		// keeps track of null fields within the data
-	data:[ubyte] (flexbuffer);	// row data
+    RID                     :uint64;     // record ID
+    nullbits                :[uint64];   // keeps track of null fields within the data
+    data                    :[ubyte] (flexbuffer);  // contains the actual serialized row data
 }
 
 root_type Table;
