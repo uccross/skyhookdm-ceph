@@ -67,6 +67,7 @@ int main(int argc, char **argv)
                        "lt, gt, eq, neq, leq, geq, like, in, between, " \
                        "logical_and, logical_or, logical_not, logical_nor, " \
                        "logical_xor, bitwise_and, bitwise_or");
+
   std::stringstream ss;
   ss.str(std::string());
   ss << "<"
@@ -79,13 +80,14 @@ int main(int argc, char **argv)
      << "...>" << ops_help_msg;
   std::string select_help_msg = ss.str();
 
+  std::string data_schema_format_help_msg("NOTE: schema format is: \"col_num  col_type (as SkyDataType enum)  col_is_key col_is_nullable  col_name; col_num col_type ...;\"");
+  std::string data_schema_example("0 3 1 0 ORDERKEY ; 1 3 0 1 PARTKEY ; 2 3 0 1 SUPPKEY ; 3 3 1 0 LINENUMBER ; 4 12 0 1 QUANTITY ; 5 13 0 1 EXTENDEDPRICE ; 6 12 0 1 DISCOUNT ; 7 13 0 1 TAX ; 8 9 0 1 RETURNFLAG ; 9 9 0 1 LINESTATUS ; 10 14 0 1 SHIPDATE ; 11 14 0 1 COMMITDATE ; 12 14 0 1 RECEIPTDATE ; 13 15 0 1 SHIPINSTRUCT ; 14 15 0 1 SHIPMODE ; 15 15 0 1 COMMENT");
+
   std::string create_index_help_msg("To create index on RIDs only, specify '" +
         Tables::RID_INDEX + "', else specify " + project_help_msg +
         ", currently only supports unique indexes over integral columns, with"
         " max number of cols = " + std::to_string(Tables::MAX_INDEX_COLS));
 
-  std::string schema_help_msg = Tables::SCHEMA_FORMAT + "\nEX: \n" +
-        Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT;
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
@@ -118,7 +120,7 @@ int main(int argc, char **argv)
     // query parameters (new) flatbufs
     ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
     ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
-    ("data-schema", po::value<std::string>(&data_schema)->default_value(Tables::TPCH_LINEITEM_TEST_SCHEMA_STRING), schema_help_msg.c_str())
+    ("data-schema", po::value<std::string>(&data_schema)->default_value(data_schema_example), data_schema_format_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
     ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")

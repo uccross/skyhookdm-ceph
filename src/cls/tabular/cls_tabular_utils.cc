@@ -405,7 +405,7 @@ schema_vec schemaFromString(std::string schema_string) {
                      boost::token_compress_on);
     }
     else {
-        assert (TablesErrCodes::BadSchemaFormat==0);
+        assert (TablesErrCodes::BadDataSchemaFormat==0);
     }
 
     // assume schema string contains at least one col's info

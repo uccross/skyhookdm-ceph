@@ -56,7 +56,8 @@ enum SkyFormatType {
     SFT_FLATBUF_CSV_ROW,
     SFT_ARROW,
     SFT_PG_TUPLE,
-    SFT_CSV
+    SFT_CSV,
+    SFT_HDF5
 };
 
 /*

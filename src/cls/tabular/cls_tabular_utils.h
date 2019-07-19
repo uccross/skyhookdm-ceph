@@ -41,7 +41,7 @@ namespace Tables {
 
 enum TablesErrCodes {
     EmptySchema = 1, // note: must start at 1
-    BadSchemaFormat,
+    BadDataSchemaFormat,
     BadColInfoFormat,
     BadColInfoConversion,
     UnsupportedSkyDataType,
