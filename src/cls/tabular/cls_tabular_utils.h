@@ -36,6 +36,8 @@
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
 #include "skyhookv2_generated.h"
+#include "skyhookv2_csv_generated.h"
+#include "fb_meta_generated.h"
 
 namespace Tables {
 
@@ -516,8 +518,34 @@ typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
 typedef vector<uint64_t> nullbits_vector;
 typedef flexbuffers::Reference row_data_ref;
 
+// this flatbuf meta wrappers allows read/write transfer of a single,
+// complete, self-contained serialized data format on disk or wire.
+// data_ptr refers to the blob on disk, where the blob is of
+// some supported format type such as flatbuf, csv, arrow, ...
+// the blob itself is then abstracted via the below root_table struct
+struct fb_meta_format {
+
+    int format_type;            // format of blob contents (enum SkyFormatType)
+    bool is_deleted;            // blob was deleted (invalid)
+    size_t data_size;           //blob size in bytes
+    const uint8_t *data_ptr;    // the actual blob of formatted data
+
+    fb_meta_format (
+        int _format_type,
+        bool _is_deleted,
+        size_t _data_size,
+        const uint8_t* _data_ptr) :
+            format_type(_format_type),
+            is_deleted(_is_deleted),
+            data_size(_data_size),
+            data_ptr(_data_ptr) {};
+};
+typedef struct fb_meta_format sky_meta;
+
 // skyhookdb root metadata, refering to a (sub)partition of rows
 // abstracts a partition from its underlying data format/layout
+// this struct should point directly to metadata and data of the
+// underlying format (flatbuf, csv, arrow, parquet, ...)
 struct root_table {
 
     int skyhook_version;
@@ -528,8 +556,8 @@ struct root_table {
     std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    row_offs data_vec;
-    uint32_t nrows;
+    row_offs data_vec;  // points to underlying array of data (rows/cols/etc)
+    uint32_t nrows; // TODO: should probably be nelements or similar
 
     root_table(
         int _skyhook_version,
@@ -657,6 +685,7 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 // these extract the current data format (flatbuf) into the skyhookdb
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
+sky_meta getSkyMeta(const uint8_t *dataptr);
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FLEX_ROW);
 sky_rec getSkyRec(const Tables::Record *rec);
 

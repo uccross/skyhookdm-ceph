@@ -12,6 +12,8 @@
 #include <fstream>
 #include "query.h"
 #include "../cls/tabular/cls_tabular_utils.h"
+
+
 static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   const char* copyupto = std::find(buffer, buffer + buffer_size, 0);
   return std::string(buffer, copyupto);

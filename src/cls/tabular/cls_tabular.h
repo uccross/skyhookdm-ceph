@@ -21,6 +21,7 @@ void cls_log_message(std::string msg, bool is_err, int log_level);
 #define ARROW_RID_INDEX(cols) (cols)
 #define ARROW_DELVEC_INDEX(cols) (cols + 1)
 
+// metadata corresponding to struct sky_root table
 enum arrow_metadata_t {
     METADATA_SKYHOOK_VERSION,
     METADATA_DATA_SCHEMA_VERSION,
