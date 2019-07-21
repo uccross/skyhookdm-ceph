@@ -38,6 +38,7 @@
 #include "skyhookv2_generated.h"
 #include "skyhookv2_csv_generated.h"
 #include "fb_meta_generated.h"
+#include "fbu_generated.h"
 
 namespace Tables {
 
@@ -734,6 +735,12 @@ long long int printArrowbufRowAsCsv(
         bool print_verbose,
         long long int max_to_print);
 
+long long int printFlatbufFBUAsCSV(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print) ;
 
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
 
@@ -849,5 +856,12 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
 
 } // end namespace Tables
 
+
+#define checkret(r,v) do { \
+  if (r != v) { \
+    fprintf(stderr, "error %d/%s\n", r, strerror(-r)); \
+    assert(0); \
+    exit(1); \
+  } } while (0)
 
 #endif
