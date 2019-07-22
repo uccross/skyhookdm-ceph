@@ -827,6 +827,10 @@ inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
 
 inline
+bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& table,
+                          int array_index, int element_index);
+
+inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);
 
 inline

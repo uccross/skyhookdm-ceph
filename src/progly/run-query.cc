@@ -327,12 +327,12 @@ int main(int argc, char **argv)
 
      // verify desired result format is supported
     switch (resformat) {
+        case SFT_ARROW:
         case SFT_FLATBUF_FLEX_ROW:
             break;
         case SFT_FLATBUF_UNION_ROW:
         case SFT_FLATBUF_UNION_COL:
         case SFT_FLATBUF_CSV_ROW:
-        case SFT_ARROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
         default:
