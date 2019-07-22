@@ -8,7 +8,6 @@
 *
 */
 
-// bin/fbwriter_skyroot --oid atable_transposed --pool tpchflatbuf --filename ~/blah.txt --write_type rows --debug yes --schema_datatypes int,float,string --schema_attnames att0,att1,att2 --table_name atable --layout ROWS --nrows 4 --ncols 3
 
 #include "include/types.h"
 #include <string>
@@ -115,16 +114,14 @@ struct filedata_t {
 
 struct cmdline_inputs_t {
   bool debug ;
-  std::string oid  ;
-  std::string pool ;
   std::string write_type ;
   std::string filename ;
   std::string schema_datatypes ;
   std::string schema_attnames ;
   std::string table_name ;
-  std::string layout ;
   uint64_t nrows ;
   uint64_t ncols ;
+  uint64_t cols_per_fb ;
   std::string writeto ;
   std::string targetoid ;
   std::string targetpool ;
@@ -166,6 +163,10 @@ int writeToCeph( librados::bufferlist bl_seq, int bufsz, std::string target_oid,
 }
 
 void do_write( cmdline_inputs_t, bool ) ;
+std::string getSchemaString( uint64_t ncols,
+                             std::vector< std::string > schema_attnames,
+                             std::vector< Tables::SkyDataType > schema_datatypes_sdt,
+                             bool debug ) ;
 
 std::vector< std::string > parse_csv_str( std::string instr ) {
   std::stringstream ss( instr ) ;
@@ -194,16 +195,14 @@ std::vector< std::string > parse_psv_str( std::string instr ) {
 int main( int argc, char *argv[] ) {
 
   bool debug ;
-  std::string oid  ;
-  std::string pool ;
   std::string write_type ;
   std::string filename ;
   std::string schema_datatypes ;
   std::string schema_attnames ;
   std::string table_name ;
-  std::string layout ;
   uint64_t nrows ;
   uint64_t ncols ;
+  uint64_t cols_per_fb ;
   std::string writeto ;
   std::string targetoid ;
   std::string targetpool ;
@@ -212,16 +211,14 @@ int main( int argc, char *argv[] ) {
   gen_opts.add_options()
     ("help,h", "show help message")
     ("debug", po::value<bool>(&debug)->required(), "debug")
-    ("oid", po::value<std::string>(&oid)->required(), "oid")
-    ("pool", po::value<std::string>(&pool)->required(), "pool")
     ("write_type", po::value<std::string>(&write_type)->required(), "write_type")
     ("filename", po::value<std::string>(&filename)->required(), "filename")
     ("schema_datatypes", po::value<std::string>(&schema_datatypes)->required(), "schema_datatypes")
     ("schema_attnames", po::value<std::string>(&schema_attnames)->required(), "schema_attnames")
     ("table_name", po::value<std::string>(&table_name)->required(), "table_name")
-    ("layout", po::value<std::string>(&layout)->required(), "layout")
     ("nrows", po::value<uint64_t>(&nrows)->required(), "nrows")
     ("ncols", po::value<uint64_t>(&ncols)->required(), "ncols")
+    ("cols_per_fb", po::value<uint64_t>(&cols_per_fb), "cols_per_fb")
     ("writeto", po::value<std::string>(&writeto)->required(), "writeto")
     ("targetoid", po::value<std::string>(&targetoid)->required(), "targetoid")
     ("targetpool", po::value<std::string>(&targetpool)->required(), "targetpool") ;
@@ -237,20 +234,18 @@ int main( int argc, char *argv[] ) {
   po::notify( vm ) ;
 
   cmdline_inputs_t inputs ;
-  inputs.debug = debug ;
-  inputs.oid = oid ;
-  inputs.pool = pool ;
-  inputs.write_type = write_type ;
-  inputs.filename = filename ;
+  inputs.debug            = debug ;
+  inputs.write_type       = write_type ;
+  inputs.filename         = filename ;
   inputs.schema_datatypes = schema_datatypes ;
-  inputs.schema_attnames = schema_attnames ;
-  inputs.table_name = table_name ;
-  inputs.layout = layout ;
-  inputs.nrows = nrows ;
-  inputs.ncols = ncols ;
-  inputs.writeto = writeto ;
-  inputs.targetoid = targetoid ;
-  inputs.targetpool = targetpool ;
+  inputs.schema_attnames  = schema_attnames ;
+  inputs.table_name       = table_name ;
+  inputs.nrows            = nrows ;
+  inputs.ncols            = ncols ;
+  inputs.writeto          = writeto ;
+  inputs.targetoid        = targetoid ;
+  inputs.targetpool       = targetpool ;
+  inputs.cols_per_fb      = cols_per_fb ;
 
   do_write( inputs, debug ) ;
 
@@ -264,16 +259,14 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 
   if( inputs.debug ) {
     std::cout << "inputs.debug            : " << inputs.debug                   << std::endl ;
-    std::cout << "inputs.oid              : " << inputs.oid                     << std::endl ;
-    std::cout << "inputs.pool             : " << inputs.pool                    << std::endl ;
     std::cout << "inputs.write_type       : " << inputs.write_type              << std::endl ;
     std::cout << "inputs.filename         : " << inputs.filename                << std::endl ;
     std::cout << "inputs.schema_datatypes : " << inputs.schema_datatypes        << std::endl ;
     std::cout << "inputs.schema_attnames  : " << inputs.schema_attnames         << std::endl ;
     std::cout << "inputs.table_name       : " << inputs.table_name              << std::endl ;
-    std::cout << "inputs.layout           : " << inputs.layout                  << std::endl ;
     std::cout << "inputs.nrows            : " << std::to_string( inputs.nrows ) << std::endl ;
     std::cout << "inputs.ncols            : " << std::to_string( inputs.ncols ) << std::endl ;
+    std::cout << "inputs.cols_per_fb      : " << std::to_string( inputs.cols_per_fb ) << std::endl ;
   }
 
   // -----------------------------------------------
@@ -289,44 +282,44 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 
     // --------------------------------------------- //
     // --------------------------------------------- //
-    uint64_t nrows = inputs.nrows ;
-    uint64_t ncols = inputs.ncols ;
-
-    // from commandline
-    // place these before record_builder declare
-    auto table_name     = builder.CreateString( inputs.table_name ) ;
-    auto layout         = builder.CreateString( inputs.write_type ) ;
+    uint64_t nrows  = inputs.nrows ;
+    uint64_t ncols  = inputs.ncols ;
+    auto table_name = builder.CreateString( inputs.table_name ) ;
 
     // parse schema csv strings
     std::vector< std::string > schema_attnames = parse_csv_str( inputs.schema_attnames ) ;
     std::vector< flatbuffers::Offset< flatbuffers::String > > schema ;
-    for( unsigned int i = 0; i < schema_attnames.size(); i++ ) {
+    for( unsigned int i = 0; i < schema_attnames.size(); i++ )
       schema.push_back( builder.CreateString( schema_attnames[i] ) ) ;
-    }
-    //auto schema_fb = builder.CreateVector( schema ) ; //not used???
 
     std::vector< std::string > schema_datatypes = parse_csv_str( inputs.schema_datatypes ) ;
+    std::vector< Tables::SkyDataType > schema_datatypes_sdt ;
     std::vector< uint8_t > record_data_type_vect ;
     for( unsigned int i = 0; i < schema_datatypes.size(); i++ ) {
-      std::string this_dt = schema_datatypes[i] ;
-      if( this_dt == "int" )
+      auto this_dt = schema_datatypes[i] ;
+      if( this_dt == "int" ) {
         record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT64_FBU ) ;
-      else if( this_dt == "float" )
+        schema_datatypes_sdt.push_back( Tables::SDT_UINT64 ) ;
+      }
+      else if( this_dt == "float" ) {
         record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_FLOAT_FBU ) ;
-      else if( this_dt == "string" )
+        schema_datatypes_sdt.push_back( Tables::SDT_FLOAT ) ;
+      }
+      else if( this_dt == "string" ) {
         record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_STRING_FBU ) ;
+        schema_datatypes_sdt.push_back( Tables::SDT_STRING ) ;
+      }
       else {
         std::cout << ">> unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
         exit( 1 ) ;
       }
-    }
+    }//for loop
     auto record_data_types = builder.CreateVector( record_data_type_vect ) ;
 
     // establish rids_vect
     std::vector< uint64_t > rids_vect ;
-    for( unsigned int i = 0; i < nrows; i++ ) {
+    for( unsigned int i = 0; i < nrows; i++ )
       rids_vect.push_back( i+1 ) ;
-    }
     auto rids_vect_fb = builder.CreateVector( rids_vect ) ;
 
     // --------------------------------------------- //
@@ -334,50 +327,54 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     // --------------------------------------------- //
     filedata_t filedata ;
     // initialize struct with empty vects
-    for( unsigned int i = 0; i < schema_datatypes.size(); i++ ) {
-      std::string this_dt = schema_datatypes[i] ;
-      if( this_dt == "int" ) {
-        std::string key = "att" + std::to_string( i ) + "-int" ;
-        // ---- >>>>
-        std::vector< std::string > an_index_pair ;
-        an_index_pair.push_back( key ) ;
-        an_index_pair.push_back( std::to_string( filedata.int_vect_cnt ) ) ;
-        filedata.indexer.push_back( an_index_pair ) ;
-        // <<<< ----
-        std::vector< uint64_t > an_empty_vect ;
-        filedata.listof_int_vect_raw.push_back( an_empty_vect ) ;
-        filedata.int_vect_cnt++ ;
-      }
-      else if( this_dt == "float" ) {
-        std::string key = "att" + std::to_string( i ) + "-float" ;
-        // ---- >>>>
-        std::vector< std::string > an_index_pair ;
-        an_index_pair.push_back( key ) ;
-        an_index_pair.push_back( std::to_string( filedata.float_vect_cnt ) ) ;
-        filedata.indexer.push_back( an_index_pair ) ;
-        // <<<< ----
-        std::vector< float > an_empty_vect ;
-        filedata.listof_float_vect_raw.push_back( an_empty_vect ) ;
-        filedata.float_vect_cnt++ ;
-      }
-      else if( this_dt == "string" ) {
-        std::string key = "att" + std::to_string( i ) + "-string" ;
-        // ---- >>>>
-        std::vector< std::string > an_index_pair ;
-        an_index_pair.push_back( key ) ;
-        an_index_pair.push_back( std::to_string( filedata.string_vect_cnt ) ) ;
-        filedata.indexer.push_back( an_index_pair ) ;
-        // <<<< ----
-        std::vector< std::string > an_empty_vect_strs ;
-        std::vector< flatbuffers::Offset<flatbuffers::String> > an_empty_vect ;
-        filedata.listof_string_vect_raw_strs.push_back( an_empty_vect_strs ) ;
-        filedata.listof_string_vect_raw.push_back( an_empty_vect ) ;
-        filedata.string_vect_cnt++ ;
-      }
-      else {
-        std::cout << ">>2 unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
-        exit( 1 ) ;
-      }
+    for( unsigned int i = 0; i < schema_datatypes_sdt.size(); i++ ) {
+      Tables::SkyDataType this_dt = schema_datatypes_sdt[i] ;
+      switch( this_dt ) {
+        case Tables::SDT_UINT64 : {
+          std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
+          // ---- >>>>
+          std::vector< std::string > an_index_pair ;
+          an_index_pair.push_back( key ) ;
+          an_index_pair.push_back( std::to_string( filedata.int_vect_cnt ) ) ;
+          filedata.indexer.push_back( an_index_pair ) ;
+          // <<<< ----
+          std::vector< uint64_t > an_empty_vect ;
+          filedata.listof_int_vect_raw.push_back( an_empty_vect ) ;
+          filedata.int_vect_cnt++ ;
+          break ;
+        }
+        case Tables::SDT_FLOAT : {
+          std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
+          // ---- >>>>
+          std::vector< std::string > an_index_pair ;
+          an_index_pair.push_back( key ) ;
+          an_index_pair.push_back( std::to_string( filedata.float_vect_cnt ) ) ;
+          filedata.indexer.push_back( an_index_pair ) ;
+          // <<<< ----
+          std::vector< float > an_empty_vect ;
+          filedata.listof_float_vect_raw.push_back( an_empty_vect ) ;
+          filedata.float_vect_cnt++ ;
+          break ;
+        }
+        case Tables::SDT_STRING : {
+          std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
+          // ---- >>>>
+          std::vector< std::string > an_index_pair ;
+          an_index_pair.push_back( key ) ;
+          an_index_pair.push_back( std::to_string( filedata.string_vect_cnt ) ) ;
+          filedata.indexer.push_back( an_index_pair ) ;
+          // <<<< ----
+          std::vector< std::string > an_empty_vect_strs ;
+          std::vector< flatbuffers::Offset<flatbuffers::String> > an_empty_vect ;
+          filedata.listof_string_vect_raw_strs.push_back( an_empty_vect_strs ) ;
+          filedata.listof_string_vect_raw.push_back( an_empty_vect ) ;
+          filedata.string_vect_cnt++ ;
+          break ;
+        }
+        default :
+          std::cout << ">>2 unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
+          exit( 1 ) ;
+      }//switch
     } //for loop
 
     // read csv (pipe delimited) from file
@@ -389,37 +386,39 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       std::vector< std::string > data_vect = parse_psv_str( line ) ;
       for( unsigned int i = 0; i < data_vect.size(); i++ ) {
         int attnum = i ;
-        std::string atttype = schema_datatypes[i] ;
-        std::string attkey  = "att" + std::to_string( attnum ) + "-" + atttype ;
-        uint64_t att_vect_id = filedata.get_index( attkey ) ;
-        std::string datum = data_vect[i] ;
-        std::cout << attkey << "," << att_vect_id <<  "," << datum << ";" ;
+        Tables::SkyDataType atttype = schema_datatypes_sdt[i] ;
+        std::string attkey          = "att" + std::to_string( attnum ) + "-" + std::to_string( atttype ) ;
+        uint64_t att_vect_id        = filedata.get_index( attkey ) ;
+        std::string datum           = data_vect[i] ;
 
-        // int
-        if( atttype == "int" ) {
-          filedata.listof_int_vect_raw[ att_vect_id ].push_back( std::stoi( datum ) ) ;
-        }
-        // float
-        else if( atttype == "float" ) {
-          filedata.listof_float_vect_raw[ att_vect_id ].push_back( std::stof( datum ) ) ;
-        }
-        // string
-        else if( atttype == "string" ) {
-          filedata.listof_string_vect_raw_strs[ att_vect_id ].push_back( datum ) ;
-          filedata.listof_string_vect_raw[ att_vect_id ].push_back( builder.CreateString( datum ) ) ;
-        }
-        // oops
-        else {
-          std::cout << ">>3 unrecognized atttype '" << atttype << "'" << std::endl ;
-          exit( 1 ) ;
-        }
-      }
-      std::cout << std::endl ;
+        if( debug )
+          std::cout << attkey << "," << att_vect_id <<  "," << datum << ";" ;
+
+        switch( atttype ) {
+          case Tables::SDT_UINT64 :
+            filedata.listof_int_vect_raw[ att_vect_id ].push_back( std::stoi( datum ) ) ;
+            break ;
+          case Tables::SDT_FLOAT :
+            filedata.listof_float_vect_raw[ att_vect_id ].push_back( std::stof( datum ) ) ;
+            break ;
+          case Tables::SDT_STRING :
+            filedata.listof_string_vect_raw_strs[ att_vect_id ].push_back( datum ) ;
+            filedata.listof_string_vect_raw[ att_vect_id ].push_back( builder.CreateString( datum ) ) ;
+            break ;
+          default :
+            std::cout << "\n>>3 unrecognized atttype '" << std::to_string( atttype ) << "'" << std::endl ;
+            exit( 1 ) ;
+        } //switch
+
+      } //for
+      if( debug )
+        std::cout << std::endl ;
       itnum++ ;
-    }
-    infile.close();
+    } //while
+    infile.close() ;
 
-    filedata.toString() ;
+    if( debug )
+      filedata.toString() ;
 
     // --------------------------------------------- //
     // build out Rows flatbuffer
@@ -437,21 +436,21 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         auto key   = filedata.indexer[j][0] ;
         auto index = filedata.indexer[j][1] ;
 
-        if( boost::algorithm::ends_with( key, "-int" ) ) {
+        if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT64 ) ) ) {
           std::vector< uint64_t > single_iv ;
           single_iv.push_back( filedata.listof_int_vect_raw[ std::stoi( index ) ][ i ] ) ;
           auto int_vect_fb = builder.CreateVector( single_iv ) ;
           auto iv = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
           data_vect.push_back( iv.Union() ) ;
         }
-        else if( boost::algorithm::ends_with( key, "-float" ) ) {
+        else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_FLOAT ) ) ) {
           std::vector< float > single_fv ;
           single_fv.push_back( filedata.listof_float_vect_raw[ std::stoi( index ) ][ i ] ) ;
           auto float_vect_fb  = builder.CreateVector( single_fv ) ;
           auto fv = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
           data_vect.push_back( fv.Union() ) ;
         }
-        else if( boost::algorithm::ends_with( key, "-string" ) ) {
+        else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_STRING ) ) ) {
           std::vector< flatbuffers::Offset<flatbuffers::String> > single_sv ;
           single_sv.push_back( filedata.listof_string_vect_raw[ std::stoi( index ) ][ i ] ) ;
           auto string_vect_fb = builder.CreateVector( single_sv ) ;
@@ -466,10 +465,10 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 
       auto data = builder.CreateVector( data_vect ) ;
       auto rec = Tables::CreateRecord_FBU(
-        builder,
-        0,
-        record_data_types,
-        data ) ;
+        builder,                 //builder ptr
+        0,                       //nullbits vect
+        record_data_types,       //data types vect
+        data ) ;                 //data vect
       row_records.push_back( rec ) ;
 
     } // for loop : processes and saves all rows
@@ -478,34 +477,34 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 
     // create the Rows flatbuffer:
     auto rows = Tables::CreateRows_FBU(
-      builder,
-      0,
-      table_name,
-      ncols,
-      layout,
-      rids_vect_fb,
-      row_records_fb ) ;
+      builder,            //builder
+      0,                  //delete vect
+      row_records_fb ) ;  //data
 
-    //KD -------------------------------- KD //
     // generate schema string
     std::string schema_string = "" ;
     for( unsigned int i = 0; i < ncols; i++ ) {
       std::string att_name = schema_attnames[ i ] ;
-      std::string att_type = schema_datatypes[ i ] ;
+      auto att_type = schema_datatypes_sdt[ i ] ;
       std::string this_entry = " " + std::to_string( i ) + " " ;
-      if( att_type == "int" )
-        this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
-      else if( att_type == "float" )
-        this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
-      else if( att_type == "string" )
-        this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
-      else {
-        std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
-        exit( 1 ) ;
-      }
+      switch( att_type ) {
+        case Tables::SDT_UINT64 :
+          this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+          break ;
+        case Tables::SDT_FLOAT :
+          this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+          break ;
+        case Tables::SDT_STRING :
+          this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+          break ;
+        default :
+          std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+          exit( 1 ) ;
+      } //switch
       this_entry = this_entry + " 0 0 " + att_name + " \n" ;
       schema_string = schema_string + this_entry ;
-    }
+    } //for
+
     auto schema_string_fb = builder.CreateString( schema_string ) ;
     if( debug )
       std::cout << "schema_string = " << schema_string << std::endl ;
@@ -513,61 +512,63 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     auto db_schema_name = builder.CreateString( "kats_test" ) ;
 
     auto root = CreateRoot_FBU(
-      builder,
-      0,
-      0,
-      0,
-      0,
-      schema_string_fb,
-      db_schema_name,
-      (uint32_t)nrows,
-      Tables::Relation_FBU_Rows_FBU,
-      rows.Union() ) ;
-    builder.Finish( root ) ;
-    //KD -------------------------------- KD //
+      builder,                          //builder
+      SFT_FLATBUF_UNION_ROWS,           //data_format_type
+      0,                                //skyhook_version
+      0,                                //data_structure_version
+      0,                                //data_schema_version
+      schema_string_fb,                 //data_schema string
+      db_schema_name,                   //db_schema_name TODO: parameterize
+      (uint32_t)nrows,                  //nrows
+      (uint32_t)ncols,                  //ncols
+      table_name,                       //table_name
+      rids_vect_fb,                     //RIDs vect
+      Tables::Relation_FBU_Rows_FBU,    //relationData_type
+      rows.Union() ) ;                  //relationData
 
-    const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-    int bufsz      = builder.GetSize() ;
+    builder.Finish( root ) ;
+
+    const char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+    int datasz          = builder.GetSize() ;
     librados::bufferlist bl;
-    bl.append( fb, bufsz ) ;
+    bl.append( dataptr, datasz ) ;
     librados::bufferlist wrapper_bl ;
     ::encode( bl, wrapper_bl ) ;
 
-    if( inputs.writeto == "ceph" ) {
-      writeToCeph( wrapper_bl, bufsz, inputs.targetoid, inputs.targetpool ) ;
-    }
-    else if( inputs.writeto == "disk" ) {
-      writeToDisk( wrapper_bl, bufsz, inputs.targetoid ) ;
-    } 
+    if( inputs.writeto == "ceph" )
+      writeToCeph( wrapper_bl, datasz, inputs.targetoid, inputs.targetpool ) ;
+    else if( inputs.writeto == "disk" )
+      writeToDisk( wrapper_bl, datasz, inputs.targetoid ) ;
     else {
       std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
       exit( 1 ) ;
     }
-  }
+  } //write_type==rows
 
   // -----------------------------------------------
-  // | FBMeta flatbuffer     | Col flatbuffer     |
+  // | FBMeta flatbuffer     | Cols flatbuffer     |
   // -----------------------------------------------
-  else if( inputs.write_type == "col" ) {
+  else if( inputs.write_type == "cols" ) {
+
+    // make sure cols_per_fb is defined greater than 0
+    if( inputs.cols_per_fb <= 0 ) {
+      std::cout << "ERROR : invalid cols_per_fb '" << std::to_string( inputs.cols_per_fb ) << "'" << std::endl ;
+      std::cout << "        cols_per_fb must be greater 0 for column writes." << std::endl ;
+      exit(1) ;
+    }
 
     // --------------------------------------------- //
     // --------------------------------------------- //
-    uint64_t nrows = inputs.nrows ;
-    uint64_t ncols = inputs.ncols ;
-
-    // TODO: remove bc not used?
-    // from commandline
-    // place these before record_builder declare
-    //auto table_name     = builder.CreateString( inputs.table_name ) ;
-    //auto layout         = builder.CreateString( inputs.write_type ) ;
+    uint64_t nrows      = inputs.nrows ;
+    uint64_t ncols      = inputs.ncols ;
+    auto table_name     = builder.CreateString( inputs.table_name ) ;
+    auto db_schema_name = builder.CreateString( "kats_test" ) ;
 
     // parse schema csv strings
     std::vector< std::string > schema_attnames = parse_csv_str( inputs.schema_attnames ) ;
     std::vector< flatbuffers::Offset< flatbuffers::String > > schema ;
-    for( unsigned int i = 0; i < schema_attnames.size(); i++ ) {
+    for( unsigned int i = 0; i < schema_attnames.size(); i++ )
       schema.push_back( builder.CreateString( schema_attnames[i] ) ) ;
-    }
-    //auto schema_fb = builder.CreateVector( schema ) ; //TODO: remove bc not used?
 
     std::vector< std::string > schema_datatypes = parse_csv_str( inputs.schema_datatypes ) ;
     std::vector< Tables::SkyDataType > schema_datatypes_sdt ;
@@ -591,14 +592,18 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         exit( 1 ) ;
       }
     }
-    //auto record_data_types = builder.CreateVector( record_data_type_vect ) ; //TODO: remove bc not used?
+
+    auto schema_string = getSchemaString( ncols, 
+                                          schema_attnames, 
+                                          schema_datatypes_sdt,
+                                          debug ) ;
+    auto schema_string_fb = builder.CreateString( schema_string ) ;
 
     // establish rids_vect
     std::vector< uint64_t > rids_vect ;
-    for( unsigned int i = 0; i < nrows; i++ ) {
+    for( unsigned int i = 0; i < nrows; i++ )
       rids_vect.push_back( i+1 ) ;
-    }
-    //auto rids_vect_fb = builder.CreateVector( rids_vect ) ; //TODO: remove bc not used?
+    auto rids_vect_fb = builder.CreateVector( rids_vect ) ;
 
     // --------------------------------------------- //
     // read data from file into general structure
@@ -607,91 +612,40 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     // initialize struct with empty vects
     for( unsigned int i = 0; i < schema_datatypes_sdt.size(); i++ ) {
       Tables::SkyDataType this_dt = schema_datatypes_sdt[i] ;
+      std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
+      std::vector< std::string > an_index_pair ;
+      an_index_pair.push_back( key ) ;
       switch( this_dt ) {
         case Tables::SDT_UINT64 : {
-          std::string key = "att" + std::to_string( i ) + "-int" ;
-          // ---- >>>>
-          std::vector< std::string > an_index_pair ;
-          an_index_pair.push_back( key ) ;
           an_index_pair.push_back( std::to_string( filedata.int_vect_cnt ) ) ;
           filedata.indexer.push_back( an_index_pair ) ;
-          // <<<< ----
           std::vector< uint64_t > an_empty_vect ;
           filedata.listof_int_vect_raw.push_back( an_empty_vect ) ;
           filedata.int_vect_cnt++ ;
-          } break ;
+          break ;
+        }
         case Tables::SDT_FLOAT : {
-          std::string key = "att" + std::to_string( i ) + "-float" ;
-          // ---- >>>>
-          std::vector< std::string > an_index_pair ;
-          an_index_pair.push_back( key ) ;
           an_index_pair.push_back( std::to_string( filedata.float_vect_cnt ) ) ;
           filedata.indexer.push_back( an_index_pair ) ;
-          // <<<< ----
           std::vector< float > an_empty_vect ;
           filedata.listof_float_vect_raw.push_back( an_empty_vect ) ;
           filedata.float_vect_cnt++ ;
-          } break ;
+          break ;
+        }
         case Tables::SDT_STRING : {
-          std::string key = "att" + std::to_string( i ) + "-string" ;
-          // ---- >>>>
-          std::vector< std::string > an_index_pair ;
-          an_index_pair.push_back( key ) ;
           an_index_pair.push_back( std::to_string( filedata.string_vect_cnt ) ) ;
           filedata.indexer.push_back( an_index_pair ) ;
-          // <<<< ----
           std::vector< std::string > an_empty_vect_strs ;
           std::vector< flatbuffers::Offset<flatbuffers::String> > an_empty_vect ;
           filedata.listof_string_vect_raw_strs.push_back( an_empty_vect_strs ) ;
           filedata.listof_string_vect_raw.push_back( an_empty_vect ) ;
           filedata.string_vect_cnt++ ;
-          } break ;
+          break ;
+        }
         default :
           std::cout << ">>2 unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
           exit( 1 ) ;
       }
-      //if( this_dt == "int" ) {
-      //  std::string key = "att" + std::to_string( i ) + "-int" ;
-      //  // ---- >>>>
-      //  std::vector< std::string > an_index_pair ;
-      //  an_index_pair.push_back( key ) ;
-      //  an_index_pair.push_back( std::to_string( filedata.int_vect_cnt ) ) ;
-      //  filedata.indexer.push_back( an_index_pair ) ;
-      //  // <<<< ----
-      //  std::vector< uint64_t > an_empty_vect ;
-      //  filedata.listof_int_vect_raw.push_back( an_empty_vect ) ;
-      //  filedata.int_vect_cnt++ ;
-      //}
-      //else if( this_dt == "float" ) {
-      //  std::string key = "att" + std::to_string( i ) + "-float" ;
-      //  // ---- >>>>
-      //  std::vector< std::string > an_index_pair ;
-      //  an_index_pair.push_back( key ) ;
-      //  an_index_pair.push_back( std::to_string( filedata.float_vect_cnt ) ) ;
-      //  filedata.indexer.push_back( an_index_pair ) ;
-      //  // <<<< ----
-      //  std::vector< float > an_empty_vect ;
-      //  filedata.listof_float_vect_raw.push_back( an_empty_vect ) ;
-      //  filedata.float_vect_cnt++ ;
-      //}
-      //else if( this_dt == "string" ) {
-      //  std::string key = "att" + std::to_string( i ) + "-string" ;
-      //  // ---- >>>>
-      //  std::vector< std::string > an_index_pair ;
-      //  an_index_pair.push_back( key ) ;
-      //  an_index_pair.push_back( std::to_string( filedata.string_vect_cnt ) ) ;
-      //  filedata.indexer.push_back( an_index_pair ) ;
-      //  // <<<< ----
-      //  std::vector< std::string > an_empty_vect_strs ;
-      //  std::vector< flatbuffers::Offset<flatbuffers::String> > an_empty_vect ;
-      //  filedata.listof_string_vect_raw_strs.push_back( an_empty_vect_strs ) ;
-      //  filedata.listof_string_vect_raw.push_back( an_empty_vect ) ;
-      //  filedata.string_vect_cnt++ ;
-      //}
-      //else {
-      //  std::cout << ">>2 unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
-      //  exit( 1 ) ;
-      //}
     } //for loop
 
     // read csv (pipe delimited) from file
@@ -703,32 +657,41 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       std::vector< std::string > data_vect = parse_psv_str( line ) ;
       for( unsigned int i = 0; i < data_vect.size(); i++ ) {
         int attnum = i ;
-        std::string atttype = schema_datatypes[i] ;
-        std::string attkey  = "att" + std::to_string( attnum ) + "-" + atttype ;
+        auto atttype = schema_datatypes_sdt[i] ;
+        std::string attkey  = "att" + std::to_string( attnum ) + "-" + std::to_string( atttype ) ;
         uint64_t att_vect_id = filedata.get_index( attkey ) ;
         std::string datum = data_vect[i] ;
-        std::cout << attkey << "," << att_vect_id <<  "," << datum << ";" ;
 
-        if( atttype == "int" )
-          filedata.listof_int_vect_raw[ att_vect_id ].push_back( std::stoi( datum ) ) ;
-	      else if( atttype == "float" )
-          filedata.listof_float_vect_raw[ att_vect_id ].push_back( std::stof( datum ) ) ;
-	      else if( atttype == "string" ) {
+        if( debug )
+          std::cout << attkey << "," << att_vect_id <<  "," << datum << ";" ;
+
+        switch( atttype ) {
+          case Tables::SDT_UINT64 :
+            filedata.listof_int_vect_raw[ att_vect_id ].push_back( std::stoi( datum ) ) ;
+            break ;
+          case Tables::SDT_FLOAT :
+            filedata.listof_float_vect_raw[ att_vect_id ].push_back( std::stof( datum ) ) ;
+            break ;
+          case Tables::SDT_STRING :
             filedata.listof_string_vect_raw_strs[ att_vect_id ].push_back( datum ) ;
             filedata.listof_string_vect_raw[ att_vect_id ].push_back( builder.CreateString( datum ) ) ;
-        }
-        else {
-          std::cout << ">>3 unrecognized atttype '" << atttype << "'" << std::endl ;
-          exit( 1 ) ;
-        }
+            break ;
+          default :
+            std::cout << ">>3 unrecognized atttype '" << atttype << "'" << std::endl ;
+            exit( 1 ) ;
+        } //switch
 
       } //for loop
-      std::cout << std::endl ;
+
+      if( debug )
+        std::cout << std::endl ;
+
       itnum++ ;
     } //while loop
     infile.close();
 
-    filedata.toString() ;
+    if( debug )
+      filedata.toString() ;
 
     // --------------------------------------------- //
     // build out Col flatbuffers
@@ -738,217 +701,154 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     librados::bufferlist bl_seq ;
     int buffer_size = 0 ;
 
+    // Cols_FBU is an array of Col_FBUs.
+    // flush to write whenever cols_per_fb divides i.
+    std::vector< flatbuffers::Offset< Tables::Col_FBU > > cols_vect ;
     for( unsigned int i = 0; i < ncols; i++ ) {
       auto col_name     = schema[ i ] ;
       uint8_t col_index = (uint8_t)i ;
-      auto RIDs         = builder.CreateVector( rids_vect ) ;
 
       auto key   = filedata.indexer[i][0] ;
       auto index = filedata.indexer[i][1] ;
 
-      if( boost::algorithm::ends_with( key, "-int" ) ) {
+      if( debug )
+        std::cout << "processing col " << std::to_string( i ) << std::endl ;
+
+      if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT64 ) ) ) {
         std::vector< uint64_t > int_vect = filedata.listof_int_vect_raw[ std::stoi(index) ] ;
         auto int_vect_fb = builder.CreateVector( int_vect ) ;
         auto data = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
-          builder,
-          0,
-          col_name,
-          col_index,
-          RIDs,
-          Tables::DataTypes_FBU_SDT_UINT64_FBU,
-          data.Union() ) ;
-
-        //KD -------------------------------- KD //
-        // generate schema string
-        std::string schema_string = "" ;
-        for( unsigned int i = 0; i < ncols; i++ ) {
-          std::string att_name = schema_attnames[ i ] ;
-          std::string att_type = schema_datatypes[ i ] ;
-          std::string this_entry = " " + std::to_string( i ) + " " ;
-          if( att_type == "int" )
-            this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
-          else if( att_type == "float" )
-            this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
-          else if( att_type == "string" )
-            this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
-          else {
-            std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
-            exit( 1 ) ;
-          }
-          this_entry = this_entry + " 0 0 " + att_name + " \n" ;
-          schema_string = schema_string + this_entry ;
-        }
-        auto schema_string_fb = builder.CreateString( schema_string ) ;
-        if( debug )
-          std::cout << "schema_string = " << schema_string << std::endl ;
-
-        auto db_schema_name = builder.CreateString( "kats_test" ) ;
-
-        auto root = CreateRoot_FBU(
-          builder,
-          0,
-          0,
-          0,
-          0,
-          schema_string_fb,
-          db_schema_name,
-          (uint32_t)nrows,
-          Tables::Relation_FBU_Col_FBU,
-          col.Union() ) ;
-         builder.Finish( root ) ;
-        //KD -------------------------------- KD //
-
-        // save each Col flatbuffer in one bufferlist and
-        // append the bufferlist to a larger bufferlist.
-        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-        int bufsz = builder.GetSize() ;
-        librados::bufferlist bl ;
-        bl.append( fb, bufsz ) ;
-        ::encode( bl, bl_seq ) ;
-        buffer_size = buffer_size + bufsz ;
+          builder,                              //builder
+          col_name,                             //col_name
+          col_index,                            //col_index
+          0,                                    //nullbits
+          Tables::DataTypes_FBU_SDT_UINT64_FBU, //data_type
+          data.Union() ) ;                      //data
+        cols_vect.push_back( col ) ;
       }
-      else if( boost::algorithm::ends_with( key, "-float" ) ) {
+      else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_FLOAT ) ) ) {
         std::vector< float > float_vect = filedata.listof_float_vect_raw[ std::stoi(index) ] ;
         auto float_vect_fb = builder.CreateVector( float_vect ) ;
         auto data = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
-          builder,
-          0,
-          col_name,
-          col_index,
-          RIDs,
-          Tables::DataTypes_FBU_SDT_FLOAT_FBU,
-          data.Union() ) ;
-
-        //KD -------------------------------- KD //
-        // generate schema string
-        std::string schema_string = "" ;
-        for( unsigned int i = 0; i < ncols; i++ ) {
-          std::string att_name = schema_attnames[ i ] ;
-          std::string att_type = schema_datatypes[ i ] ;
-          std::string this_entry = " " + std::to_string( i ) + " " ;
-          if( att_type == "int" )
-            this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
-          else if( att_type == "float" )
-            this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
-          else if( att_type == "string" )
-            this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
-          else {
-            std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
-            exit( 1 ) ;
-          }
-          this_entry = this_entry + " 0 0 " + att_name + " \n" ;
-          schema_string = schema_string + this_entry ;
-        }
-        auto schema_string_fb = builder.CreateString( schema_string ) ;
-        if( debug )
-          std::cout << "schema_string = " << schema_string << std::endl ;
-
-        auto db_schema_name = builder.CreateString( "kats_test" ) ;
-
-        auto root = CreateRoot_FBU(
-          builder,
-          0,
-          0,
-          0,
-          0,
-          schema_string_fb,
-          db_schema_name,
-          (uint32_t)nrows,
-          Tables::Relation_FBU_Col_FBU,
-          col.Union() ) ;
-        builder.Finish( root ) ;
-        //KD -------------------------------- KD //
-
-        // save each Col flatbuffer in one bufferlist and
-        // append the bufferlist to a larger bufferlist.
-        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-        int bufsz = builder.GetSize() ;
-        librados::bufferlist bl ;
-        bl.append( fb, bufsz ) ;
-        ::encode( bl, bl_seq ) ;
-        buffer_size = buffer_size + bufsz ;
+          builder,                              //builder
+          col_name,                             //col_name
+          col_index,                            //col_index
+          0,                                    //nullbits
+          Tables::DataTypes_FBU_SDT_FLOAT_FBU,  //data_type
+          data.Union() ) ;                      //data
+        cols_vect.push_back( col ) ;
       }
-      else if( boost::algorithm::ends_with( key, "-string" ) ) {
+      else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_STRING ) ) ) {
         std::vector< flatbuffers::Offset<flatbuffers::String> > string_vect = filedata.listof_string_vect_raw[ std::stoi(index) ] ;
         auto string_vect_fb = builder.CreateVector( string_vect ) ;
         auto data = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
-          builder,
-          0,
-          col_name,
-          col_index,
-          RIDs,
-          Tables::DataTypes_FBU_SDT_STRING_FBU,
-          data.Union() ) ;
+          builder,                              //builder
+          col_name,                             //col_name
+          col_index,                            //col_index
+          0,                                    //nullbits
+          Tables::DataTypes_FBU_SDT_STRING_FBU, //data_type
+          data.Union() ) ;                      //data
+        cols_vect.push_back( col ) ;
+      }
+      else {
+        std::cout << ">>> unrecognized key '" << key << "'" << std::endl ;
+        exit(1) ;
+      }
 
-        //KD -------------------------------- KD //
-        // generate schema string
-        std::string schema_string = "" ;
-        for( unsigned int i = 0; i < ncols; i++ ) {
-          std::string att_name = schema_attnames[ i ] ;
-          std::string att_type = schema_datatypes[ i ] ;
-          std::string this_entry = " " + std::to_string( i ) + " " ;
-          if( att_type == "int" )
-            this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
-          else if( att_type == "float" )
-            this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
-          else if( att_type == "string" )
-            this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
-          else {
-            std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
-            exit( 1 ) ;
-          }
-          this_entry = this_entry + " 0 0 " + att_name + " \n" ;
-          schema_string = schema_string + this_entry ;
-        }
-        auto schema_string_fb = builder.CreateString( schema_string ) ;
+      //save the Cols flatbuffer
+      if( inputs.cols_per_fb == 1 ||
+          ( (i+1) % inputs.cols_per_fb == 0 ) ||
+          ( (i+1) == ncols ) ) {
+
         if( debug )
-          std::cout << "schema_string = " << schema_string << std::endl ;
+          std::cout << "saving bl to bl_seq" << std::endl ;
 
-        auto db_schema_name = builder.CreateString( "kats_test" ) ;
+        auto cols_data = builder.CreateVector( cols_vect ) ;
+        std::vector< flatbuffers::Offset< Tables::Col_FBU > > empty_cols_vect ;
+        cols_vect = empty_cols_vect ; //empty out collection vector
+
+        auto cols = CreateCols_FBU(
+          builder,
+          cols_data ) ;
 
         auto root = CreateRoot_FBU(
-          builder,
-          0,
-          0,
-          0,
-          0,
-          schema_string_fb,
-          db_schema_name,
-          (uint32_t)nrows,
-          Tables::Relation_FBU_Col_FBU,
-          col.Union() ) ;
+          builder,                          // builder
+          SFT_FLATBUF_UNION_COLS,           // data_format_type
+          0,                                // skyhook_version
+          0,                                // data_structure_version
+          0,                                // data_schema_version
+          schema_string_fb,                 // data_schema string
+          db_schema_name,                   // db_schema_name TODO: parameterize
+          (uint32_t)nrows,                  // nrows
+          (uint32_t)ncols,                  // ncols
+          table_name,                       // table_name
+          rids_vect_fb,                     // RIDs vect
+          Tables::Relation_FBU_Cols_FBU,    // relationData_type
+          cols.Union() ) ;                  // relationData
+
         builder.Finish( root ) ;
-        //KD -------------------------------- KD //
 
         // save each Col flatbuffer in one bufferlist and
         // append the bufferlist to a larger bufferlist.
-        const char* fb = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-        int bufsz = builder.GetSize() ;
+        const char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+        int datasz = builder.GetSize() ;
         librados::bufferlist bl ;
-        bl.append( fb, bufsz ) ;
+        bl.append( dataptr, datasz ) ;
         ::encode( bl, bl_seq ) ;
-        buffer_size = buffer_size + bufsz ;
-      }
-    }
+        buffer_size = buffer_size + datasz ;
+      }//if
+    } //for
 
     // write bufferlist
-    if( inputs.writeto == "ceph" ) {
+    if( inputs.writeto == "ceph" )
       writeToCeph( bl_seq, buffer_size, inputs.targetoid, inputs.targetpool ) ;
-    }
-    else if( inputs.writeto == "disk" ) {
+    else if( inputs.writeto == "disk" )
       writeToDisk( bl_seq, buffer_size, inputs.targetoid ) ;
-    } 
     else {
       std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
       exit( 1 ) ;
     }
-  }
+
+  } //cols
 
   // otherwise oops
   else {
     std::cout << ">> unrecognized inputs.write_type = '" << inputs.write_type << "'" << std::endl ;
   }
 } // do_write
+
+std::string getSchemaString( uint64_t ncols, 
+                             std::vector< std::string > schema_attnames, 
+                             std::vector< Tables::SkyDataType > schema_datatypes_sdt,
+                             bool debug ) {
+  std::string schema_string = "" ;
+  for( unsigned int i = 0; i < ncols; i++ ) {
+    std::string att_name = schema_attnames[ i ] ;
+    auto att_type = schema_datatypes_sdt[ i ] ;
+    std::string this_entry = " " + std::to_string( i ) + " " ;
+    switch( att_type ) {
+      case Tables::SDT_UINT64 :
+        this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+        break ;
+      case Tables::SDT_FLOAT :
+        this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+        break ;
+      case Tables::SDT_STRING :
+        this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+        break ;
+      default :
+        std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+        exit( 1 ) ;
+    } //switch
+    this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+    schema_string = schema_string + this_entry ;
+  } //for
+
+  if( debug )
+    std::cout << "schema_string = " << schema_string << std::endl ;
+
+  return schema_string ;
+} //getSchemaString

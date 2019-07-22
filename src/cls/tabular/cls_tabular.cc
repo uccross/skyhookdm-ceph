@@ -1452,8 +1452,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         break;
                     }
 
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_ROWS:
+                    case SFT_FLATBUF_UNION_COLS:
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:

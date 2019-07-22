@@ -983,124 +983,128 @@ long long int printFlatbufFBUAsCSV(
         long long int max_to_print) {
 
   auto root       = Tables::GetRoot_FBU( dataptr ) ;
-  auto nrows_read = root->nrows() ;
-  auto data_type  = root->relationData_type() ;
+  auto nrows      = root->nrows() ;
+  auto table_name = root->table_name() ;
+  auto ncols      = root->ncols() ;
+  auto rids       = root->RIDs() ;
+  auto format     = root->relationData_type() ;
+  auto data       = root->relationData() ;
 
-  if( print_verbose )
-    std::cout << "data_type : " << data_type << std::endl ;
+  if( print_verbose ) {
+    std::cout << "format     : " << format << std::endl ;
+    std::cout << "table_name : " << table_name->str() << std::endl ;
+    std::cout << "nrows      : " << nrows << std::endl ;
+    std::cout << "ncols      : " << ncols << std::endl ;
+  }
 
   // process one Root>Rows flatbuffer
-  if( data_type == Tables::Relation_FBU_Rows_FBU ) {
+  if( format == Tables::Relation_FBU_Rows_FBU ) {
     if( print_verbose )
-      std::cout << "if data_type == Tables::Relation_FBU_Rows_FBU" << std::endl ;
+      std::cout << "if format == Tables::Relation_FBU_Rows_FBU" << std::endl ;
 
-    auto rows = static_cast< const Tables::Rows_FBU* >( root->relationData() ) ;
-    auto table_name_read = rows->table_name() ;
-
-    //auto schema_read     = rows->schema() ;
-    auto ncols_read = rows->ncols() ;
-    auto rids_read  = rows->RIDs() ;
-    auto rows_data  = rows->data() ; // [ Record ]
-
-    if( print_verbose ) {
-      std::cout << "table_name_read->str() : " << table_name_read->str() << std::endl ;
-      std::cout << "nrows_read     : " << nrows_read     << std::endl ;
-      std::cout << "ncols_read     : " << ncols_read     << std::endl ;
-    }
+    auto rows = static_cast< const Tables::Rows_FBU* >( data ) ;
+    auto rows_data = rows->data() ;
 
     // print data to stdout
     for( unsigned int i = 0; i < rows_data->Length(); i++ ) {
       if( print_verbose )
-        std::cout << rids_read->Get(i) << ":\t" ;
+        std::cout << rids->Get(i) << ":\t" ;
 
       auto curr_rec           = rows_data->Get(i) ;
       auto curr_rec_data      = curr_rec->data() ;
       auto curr_rec_data_type = curr_rec->data_type() ;
 
-      //std::cout << "curr_rec_data->Length() = " << curr_rec_data->Length() << std::endl ;
-
       for( unsigned int j = 0; j < curr_rec_data->Length(); j++ ) {
-        // column of ints
-        if( (unsigned)curr_rec_data_type->Get(j) == Tables::DataTypes_FBU_SDT_UINT64_FBU ) {
-          //std::cout << "int" << "\t" ;
-          auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( curr_rec_data->Get(j) ) ;
-          std::cout << int_col_data->data()->Get(0) ;
-        }
-        // column of floats
-        else if( (unsigned)curr_rec_data_type->Get(j) == Tables::DataTypes_FBU_SDT_FLOAT_FBU ) {
-          //std::cout << "float" << "\t" ;
-          auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( curr_rec_data->Get(j) ) ;
-          std::cout << float_col_data->data()->Get(0) ;
-        }
-        // column of strings
-        else if( (unsigned)curr_rec_data_type->Get(j) == Tables::DataTypes_FBU_SDT_STRING_FBU ) {
-          //std::cout << "str" << "\t" ;
-          auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( curr_rec_data->Get(j) ) ;
-          std::cout << string_col_data->data()->Get(0)->str() ;
-        }
-        else {
-          std::cout << "execute_query: unrecognized row_data_type "
-                    << (unsigned)curr_rec_data_type->Get(j) << std::endl ;
-          exit(1) ;
-        }
+        switch( (unsigned)curr_rec_data_type->Get(j) ) {
+          case Tables::DataTypes_FBU_SDT_UINT64_FBU : {
+            auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( curr_rec_data->Get(j) ) ;
+            std::cout << int_col_data->data()->Get(0) ;
+            break ;
+          }
+          case Tables::DataTypes_FBU_SDT_FLOAT_FBU : {
+            auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( curr_rec_data->Get(j) ) ;
+            std::cout << float_col_data->data()->Get(0) ;
+            break ;
+          }
+          case Tables::DataTypes_FBU_SDT_STRING_FBU : {
+            auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( curr_rec_data->Get(j) ) ;
+            std::cout << string_col_data->data()->Get(0)->str() ;
+            break ;
+          }
+          default :
+            std::cout << "execute_query: unrecognized row_data_type "
+                      << (unsigned)curr_rec_data_type->Get(j) << std::endl ;
+            exit(1) ;
+        } //switch
 
         if( j < curr_rec_data->Length()-1 )
           std::cout << "," ;
+
       } //for loop
       std::cout << std::endl ;
     } //for loop
   } // Relation_Rows
 
-  // process one Root>Col flatbuffer
-  else if( data_type == Tables::Relation_FBU_Col_FBU ) {
+  // process one Root>Cols flatbuffer
+  else if( format == Tables::Relation_FBU_Cols_FBU ) {
     if( print_verbose )
-      std::cout << "else if data_type == Tables::Relation_FBU_Col_FBU" << std::endl ;
+      std::cout << "else if data_type == Tables::Relation_FBU_Cols_FBU" << std::endl ;
 
-    auto col = static_cast< const Tables::Col_FBU* >( root->relationData() ) ;
-    auto col_name_read  = col->col_name() ;
-    auto col_index_read = col->col_index() ;
-    auto rids_read      = col->RIDs() ;
-    auto col_data_type  = col->data_type() ;
-    auto col_data       = col->data() ;
+    auto cols = static_cast< const Tables::Cols_FBU* >( data ) ;
+    auto cols_data = cols->data() ;
 
-    if( print_verbose ) {
-      std::cout << "col_name_read->str() : " << col_name_read->str() << std::endl ;
-      std::cout << "col_index_read       : " << (unsigned)col_index_read << std::endl ;
-      std::cout << "nrows_read           : " << (unsigned)nrows_read     << std::endl ;
-      std::cout << "col_data_type        : " << col_data_type     << std::endl ;
+    // collect data for stdout printing
+    std::vector< std::vector< std::string > > out_data ;
+    for( unsigned int i = 0; i < cols_data->Length(); i++ ) {
+      std::vector< std::string > empty_vect ;
+      out_data.push_back( empty_vect ) ;
     }
 
-    // print data to stdout
-    for( unsigned int i = 0; i < nrows_read; i++ ) {
-      if( print_verbose )
-        std::cout << rids_read->Get(i) << ":\t" ;
-      // column of ints
+    for( unsigned int i = 0; i < cols_data->Length(); i++ ) {
 
-      if( (unsigned)col_data_type == Tables::DataTypes_FBU_SDT_UINT64_FBU ) {
-        auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( col_data ) ;
-        std::cout << int_col_data->data()->Get(i) ;
-      }
-      // column of floats
-      else if( (unsigned)col_data_type == Tables::DataTypes_FBU_SDT_FLOAT_FBU ) {
-        auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( col_data ) ;
-        std::cout << float_col_data->data()->Get(i) ;
-      }
-      // column of strings
-      else if( (unsigned)col_data_type == Tables::DataTypes_FBU_SDT_STRING_FBU ) {
-        auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( col_data ) ;
-        std::cout << string_col_data->data()->Get(i)->str() ;
-      }
-      else {
-        std::cout << "unrecognized data_type " << (unsigned)col_data_type << std::endl ;
-        exit(1) ;
-      }
-      std::cout << std::endl ;
-    }
+      auto col = static_cast< const Tables::Col_FBU* >( cols_data->Get(i) ) ;
+      auto col_data      = col->data() ;
+      auto col_data_type = col->data_type() ;
 
-  } // Relation_Col
+      for( unsigned int j = 0; j < nrows; j++ ) {
+        switch( (unsigned)col_data_type ) {
+          case Tables::DataTypes_FBU_SDT_UINT64_FBU : {
+            auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( col_data ) ;
+            out_data[i].push_back( std::to_string( int_col_data->data()->Get(j) ) ) ;
+            break ;
+          }
+          case Tables::DataTypes_FBU_SDT_FLOAT_FBU : {
+            auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( col_data ) ;
+            out_data[i].push_back( std::to_string( float_col_data->data()->Get(j) ) ) ;
+            break ;
+          }
+          case Tables::DataTypes_FBU_SDT_STRING_FBU : {
+            auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( col_data ) ;
+            out_data[i].push_back( string_col_data->data()->Get(j)->str() ) ;
+            break ;
+          }
+          default :
+            std::cout << "unrecognized data_type " << (unsigned)col_data_type << std::endl ;
+            exit(1) ;
+        } //switch
+      } //for
+    } //for
+
+    for( unsigned int i = 0; i < nrows; i++ ) {
+      std::string this_row = "" ;
+      this_row = this_row + std::to_string( rids->Get(i) ) + ":\t" ;
+      for( unsigned int j = 0; j < out_data.size(); j++ ) {
+        this_row = this_row + out_data[j][i] ;
+        if( j < ( out_data.size()-1 ) )
+          this_row = this_row + "," ;
+      }
+      std::cout << this_row << std::endl ;
+    } //for
+
+  } // Relation_Cols
 
   else {
-    std::cout << "unrecognized data_type '" << data_type << "'" << std::endl ;
+    std::cout << "unrecognized format '" << format << "'" << std::endl ;
     exit(1) ;
   }
 
@@ -1139,7 +1143,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
         }
 
         case SFT_ARROW:
-        case SFT_FLATBUF_UNION_ROW:
+        case SFT_FLATBUF_UNION_ROWS:
         //{
         //  const Root_FBU* root   = GetRoot_FBU(ds);
         //  data_format_type       = root->data_format_type() ;
@@ -1155,7 +1159,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
         //  break ;
         //}
 
-        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_UNION_COLS:
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
