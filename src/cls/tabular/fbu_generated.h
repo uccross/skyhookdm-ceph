@@ -163,8 +163,11 @@ struct Root_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_DATA_SCHEMA = 12,
     VT_DB_SCHEMA_NAME = 14,
     VT_NROWS = 16,
-    VT_RELATIONDATA_TYPE = 18,
-    VT_RELATIONDATA = 20
+    VT_NCOLS = 18,
+    VT_TABLE_NAME = 20,
+    VT_RIDS = 22,
+    VT_RELATIONDATA_TYPE = 24,
+    VT_RELATIONDATA = 26
   };
   int32_t data_format_type() const {
     return GetField<int32_t>(VT_DATA_FORMAT_TYPE, 0);
@@ -186,6 +189,15 @@ struct Root_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   uint32_t nrows() const {
     return GetField<uint32_t>(VT_NROWS, 0);
+  }
+  uint32_t ncols() const {
+    return GetField<uint32_t>(VT_NCOLS, 0);
+  }
+  const flatbuffers::String *table_name() const {
+    return GetPointer<const flatbuffers::String *>(VT_TABLE_NAME);
+  }
+  const flatbuffers::Vector<uint64_t> *RIDs() const {
+    return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_RIDS);
   }
   Relation_FBU relationData_type() const {
     return static_cast<Relation_FBU>(GetField<uint8_t>(VT_RELATIONDATA_TYPE, 0));
@@ -220,6 +232,11 @@ struct Root_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyOffset(verifier, VT_DB_SCHEMA_NAME) &&
            verifier.VerifyString(db_schema_name()) &&
            VerifyField<uint32_t>(verifier, VT_NROWS) &&
+           VerifyField<uint32_t>(verifier, VT_NCOLS) &&
+           VerifyOffset(verifier, VT_TABLE_NAME) &&
+           verifier.VerifyString(table_name()) &&
+           VerifyOffset(verifier, VT_RIDS) &&
+           verifier.VerifyVector(RIDs()) &&
            VerifyField<uint8_t>(verifier, VT_RELATIONDATA_TYPE) &&
            VerifyOffset(verifier, VT_RELATIONDATA) &&
            VerifyRelation_FBU(verifier, relationData(), relationData_type()) &&
@@ -271,6 +288,15 @@ struct Root_FBUBuilder {
   void add_nrows(uint32_t nrows) {
     fbb_.AddElement<uint32_t>(Root_FBU::VT_NROWS, nrows, 0);
   }
+  void add_ncols(uint32_t ncols) {
+    fbb_.AddElement<uint32_t>(Root_FBU::VT_NCOLS, ncols, 0);
+  }
+  void add_table_name(flatbuffers::Offset<flatbuffers::String> table_name) {
+    fbb_.AddOffset(Root_FBU::VT_TABLE_NAME, table_name);
+  }
+  void add_RIDs(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs) {
+    fbb_.AddOffset(Root_FBU::VT_RIDS, RIDs);
+  }
   void add_relationData_type(Relation_FBU relationData_type) {
     fbb_.AddElement<uint8_t>(Root_FBU::VT_RELATIONDATA_TYPE, static_cast<uint8_t>(relationData_type), 0);
   }
@@ -298,10 +324,16 @@ inline flatbuffers::Offset<Root_FBU> CreateRoot_FBU(
     flatbuffers::Offset<flatbuffers::String> data_schema = 0,
     flatbuffers::Offset<flatbuffers::String> db_schema_name = 0,
     uint32_t nrows = 0,
+    uint32_t ncols = 0,
+    flatbuffers::Offset<flatbuffers::String> table_name = 0,
+    flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs = 0,
     Relation_FBU relationData_type = Relation_FBU_NONE,
     flatbuffers::Offset<void> relationData = 0) {
   Root_FBUBuilder builder_(_fbb);
   builder_.add_relationData(relationData);
+  builder_.add_RIDs(RIDs);
+  builder_.add_table_name(table_name);
+  builder_.add_ncols(ncols);
   builder_.add_nrows(nrows);
   builder_.add_db_schema_name(db_schema_name);
   builder_.add_data_schema(data_schema);
@@ -322,10 +354,15 @@ inline flatbuffers::Offset<Root_FBU> CreateRoot_FBUDirect(
     const char *data_schema = nullptr,
     const char *db_schema_name = nullptr,
     uint32_t nrows = 0,
+    uint32_t ncols = 0,
+    const char *table_name = nullptr,
+    const std::vector<uint64_t> *RIDs = nullptr,
     Relation_FBU relationData_type = Relation_FBU_NONE,
     flatbuffers::Offset<void> relationData = 0) {
   auto data_schema__ = data_schema ? _fbb.CreateString(data_schema) : 0;
   auto db_schema_name__ = db_schema_name ? _fbb.CreateString(db_schema_name) : 0;
+  auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
+  auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   return Tables::CreateRoot_FBU(
       _fbb,
       data_format_type,
@@ -335,6 +372,9 @@ inline flatbuffers::Offset<Root_FBU> CreateRoot_FBUDirect(
       data_schema__,
       db_schema_name__,
       nrows,
+      ncols,
+      table_name__,
+      RIDs__,
       relationData_type,
       relationData);
 }
@@ -342,26 +382,10 @@ inline flatbuffers::Offset<Root_FBU> CreateRoot_FBUDirect(
 struct Rows_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_DELETE_VECTOR = 4,
-    VT_TABLE_NAME = 6,
-    VT_NCOLS = 8,
-    VT_LAYOUT = 10,
-    VT_RIDS = 12,
-    VT_DATA = 14
+    VT_DATA = 6
   };
   const flatbuffers::Vector<uint8_t> *delete_vector() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DELETE_VECTOR);
-  }
-  const flatbuffers::String *table_name() const {
-    return GetPointer<const flatbuffers::String *>(VT_TABLE_NAME);
-  }
-  uint32_t ncols() const {
-    return GetField<uint32_t>(VT_NCOLS, 0);
-  }
-  const flatbuffers::String *layout() const {
-    return GetPointer<const flatbuffers::String *>(VT_LAYOUT);
-  }
-  const flatbuffers::Vector<uint64_t> *RIDs() const {
-    return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_RIDS);
   }
   const flatbuffers::Vector<flatbuffers::Offset<Record_FBU>> *data() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Record_FBU>> *>(VT_DATA);
@@ -370,13 +394,6 @@ struct Rows_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_DELETE_VECTOR) &&
            verifier.VerifyVector(delete_vector()) &&
-           VerifyOffset(verifier, VT_TABLE_NAME) &&
-           verifier.VerifyString(table_name()) &&
-           VerifyField<uint32_t>(verifier, VT_NCOLS) &&
-           VerifyOffset(verifier, VT_LAYOUT) &&
-           verifier.VerifyString(layout()) &&
-           VerifyOffset(verifier, VT_RIDS) &&
-           verifier.VerifyVector(RIDs()) &&
            VerifyOffset(verifier, VT_DATA) &&
            verifier.VerifyVector(data()) &&
            verifier.VerifyVectorOfTables(data()) &&
@@ -389,18 +406,6 @@ struct Rows_FBUBuilder {
   flatbuffers::uoffset_t start_;
   void add_delete_vector(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> delete_vector) {
     fbb_.AddOffset(Rows_FBU::VT_DELETE_VECTOR, delete_vector);
-  }
-  void add_table_name(flatbuffers::Offset<flatbuffers::String> table_name) {
-    fbb_.AddOffset(Rows_FBU::VT_TABLE_NAME, table_name);
-  }
-  void add_ncols(uint32_t ncols) {
-    fbb_.AddElement<uint32_t>(Rows_FBU::VT_NCOLS, ncols, 0);
-  }
-  void add_layout(flatbuffers::Offset<flatbuffers::String> layout) {
-    fbb_.AddOffset(Rows_FBU::VT_LAYOUT, layout);
-  }
-  void add_RIDs(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs) {
-    fbb_.AddOffset(Rows_FBU::VT_RIDS, RIDs);
   }
   void add_data(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Record_FBU>>> data) {
     fbb_.AddOffset(Rows_FBU::VT_DATA, data);
@@ -420,17 +425,9 @@ struct Rows_FBUBuilder {
 inline flatbuffers::Offset<Rows_FBU> CreateRows_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> delete_vector = 0,
-    flatbuffers::Offset<flatbuffers::String> table_name = 0,
-    uint32_t ncols = 0,
-    flatbuffers::Offset<flatbuffers::String> layout = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Record_FBU>>> data = 0) {
   Rows_FBUBuilder builder_(_fbb);
   builder_.add_data(data);
-  builder_.add_RIDs(RIDs);
-  builder_.add_layout(layout);
-  builder_.add_ncols(ncols);
-  builder_.add_table_name(table_name);
   builder_.add_delete_vector(delete_vector);
   return builder_.Finish();
 }
@@ -438,23 +435,12 @@ inline flatbuffers::Offset<Rows_FBU> CreateRows_FBU(
 inline flatbuffers::Offset<Rows_FBU> CreateRows_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const std::vector<uint8_t> *delete_vector = nullptr,
-    const char *table_name = nullptr,
-    uint32_t ncols = 0,
-    const char *layout = nullptr,
-    const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<flatbuffers::Offset<Record_FBU>> *data = nullptr) {
   auto delete_vector__ = delete_vector ? _fbb.CreateVector<uint8_t>(*delete_vector) : 0;
-  auto table_name__ = table_name ? _fbb.CreateString(table_name) : 0;
-  auto layout__ = layout ? _fbb.CreateString(layout) : 0;
-  auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<Record_FBU>>(*data) : 0;
   return Tables::CreateRows_FBU(
       _fbb,
       delete_vector__,
-      table_name__,
-      ncols,
-      layout__,
-      RIDs__,
       data__);
 }
 
@@ -539,30 +525,13 @@ inline flatbuffers::Offset<Record_FBU> CreateRecord_FBUDirect(
 
 struct Cols_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_COL_NAME = 4,
-    VT_COL_INDEX = 6,
-    VT_RIDS = 8,
-    VT_DATA = 10
+    VT_DATA = 4
   };
-  const flatbuffers::String *col_name() const {
-    return GetPointer<const flatbuffers::String *>(VT_COL_NAME);
-  }
-  uint8_t col_index() const {
-    return GetField<uint8_t>(VT_COL_INDEX, 0);
-  }
-  const flatbuffers::Vector<uint64_t> *RIDs() const {
-    return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_RIDS);
-  }
   const flatbuffers::Vector<flatbuffers::Offset<Col_FBU>> *data() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<Col_FBU>> *>(VT_DATA);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyOffset(verifier, VT_COL_NAME) &&
-           verifier.VerifyString(col_name()) &&
-           VerifyField<uint8_t>(verifier, VT_COL_INDEX) &&
-           VerifyOffset(verifier, VT_RIDS) &&
-           verifier.VerifyVector(RIDs()) &&
            VerifyOffset(verifier, VT_DATA) &&
            verifier.VerifyVector(data()) &&
            verifier.VerifyVectorOfTables(data()) &&
@@ -573,15 +542,6 @@ struct Cols_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct Cols_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_col_name(flatbuffers::Offset<flatbuffers::String> col_name) {
-    fbb_.AddOffset(Cols_FBU::VT_COL_NAME, col_name);
-  }
-  void add_col_index(uint8_t col_index) {
-    fbb_.AddElement<uint8_t>(Cols_FBU::VT_COL_INDEX, col_index, 0);
-  }
-  void add_RIDs(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs) {
-    fbb_.AddOffset(Cols_FBU::VT_RIDS, RIDs);
-  }
   void add_data(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Col_FBU>>> data) {
     fbb_.AddOffset(Cols_FBU::VT_DATA, data);
   }
@@ -599,73 +559,96 @@ struct Cols_FBUBuilder {
 
 inline flatbuffers::Offset<Cols_FBU> CreateCols_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
-    flatbuffers::Offset<flatbuffers::String> col_name = 0,
-    uint8_t col_index = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint64_t>> RIDs = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Col_FBU>>> data = 0) {
   Cols_FBUBuilder builder_(_fbb);
   builder_.add_data(data);
-  builder_.add_RIDs(RIDs);
-  builder_.add_col_name(col_name);
-  builder_.add_col_index(col_index);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<Cols_FBU> CreateCols_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    const char *col_name = nullptr,
-    uint8_t col_index = 0,
-    const std::vector<uint64_t> *RIDs = nullptr,
     const std::vector<flatbuffers::Offset<Col_FBU>> *data = nullptr) {
-  auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
-  auto RIDs__ = RIDs ? _fbb.CreateVector<uint64_t>(*RIDs) : 0;
   auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<Col_FBU>>(*data) : 0;
   return Tables::CreateCols_FBU(
       _fbb,
-      col_name__,
-      col_index,
-      RIDs__,
       data__);
 }
 
 struct Col_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_NULLBITS = 4,
-    VT_DATA_TYPE = 6,
-    VT_DATA = 8
+    VT_COL_NAME = 4,
+    VT_COL_INDEX = 6,
+    VT_NULLBITS = 8,
+    VT_DATA_TYPE = 10,
+    VT_DATA = 12
   };
+  const flatbuffers::String *col_name() const {
+    return GetPointer<const flatbuffers::String *>(VT_COL_NAME);
+  }
+  uint8_t col_index() const {
+    return GetField<uint8_t>(VT_COL_INDEX, 0);
+  }
   const flatbuffers::Vector<uint64_t> *nullbits() const {
     return GetPointer<const flatbuffers::Vector<uint64_t> *>(VT_NULLBITS);
   }
-  const flatbuffers::Vector<uint8_t> *data_type() const {
-    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA_TYPE);
+  DataTypes_FBU data_type() const {
+    return static_cast<DataTypes_FBU>(GetField<uint8_t>(VT_DATA_TYPE, 0));
   }
-  const flatbuffers::Vector<flatbuffers::Offset<void>> *data() const {
-    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<void>> *>(VT_DATA);
+  const void *data() const {
+    return GetPointer<const void *>(VT_DATA);
+  }
+  template<typename T> const T *data_as() const;
+  const SDT_UINT64_FBU *data_as_SDT_UINT64_FBU() const {
+    return data_type() == DataTypes_FBU_SDT_UINT64_FBU ? static_cast<const SDT_UINT64_FBU *>(data()) : nullptr;
+  }
+  const SDT_FLOAT_FBU *data_as_SDT_FLOAT_FBU() const {
+    return data_type() == DataTypes_FBU_SDT_FLOAT_FBU ? static_cast<const SDT_FLOAT_FBU *>(data()) : nullptr;
+  }
+  const SDT_STRING_FBU *data_as_SDT_STRING_FBU() const {
+    return data_type() == DataTypes_FBU_SDT_STRING_FBU ? static_cast<const SDT_STRING_FBU *>(data()) : nullptr;
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
+           VerifyOffset(verifier, VT_COL_NAME) &&
+           verifier.VerifyString(col_name()) &&
+           VerifyField<uint8_t>(verifier, VT_COL_INDEX) &&
            VerifyOffset(verifier, VT_NULLBITS) &&
            verifier.VerifyVector(nullbits()) &&
-           VerifyOffset(verifier, VT_DATA_TYPE) &&
-           verifier.VerifyVector(data_type()) &&
+           VerifyField<uint8_t>(verifier, VT_DATA_TYPE) &&
            VerifyOffset(verifier, VT_DATA) &&
-           verifier.VerifyVector(data()) &&
-           VerifyDataTypes_FBUVector(verifier, data(), data_type()) &&
+           VerifyDataTypes_FBU(verifier, data(), data_type()) &&
            verifier.EndTable();
   }
 };
 
+template<> inline const SDT_UINT64_FBU *Col_FBU::data_as<SDT_UINT64_FBU>() const {
+  return data_as_SDT_UINT64_FBU();
+}
+
+template<> inline const SDT_FLOAT_FBU *Col_FBU::data_as<SDT_FLOAT_FBU>() const {
+  return data_as_SDT_FLOAT_FBU();
+}
+
+template<> inline const SDT_STRING_FBU *Col_FBU::data_as<SDT_STRING_FBU>() const {
+  return data_as_SDT_STRING_FBU();
+}
+
 struct Col_FBUBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
+  void add_col_name(flatbuffers::Offset<flatbuffers::String> col_name) {
+    fbb_.AddOffset(Col_FBU::VT_COL_NAME, col_name);
+  }
+  void add_col_index(uint8_t col_index) {
+    fbb_.AddElement<uint8_t>(Col_FBU::VT_COL_INDEX, col_index, 0);
+  }
   void add_nullbits(flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits) {
     fbb_.AddOffset(Col_FBU::VT_NULLBITS, nullbits);
   }
-  void add_data_type(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data_type) {
-    fbb_.AddOffset(Col_FBU::VT_DATA_TYPE, data_type);
+  void add_data_type(DataTypes_FBU data_type) {
+    fbb_.AddElement<uint8_t>(Col_FBU::VT_DATA_TYPE, static_cast<uint8_t>(data_type), 0);
   }
-  void add_data(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> data) {
+  void add_data(flatbuffers::Offset<void> data) {
     fbb_.AddOffset(Col_FBU::VT_DATA, data);
   }
   explicit Col_FBUBuilder(flatbuffers::FlatBufferBuilder &_fbb)
@@ -682,29 +665,36 @@ struct Col_FBUBuilder {
 
 inline flatbuffers::Offset<Col_FBU> CreateCol_FBU(
     flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<flatbuffers::String> col_name = 0,
+    uint8_t col_index = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint64_t>> nullbits = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data_type = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<void>>> data = 0) {
+    DataTypes_FBU data_type = DataTypes_FBU_NONE,
+    flatbuffers::Offset<void> data = 0) {
   Col_FBUBuilder builder_(_fbb);
   builder_.add_data(data);
-  builder_.add_data_type(data_type);
   builder_.add_nullbits(nullbits);
+  builder_.add_col_name(col_name);
+  builder_.add_data_type(data_type);
+  builder_.add_col_index(col_index);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<Col_FBU> CreateCol_FBUDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
+    const char *col_name = nullptr,
+    uint8_t col_index = 0,
     const std::vector<uint64_t> *nullbits = nullptr,
-    const std::vector<uint8_t> *data_type = nullptr,
-    const std::vector<flatbuffers::Offset<void>> *data = nullptr) {
+    DataTypes_FBU data_type = DataTypes_FBU_NONE,
+    flatbuffers::Offset<void> data = 0) {
+  auto col_name__ = col_name ? _fbb.CreateString(col_name) : 0;
   auto nullbits__ = nullbits ? _fbb.CreateVector<uint64_t>(*nullbits) : 0;
-  auto data_type__ = data_type ? _fbb.CreateVector<uint8_t>(*data_type) : 0;
-  auto data__ = data ? _fbb.CreateVector<flatbuffers::Offset<void>>(*data) : 0;
   return Tables::CreateCol_FBU(
       _fbb,
+      col_name__,
+      col_index,
       nullbits__,
-      data_type__,
-      data__);
+      data_type,
+      data);
 }
 
 struct SDT_UINT64_FBU FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {

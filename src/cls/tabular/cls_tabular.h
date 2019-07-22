@@ -52,8 +52,8 @@ inline const char* ToString(arrow_metadata_t m)
 // refers to data format stored in objects
 enum SkyFormatType {
     SFT_FLATBUF_FLEX_ROW = 1,
-    SFT_FLATBUF_UNION_ROW,
-    SFT_FLATBUF_UNION_COL,
+    SFT_FLATBUF_UNION_ROWS,
+    SFT_FLATBUF_UNION_COLS,
     SFT_FLATBUF_CSV_ROW,
     SFT_ARROW,
     SFT_PG_TUPLE,

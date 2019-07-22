@@ -85,9 +85,8 @@ void do_read( bool debug,
   librados::bufferlist wrapped_bl_seq ;
   int num_bytes_read = ioctx.read( oid.c_str(), wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
 
-  if( debug ) {
+  if( debug )
     std::cout << "num_bytes_read : " << num_bytes_read << std::endl ; 
-  }
 
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
 
@@ -96,15 +95,14 @@ void do_read( bool debug,
 
   while( it_wrapped.get_remaining() > 0 ) {
 
-    if( debug ) {
+    if( debug )
       std::cout << "it_wrapped.get_remaining() = " << it_wrapped.get_remaining() << std::endl ;
-    }
 
     // grab the Root
     ceph::bufferlist bl ;
     ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
     const char* dataptr = bl.c_str() ;
-    size_t datasz       = bl.length();
+    size_t datasz       = bl.length() ;
     bool print_header   = true ;
     bool print_verbose  = false ;
     if( debug )
@@ -118,9 +116,8 @@ void do_read( bool debug,
       print_verbose,
       max_to_print ) ;
 
-    if( debug ) {
+    if( debug )
       std::cout << "loop while" << std::endl ;
-    }
 
   } // while
 
