@@ -329,8 +329,8 @@ int main(int argc, char **argv)
     switch (resformat) {
         case SFT_FLATBUF_FLEX_ROW:
             break;
-        case SFT_FLATBUF_UNION_ROW:
-        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_UNION_ROWS:
+        case SFT_FLATBUF_UNION_COLS:
         case SFT_FLATBUF_CSV_ROW:
         case SFT_ARROW:
         case SFT_PG_TUPLE:

@@ -189,8 +189,8 @@ static void print_data(const char *dataptr,
                                               row_limit - row_counter);
 
             break;
-        case SFT_FLATBUF_UNION_ROW:
-        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_UNION_ROWS:
+        case SFT_FLATBUF_UNION_COLS:
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
@@ -425,8 +425,8 @@ void worker()
                     rows_returned += std::stoi(metadata->value(METADATA_NUM_ROWS));
                     break;
                 }
-                case SFT_FLATBUF_UNION_ROW:
-                case SFT_FLATBUF_UNION_COL:
+                case SFT_FLATBUF_UNION_ROWS:
+                case SFT_FLATBUF_UNION_COLS:
                 case SFT_FLATBUF_CSV_ROW:
                 case SFT_PG_TUPLE:
                 case SFT_CSV:
@@ -469,8 +469,8 @@ void worker()
                         break;
                     }
 
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_ROWS:
+                    case SFT_FLATBUF_UNION_COLS:
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -536,8 +536,8 @@ void worker()
                         break;
                     }
 
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_ROWS:
+                    case SFT_FLATBUF_UNION_COLS:
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
