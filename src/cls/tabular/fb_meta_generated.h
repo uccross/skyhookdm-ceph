@@ -15,7 +15,10 @@ struct FB_Meta FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_FORMAT_TYPE = 4,
     VT_IS_DELETED = 6,
     VT_DATA_SIZE = 8,
-    VT_DATA = 10
+    VT_GLOBAL_OFF = 10,
+    VT_LEN = 12,
+    VT_COMPRESSION_TYPE = 14,
+    VT_DATA = 16
   };
   int32_t format_type() const {
     return GetField<int32_t>(VT_FORMAT_TYPE, 0);
@@ -26,6 +29,15 @@ struct FB_Meta FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   uint64_t data_size() const {
     return GetField<uint64_t>(VT_DATA_SIZE, 0);
   }
+  uint64_t global_off() const {
+    return GetField<uint64_t>(VT_GLOBAL_OFF, 0);
+  }
+  uint64_t len() const {
+    return GetField<uint64_t>(VT_LEN, 0);
+  }
+  int32_t compression_type() const {
+    return GetField<int32_t>(VT_COMPRESSION_TYPE, 0);
+  }
   const flatbuffers::Vector<uint8_t> *data() const {
     return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
@@ -34,6 +46,9 @@ struct FB_Meta FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<int32_t>(verifier, VT_FORMAT_TYPE) &&
            VerifyField<uint8_t>(verifier, VT_IS_DELETED) &&
            VerifyField<uint64_t>(verifier, VT_DATA_SIZE) &&
+           VerifyField<uint64_t>(verifier, VT_GLOBAL_OFF) &&
+           VerifyField<uint64_t>(verifier, VT_LEN) &&
+           VerifyField<int32_t>(verifier, VT_COMPRESSION_TYPE) &&
            VerifyOffset(verifier, VT_DATA) &&
            verifier.VerifyVector(data()) &&
            verifier.EndTable();
@@ -51,6 +66,15 @@ struct FB_MetaBuilder {
   }
   void add_data_size(uint64_t data_size) {
     fbb_.AddElement<uint64_t>(FB_Meta::VT_DATA_SIZE, data_size, 0);
+  }
+  void add_global_off(uint64_t global_off) {
+    fbb_.AddElement<uint64_t>(FB_Meta::VT_GLOBAL_OFF, global_off, 0);
+  }
+  void add_len(uint64_t len) {
+    fbb_.AddElement<uint64_t>(FB_Meta::VT_LEN, len, 0);
+  }
+  void add_compression_type(int32_t compression_type) {
+    fbb_.AddElement<int32_t>(FB_Meta::VT_COMPRESSION_TYPE, compression_type, 0);
   }
   void add_data(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data) {
     fbb_.AddOffset(FB_Meta::VT_DATA, data);
@@ -72,10 +96,16 @@ inline flatbuffers::Offset<FB_Meta> CreateFB_Meta(
     int32_t format_type = 0,
     bool is_deleted = false,
     uint64_t data_size = 0,
+    uint64_t global_off = 0,
+    uint64_t len = 0,
+    int32_t compression_type = 0,
     flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data = 0) {
   FB_MetaBuilder builder_(_fbb);
+  builder_.add_len(len);
+  builder_.add_global_off(global_off);
   builder_.add_data_size(data_size);
   builder_.add_data(data);
+  builder_.add_compression_type(compression_type);
   builder_.add_format_type(format_type);
   builder_.add_is_deleted(is_deleted);
   return builder_.Finish();
@@ -86,6 +116,9 @@ inline flatbuffers::Offset<FB_Meta> CreateFB_MetaDirect(
     int32_t format_type = 0,
     bool is_deleted = false,
     uint64_t data_size = 0,
+    uint64_t global_off = 0,
+    uint64_t len = 0,
+    int32_t compression_type = 0,
     const std::vector<uint8_t> *data = nullptr) {
   auto data__ = data ? _fbb.CreateVector<uint8_t>(*data) : 0;
   return Tables::CreateFB_Meta(
@@ -93,6 +126,9 @@ inline flatbuffers::Offset<FB_Meta> CreateFB_MetaDirect(
       format_type,
       is_deleted,
       data_size,
+      global_off,
+      len,
+      compression_type,
       data__);
 }
 

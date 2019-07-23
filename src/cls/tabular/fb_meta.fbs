@@ -1,9 +1,12 @@
 namespace Tables;
 
 table FB_Meta {
-  format_type : int32 ;  // format of contents stored in data blob
-  is_deleted  : bool ;   // has this data been deleted?
-  data_size   : uint64 ; // number of bytes in data blob
+  format_type      : int32 ;  // format of contents stored in data blob
+  is_deleted       : bool ;   // has this data been deleted?
+  data_size        : uint64 ; // number of bytes in data blob
+  global_off       : uint64 ; // offset of data partition in file
+  len              : uint64 ; // number of bytes in data parition
+  compression_type : int ; //populated by enum {none, lzw, ...}
 
   // the data blob. could be any 
   // supported format (flatbufs, arrow, csv, ...)
