@@ -525,19 +525,28 @@ typedef flexbuffers::Reference row_data_ref;
 // the blob itself is then abstracted via the below root_table struct
 struct fb_meta_format {
 
-    int format_type;            // format of blob contents (enum SkyFormatType)
-    bool is_deleted;            // blob was deleted (invalid)
-    size_t data_size;           //blob size in bytes
-    const uint8_t *data_ptr;    // the actual blob of formatted data
+    int format_type;        // format of blob contents (enum SkyFormatType)
+    bool is_deleted;        // blob was deleted (invalid)
+    size_t data_size;       // blob size in bytes
+    size_t orig_off;        // optional: data's position in orginal file (if needed)
+    size_t orig_len;        // optional: data's len in original file
+    int compression_type;   // optional: blob's compression (default=none)
+    const char *data_ptr;   // the actual blob of formatted data
 
     fb_meta_format (
         int _format_type,
         bool _is_deleted,
         size_t _data_size,
-        const uint8_t* _data_ptr) :
+        size_t _orig_off,
+        size_t _orig_len,
+        int _compression_type,
+        const char* _data_ptr) :
             format_type(_format_type),
             is_deleted(_is_deleted),
             data_size(_data_size),
+            orig_off(_orig_off),
+            orig_len(_orig_len),
+            compression_type(_compression_type),
             data_ptr(_data_ptr) {};
 };
 typedef struct fb_meta_format sky_meta;
@@ -685,7 +694,7 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 // these extract the current data format (flatbuf) into the skyhookdb
 // root table and row table data structure defined above, abstracting
 // skyhookdb data partitions design from the underlying data format.
-sky_meta getSkyMeta(const uint8_t *dataptr);
+sky_meta getSkyMeta(bufferlist bl, bool is_meta=true, int data_format=SFT_FLATBUF_FLEX_ROW);
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FLEX_ROW);
 sky_rec getSkyRec(const Tables::Record *rec);
 

@@ -1389,10 +1389,13 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         return -EINVAL;
                     }
 
-                    // TODO: replace with metadata fields from fb_meta
-                    const char* ds = bl.c_str();  // get as contiguous bytes
-                    size_t ds_size = bl.length();
-                    int ds_format = op.result_format;  // TODO: use fb_meta
+                    // NOTE: normal usage: get the metadata and data out of raw
+                    // bl as fb_meta, or set optional args to false/type for
+                    // manually testing new formats
+                    sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
+                    const char* dataptr = m.data_ptr;
+                    size_t datasz = m.data_size;
+                    int data_format = m.format_type;
 
                     // container for sequence of results data structs
                     bufferlist ans;
@@ -1402,19 +1405,19 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     int ds_rows_processed = 0;
 
                     // call associated process method based on ds type
-                    switch (ds_format) {
+                    switch (data_format) {
 
                     case SFT_FLATBUF_FLEX_ROW: {
                         sky_root root = \
-                            Tables::getSkyRoot(ds, ds_size, ds_format);
+                            Tables::getSkyRoot(dataptr, datasz, data_format);
 
                         flatbuffers::FlatBufferBuilder flatbldr(1024);
                         ret = processSkyFb(flatbldr,
                                            data_schema,
                                            query_schema,
                                            query_preds,
-                                           ds,
-                                           ds_size,
+                                           dataptr,
+                                           datasz,
                                            errmsg,
                                            row_nums);
 
@@ -1444,8 +1447,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                            data_schema,
                                            query_schema,
                                            query_preds,
-                                           ds,
-                                           ds_size,
+                                           dataptr,
+                                           datasz,
                                            errmsg,
                                            row_nums);
                         // TODO: Add the output to result ds

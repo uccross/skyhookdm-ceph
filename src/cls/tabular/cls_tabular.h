@@ -61,6 +61,13 @@ enum SkyFormatType {
     SFT_HDF5
 };
 
+enum CompressionType {
+    none = 0,
+    // lzw,  TODO: placeholder, not yet supported.
+    // bz2,
+    // etc.
+};
+
 /*
  * Stores the query request parameters.  This is encoded by the client and
  * decoded by server (osd node) for query processing.

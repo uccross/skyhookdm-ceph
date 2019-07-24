@@ -976,26 +976,34 @@ long long int printFlatbufFlexRowAsCsv(
 }
 
 // Highest level abstraction over our data on disk.
-// this allows all supported data formats to be retrieved from disk before
-// knowing what is the actual format, which is indicated in the format_type
-// field here.  After determining the expected format and extracting the blob
-// of data withing (uint8 vector), we can then process data as the specified
-// format type.  This unifies our access point to all underlying formats
-// simply as a type and a blob, that can be determined at runtime.
-// See FB_META.fbs: a unifying wrapper around the underlying data format
-// (flatbuf, arrow, csv, parquet,...)
-// NOTE: underlying data is a vector of uint8 blob data, where the blob is
-// the actual serialized data format on disk
-// actual vector = const flatbuffers::Vector<uint8_t> *data = meta->data();
-sky_meta getSkyMeta(const uint8_t *dataptr) {
+// Wraps a supported format (flatbuf, arrow, csv, parquet,...)
+// along with its metadata.  This unified structure is used as the primary
+// store/send/retreive data structure for many supported formats
 
-    const FB_Meta* meta = GetFB_Meta(dataptr);  // ptr is always type fb_meta!
-    return sky_meta(
-        meta->format_type(),    // the blob's format (i.e., enum SkyFormatType)
-        meta->is_deleted(),     // is this blob still valid (not deleted)
-        meta->data()->size(),   // the blob's size
-        meta->data()->Data()    // the blob
-    );
+sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
+
+    if (is_meta) {
+        // get data as contiguous bytes before accessing
+        const FB_Meta* meta = GetFB_Meta(bl.c_str());
+        return sky_meta(
+            meta->format_type(),      // the blob's format (i.e.,SkyFormatType)
+            meta->is_deleted(),       // is this blob still valid (not deleted)
+            meta->data()->size(),     // blob actual size
+            meta->global_off(),       // data position in original file
+            meta->len(),              // data len in original file
+            meta->compression_type(), // blob compression
+            reinterpret_cast<const char*>(meta->data()->Data()));  // data blob
+    }
+    else {
+        return sky_meta(    // for testing new raw formats without meta wrapper
+            data_format,
+            false,
+            bl.length(),
+            0,              // unused
+            0,              // unused
+            none,           // no compression
+            bl.c_str());    // get data as contiguous bytes before accessing
+    }
 }
 
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {

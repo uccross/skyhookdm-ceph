@@ -361,11 +361,6 @@ void worker()
 
     if (query == "flatbuf" || query == "arrow") {
 
-        // get our data as contiguous bytes before accessing
-        const char* dataptr;
-        size_t datasz;
-        int ds_format;
-
         using namespace Tables;
 
         // standard librados read will return the raw object data (unprocessed)
@@ -404,13 +399,16 @@ void worker()
                 assert(decode_runquery_noncls);
             }
 
-            // get our data as contiguous bytes before accessing
-            dataptr = bl.c_str();
-            datasz = bl.length();
-            ds_format = qop_result_format;   // TODO: get from fb_meta
+            // NOTE: normal usage: get the metadata and data out of raw bl
+            // as fb_meta, or set optional args to false/type for manually
+            // testing new formats
+            sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
+            const char* dataptr = m.data_ptr;
+            size_t datasz = m.data_size;
+            int data_format = m.format_type;
 
             // this block is only used for accounting (rows processed etc.)
-            switch (ds_format) {
+            switch (data_format) {
                 case SFT_FLATBUF_FLEX_ROW: {
                     sky_root root = Tables::getSkyRoot(dataptr, 0);
                     rows_returned += root.nrows;
@@ -450,7 +448,7 @@ void worker()
             // nothing left to do here, so we just print results
             if (!more_processing) {
 
-                switch (ds_format) {
+                switch (data_format) {
                     case SFT_FLATBUF_FLEX_ROW: {
                         sky_root root = Tables::getSkyRoot(dataptr, 0);
                         result_count += root.nrows;
@@ -485,7 +483,7 @@ void worker()
                 // more processing to do such as min, sort, any other remaining preds.
                 std::string errmsg;
 
-                switch (ds_format) {
+                switch (data_format) {
                     case SFT_FLATBUF_FLEX_ROW: {
                         flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                         int ret = processSkyFb(flatbldr,
