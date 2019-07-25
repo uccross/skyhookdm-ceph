@@ -255,7 +255,8 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
         // IDX_REC/IDX_RID/IDX_TXT: create the key data for each row
         for (uint32_t i = 0; i < root.nrows; i++) {
-            Tables::sky_rec rec = Tables::getSkyRec(root.data_vec->Get(i));
+
+            Tables::sky_rec rec = Tables::getSkyRec(static_cast<Tables::row_offs>(root.data_vec)->Get(i));
 
             switch (op.idx_type) {
 

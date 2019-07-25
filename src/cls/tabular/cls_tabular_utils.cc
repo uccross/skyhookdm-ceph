@@ -135,7 +135,7 @@ int processSkyFb(
         if (root.delete_vec[rnum] == 1) continue;
 
         // get a skyhook record struct
-        sky_rec rec = getSkyRec(root.data_vec->Get(rnum));
+        sky_rec rec = getSkyRec(static_cast<row_offs>(root.data_vec)->Get(rnum));
 
         // apply predicates to this record
         if (!preds.empty()) {
@@ -922,7 +922,7 @@ long long int printFlatbufFlexRowAsCsv(
         if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
         // get the record struct, then the row data
-        sky_rec skyrec = getSkyRec(skyroot.data_vec->Get(i));
+        sky_rec skyrec = getSkyRec(static_cast<row_offs>(skyroot.data_vec)->Get(i));
         auto row = skyrec.data.AsVector();
 
         if (print_verbose)
@@ -2390,7 +2390,7 @@ int transform_fb_to_arrow(const char* fb,
     for (uint32_t i = 0; i < nrows; i++) {
 
         // Get a skyhook record struct
-        sky_rec rec = getSkyRec(root.data_vec->Get(i));
+        sky_rec rec = getSkyRec(static_cast<row_offs>(root.data_vec)->Get(i));
 
         // Get the row as a vector.
         auto row = rec.data.AsVector();

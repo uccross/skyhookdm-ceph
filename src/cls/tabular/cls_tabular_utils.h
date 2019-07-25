@@ -510,6 +510,19 @@ bool compareColInfo(const struct col_info& l, const struct col_info& r) {
     );
 }
 
+// convert provided schema to/from skyhook internal representation
+schema_vec schemaFromColNames(schema_vec &current_schema,
+                              std::string project_col_names);
+schema_vec schemaFromString(std::string schema_string);
+std::string schemaToString(schema_vec schema);
+
+// convert provided predicates to/from skyhook internal representation
+predicate_vec predsFromString(schema_vec &schema, std::string preds_string);
+std::string predsToString(predicate_vec &preds, schema_vec &schema);
+std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
+                                           schema_vec &schema);
+std::vector<std::string> colnamesFromSchema(schema_vec &schema);
+
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
 typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
@@ -565,8 +578,9 @@ struct root_table {
     std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    row_offs data_vec;  // points to underlying array of data (rows/cols/etc)
+    const void *data_vec;   // points to underlying array of various data types at runtime (rows/cols/etc)
     uint32_t nrows; // TODO: should probably be nelements or similar
+    uint32_t ncols;
 
     root_table(
         int _skyhook_version,
@@ -588,7 +602,11 @@ struct root_table {
                         table_name(_table_name),
                         delete_vec(_delete_vec),
                         data_vec(_data_vec),
-                        nrows(_nrows) {};
+                        nrows(_nrows) {
+                            Tables::schema_vec v = \
+                                Tables::schemaFromString(data_schema);
+                            ncols = v.size();
+                        }
 };
 typedef struct root_table sky_root;
 
@@ -733,19 +751,6 @@ int transform_arrow_to_fb(
         const size_t data_size,
         std::string& errmsg,
         flatbuffers::FlatBufferBuilder& flatbldr);
-
-// convert provided schema to/from skyhook internal representation
-schema_vec schemaFromColNames(schema_vec &current_schema,
-                              std::string project_col_names);
-schema_vec schemaFromString(std::string schema_string);
-std::string schemaToString(schema_vec schema);
-
-// convert provided predicates to/from skyhook internal representation
-predicate_vec predsFromString(schema_vec &schema, std::string preds_string);
-std::string predsToString(predicate_vec &preds, schema_vec &schema);
-std::vector<std::string> colnamesFromPreds(predicate_vec &preds,
-                                           schema_vec &schema);
-std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 
 bool hasAggPreds(predicate_vec &preds);
 
