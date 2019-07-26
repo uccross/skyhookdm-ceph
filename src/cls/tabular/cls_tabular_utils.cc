@@ -1372,6 +1372,23 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
         }
 
         case SFT_ARROW:
+        case SFT_FLATBUF_UNION_ROWS:
+        //{
+        //  const Root_FBU* root   = GetRoot_FBU(ds);
+        //  data_format_type       = root->data_format_type() ;
+        //  skyhook_version        = root->skyhook_version() ;
+        //  data_structure_version = root->data_structure_version() ;
+        //  data_schema_version    = root->data_schema_version() ;
+        //  data_schema            = root->data_schema()->str() ;
+        //  db_schema_name         = root->db_schema_name()->str() ;
+        //  nrows                  = root->nrows() ;
+
+        //  const flatbuffers::Vector<flatbuffers::Offset<Record>>* data_vec ;
+
+        //  break ;
+        //}
+
+        case SFT_FLATBUF_UNION_COLS:
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
