@@ -850,4 +850,11 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
 } // end namespace Tables
 
 
+#define checkret(r,v) do { \
+  if (r != v) { \
+    fprintf(stderr, "error %d/%s\n", r, strerror(-r)); \
+    assert(0); \
+    exit(1); \
+  } } while (0)
+
 #endif
