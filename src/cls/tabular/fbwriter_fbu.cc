@@ -316,12 +316,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     }//for loop
     auto record_data_types = builder.CreateVector( record_data_type_vect ) ;
 
-    // establish rids_vect
-    std::vector< uint64_t > rids_vect ;
-    for( unsigned int i = 0; i < nrows; i++ )
-      rids_vect.push_back( i+1 ) ;
-    auto rids_vect_fb = builder.CreateVector( rids_vect ) ;
-
     // --------------------------------------------- //
     // read data from file into general structure
     // --------------------------------------------- //
@@ -424,6 +418,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     // build out Rows flatbuffer
     // --------------------------------------------- //
     std::vector< flatbuffers::Offset< Tables::Record_FBU > > row_records ;
+    std::vector< uint64_t > nullbits_vector ( 2, 0 ) ; //initialize with one 0 per row.
+    auto nullbits_vector_fb = builder.CreateVector( nullbits_vector ) ;
 
     // create Records as lists of Datas
     for( unsigned int i = 0; i < nrows; i++ ) {
@@ -466,7 +462,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       auto data = builder.CreateVector( data_vect ) ;
       auto rec = Tables::CreateRecord_FBU(
         builder,                 //builder ptr
-        0,                       //nullbits vect
+        i,                       //rid
+        nullbits_vector_fb,      //nullbits vect
         record_data_types,       //data types vect
         data ) ;                 //data vect
       row_records.push_back( rec ) ;
@@ -478,7 +475,6 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     // create the Rows flatbuffer:
     auto rows = Tables::CreateRows_FBU(
       builder,            //builder
-      0,                  //delete vect
       row_records_fb ) ;  //data
 
     // generate schema string
@@ -510,6 +506,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       std::cout << "schema_string = " << schema_string << std::endl ;
 
     auto db_schema_name = builder.CreateString( "kats_test" ) ;
+    std::vector< uint8_t > delete_vector ( nrows, 0 ) ; //initialize with one 0 per row.
+    auto delete_vector_fb = builder.CreateVector( delete_vector ) ;
 
     auto root = CreateRoot_FBU(
       builder,                          //builder
@@ -522,7 +520,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       (uint32_t)nrows,                  //nrows
       (uint32_t)ncols,                  //ncols
       table_name,                       //table_name
-      rids_vect_fb,                     //RIDs vect
+      delete_vector_fb,                 //delete_vector
       Tables::Relation_FBU_Rows_FBU,    //relationData_type
       rows.Union() ) ;                  //relationData
 
@@ -563,6 +561,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     uint64_t ncols      = inputs.ncols ;
     auto table_name     = builder.CreateString( inputs.table_name ) ;
     auto db_schema_name = builder.CreateString( "kats_test" ) ;
+    std::vector< uint64_t > nullbits_vector ( 2, 0 ) ; //initialize with one 0 per row.
+    auto nullbits_vector_fb = builder.CreateVector( nullbits_vector ) ;
 
     // parse schema csv strings
     std::vector< std::string > schema_attnames = parse_csv_str( inputs.schema_attnames ) ;
@@ -720,9 +720,9 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         auto data = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
+          nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
-          0,                                    //nullbits
           Tables::DataTypes_FBU_SDT_UINT64_FBU, //data_type
           data.Union() ) ;                      //data
         cols_vect.push_back( col ) ;
@@ -733,9 +733,9 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         auto data = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
+          nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
-          0,                                    //nullbits
           Tables::DataTypes_FBU_SDT_FLOAT_FBU,  //data_type
           data.Union() ) ;                      //data
         cols_vect.push_back( col ) ;
@@ -746,9 +746,9 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         auto data = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
+          nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
-          0,                                    //nullbits
           Tables::DataTypes_FBU_SDT_STRING_FBU, //data_type
           data.Union() ) ;                      //data
         cols_vect.push_back( col ) ;
@@ -772,7 +772,11 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 
         auto cols = CreateCols_FBU(
           builder,
+          rids_vect_fb,
           cols_data ) ;
+
+        std::vector< uint8_t > delete_vector ( nrows, 0 ) ; //initialize with one 0 per row.
+        auto delete_vector_fb = builder.CreateVector( delete_vector ) ;
 
         auto root = CreateRoot_FBU(
           builder,                          // builder
@@ -785,7 +789,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           (uint32_t)nrows,                  // nrows
           (uint32_t)ncols,                  // ncols
           table_name,                       // table_name
-          rids_vect_fb,                     // RIDs vect
+          delete_vector_fb,                 // delete_vector
           Tables::Relation_FBU_Cols_FBU,    // relationData_type
           cols.Union() ) ;                  // relationData
 

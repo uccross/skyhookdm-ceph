@@ -24,29 +24,30 @@ table Root_FBU {
   nrows                  : uint32 ;
   ncols                  : uint32 ;
   table_name             : string ;
-  RIDs                   : [ uint64 ] ;
+  delete_vector          : [ ubyte ] ;  // used to signal a deleted row (dead records)
 
   relationData : Relation_FBU  ;
 }
 
 table Rows_FBU {
-  delete_vector : [ ubyte ] ;  // used to signal a deleted row (dead records)
   data : [ Record_FBU ] ;  // data contained in a row
 }
 
 table Record_FBU {
+  RID      : uint64 ;
   nullbits : [ uint64 ] ;    
   data     : [ DataTypes_FBU ] ;
 }
 
 table Cols_FBU {
-  data      : [ Col_FBU ] ;
+  RIDs : [ uint64 ] ;
+  data : [ Col_FBU ] ;
 }
 
 table Col_FBU {
+  nullbits  : [ uint64 ] ;    
   col_name  : string ;
   col_index : ubyte  ;
-  nullbits  : [ uint64 ] ;    
   data      : DataTypes_FBU ;
 }
 

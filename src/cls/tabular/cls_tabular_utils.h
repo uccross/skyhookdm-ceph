@@ -526,11 +526,14 @@ std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
-typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
+typedef vector<uint64_t> rids_vector ;
+typedef const void* row_offs ;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
 typedef flexbuffers::Reference row_data_ref;
+typedef const flatbuffers::Vector<flatbuffers::Offset<void> >* row_data_ref_fbu_rows ;
+typedef const void* row_data_ref_fbu_cols ;
 
 // this flatbuf meta wrappers allows read/write transfer of a single,
 // complete, self-contained serialized data format on disk or wire.
@@ -618,13 +621,23 @@ struct rec_table {
     const int64_t RID;
     nullbits_vector nullbits;
     const row_data_ref data;
+    const row_data_ref_fbu_rows data_fbu_rows ;
+    const row_data_ref_fbu_cols data_fbu_cols ;
 
-    rec_table(int64_t _RID, nullbits_vector _nullbits, row_data_ref _data) :
-        RID(_RID),
-        nullbits(_nullbits),
-        data(_data) {
+    rec_table( int64_t               _RID, 
+               nullbits_vector       _nullbits, 
+               row_data_ref          _data,
+               row_data_ref_fbu_rows _data_fbu_rows,
+               row_data_ref_fbu_cols _data_fbu_cols ) :
+        RID( _RID ),
+        nullbits( _nullbits ),
+        data( _data ),
+        data_fbu_rows( _data_fbu_rows ),
+        data_fbu_cols( _data_fbu_cols ) {
             // ensure one nullbit per col
             int num_nullbits = nullbits.size() * sizeof(nullbits[0]) * 8;
+            std::cout << "num_nullbits = " << num_nullbits << std::endl ;
+            std::cout << "MAX_TABLE_COLS = " << MAX_TABLE_COLS << std::endl ;
             assert (num_nullbits == MAX_TABLE_COLS);
         };
 };
@@ -716,6 +729,7 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 sky_meta getSkyMeta(bufferlist bl, bool is_meta=true, int data_format=SFT_FLATBUF_FLEX_ROW);
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FLEX_ROW);
 sky_rec getSkyRec(const Tables::Record *rec);
+sky_rec getSkyRec(sky_root root, int recid) ;
 
 // print functions
 void printSkyRootHeader(sky_root &r);
