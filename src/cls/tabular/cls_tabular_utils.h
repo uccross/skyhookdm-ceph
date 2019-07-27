@@ -68,7 +68,8 @@ enum TablesErrCodes {
     RowIndexOOB,
     SkyFormatTypeNotImplemented,
     SkyFormatTypeNotRecognized,
-    ArrowStatusErr
+    ArrowStatusErr,
+    UnsupportedNumKeyCols
 };
 
 // skyhook data types, as supported by underlying data format
@@ -538,29 +539,29 @@ typedef flexbuffers::Reference row_data_ref;
 // the blob itself is then abstracted via the below root_table struct
 struct fb_meta_format {
 
-    int format_type;        // format of blob contents (enum SkyFormatType)
-    bool is_deleted;        // blob was deleted (invalid)
-    size_t data_size;       // blob size in bytes
-    size_t orig_off;        // optional: data's position in orginal file (if needed)
-    size_t orig_len;        // optional: data's len in original file
-    int compression_type;   // optional: blob's compression (default=none)
-    const char *data_ptr;   // the actual blob of formatted data
+    size_t blob_orig_off;  // optional: offset of blob data in orig file
+    size_t blob_orig_len;  // optional: num bytes in orig file
+    int blob_compression;  // optional: populated by enum {none, lzw, ...}
+    int blob_format;       // required: enum SkyFormatType (flatbuf,arrow, ...)
+    bool blob_deleted;     // required: has this data been deleted?
+    size_t blob_size;      // required: number of bytes in data blob
+    const char* blob_data; // required: actual formatted data
 
     fb_meta_format (
-        int _format_type,
-        bool _is_deleted,
-        size_t _data_size,
-        size_t _orig_off,
-        size_t _orig_len,
-        int _compression_type,
-        const char* _data_ptr) :
-            format_type(_format_type),
-            is_deleted(_is_deleted),
-            data_size(_data_size),
-            orig_off(_orig_off),
-            orig_len(_orig_len),
-            compression_type(_compression_type),
-            data_ptr(_data_ptr) {};
+        size_t _blob_orig_off,
+        size_t _blob_orig_len,
+        int _blob_compression,
+        int _blob_format,
+        bool _blob_deleted,
+        size_t _blob_size,
+        const char* _blob_data) :
+                                blob_orig_off(_blob_orig_off),
+                                blob_orig_len(_blob_orig_len),
+                                blob_compression(_blob_compression),
+                                blob_format(_blob_format),
+                                blob_deleted(_blob_deleted),
+                                blob_size(_blob_size),
+                                blob_data(_blob_data) {};
 };
 typedef struct fb_meta_format sky_meta;
 
@@ -578,8 +579,14 @@ struct root_table {
     std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    const void *data_vec;   // points to underlying array of various data types at runtime (rows/cols/etc)
-    uint32_t nrows; // TODO: should probably be nelements or similar
+
+    // points to underlying array of formatted data at runtime (row/col/etc)
+    // check this.data_format_type at runtime to cast to specific class to use
+    // that class' data retrieval api (basically its GetElement(i) method)
+    // ex: rec = getSkyRec(static_cast<row_offs>(root.data_vec)->Get(i))
+    const void *data_vec;
+
+    uint32_t nrows;
     uint32_t ncols;
 
     root_table(
@@ -591,7 +598,7 @@ struct root_table {
         std::string _db_schema_name,
         std::string _table_name,
         delete_vector _delete_vec,
-        row_offs _data_vec,
+        const void *_data_vec,
         uint32_t _nrows) :
                         skyhook_version(_skyhook_version),
                         data_format_type(_data_format_type),
@@ -709,11 +716,17 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     ";
 
-// these extract the current data format (flatbuf) into the skyhookdb
+// these extract the current data format (flatbuf) into a skyhook
 // root table and row table data structure defined above, abstracting
-// skyhookdb data partitions design from the underlying data format.
-sky_meta getSkyMeta(bufferlist bl, bool is_meta=true, int data_format=SFT_FLATBUF_FLEX_ROW);
-sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FLEX_ROW);
+// skyhook data partitions from the underlying data format.
+sky_meta getSkyMeta(bufferlist bl,
+                    bool is_meta=true,
+                    int data_format=SFT_FLATBUF_FLEX_ROW);
+
+sky_root getSkyRoot(const char *ds,
+                    size_t ds_size=0,
+                    int ds_format=SFT_FLATBUF_FLEX_ROW);
+
 sky_rec getSkyRec(const Tables::Record *rec);
 
 // print functions

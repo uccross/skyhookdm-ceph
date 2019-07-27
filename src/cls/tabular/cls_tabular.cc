@@ -1393,10 +1393,9 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     // NOTE: normal usage: get the metadata and data out of raw
                     // bl as fb_meta, or set optional args to false/type for
                     // manually testing new formats
-                    sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
-                    const char* dataptr = m.data_ptr;
-                    size_t datasz = m.data_size;
-                    int data_format = m.format_type;
+                    sky_meta meta = getSkyMeta(bl,
+                                               false,
+                                               SFT_FLATBUF_FLEX_ROW);
 
                     // container for sequence of results data structs
                     bufferlist ans;
@@ -1406,19 +1405,21 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     int ds_rows_processed = 0;
 
                     // call associated process method based on ds type
-                    switch (data_format) {
+                    switch (meta.blob_format) {
 
                     case SFT_FLATBUF_FLEX_ROW: {
                         sky_root root = \
-                            Tables::getSkyRoot(dataptr, datasz, data_format);
+                            Tables::getSkyRoot(meta.blob_data,
+                                               meta.blob_size,
+                                               meta.blob_format);
 
                         flatbuffers::FlatBufferBuilder flatbldr(1024);
                         ret = processSkyFb(flatbldr,
                                            data_schema,
                                            query_schema,
                                            query_preds,
-                                           dataptr,
-                                           datasz,
+                                           meta.blob_data,
+                                           meta.blob_size,
                                            errmsg,
                                            row_nums);
 
@@ -1430,7 +1431,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                         // get serialized data struct and its size
                         const char *res_ds = \
-                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
                         int res_ds_size = flatbldr.GetSize();
 
                         // add processed data to results
@@ -1448,8 +1449,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                            data_schema,
                                            query_schema,
                                            query_preds,
-                                           dataptr,
-                                           datasz,
+                                           meta.blob_data,
+                                           meta.blob_size,
                                            errmsg,
                                            row_nums);
                         // TODO: Add the output to result ds

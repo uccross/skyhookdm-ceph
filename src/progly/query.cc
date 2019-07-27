@@ -402,22 +402,19 @@ void worker()
             // NOTE: normal usage: get the metadata and data out of raw bl
             // as fb_meta, or set optional args to false/type for manually
             // testing new formats
-            sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
-            const char* dataptr = m.data_ptr;
-            size_t datasz = m.data_size;
-            int data_format = m.format_type;
+            sky_meta meta = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
 
-            // this block is only used for accounting (rows processed etc.)
-            switch (data_format) {
+            // this code block is only used for accounting (rows processed)
+            switch (meta.blob_format) {
                 case SFT_FLATBUF_FLEX_ROW: {
-                    sky_root root = Tables::getSkyRoot(dataptr, 0);
+                    sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
                     rows_returned += root.nrows;
                     break;
                 }
                 case SFT_ARROW: {
                     std::shared_ptr<arrow::Buffer> buffer;
                     std::shared_ptr<arrow::Table> table;
-                    std::string str_data(dataptr, datasz);
+                    std::string str_data(meta.blob_data, meta.blob_size);
                     arrow::Buffer::FromString(str_data, &buffer);
                     extract_arrow_from_buffer(&table, buffer);
                     auto schema = table->schema();
@@ -448,24 +445,30 @@ void worker()
             // nothing left to do here, so we just print results
             if (!more_processing) {
 
-                switch (data_format) {
+                switch (meta.blob_format) {
                     case SFT_FLATBUF_FLEX_ROW: {
-                        sky_root root = Tables::getSkyRoot(dataptr, 0);
+                        sky_root root = \
+                            Tables::getSkyRoot(meta.blob_data, meta.blob_size);
                         result_count += root.nrows;
-                        print_data(dataptr, datasz, SFT_FLATBUF_FLEX_ROW);
+                        print_data(meta.blob_data,
+                                   meta.blob_size,
+                                   SFT_FLATBUF_FLEX_ROW);
                         break;
                     }
                     case SFT_ARROW: {
                         // TODO Add nrow to rows_returned
                         std::shared_ptr<arrow::Buffer> buffer;
                         std::shared_ptr<arrow::Table> table;
-                        std::string str_data(dataptr, datasz);
+                        std::string str_data(meta.blob_data, meta.blob_size);
                         arrow::Buffer::FromString(str_data, &buffer);
                         extract_arrow_from_buffer(&table, buffer);
                         auto schema = table->schema();
                         auto metadata = schema->metadata();
-                        result_count += std::stoi(metadata->value(METADATA_NUM_ROWS));
-                        print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
+                        result_count += \
+                            std::stoi(metadata->value(METADATA_NUM_ROWS));
+                        print_data(buffer->ToString().c_str(),
+                                   buffer->size(),
+                                   SFT_ARROW);
                         break;
                     }
 
@@ -483,15 +486,16 @@ void worker()
                 // more processing to do such as min, sort, any other remaining preds.
                 std::string errmsg;
 
-                switch (data_format) {
+                switch (meta.blob_format) {
+
                     case SFT_FLATBUF_FLEX_ROW: {
                         flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                         int ret = processSkyFb(flatbldr,
                                                sky_tbl_schema,
                                                sky_qry_schema,
                                                sky_qry_preds,
-                                               dataptr,
-                                               datasz, // size in bytes, unused
+                                               meta.blob_data,
+                                               meta.blob_size,
                                                errmsg);
                         if (ret != 0) {
                             int more_processing_failure = true;
@@ -501,21 +505,23 @@ void worker()
                             assert(more_processing_failure);
                         }
 
-                        dataptr =                                 \
-                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                        sky_root root = getSkyRoot(dataptr, datasz);
+                        // TODO: we should be using uint8_t here
+                        const char* processed_data = \
+                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
+                        sky_root root = getSkyRoot(processed_data, 0);
                         result_count += root.nrows;
-                        print_data(dataptr, datasz, SFT_FLATBUF_FLEX_ROW);
+                        print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
                         break;
                     }
+
                     case SFT_ARROW: {
                         std::shared_ptr<arrow::Table> table;
                         int ret = processArrow(&table,
                                                sky_tbl_schema,
                                                sky_qry_schema,
                                                sky_qry_preds,
-                                               dataptr,
-                                               datasz, // size in bytes, unused
+                                               meta.blob_data,
+                                               meta.blob_size,
                                                errmsg);
                         if (ret != 0) {
                             int more_processing_failure = true;

@@ -893,12 +893,12 @@ long long int printFlatbufFlexRowAsCsv(
         long long int max_to_print) {
 
     // get root table ptr as sky struct
-    sky_root skyroot = getSkyRoot(dataptr, datasz);
-    schema_vec sc = schemaFromString(skyroot.data_schema);
+    sky_root root = getSkyRoot(dataptr, datasz);
+    schema_vec sc = schemaFromString(root.data_schema);
     assert(!sc.empty());
 
     if (print_verbose)
-        printSkyRootHeader(skyroot);
+        printSkyRootHeader(root);
 
     // print header row showing schema
     if (print_header) {
@@ -915,14 +915,14 @@ long long int printFlatbufFlexRowAsCsv(
     }
 
     long long int counter = 0;
-    for (uint32_t i = 0; i < skyroot.nrows; i++, counter++) {
+    for (uint32_t i = 0; i < root.nrows; i++, counter++) {
         if (counter >= max_to_print)
             break;
 
-        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+        if (root.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
         // get the record struct, then the row data
-        sky_rec skyrec = getSkyRec(static_cast<row_offs>(skyroot.data_vec)->Get(i));
+        sky_rec skyrec = getSkyRec(static_cast<row_offs>(root.data_vec)->Get(i));
         auto row = skyrec.data.AsVector();
 
         if (print_verbose)
@@ -986,22 +986,22 @@ sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
         // get data as contiguous bytes before accessing
         const FB_Meta* meta = GetFB_Meta(bl.c_str());
         return sky_meta(
-            meta->format_type(),      // the blob's format (i.e.,SkyFormatType)
-            meta->is_deleted(),       // is this blob still valid (not deleted)
-            meta->data()->size(),     // blob actual size
             meta->global_off(),       // data position in original file
             meta->len(),              // data len in original file
             meta->compression_type(), // blob compression
+            meta->format_type(),      // the blob's format (i.e.,SkyFormatType)
+            meta->is_deleted(),       // is this blob still valid (not deleted)
+            meta->data()->size(),     // blob actual size
             reinterpret_cast<const char*>(meta->data()->Data()));  // data blob
     }
     else {
         return sky_meta(    // for testing new raw formats without meta wrapper
-            data_format,
-            false,
-            bl.length(),
-            0,              // unused
-            0,              // unused
+            0,              // off
+            0,              // len
             none,           // no compression
+            data_format,    // user specified arg for testing formats
+            false,          // deleted?
+            bl.length(),    // formatted data size in bytes
             bl.c_str());    // get data as contiguous bytes before accessing
     }
 }
@@ -1016,7 +1016,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
     std::string db_schema_name;
     std::string table_name;
     delete_vector delete_vec;
-    row_offs data_vec;
+    const void* data_vec;
     uint32_t nrows;
 
     switch (ds_format) {
