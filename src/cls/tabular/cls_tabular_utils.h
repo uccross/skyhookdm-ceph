@@ -38,6 +38,7 @@
 #include "skyhookv2_generated.h"
 #include "skyhookv2_csv_generated.h"
 #include "fb_meta_generated.h"
+#include "fbu_generated.h"
 
 namespace Tables {
 
@@ -526,10 +527,14 @@ std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
 typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
+typedef const flatbuffers::Vector<flatbuffers::Offset<Record_FBU>>* row_offs_fbu_rows;
+typedef const flatbuffers::Vector<flatbuffers::Offset<Col_FBU>>* row_offs_fbu_cols;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
 typedef flexbuffers::Reference row_data_ref;
+typedef const flatbuffers::Vector<flatbuffers::Offset<void> >* row_data_ref_fbu_rows ;
+typedef const void* row_data_ref_fbu_cols ;
 
 // this flatbuf meta wrappers allows read/write transfer of a single,
 // complete, self-contained serialized data format on disk or wire.
@@ -591,7 +596,7 @@ struct root_table {
         std::string _db_schema_name,
         std::string _table_name,
         delete_vector _delete_vec,
-        row_offs _data_vec,
+        const void* _data_vec,
         uint32_t _nrows) :
                         skyhook_version(_skyhook_version),
                         data_format_type(_data_format_type),
@@ -628,6 +633,27 @@ struct rec_table {
         };
 };
 typedef struct rec_table sky_rec;
+
+struct rec_table_fbu {
+    const int64_t RID;
+    nullbits_vector nullbits;
+    const row_data_ref_fbu_rows data_fbu_rows;
+    const row_data_ref_fbu_cols data_fbu_cols;
+
+    rec_table_fbu( int64_t _RID, 
+               nullbits_vector _nullbits, 
+               row_data_ref_fbu_rows _data_fbu_rows,
+               row_data_ref_fbu_cols _data_fbu_cols ) :
+        RID(_RID),
+        nullbits(_nullbits),
+        data_fbu_rows(_data_fbu_rows),
+        data_fbu_cols(_data_fbu_cols) {
+            // ensure one nullbit per col
+            int num_nullbits = nullbits.size() * sizeof(nullbits[0]) * 8;
+            assert (num_nullbits == MAX_TABLE_COLS);
+        };
+};
+typedef struct rec_table_fbu sky_rec_fbu;
 
 // holds the result of a read to be done, resulting from an index lookup
 // regarding specific flatbufs+rows to be read or else a seq of all flatbufs
@@ -715,10 +741,12 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
 sky_meta getSkyMeta(bufferlist bl, bool is_meta=true, int data_format=SFT_FLATBUF_FLEX_ROW);
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FLEX_ROW);
 sky_rec getSkyRec(const Tables::Record *rec);
+sky_rec_fbu getSkyRec_fbu(sky_root root, int recid);
 
 // print functions
 void printSkyRootHeader(sky_root &r);
 void printSkyRecHeader(sky_rec &r);
+void printSkyRecHeader_fbu(sky_rec_fbu &r);
 
 long long int printFlatbufFlexRowAsCsv(
         const char* dataptr,
@@ -734,6 +762,12 @@ long long int printArrowbufRowAsCsv(
         bool print_verbose,
         long long int max_to_print);
 
+long long int printFlatbufFBUAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
 
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
 

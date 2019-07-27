@@ -885,6 +885,27 @@ void printSkyRecHeader(sky_rec &r) {
     }
 }
 
+void printSkyRecHeader_fbu(sky_rec_fbu &r) {
+
+    std::cout << "\nSKYHOOK_REC HEADER" << std::endl;
+    std::cout << "RID: "<< r.RID << std::endl;
+    std::string bitstring = "";
+    int64_t val = 0;
+    uint64_t bit = 0;
+    for(int j = 0; j < (int)r.nullbits.size(); j++) {
+        val = r.nullbits.at(j);
+        for (uint64_t k=0; k < 8 * sizeof(r.nullbits.at(j)); k++) {
+            uint64_t mask =  1 << k;
+            ((val&mask)>0) ? bit=1 : bit=0;
+            bitstring.append(std::to_string(bit));
+        }
+        std::cout << "nullbits ["<< j << "]: val=" << val << ": bits="
+                  << bitstring;
+        std::cout << std::endl;
+        bitstring.clear();
+    }
+}
+
 long long int printFlatbufFlexRowAsCsv(
         const char* dataptr,
         const size_t datasz,
@@ -975,6 +996,108 @@ long long int printFlatbufFlexRowAsCsv(
     return counter;
 }
 
+long long int printFlatbufFBUAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print) {
+
+    sky_root skyroot = getSkyRoot( dataptr, datasz, SFT_FLATBUF_UNION_ROW ) ;
+    schema_vec sc    = schemaFromString( skyroot.data_schema ) ;
+    assert( !sc.empty() ) ;
+
+    if (print_verbose)
+        printSkyRootHeader( skyroot ) ;
+
+    // print header row showing schema
+    if (print_header) {
+        bool first = true;
+        for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
+            std::cout << it->name;
+            if (it->is_key) std::cout << "(key)";
+            if (!it->nullable) std::cout << "(NOT NULL)";
+        }
+        std::cout << std::endl; // newline to start first row.
+    }
+
+    long long int counter = 0;
+    for (uint32_t i = 0; i < skyroot.nrows; i++, counter++) {
+        if (counter >= max_to_print)
+            break;
+
+        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+
+        // get the record struct, then the row data
+        sky_rec_fbu skyrec = getSkyRec_fbu( skyroot, i ) ;
+        if (print_verbose)
+            printSkyRecHeader_fbu(skyrec);
+
+        switch( skyroot.data_format_type ) {
+
+            // -------------------------------------------------------------------- //
+            case SFT_FLATBUF_UNION_ROW : {
+                auto curr_rec_data = skyrec.data_fbu_rows ;
+                // for each col in the row, print a NULL or the col's value/
+                bool first = true;
+                for( unsigned int j = 0; j < sc.size(); j++ ) {
+                  if (!first) std::cout << CSV_DELIM;
+                  first = false;
+                  col_info col = sc.at(j);
+
+                  if (col.nullable) {  // check nullbit
+                      bool is_null = false;
+                      int pos = col.idx / (8*sizeof(skyrec.nullbits.at(0)));
+                      int col_bitmask = 1 << col.idx;
+                      if ((col_bitmask & skyrec.nullbits.at(pos)) != 0)  {
+                          is_null =true;
+                      }
+                      if (is_null) {
+                          std::cout << "NULL";
+                          continue;
+                      }
+                  }
+                  switch( col.type ) {
+                    case SDT_UINT64 : {
+                      auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( curr_rec_data->Get(j) ) ;
+                      std::cout << int_col_data->data()->Get(0) ;
+                      break ;
+                    }
+                    case SDT_FLOAT : {
+                      auto float_col_data = static_cast< const Tables::SDT_FLOAT_FBU* >( curr_rec_data->Get(j) ) ;
+                      std::cout << float_col_data->data()->Get(0) ;
+                      break ;
+                    }
+                    case SDT_STRING : {
+                      auto string_col_data = static_cast< const Tables::SDT_STRING_FBU* >( curr_rec_data->Get(j) ) ;
+                      std::cout << string_col_data->data()->Get(0)->str() ;
+                      break ;
+                    }
+                    default :
+                      assert (TablesErrCodes::UnknownSkyDataType==0);
+                  } //switch
+
+                } //for loop
+                std::cout << std::endl ;
+                break ;
+            }
+            // -------------------------------------------------------------------- //
+
+            case SFT_FLATBUF_UNION_COL : {
+                std::cout << "here1" << std::endl ;
+                break ;
+            }
+            default:
+                assert( SkyFormatTypeNotRecognized==0 ) ;
+
+        } //switch
+        std::cout << std::endl ;
+    } //for
+    return counter;
+}
+
 // Highest level abstraction over our data on disk.
 // Wraps a supported format (flatbuf, arrow, csv, parquet,...)
 // along with its metadata.  This unified structure is used as the primary
@@ -1017,6 +1140,8 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
     std::string table_name;
     delete_vector delete_vec;
     row_offs data_vec;
+    row_offs_fbu_rows data_vec_fbu_rows;
+    row_offs_fbu_cols data_vec_fbu_cols;
     uint32_t nrows;
 
     switch (ds_format) {
@@ -1037,9 +1162,58 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             break;
         }
 
-        case SFT_ARROW:
         case SFT_FLATBUF_UNION_ROW:
-        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_UNION_COL: {
+            auto root = Tables::GetRoot_FBU( ds ) ;
+            delete_vec = delete_vector( root->delete_vector()->begin(),
+                                        root->delete_vector()->end() ) ;
+
+            skyhook_version        = root->skyhook_version() ;
+            data_format_type       = root->data_format_type() ;
+            data_structure_version = root->data_structure_version() ;
+            data_schema_version    = root->data_schema_version() ;
+            data_schema            = root->data_schema()->str() ;
+            db_schema_name         = root->db_schema_name()->str() ;
+            table_name             = root->table_name()->str() ;
+            nrows                  = root->nrows() ;
+
+            if( ds_format == SFT_FLATBUF_UNION_ROW ) {
+              auto rows = static_cast< const Tables::Rows_FBU* >( root->relationData() ) ;
+              data_vec_fbu_rows = rows->data() ;
+              return sky_root(
+                  skyhook_version,
+                  data_format_type,
+                  data_structure_version,
+                  data_schema_version,
+                  data_schema,
+                  db_schema_name,
+                  table_name,
+                  delete_vec,
+                  data_vec_fbu_rows,
+                  nrows
+              );
+            }
+            else if( ds_format == SFT_FLATBUF_UNION_COL ) {
+              auto cols = static_cast< const Tables::Cols_FBU* >( root->relationData() ) ;
+              data_vec_fbu_cols = cols->data() ;
+              return sky_root(
+                  skyhook_version,
+                  data_format_type,
+                  data_structure_version,
+                  data_schema_version,
+                  data_schema,
+                  db_schema_name,
+                  table_name,
+                  delete_vec,
+                  data_vec_fbu_cols,
+                  nrows
+              );
+            }
+            else
+                assert (SkyFormatTypeNotRecognized==0);
+            break ;
+        }
+        case SFT_ARROW:
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
@@ -1069,6 +1243,33 @@ sky_rec getSkyRec(const Tables::Record* rec) {
         rec->data_flexbuffer_root()
     );
 }
+
+sky_rec_fbu getSkyRec_fbu( sky_root root, int recid ) {
+    switch( root.data_format_type ) {
+        case SFT_FLATBUF_UNION_ROW : {
+          const Tables::Record_FBU* rec = static_cast< row_offs_fbu_rows >(root.data_vec)->Get( recid ) ;
+          return sky_rec_fbu(
+            recid,
+            nullbits_vector( rec->nullbits()->begin(), rec->nullbits()->end() ),
+            rec->data(), //row_data_ref_fbu_rows
+            NULL         //row_data_ref_fbu_cols
+          );
+          break ;
+        }
+        case SFT_FLATBUF_UNION_COL : {
+          const Tables::Col_FBU* rec = static_cast< row_offs_fbu_cols >(root.data_vec)->Get( recid ) ;
+          return sky_rec_fbu(
+            recid,
+            nullbits_vector( rec->nullbits()->begin(), rec->nullbits()->end() ),
+            NULL,        //row_data_ref_fbu_rows
+            rec->data()  //row_data_ref_fbu_cols
+          );
+          break ;
+        }
+        default:
+            assert (SkyFormatTypeNotRecognized==0);
+    } //switch
+} //getSkyRec
 
 bool hasAggPreds(predicate_vec &preds) {
     for (auto it=preds.begin(); it!=preds.end();++it)
