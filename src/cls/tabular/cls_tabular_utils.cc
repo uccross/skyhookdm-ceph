@@ -986,13 +986,13 @@ sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
         // get data as contiguous bytes before accessing
         const FB_Meta* meta = GetFB_Meta(bl.c_str());
         return sky_meta(
-            meta->global_off(),       // data position in original file
-            meta->len(),              // data len in original file
-            meta->compression_type(), // blob compression
-            meta->format_type(),      // the blob's format (i.e.,SkyFormatType)
-            meta->is_deleted(),       // is this blob still valid (not deleted)
-            meta->data()->size(),     // blob actual size
-            reinterpret_cast<const char*>(meta->data()->Data()));  // data blob
+            meta->blob_orig_off(),     // data position in original file
+            meta->blob_orig_len(),     // data len in original file
+            meta->blob_compression(),  // blob compression
+            meta->blob_format(),       // the blob's format (i.e.,SkyFormatType)
+            meta->blob_deleted(),      // is this blob still valid (not deleted)
+            meta->blob_data()->size(), // blob actual size
+            reinterpret_cast<const char*>(meta->blob_data()->Data()));  // data blob
     }
     else {
         return sky_meta(    // for testing new raw formats without meta wrapper
