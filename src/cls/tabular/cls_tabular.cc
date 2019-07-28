@@ -1457,33 +1457,33 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     }
 
                     case SFT_FLATBUF_UNION_ROW: {
-                        //sky_root root =  Tables::getSkyRoot(dataptr, datasz, data_format);
-                        //flatbuffers::FlatBufferBuilder flatbldr(1024);
-                        //ret = processSkyFb_fbu(flatbldr,
-                        //                       data_schema,
-                        //                       query_schema,
-                        //                       query_preds,
-                        //                       dataptr,
-                        //                       datasz,
-                        //                       errmsg,
-                        //                       row_nums);
-                        //if (ret != 0) {
-                        //    CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
-                        //    CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                        //    return -1;
-                        //}
+                        sky_root root =  Tables::getSkyRoot(dataptr, datasz, data_format);
+                        flatbuffers::FlatBufferBuilder flatbldr(1024);
+                        ret = processSkyFb_fbu(flatbldr,
+                                               data_schema,
+                                               query_schema,
+                                               query_preds,
+                                               dataptr,
+                                               datasz,
+                                               errmsg,
+                                               row_nums);
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1;
+                        }
 
-                        //// get serialized data struct and its size
-                        //const char *res_ds = \
-                        //    reinterpret_cast<char*>(flatbldr.GetBufferPointer());
-                        //int res_ds_size = flatbldr.GetSize();
+                        // get serialized data struct and its size
+                        const char *res_ds = \
+                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                        int res_ds_size = flatbldr.GetSize();
 
-                        //// add processed data to results
-                        //ans.append(res_ds, res_ds_size);
-                        //if (op.index_read)
-                        //    ds_rows_processed = row_nums.size();
-                        //else
-                        //    ds_rows_processed = root.nrows;
+                        // add processed data to results
+                        ans.append(res_ds, res_ds_size);
+                        if (op.index_read)
+                            ds_rows_processed = row_nums.size();
+                        else
+                            ds_rows_processed = root.nrows;
                         break;
                     }
 

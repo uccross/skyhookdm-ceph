@@ -471,7 +471,6 @@ int processSkyFb_fbu(
                         case SDT_UINT64: {
                             auto int_col_data =
                               static_cast< const Tables::SDT_UINT64_FBU* >( row->Get(col.idx) ) ;
-                            std::cout << "blah0 = " << int_col_data->data()->Get(0) << std::endl ;
                             auto data = int_col_data->data()->Get(0) ;
                             flexbldr->Add(data);
                             break;
@@ -488,7 +487,6 @@ int processSkyFb_fbu(
                         case SDT_FLOAT: {
                             auto float_col_data =
                               static_cast< const Tables::SDT_FLOAT_FBU* >( row->Get(col.idx) ) ;
-                            std::cout << "blah1 = " << float_col_data->data()->Get(0) << std::endl ;
                             auto data = float_col_data->data()->Get(0) ;
                             flexbldr->Add(data);
                             break;
@@ -502,7 +500,6 @@ int processSkyFb_fbu(
                         case SDT_STRING: {
                             auto string_col_data =
                               static_cast< const Tables::SDT_STRING_FBU* >( row->Get(col.idx) ) ;
-                            std::cout << "blah2 = " << string_col_data->data()->Get(0)->str() << std::endl ;
                             auto data = string_col_data->data()->Get(0)->str() ;
                             flexbldr->Add(data);
                             break;
@@ -541,10 +538,8 @@ int processSkyFb_fbu(
     // accumulated above in applyPredicates (agg predicates do not return
     // true false but update their internal values each time processed
     if (encode_aggs) { //  encode accumulated agg pred val into return flexbuf
-        //PredicateBase* pb;
-        //flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
-        std::cout << "aggggggggggggggggggggggggssssssssssss" << std::endl ;
-/* not tested.
+        PredicateBase* pb;
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flexbldr->Vector([&]() {
             for (auto itp = preds.begin(); itp != preds.end(); ++itp) {
                 // assumes preds appear in same order as return schema
@@ -584,23 +579,22 @@ int processSkyFb_fbu(
             }
         });
         // finalize the row's projected data within our flexbuf
-//        flexbldr->Finish();
+        flexbldr->Finish();
 
         // build the return ROW flatbuf that contains the flexbuf data
-//        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
-//        delete flexbldr;
-//
+        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
         // assume no nullbits in the agg results. ?
-//        nullbits_vector nb(2,0);
-//        auto nullbits = flatbldr.CreateVector(nb);
-//        int RID = -1;  // agg recs only, since these are derived data
-//        flatbuffers::Offset<Tables::Record> row_off = \
-//            Tables::CreateRecord(flatbldr, RID, nullbits, row_data);
+        nullbits_vector nb(2,0);
+        auto nullbits = flatbldr.CreateVector(nb);
+        int RID = -1;  // agg recs only, since these are derived data
+        flatbuffers::Offset<Tables::Record> row_off = \
+            Tables::CreateRecord(flatbldr, RID, nullbits, row_data);
 
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
-//        dead_rows.push_back(0);
-//        offs.push_back(row_off);
-*/
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
     } //if aggs
 
     // now build the return ROOT flatbuf wrapper
@@ -1941,7 +1935,6 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
 
 bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
 
-/* good
     bool rowpass = false;
     bool init_rowpass = false;
     auto row = rec.data_fbu_rows ;
@@ -1963,13 +1956,12 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
         if ((chain_optype == SOT_logical_and) and !rowpass) break;
 
         bool colpass = false;
-        std::cout << "qwer" << std::endl ;
-*/
-/* not tested
+
         switch((*it)->colType()) {
 
             // NOTE: predicates have typed ints but our int comparison
             // functions are defined on 64bit ints.
+/* not yet supported in fbu
             case SDT_BOOL: {
                 TypedPredicate<bool>* p = \
                         dynamic_cast<TypedPredicate<bool>*>(*it);
@@ -1982,7 +1974,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_INT8: {
+            se SDT_INT8: {
                 TypedPredicate<int8_t>* p = \
                         dynamic_cast<TypedPredicate<int8_t>*>(*it);
                 int8_t colval = row[p->colIdx()].AsInt8();
@@ -1996,7 +1988,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_INT16: {
+            se SDT_INT16: {
                 TypedPredicate<int16_t>* p = \
                         dynamic_cast<TypedPredicate<int16_t>*>(*it);
                 int16_t colval = row[p->colIdx()].AsInt16();
@@ -2010,7 +2002,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_INT32: {
+            se SDT_INT32: {
                 TypedPredicate<int32_t>* p = \
                         dynamic_cast<TypedPredicate<int32_t>*>(*it);
                 int32_t colval = row[p->colIdx()].AsInt32();
@@ -2024,7 +2016,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_INT64: {
+            se SDT_INT64: {
                 TypedPredicate<int64_t>* p = \
                         dynamic_cast<TypedPredicate<int64_t>*>(*it);
                 int64_t colval = 0;
@@ -2040,7 +2032,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_UINT8: {
+            se SDT_UINT8: {
                 TypedPredicate<uint8_t>* p = \
                         dynamic_cast<TypedPredicate<uint8_t>*>(*it);
                 uint8_t colval = row[p->colIdx()].AsUInt8();
@@ -2054,7 +2046,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_UINT16: {
+            se SDT_UINT16: {
                 TypedPredicate<uint16_t>* p = \
                         dynamic_cast<TypedPredicate<uint16_t>*>(*it);
                 uint16_t colval = row[p->colIdx()].AsUInt16();
@@ -2068,7 +2060,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_UINT32: {
+            se SDT_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
                 uint32_t colval = row[p->colIdx()].AsUInt32();
@@ -2081,6 +2073,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                                       p->opType());
                 break;
             }
+not yet supported in fbu */
 
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
@@ -2088,8 +2081,11 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 uint64_t colval = 0;
                 if ((*it)->colIdx() == RID_COL_INDEX) // RID val not in the row
                     colval = rec.RID;
-                else
-                    colval = row[p->colIdx()].AsUInt64();
+                else {
+                    auto col_data =
+                        static_cast< const Tables::SDT_UINT64_FBU* >( row->Get(p->colIdx()) ) ;
+                    colval = col_data->data()->Get(0) ;
+                }
                 uint64_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
@@ -2101,7 +2097,9 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
             case SDT_FLOAT: {
                 TypedPredicate<float>* p = \
                         dynamic_cast<TypedPredicate<float>*>(*it);
-                float colval = row[p->colIdx()].AsFloat();
+                auto col_data =
+                    static_cast< const Tables::SDT_FLOAT_FBU* >( row->Get(p->colIdx()) ) ;
+                float colval = col_data->data()->Get(0) ;
                 float predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
@@ -2112,6 +2110,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
+/* not yet supported in fbu
             case SDT_DOUBLE: {
                 TypedPredicate<double>* p = \
                         dynamic_cast<TypedPredicate<double>*>(*it);
@@ -2124,7 +2123,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_CHAR: {
+            se SDT_CHAR: {
                 TypedPredicate<char>* p= \
                         dynamic_cast<TypedPredicate<char>*>(*it);
                 if (p->opType() == SOT_like) {
@@ -2147,7 +2146,7 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 break;
             }
 
-            case SDT_UCHAR: {
+            se SDT_UCHAR: {
                 TypedPredicate<unsigned char>* p = \
                         dynamic_cast<TypedPredicate<unsigned char>*>(*it);
                 if (p->opType() == SOT_like) {
@@ -2169,12 +2168,14 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
                 }
                 break;
             }
-
+not yet supported in fbu */
             case SDT_STRING:
             case SDT_DATE: {
                 TypedPredicate<std::string>* p = \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
-                string colval = row[p->colIdx()].AsString().str();
+                auto col_data =
+                    static_cast< const Tables::SDT_STRING_FBU* >( row->Get(p->colIdx()) ) ;
+                string colval = col_data->data()->Get(0)->str() ;
                 colpass = compare(colval,p->Val(),p->opType(),p->colType());
                 break;
             }
@@ -2193,12 +2194,8 @@ bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
             default: // should not be reachable
                 rowpass &= colpass;
         }
-*/
-/* good
     } //for
     return rowpass;
-*/
-  return 0 ;
 }
 
 bool compare(const int64_t& val1, const int64_t& val2, const int& op) {
