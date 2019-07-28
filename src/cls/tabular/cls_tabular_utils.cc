@@ -349,6 +349,294 @@ int processSkyFb(
     return errcode;
 }
 
+int processSkyFb_fbu(
+    flatbuffers::FlatBufferBuilder& flatbldr,
+    schema_vec& data_schema,
+    schema_vec& query_schema,
+    predicate_vec& preds,
+    const char* fb,
+    const size_t fb_size,
+    std::string& errmsg,
+    const std::vector<uint32_t>& row_nums)
+{
+    int errcode = 0;
+    delete_vector dead_rows;
+    std::vector<flatbuffers::Offset<Tables::Record>> offs;
+    sky_root root = getSkyRoot(fb, fb_size, SFT_FLATBUF_UNION_ROW);
+
+    // identify the max col idx, to prevent flexbuf vector oob error
+    int col_idx_max = -1;
+    for (auto it=data_schema.begin(); it!=data_schema.end(); ++it) {
+        if (it->idx > col_idx_max)
+            col_idx_max = it->idx;
+    }
+
+    bool project_all = std::equal(data_schema.begin(), data_schema.end(),
+                                  query_schema.begin(), compareColInfo);
+
+    // build the flexbuf with computed aggregates, aggs are computed for
+    // each row that passes, and added to flexbuf after loop below.
+    bool encode_aggs = false;
+    if (hasAggPreds(preds)) encode_aggs = true;
+    bool encode_rows = !encode_aggs;
+
+    // determines if we process specific rows or all rows, since
+    // row_nums vector is optional parameter - default process all rows.
+    bool process_all_rows = true;
+    uint32_t nrows = root.nrows;
+    if (!row_nums.empty()) {
+        process_all_rows = false;  // process specified row numbers only
+        nrows = row_nums.size();
+    }
+
+    // 1. check the preds for passing
+    // 2a. accumulate agg preds (return flexbuf built after all rows) or
+    // 2b. build the return flatbuf inline below from each row's projection
+    for (uint32_t i = 0; i < nrows; i++) {
+
+        // process row i or the specified row number
+        uint32_t rnum = 0;
+        if (process_all_rows) rnum = i;
+        else rnum = row_nums[i];
+        if (rnum > root.nrows) {
+            errmsg += "ERROR: rnum(" + std::to_string(rnum) +
+                      ") > root.nrows(" + to_string(root.nrows) + ")";
+            return RowIndexOOB;
+        }
+
+        // skip dead rows.
+        if (root.delete_vec[rnum] == 1) continue;
+
+        // get a skyhook record struct
+        sky_rec_fbu rec = getSkyRec_fbu( root, rnum );
+
+        // apply predicates to this record
+        if (!preds.empty()) {
+            bool pass = applyPredicates_fbu(preds, rec);
+            if (!pass) continue;  // skip non matching rows.
+        }
+
+        // note: agg preds are accumlated in the predicate itself during
+        // applyPredicates above, then later added to result fb outside
+        // of this loop (i.e., they are not encoded into the result fb yet)
+        // thus we can skip the below encoding of rows into the result fb
+        // and just continue accumulating agg preds in this processing loop.
+        if (!encode_rows) continue;
+
+        if (project_all) {
+            // TODO:  just pass through row table offset to new data_vec
+            // (which is also type offs), do not rebuild row table and flexbuf
+        }
+
+        // build the return projection for this row.
+        auto row = rec.data_fbu_rows ;
+        //auto row = rec.data.AsVector();
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
+
+        flexbldr->Vector([&]() {
+            // iter over the query schema, locating it within the data schema
+            for (auto it=query_schema.begin();
+                      it!=query_schema.end() && !errcode; ++it) {
+                col_info col = *it;
+                if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
+                    errcode = TablesErrCodes::RequestedColIndexOOB;
+                    errmsg.append("ERROR processSkyFb(): table=" +
+                            root.table_name + "; rid=" +
+                            std::to_string(rec.RID) + " col.idx=" +
+                            std::to_string(col.idx) + " OOB.");
+                } else {
+                    switch(col.type) {  // encode data val into flexbuf
+                        //case SDT_INT8:
+                        //    flexbldr->Add(row[col.idx].AsInt8());
+                        //    break;
+                        //case SDT_INT16:
+                        //    flexbldr->Add(row[col.idx].AsInt16());
+                        //    break;
+                        //case SDT_INT32:
+                        //    flexbldr->Add(row[col.idx].AsInt32());
+                        //    break;
+                        //case SDT_INT64:
+                        //    flexbldr->Add(row[col.idx].AsInt64());
+                        //    break;
+                        //case SDT_UINT8:
+                        //    flexbldr->Add(row[col.idx].AsUInt8());
+                        //    break;
+                        //case SDT_UINT16:
+                        //    flexbldr->Add(row[col.idx].AsUInt16());
+                        //    break;
+                        //case SDT_UINT32:
+                        //    flexbldr->Add(row[col.idx].AsUInt32());
+                        //    break;
+                        case SDT_UINT64: {
+                            auto int_col_data =
+                              static_cast< const Tables::SDT_UINT64_FBU* >( row->Get(col.idx) ) ;
+                            std::cout << "blah0 = " << int_col_data->data()->Get(0) << std::endl ;
+                            auto data = int_col_data->data()->Get(0) ;
+                            flexbldr->Add(data);
+                            break;
+                        }
+                        //case SDT_CHAR:
+                        //    flexbldr->Add(row[col.idx].AsInt8());
+                        //    break;
+                        //case SDT_UCHAR:
+                        //    flexbldr->Add(row[col.idx].AsUInt8());
+                        //    break;
+                        //case SDT_BOOL:
+                        //    flexbldr->Add(row[col.idx].AsBool());
+                        //    break;
+                        case SDT_FLOAT: {
+                            auto float_col_data =
+                              static_cast< const Tables::SDT_FLOAT_FBU* >( row->Get(col.idx) ) ;
+                            std::cout << "blah1 = " << float_col_data->data()->Get(0) << std::endl ;
+                            auto data = float_col_data->data()->Get(0) ;
+                            flexbldr->Add(data);
+                            break;
+                        }
+                        //case SDT_DOUBLE:
+                        //    flexbldr->Add(row[col.idx].AsDouble());
+                        //    break;
+                        //case SDT_DATE:
+                        //    flexbldr->Add(row[col.idx].AsString().str());
+                        //    break;
+                        case SDT_STRING: {
+                            auto string_col_data =
+                              static_cast< const Tables::SDT_STRING_FBU* >( row->Get(col.idx) ) ;
+                            std::cout << "blah2 = " << string_col_data->data()->Get(0)->str() << std::endl ;
+                            auto data = string_col_data->data()->Get(0)->str() ;
+                            flexbldr->Add(data);
+                            break;
+                        }
+                        default: {
+                            errcode = TablesErrCodes::UnsupportedSkyDataType;
+                            errmsg.append("ERROR processSkyFb(): table=" +
+                                    root.table_name + "; rid=" +
+                                    std::to_string(rec.RID) + " col.type=" +
+                                    std::to_string(col.type) +
+                                    " UnsupportedSkyDataType.");
+                        } //default
+                    } //switch
+                } //ifelse
+            } //for
+        }); //flex builder Vector
+
+        // finalize the row's projected data within our flexbuf
+        flexbldr->Finish();
+
+        // build the return ROW flatbuf that contains the flexbuf data
+        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
+        // TODO: update nullbits
+        auto nullbits = flatbldr.CreateVector(rec.nullbits);
+        flatbuffers::Offset<Tables::Record> row_off = \
+                Tables::CreateRecord(flatbldr, rec.RID, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
+    } //for
+
+    // here we build the return flatbuf result with agg values that were
+    // accumulated above in applyPredicates (agg predicates do not return
+    // true false but update their internal values each time processed
+    if (encode_aggs) { //  encode accumulated agg pred val into return flexbuf
+        //PredicateBase* pb;
+        //flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        std::cout << "aggggggggggggggggggggggggssssssssssss" << std::endl ;
+/* not tested.
+        flexbldr->Vector([&]() {
+            for (auto itp = preds.begin(); itp != preds.end(); ++itp) {
+                // assumes preds appear in same order as return schema
+                if (!(*itp)->isGlobalAgg()) continue;
+                pb = *itp;
+                switch(pb->colType()) {  // encode agg data val into flexbuf
+                    case SDT_INT64: {
+                        TypedPredicate<int64_t>* p = \
+                                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+                        int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_UINT64: {
+                        TypedPredicate<uint64_t>* p = \
+                                dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+                        uint64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_FLOAT: {
+                        TypedPredicate<float>* p = \
+                                dynamic_cast<TypedPredicate<float>*>(pb);
+                        float agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_DOUBLE: {
+                        TypedPredicate<double>* p = \
+                                dynamic_cast<TypedPredicate<double>*>(pb);
+                        double agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    default:  assert(UnsupportedAggDataType==0);
+                }
+            }
+        });
+        // finalize the row's projected data within our flexbuf
+//        flexbldr->Finish();
+
+        // build the return ROW flatbuf that contains the flexbuf data
+//        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+//        delete flexbldr;
+//
+        // assume no nullbits in the agg results. ?
+//        nullbits_vector nb(2,0);
+//        auto nullbits = flatbldr.CreateVector(nb);
+//        int RID = -1;  // agg recs only, since these are derived data
+//        flatbuffers::Offset<Tables::Record> row_off = \
+//            Tables::CreateRecord(flatbldr, RID, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+//        dead_rows.push_back(0);
+//        offs.push_back(row_off);
+*/
+    } //if aggs
+
+    // now build the return ROOT flatbuf wrapper
+    std::string query_schema_str;
+    for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
+        query_schema_str.append(it->toString() + "\n");
+    }
+
+    auto return_data_schema = flatbldr.CreateString(query_schema_str);
+    auto db_schema_name = flatbldr.CreateString(root.db_schema_name);
+    auto table_name = flatbldr.CreateString(root.table_name);
+    auto delete_v = flatbldr.CreateVector(dead_rows);
+    auto rows_v = flatbldr.CreateVector(offs);
+
+    auto table = CreateTable(
+        flatbldr,
+        root.data_format_type,
+        root.skyhook_version,
+        root.data_structure_version,
+        root.data_schema_version,
+        return_data_schema,
+        db_schema_name,
+        table_name,
+        delete_v,
+        rows_v,
+        offs.size());
+
+    // NOTE: the fb may be incomplete/empty, but must finish() else internal
+    // fb lib assert finished() fails, hence we must always return a valid fb
+    // and catch any ret error code upstream
+    flatbldr.Finish(table);
+    std::cout << "processSkyFb_fbu done." << std::endl ;
+
+    return errcode;
+} //processSkyFb_fbu
+
 // simple converstion from schema to its str representation.
 std::string schemaToString(schema_vec schema) {
     std::string s;
@@ -887,7 +1175,7 @@ void printSkyRecHeader(sky_rec &r) {
 
 void printSkyRecHeader_fbu(sky_rec_fbu &r) {
 
-    std::cout << "\nSKYHOOK_REC HEADER" << std::endl;
+    std::cout << "\nSKYHOOK_REC_FBU HEADER" << std::endl;
     std::cout << "RID: "<< r.RID << std::endl;
     std::string bitstring = "";
     int64_t val = 0;
@@ -1649,6 +1937,268 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
         }
     }
     return rowpass;
+}
+
+bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
+
+/* good
+    bool rowpass = false;
+    bool init_rowpass = false;
+    auto row = rec.data_fbu_rows ;
+
+    for (auto it = pv.begin(); it != pv.end(); ++it) {
+
+        int chain_optype = (*it)->chainOpType();
+
+        if (!init_rowpass) {
+            if (chain_optype == SOT_logical_or)
+                rowpass = false;
+            else if (chain_optype == SOT_logical_and)
+                rowpass = true;
+            else
+                rowpass = true;  // default to logical AND
+            init_rowpass = true;
+        }
+
+        if ((chain_optype == SOT_logical_and) and !rowpass) break;
+
+        bool colpass = false;
+        std::cout << "qwer" << std::endl ;
+*/
+/* not tested
+        switch((*it)->colType()) {
+
+            // NOTE: predicates have typed ints but our int comparison
+            // functions are defined on 64bit ints.
+            case SDT_BOOL: {
+                TypedPredicate<bool>* p = \
+                        dynamic_cast<TypedPredicate<bool>*>(*it);
+                bool colval = row[p->colIdx()].AsBool();
+                bool predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_INT8: {
+                TypedPredicate<int8_t>* p = \
+                        dynamic_cast<TypedPredicate<int8_t>*>(*it);
+                int8_t colval = row[p->colIdx()].AsInt8();
+                int8_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<int64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_INT16: {
+                TypedPredicate<int16_t>* p = \
+                        dynamic_cast<TypedPredicate<int16_t>*>(*it);
+                int16_t colval = row[p->colIdx()].AsInt16();
+                int16_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<int64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_INT32: {
+                TypedPredicate<int32_t>* p = \
+                        dynamic_cast<TypedPredicate<int32_t>*>(*it);
+                int32_t colval = row[p->colIdx()].AsInt32();
+                int32_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<int64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_INT64: {
+                TypedPredicate<int64_t>* p = \
+                        dynamic_cast<TypedPredicate<int64_t>*>(*it);
+                int64_t colval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX)
+                    colval = rec.RID;  // RID val not in the row
+                else
+                    colval = row[p->colIdx()].AsInt64();
+                int64_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_UINT8: {
+                TypedPredicate<uint8_t>* p = \
+                        dynamic_cast<TypedPredicate<uint8_t>*>(*it);
+                uint8_t colval = row[p->colIdx()].AsUInt8();
+                uint8_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<uint64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_UINT16: {
+                TypedPredicate<uint16_t>* p = \
+                        dynamic_cast<TypedPredicate<uint16_t>*>(*it);
+                uint16_t colval = row[p->colIdx()].AsUInt16();
+                uint16_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<uint64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_UINT32: {
+                TypedPredicate<uint32_t>* p = \
+                        dynamic_cast<TypedPredicate<uint32_t>*>(*it);
+                uint32_t colval = row[p->colIdx()].AsUInt32();
+                uint32_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<uint64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_UINT64: {
+                TypedPredicate<uint64_t>* p = \
+                        dynamic_cast<TypedPredicate<uint64_t>*>(*it);
+                uint64_t colval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX) // RID val not in the row
+                    colval = rec.RID;
+                else
+                    colval = row[p->colIdx()].AsUInt64();
+                uint64_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_FLOAT: {
+                TypedPredicate<float>* p = \
+                        dynamic_cast<TypedPredicate<float>*>(*it);
+                float colval = row[p->colIdx()].AsFloat();
+                float predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<double>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_DOUBLE: {
+                TypedPredicate<double>* p = \
+                        dynamic_cast<TypedPredicate<double>*>(*it);
+                double colval = row[p->colIdx()].AsDouble();
+                double predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_CHAR: {
+                TypedPredicate<char>* p= \
+                        dynamic_cast<TypedPredicate<char>*>(*it);
+                if (p->opType() == SOT_like) {
+                    // use strings for regex
+                    std::string colval = row[p->colIdx()].AsString().str();
+                    std::string predval = std::to_string(p->Val());
+                    colpass = compare(colval,predval,p->opType(),p->colType());
+                }
+                else {
+                    // use int val comparision method
+                    int8_t colval = row[p->colIdx()].AsInt8();
+                    int8_t predval = p->Val();
+                    if (p->isGlobalAgg())
+                        p->updateAgg(computeAgg(colval,predval,p->opType()));
+                    else
+                        colpass = compare(colval,
+                                          static_cast<int64_t>(predval),
+                                          p->opType());
+                }
+                break;
+            }
+
+            case SDT_UCHAR: {
+                TypedPredicate<unsigned char>* p = \
+                        dynamic_cast<TypedPredicate<unsigned char>*>(*it);
+                if (p->opType() == SOT_like) {
+                    // use strings for regex
+                    std::string colval = row[p->colIdx()].AsString().str();
+                    std::string predval = std::to_string(p->Val());
+                    colpass = compare(colval,predval,p->opType(),p->colType());
+                }
+                else {
+                    // use int val comparision method
+                    uint8_t colval = row[p->colIdx()].AsUInt8();
+                    uint8_t predval = p->Val();
+                    if (p->isGlobalAgg())
+                        p->updateAgg(computeAgg(colval,predval,p->opType()));
+                    else
+                        colpass = compare(colval,
+                                          static_cast<uint64_t>(predval),
+                                          p->opType());
+                }
+                break;
+            }
+
+            case SDT_STRING:
+            case SDT_DATE: {
+                TypedPredicate<std::string>* p = \
+                        dynamic_cast<TypedPredicate<std::string>*>(*it);
+                string colval = row[p->colIdx()].AsString().str();
+                colpass = compare(colval,p->Val(),p->opType(),p->colType());
+                break;
+            }
+
+            default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+        }
+
+        // incorporate local col passing into the decision to pass row.
+        switch (chain_optype) {
+            case SOT_logical_or:
+                rowpass |= colpass;
+                break;
+            case SOT_logical_and:
+                rowpass &= colpass;
+                break;
+            default: // should not be reachable
+                rowpass &= colpass;
+        }
+*/
+/* good
+    } //for
+    return rowpass;
+*/
+  return 0 ;
 }
 
 bool compare(const int64_t& val1, const int64_t& val2, const int& op) {

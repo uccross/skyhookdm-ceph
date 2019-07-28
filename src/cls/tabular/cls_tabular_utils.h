@@ -825,8 +825,19 @@ int processArrow(
         std::string& errmsg,
         const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
+int processSkyFb_fbu(
+        flatbuffers::FlatBufferBuilder& flatb,
+        schema_vec& data_schema,
+        schema_vec& query_schema,
+        predicate_vec& preds,
+        const char* fb,
+        const size_t fb_size,
+        std::string& errmsg,
+        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
+
 inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
+bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec);
 
 inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);
