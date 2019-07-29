@@ -15,10 +15,10 @@
 
 int main(int argc, char **argv) {
 
-  std::string pool = "tpchflatbuf" ;
-  std::string oid  = "blahkat_rows" ;
-  bool debug       = true ;
-
+  std::string pool     = "tpchflatbuf" ;
+  std::string oid      = "blahkat_cols4" ;
+  SkyFormatType format = SFT_FLATBUF_UNION_COL ;
+  bool debug           = true ;
 
   // --------------------------------- //
   // connect to rados
@@ -45,6 +45,10 @@ int main(int argc, char **argv) {
     2 " +  std::to_string(Tables::SDT_STRING) + " 0 0 ATT2 \n\
     3 " +  std::to_string(Tables::SDT_UINT64) + " 0 0 ATT3 \n\
     ");
+
+  //std::cout << KATS_SCHEMA_STRING << std::endl ;
+  //exit(1) ;
+
   Tables::schema_vec sky_tbl_schema = Tables::schemaFromString( KATS_SCHEMA_STRING ) ;
 
   std::string project_cols = "att0,att1,att2,att3" ;
@@ -70,20 +74,26 @@ int main(int argc, char **argv) {
     bool print_header  = true ;
     bool print_verbose = true ;
     int max_to_print   = 10 ;
-    auto ret1 = Tables::printFlatbufFBUAsCsv( dataptr, datasz, print_header, print_verbose, max_to_print ) ;
+    auto ret1 = Tables::printFlatbufFBUAsCsv( 
+                  dataptr, 
+                  datasz, 
+                  print_header, 
+                  print_verbose, 
+                  max_to_print, 
+                  format ) ;
     std::cout << ret1 << std::endl ;
   
-    flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
-    std::string errmsg ;
-  
-    int ret = processSkyFb_fbu(
-                flatbldr,
-                sky_tbl_schema,
-                sky_qry_schema,
-                sky_qry_preds,
-                dataptr,
-                datasz,
-                errmsg ) ;
+//    flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
+//    std::string errmsg ;
+//  
+//    int ret = processSkyFb_fbu(
+//                flatbldr,
+//                sky_tbl_schema,
+//                sky_qry_schema,
+//                sky_qry_preds,
+//                dataptr,
+//                datasz,
+//                errmsg ) ;
 
   } //while
 

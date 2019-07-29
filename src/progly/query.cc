@@ -197,7 +197,8 @@ static void print_data(const char *dataptr,
                                              datasz,
                                              print_header,
                                              print_verbose,
-                                             row_limit - row_counter);
+                                             row_limit - row_counter,
+                                             SFT_FLATBUF_UNION_ROW );
             break;
         case SFT_FLATBUF_UNION_COL:
         case SFT_FLATBUF_CSV_ROW:

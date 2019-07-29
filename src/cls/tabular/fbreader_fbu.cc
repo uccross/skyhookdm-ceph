@@ -24,12 +24,13 @@
 
 namespace po = boost::program_options ;
 
-void do_read( bool, std::string, std::string ) ;
+void do_read( bool, std::string, std::string, std::string ) ;
 
 int main( int argc, char *argv[] ) {
 
   bool debug ;
   std::string oid  ;
+  std::string format ;
   std::string pool ;
 
   po::options_description gen_opts("General options");
@@ -37,6 +38,7 @@ int main( int argc, char *argv[] ) {
     ("help,h", "show help message")
     ("debug", po::value<bool>(&debug)->required(), "debug")
     ("oid", po::value<std::string>(&oid)->required(), "oid")
+    ("format", po::value<std::string>(&format)->required(), "format")
     ("pool", po::value<std::string>(&pool)->required(), "pool") ;
 
   po::options_description all_opts( "Allowed options" ) ;
@@ -49,7 +51,7 @@ int main( int argc, char *argv[] ) {
   }
   po::notify( vm ) ;
 
-  do_read( debug, oid, pool ) ;
+  do_read( debug, oid, format, pool ) ;
 
   return 0 ;
 }
@@ -59,12 +61,25 @@ int main( int argc, char *argv[] ) {
 // ========== //
 void do_read( bool debug, 
               std::string oid,
+              std::string format,
               std::string pool ) {
 
   if( debug ) {
     std::cout << "in do_read..." << std::endl ;
     std::cout << "oid         : " << oid         << std::endl ;
+    std::cout << "format      : " << format      << std::endl ;
     std::cout << "pool        : " << pool        << std::endl ;
+  }
+
+  // get format
+  SkyFormatType skyformat ;
+  if( format == "SFT_FLATBUF_UNION_ROW" )
+    format = SFT_FLATBUF_UNION_ROW ;
+  else if( format == "SFT_FLATBUF_UNION_COL" )
+    skyformat = SFT_FLATBUF_UNION_COL ;
+  else {
+    std::cout << "format not recognized '" << format << "'" << std::endl ;
+    exit(1) ;
   }
 
   // connect to rados
@@ -111,7 +126,8 @@ void do_read( bool debug,
       datasz,
       print_header,
       print_verbose,
-      max_to_print ) ;
+      max_to_print,
+      skyformat ) ;
 
     if( debug )
       std::cout << "loop while" << std::endl ;
