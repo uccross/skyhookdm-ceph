@@ -1,13 +1,13 @@
 namespace Tables;
 
 table FB_Meta {
+  blob_format      : int32;     // format of contents stored in data blob
+  blob_data        : [ ubyte ]; // any supported format (flatbuf,arrow,csv...)
+  blob_size        : uint64;    // number of bytes in data blob
+  blob_deleted     : bool;      // has this data been deleted?
   blob_orig_off    : uint64=0;  // optional: offset of blob data in orig file
   blob_orig_len    : uint64=0;  // optional: num bytes in orig file
   blob_compression : int=0;     // optional: populated by enum {none, lzw, ...}
-  blob_format      : int32;     // format of contents stored in data blob
-  blob_deleted     : bool;      // has this data been deleted?
-  blob_size        : uint64;    // number of bytes in data blob
-  blob_data        : [ ubyte ]; // any supported format (flatbuf,arrow,csv...)
 }
 
 root_type FB_Meta ;
