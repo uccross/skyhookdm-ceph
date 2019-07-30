@@ -1390,15 +1390,21 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         return -EINVAL;
                     }
 
-                    // NOTE: normal usage: get the metadata and data out of raw
-                    // bl as fb_meta, or set optional args to false/type for
-                    // manually testing new formats
-                    sky_meta meta = getSkyMeta(bl,
-                                               false,
-                                               SFT_FLATBUF_FLEX_ROW);
+                    /*
+                    * NOTE:
+                    *
+                    * to manually test new formats you can append your new serialized
+                    * formatted data as a char* into a bl, then set optional args to
+                    * false and specify the format type such as this:
+                    * sky_meta meta = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
+                    *
+                    * which creates a new fbmeta from your new type of bl data.
+                    * then you can check the fields:
+                    * std::cout << "meta.blob_format:" << meta.blob_format << endl;
+                    */
 
-                    // container for sequence of results data structs
-                    bufferlist ans;
+                    // default usage here assumes the fbmeta is already in the bl
+                    sky_meta meta = getSkyMeta(bl);
 
                     // debug/accounting
                     std::string errmsg;
@@ -1413,8 +1419,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                                meta.blob_size,
                                                meta.blob_format);
 
-                        flatbuffers::FlatBufferBuilder flatbldr(1024);
-                        ret = processSkyFb(flatbldr,
+                        flatbuffers::FlatBufferBuilder result_builder(1024);
+                        ret = processSkyFb(result_builder,
                                            data_schema,
                                            query_schema,
                                            query_preds,
@@ -1429,13 +1435,25 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                             return -1;
                         }
 
-                        // get serialized data struct and its size
-                        const char *res_ds = \
-                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
-                        int res_ds_size = flatbldr.GetSize();
+                        // CREATE An FB_META, start with an empty builder first
+                        flatbuffers::FlatBufferBuilder *meta_builder = \
+                                new flatbuffers::FlatBufferBuilder();
+                        createFbMeta(meta_builder,
+                                     SFT_FLATBUF_FLEX_ROW,
+                                     reinterpret_cast<unsigned char*>( \
+                                            result_builder.GetBufferPointer()),
+                                            result_builder.GetSize());
 
-                        // add processed data to results
-                        ans.append(res_ds, res_ds_size);
+                         // add meta_builder's data into a bufferlist as char*
+                        bufferlist meta_bl;
+                        meta_bl.append(reinterpret_cast<const char*>( \
+                                            meta_builder->GetBufferPointer()),
+                                            meta_builder->GetSize());
+
+                        // add this result into our results bl
+                        ::encode(meta_bl, result_bl);
+                        delete meta_builder;
+
                         if (op.index_read)
                             ds_rows_processed = row_nums.size();
                         else
@@ -1465,8 +1483,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     default:
                         assert (SkyFormatTypeNotRecognized==0);
                     }
-                    // accumulate local result ans into our results bl
-                    ::encode(ans, result_bl);
 
                     // add this processed ds to sequence of bls and update counter
                     rows_processed += ds_rows_processed;

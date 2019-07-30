@@ -975,11 +975,41 @@ long long int printFlatbufFlexRowAsCsv(
     return counter;
 }
 
+// creates an fb meta data structure to wrap the underlying data
+// format (SkyFormatType)
+void
+createFbMeta(
+    flatbuffers::FlatBufferBuilder* meta_builder,
+    int data_format,
+    unsigned char *data,               // formatted, serialized data as char*
+    size_t data_size,                  // formatted data size in bytes
+    bool data_deleted,                 // def=false
+    size_t data_orig_off,              // def=0
+    size_t data_orig_len,              // def=0
+    CompressionType data_compression)  // def=none
+{
+    flatbuffers::Offset<flatbuffers::Vector<unsigned char>> data_blob = \
+            meta_builder->CreateVector(data, data_size);
+
+    flatbuffers::Offset<FB_Meta> meta_offset = Tables::CreateFB_Meta( \
+            *meta_builder,
+            data_format,
+            data_deleted,
+            data_size,
+            data_orig_off,
+            data_orig_len,
+            data_compression,
+            data_blob);
+    meta_builder->Finish(meta_offset);
+    assert (meta_builder->GetSize()>0);   // temp check for debug only
+}
+
+
 // Highest level abstraction over our data on disk.
 // Wraps a supported format (flatbuf, arrow, csv, parquet,...)
 // along with its metadata.  This unified structure is used as the primary
 // store/send/retreive data structure for many supported formats
-
+// format type is ignored if is_meta=true
 sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
 
     if (is_meta) {

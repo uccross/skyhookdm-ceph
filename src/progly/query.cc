@@ -399,10 +399,22 @@ void worker()
                 assert(decode_runquery_noncls);
             }
 
-            // NOTE: normal usage: get the metadata and data out of raw bl
-            // as fb_meta, or set optional args to false/type for manually
-            // testing new formats
-            sky_meta meta = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
+            /*
+            * NOTE:
+            *
+            * to manually test new formats you can append your new serialized
+            * formatted data as a char* into a bl, then set optional args to
+            * false and specify the format type such as this:
+            * sky_meta meta = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
+            *
+            * which creates a new fbmeta from your new type of bl data.
+            * then you can check the fields:
+            * std::cout << "meta.blob_format:" << meta.blob_format << endl;
+            */
+
+            // default usage here assumes the fbmeta is already in the bl
+            sky_meta meta = getSkyMeta(bl);
+
 
             // this code block is only used for accounting (rows processed)
             switch (meta.blob_format) {

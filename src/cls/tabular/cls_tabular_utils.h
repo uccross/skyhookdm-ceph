@@ -716,11 +716,22 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     ";
 
+// creates a skymeta st
+void
+createFbMeta(flatbuffers::FlatBufferBuilder *meta_builder,
+              int data_format,
+              unsigned char *data,
+              size_t data_size,
+              bool data_deleted=false,
+              size_t data_orig_off=0,
+              size_t data_orig_len=0,
+              CompressionType data_compression=none);
+
 // these extract the current data format (flatbuf) into a skyhook
 // root table and row table data structure defined above, abstracting
 // skyhook data partitions from the underlying data format.
 sky_meta getSkyMeta(bufferlist bl,
-                    bool is_meta=true,
+                    bool is_meta=true, // when true, format arg is ignored
                     int data_format=SFT_FLATBUF_FLEX_ROW);
 
 sky_root getSkyRoot(const char *ds,
