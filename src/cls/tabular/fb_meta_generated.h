@@ -12,45 +12,45 @@ struct FB_Meta;
 
 struct FB_Meta FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_FORMAT_TYPE = 4,
-    VT_IS_DELETED = 6,
-    VT_DATA_SIZE = 8,
-    VT_GLOBAL_OFF = 10,
-    VT_LEN = 12,
-    VT_COMPRESSION_TYPE = 14,
-    VT_DATA = 16
+    VT_BLOB_ORIG_OFF = 4,
+    VT_BLOB_ORIG_LEN = 6,
+    VT_BLOB_COMPRESSION = 8,
+    VT_BLOB_FORMAT = 10,
+    VT_BLOB_DELETED = 12,
+    VT_BLOB_SIZE = 14,
+    VT_BLOB_DATA = 16
   };
-  int32_t format_type() const {
-    return GetField<int32_t>(VT_FORMAT_TYPE, 0);
+  uint64_t blob_orig_off() const {
+    return GetField<uint64_t>(VT_BLOB_ORIG_OFF, 0);
   }
-  bool is_deleted() const {
-    return GetField<uint8_t>(VT_IS_DELETED, 0) != 0;
+  uint64_t blob_orig_len() const {
+    return GetField<uint64_t>(VT_BLOB_ORIG_LEN, 0);
   }
-  uint64_t data_size() const {
-    return GetField<uint64_t>(VT_DATA_SIZE, 0);
+  int32_t blob_compression() const {
+    return GetField<int32_t>(VT_BLOB_COMPRESSION, 0);
   }
-  uint64_t global_off() const {
-    return GetField<uint64_t>(VT_GLOBAL_OFF, 0);
+  int32_t blob_format() const {
+    return GetField<int32_t>(VT_BLOB_FORMAT, 0);
   }
-  uint64_t len() const {
-    return GetField<uint64_t>(VT_LEN, 0);
+  bool blob_deleted() const {
+    return GetField<uint8_t>(VT_BLOB_DELETED, 0) != 0;
   }
-  int32_t compression_type() const {
-    return GetField<int32_t>(VT_COMPRESSION_TYPE, 0);
+  uint64_t blob_size() const {
+    return GetField<uint64_t>(VT_BLOB_SIZE, 0);
   }
-  const flatbuffers::Vector<uint8_t> *data() const {
-    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_DATA);
+  const flatbuffers::Vector<uint8_t> *blob_data() const {
+    return GetPointer<const flatbuffers::Vector<uint8_t> *>(VT_BLOB_DATA);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_FORMAT_TYPE) &&
-           VerifyField<uint8_t>(verifier, VT_IS_DELETED) &&
-           VerifyField<uint64_t>(verifier, VT_DATA_SIZE) &&
-           VerifyField<uint64_t>(verifier, VT_GLOBAL_OFF) &&
-           VerifyField<uint64_t>(verifier, VT_LEN) &&
-           VerifyField<int32_t>(verifier, VT_COMPRESSION_TYPE) &&
-           VerifyOffset(verifier, VT_DATA) &&
-           verifier.VerifyVector(data()) &&
+           VerifyField<uint64_t>(verifier, VT_BLOB_ORIG_OFF) &&
+           VerifyField<uint64_t>(verifier, VT_BLOB_ORIG_LEN) &&
+           VerifyField<int32_t>(verifier, VT_BLOB_COMPRESSION) &&
+           VerifyField<int32_t>(verifier, VT_BLOB_FORMAT) &&
+           VerifyField<uint8_t>(verifier, VT_BLOB_DELETED) &&
+           VerifyField<uint64_t>(verifier, VT_BLOB_SIZE) &&
+           VerifyOffset(verifier, VT_BLOB_DATA) &&
+           verifier.VerifyVector(blob_data()) &&
            verifier.EndTable();
   }
 };
@@ -58,26 +58,26 @@ struct FB_Meta FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
 struct FB_MetaBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
-  void add_format_type(int32_t format_type) {
-    fbb_.AddElement<int32_t>(FB_Meta::VT_FORMAT_TYPE, format_type, 0);
+  void add_blob_orig_off(uint64_t blob_orig_off) {
+    fbb_.AddElement<uint64_t>(FB_Meta::VT_BLOB_ORIG_OFF, blob_orig_off, 0);
   }
-  void add_is_deleted(bool is_deleted) {
-    fbb_.AddElement<uint8_t>(FB_Meta::VT_IS_DELETED, static_cast<uint8_t>(is_deleted), 0);
+  void add_blob_orig_len(uint64_t blob_orig_len) {
+    fbb_.AddElement<uint64_t>(FB_Meta::VT_BLOB_ORIG_LEN, blob_orig_len, 0);
   }
-  void add_data_size(uint64_t data_size) {
-    fbb_.AddElement<uint64_t>(FB_Meta::VT_DATA_SIZE, data_size, 0);
+  void add_blob_compression(int32_t blob_compression) {
+    fbb_.AddElement<int32_t>(FB_Meta::VT_BLOB_COMPRESSION, blob_compression, 0);
   }
-  void add_global_off(uint64_t global_off) {
-    fbb_.AddElement<uint64_t>(FB_Meta::VT_GLOBAL_OFF, global_off, 0);
+  void add_blob_format(int32_t blob_format) {
+    fbb_.AddElement<int32_t>(FB_Meta::VT_BLOB_FORMAT, blob_format, 0);
   }
-  void add_len(uint64_t len) {
-    fbb_.AddElement<uint64_t>(FB_Meta::VT_LEN, len, 0);
+  void add_blob_deleted(bool blob_deleted) {
+    fbb_.AddElement<uint8_t>(FB_Meta::VT_BLOB_DELETED, static_cast<uint8_t>(blob_deleted), 0);
   }
-  void add_compression_type(int32_t compression_type) {
-    fbb_.AddElement<int32_t>(FB_Meta::VT_COMPRESSION_TYPE, compression_type, 0);
+  void add_blob_size(uint64_t blob_size) {
+    fbb_.AddElement<uint64_t>(FB_Meta::VT_BLOB_SIZE, blob_size, 0);
   }
-  void add_data(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data) {
-    fbb_.AddOffset(FB_Meta::VT_DATA, data);
+  void add_blob_data(flatbuffers::Offset<flatbuffers::Vector<uint8_t>> blob_data) {
+    fbb_.AddOffset(FB_Meta::VT_BLOB_DATA, blob_data);
   }
   explicit FB_MetaBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -93,43 +93,43 @@ struct FB_MetaBuilder {
 
 inline flatbuffers::Offset<FB_Meta> CreateFB_Meta(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t format_type = 0,
-    bool is_deleted = false,
-    uint64_t data_size = 0,
-    uint64_t global_off = 0,
-    uint64_t len = 0,
-    int32_t compression_type = 0,
-    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> data = 0) {
+    uint64_t blob_orig_off = 0,
+    uint64_t blob_orig_len = 0,
+    int32_t blob_compression = 0,
+    int32_t blob_format = 0,
+    bool blob_deleted = false,
+    uint64_t blob_size = 0,
+    flatbuffers::Offset<flatbuffers::Vector<uint8_t>> blob_data = 0) {
   FB_MetaBuilder builder_(_fbb);
-  builder_.add_len(len);
-  builder_.add_global_off(global_off);
-  builder_.add_data_size(data_size);
-  builder_.add_data(data);
-  builder_.add_compression_type(compression_type);
-  builder_.add_format_type(format_type);
-  builder_.add_is_deleted(is_deleted);
+  builder_.add_blob_size(blob_size);
+  builder_.add_blob_orig_len(blob_orig_len);
+  builder_.add_blob_orig_off(blob_orig_off);
+  builder_.add_blob_data(blob_data);
+  builder_.add_blob_format(blob_format);
+  builder_.add_blob_compression(blob_compression);
+  builder_.add_blob_deleted(blob_deleted);
   return builder_.Finish();
 }
 
 inline flatbuffers::Offset<FB_Meta> CreateFB_MetaDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t format_type = 0,
-    bool is_deleted = false,
-    uint64_t data_size = 0,
-    uint64_t global_off = 0,
-    uint64_t len = 0,
-    int32_t compression_type = 0,
-    const std::vector<uint8_t> *data = nullptr) {
-  auto data__ = data ? _fbb.CreateVector<uint8_t>(*data) : 0;
+    uint64_t blob_orig_off = 0,
+    uint64_t blob_orig_len = 0,
+    int32_t blob_compression = 0,
+    int32_t blob_format = 0,
+    bool blob_deleted = false,
+    uint64_t blob_size = 0,
+    const std::vector<uint8_t> *blob_data = nullptr) {
+  auto blob_data__ = blob_data ? _fbb.CreateVector<uint8_t>(*blob_data) : 0;
   return Tables::CreateFB_Meta(
       _fbb,
-      format_type,
-      is_deleted,
-      data_size,
-      global_off,
-      len,
-      compression_type,
-      data__);
+      blob_orig_off,
+      blob_orig_len,
+      blob_compression,
+      blob_format,
+      blob_deleted,
+      blob_size,
+      blob_data__);
 }
 
 inline const Tables::FB_Meta *GetFB_Meta(const void *buf) {
