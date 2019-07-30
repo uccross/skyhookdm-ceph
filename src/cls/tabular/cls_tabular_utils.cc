@@ -349,7 +349,324 @@ int processSkyFb(
     return errcode;
 }
 
-int processSkyFb_fbu(
+int processSkyFb_fbu_cols(
+    flatbuffers::FlatBufferBuilder& flatbldr,
+    schema_vec& data_schema,
+    schema_vec& query_schema,
+    predicate_vec& preds,
+    const char* fb,
+    const size_t fb_size,
+    std::string& errmsg,
+    const std::vector<uint32_t>& row_nums)
+{
+    int errcode = 0;
+    delete_vector dead_rows;
+    std::vector<flatbuffers::Offset<Tables::Record>> offs;
+    sky_root root = getSkyRoot(fb, fb_size, SFT_FLATBUF_UNION_COL);
+
+    // identify the max col idx, to prevent flexbuf vector oob error
+    int col_idx_max = -1;
+    for (auto it=data_schema.begin(); it!=data_schema.end(); ++it) {
+        if (it->idx > col_idx_max)
+            col_idx_max = it->idx;
+    }
+
+    bool project_all = std::equal(data_schema.begin(), data_schema.end(),
+                                  query_schema.begin(), compareColInfo);
+
+    // build the flexbuf with computed aggregates, aggs are computed for
+    // each row that passes, and added to flexbuf after loop below.
+    bool encode_aggs = false;
+    if (hasAggPreds(preds)) encode_aggs = true;
+    bool encode_rows = !encode_aggs;
+
+    // determines if we process specific rows or all rows, since
+    // row_nums vector is optional parameter - default process all rows.
+    bool process_all_rows = true;
+    uint32_t nrows = root.nrows;
+    if (!row_nums.empty()) {
+        process_all_rows = false;  // process specified row numbers only
+        nrows = row_nums.size();
+    }
+
+    // 1. check the preds for passing
+    // 2a. accumulate agg preds (return flexbuf built after all rows) or
+    // 2b. build the return flatbuf inline below from each row's projection
+    for (uint32_t i = 0; i < nrows; i++) {
+
+        // process row i or the specified row number
+        uint32_t rnum = 0;
+        if (process_all_rows) rnum = i;
+        else rnum = row_nums[i];
+        if (rnum > root.nrows) {
+            errmsg += "ERROR: rnum(" + std::to_string(rnum) +
+                      ") > root.nrows(" + to_string(root.nrows) + ")";
+            return RowIndexOOB;
+        }
+
+        // skip dead rows.
+        if (root.delete_vec[rnum] == 1) continue;
+
+        // note: agg preds are accumlated in the predicate itself during
+        // applyPredicates above, then later added to result fb outside
+        // of this loop (i.e., they are not encoded into the result fb yet)
+        // thus we can skip the below encoding of rows into the result fb
+        // and just continue accumulating agg preds in this processing loop.
+        // note: skipping doesn't work with this implementation of col processing.
+        //if (!encode_rows) continue;
+
+        if (project_all) {
+            // TODO:  just pass through row table offset to new data_vec
+            // (which is also type offs), do not rebuild row table and flexbuf
+        }
+
+        // build the return projection for this row.
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
+
+        int this_rid = 0 ;
+        flexbldr->Vector([&]() {
+            // iter over the query schema, locating it within the data schema
+            for (auto it=query_schema.begin();
+                      it!=query_schema.end() && !errcode; ++it) {
+
+                // get column metadata
+                col_info colmeta = *it;
+
+                // get a skyhook col struct
+                sky_col_fbu skycol = getSkyCol_fbu( root, colmeta.idx );
+                auto this_col       = skycol.data_fbu_col ;
+                //auto this_col_name  = this_col->col_name() ;
+                //auto this_col_index = this_col->col_index() ;
+                auto curr_col_data  = this_col->data() ;
+                auto curr_col_data_rids = this_col->RIDs() ;
+                this_rid = curr_col_data_rids->Get( rnum ) ;
+
+                if (colmeta.idx < AGG_COL_LAST or colmeta.idx > col_idx_max) {
+                    errcode = TablesErrCodes::RequestedColIndexOOB;
+                    errmsg.append("ERROR processSkyFb(): table=" +
+                            root.table_name + "; rid=" +
+                            std::to_string(this_rid) + " colmeta.idx=" +
+                            std::to_string(colmeta.idx) + " OOB.");
+                } else {
+                    switch(colmeta.type) {  // encode data val into flexbuf
+                        //case SDT_INT8:
+                        //    flexbldr->Add(row[col.idx].AsInt8());
+                        //    break;
+                        //case SDT_INT16:
+                        //    flexbldr->Add(row[col.idx].AsInt16());
+                        //    break;
+                        //case SDT_INT32:
+                        //    flexbldr->Add(row[col.idx].AsInt32());
+                        //    break;
+                        //case SDT_INT64:
+                        //    flexbldr->Add(row[col.idx].AsInt64());
+                        //    break;
+                        //case SDT_UINT8:
+                        //    flexbldr->Add(row[col.idx].AsUInt8());
+                        //    break;
+                        //case SDT_UINT16:
+                        //    flexbldr->Add(row[col.idx].AsUInt16());
+                        //    break;
+                        //case SDT_UINT32:
+                        //    flexbldr->Add(row[col.idx].AsUInt32());
+                        //    break;
+                        case SDT_UINT64: {
+                            auto column_of_data = 
+                                static_cast< const Tables::SDT_UINT64_FBU* >( curr_col_data ) ;
+                            auto data_at_row = column_of_data->data()->Get( rnum ) ;
+                            std::cout << "0=" << std::to_string( data_at_row ) << std::endl ;
+                            flexbldr->Add( data_at_row );
+                            break;
+                        }
+                        //case SDT_CHAR:
+                        //    flexbldr->Add(row[col.idx].AsInt8());
+                        //    break;
+                        //case SDT_UCHAR:
+                        //    flexbldr->Add(row[col.idx].AsUInt8());
+                        //    break;
+                        //case SDT_BOOL:
+                        //    flexbldr->Add(row[col.idx].AsBool());
+                        //    break;
+                        case SDT_FLOAT: {
+                            auto column_of_data = 
+                                static_cast< const Tables::SDT_FLOAT_FBU* >( curr_col_data ) ;
+                            auto data_at_row = column_of_data->data()->Get( rnum ) ;
+                            std::cout << " 0= " << std::to_string( data_at_row ) << std::endl ;
+                            flexbldr->Add( data_at_row );
+                            break;
+                        }
+                        //case SDT_DOUBLE:
+                        //    flexbldr->Add(row[col.idx].AsDouble());
+                        //    break;
+                        //case SDT_DATE:
+                        //    flexbldr->Add(row[col.idx].AsString().str());
+                        //    break;
+                        case SDT_STRING: {
+                            auto column_of_data = 
+                                static_cast< const Tables::SDT_STRING_FBU* >( curr_col_data ) ;
+                            auto data_at_row = column_of_data->data()->Get( rnum )->str() ;
+                            std::cout << " 0= " << data_at_row << std::endl ;
+                            flexbldr->Add( data_at_row );
+                            break;
+                        }
+                        default: {
+                            errcode = TablesErrCodes::UnsupportedSkyDataType;
+                            errmsg.append("ERROR processSkyFb(): table=" +
+                                    root.table_name + "; rid=" +
+                                    std::to_string(rnum) + " colmeta.type=" +
+                                    std::to_string(colmeta.type) +
+                                    " UnsupportedSkyDataType.");
+                        } //default
+                    } //switch
+                } //ifelse
+            } //for query column
+        }); //flex builder Vector
+
+        // finalize the row's projected data within our flexbuf
+        flexbldr->Finish();
+
+        // get the sky_rec version of the extracted row
+        // TODO: there's gotta be a better way.
+        flatbuffers::FlatBufferBuilder tmp_builder(1024) ;
+        std::vector< uint64_t > nv ( 2, 0 ) ;
+        auto nv_fb          = tmp_builder.CreateVector( nv ) ;
+        auto extracted_data = tmp_builder.CreateVector(flexbldr->GetBuffer());
+        flatbuffers::Offset<Tables::Record> extracted_fb = 
+                Tables::CreateRecord(tmp_builder, this_rid, nv_fb, extracted_data);
+        std::vector< flatbuffers::Offset<Tables::Record> > rows ;
+        rows.push_back( extracted_fb ) ;
+        auto rows_fb = tmp_builder.CreateVector( rows ) ;
+        auto t = Tables::CreateTable( tmp_builder, 0, 0, 0, 0, 0, 0, 0, 0, rows_fb, 0);
+        tmp_builder.Finish( t ) ;
+        auto buffptr = tmp_builder.GetBufferPointer() ;
+        auto root = Tables::GetTable( buffptr );
+        auto data_rec = root->rows()->Get(0) ; //there is only one
+        sky_rec skyrec( this_rid, nv, data_rec->data_flexbuffer_root() ) ;
+
+        // apply predicates to this record
+        if (!preds.empty()) {
+            bool pass = applyPredicates(preds, skyrec);
+            if (!pass) continue;  // skip non matching rows.
+        }
+
+        // build the return ROW flatbuf that contains the flexbuf data
+        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
+        // TODO: replace this with actual nullbit tallies
+        std::vector< uint64_t > nullbits_vector ( 2, 0 ) ;
+        auto nullbits = flatbldr.CreateVector(nullbits_vector);
+        flatbuffers::Offset<Tables::Record> row_off = 
+                Tables::CreateRecord(flatbldr, rnum, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
+    } //for row number
+
+    // here we build the return flatbuf result with agg values that were
+    // accumulated above in applyPredicates (agg predicates do not return
+    // true false but update their internal values each time processed
+    if (encode_aggs) { //  encode accumulated agg pred val into return flexbuf
+        PredicateBase* pb;
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flexbldr->Vector([&]() {
+            for (auto itp = preds.begin(); itp != preds.end(); ++itp) {
+                // assumes preds appear in same order as return schema
+                if (!(*itp)->isGlobalAgg()) continue;
+                pb = *itp;
+                switch(pb->colType()) {  // encode agg data val into flexbuf
+                    case SDT_INT64: {
+                        TypedPredicate<int64_t>* p = \
+                                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+                        int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_UINT64: {
+                        TypedPredicate<uint64_t>* p = \
+                                dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+                        uint64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_FLOAT: {
+                        TypedPredicate<float>* p = \
+                                dynamic_cast<TypedPredicate<float>*>(pb);
+                        float agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_DOUBLE: {
+                        TypedPredicate<double>* p = \
+                                dynamic_cast<TypedPredicate<double>*>(pb);
+                        double agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    default:  assert(UnsupportedAggDataType==0);
+                }
+            }
+        });
+        // finalize the row's projected data within our flexbuf
+        flexbldr->Finish();
+
+        // build the return ROW flatbuf that contains the flexbuf data
+        auto row_data = flatbldr.CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
+        // assume no nullbits in the agg results. ?
+        nullbits_vector nb(2,0);
+        auto nullbits = flatbldr.CreateVector(nb);
+        int RID = -1;  // agg recs only, since these are derived data
+        flatbuffers::Offset<Tables::Record> row_off = \
+            Tables::CreateRecord(flatbldr, RID, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
+        //std::cout << "aggggggggggggggggggssssssssssssssssss" << std::endl ;
+        //exit(1) ;
+/* testing...
+...testing */
+    } //if aggs
+
+    // now build the return ROOT flatbuf wrapper
+    std::string query_schema_str;
+    for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
+        query_schema_str.append(it->toString() + "\n");
+    }
+
+    auto return_data_schema = flatbldr.CreateString(query_schema_str);
+    auto db_schema_name     = flatbldr.CreateString(root.db_schema_name);
+    auto table_name         = flatbldr.CreateString(root.table_name);
+    auto delete_v           = flatbldr.CreateVector(dead_rows);
+    auto rows_v             = flatbldr.CreateVector(offs);
+
+    auto table = CreateTable(
+        flatbldr,
+        root.data_format_type,
+        root.skyhook_version,
+        root.data_structure_version,
+        root.data_schema_version,
+        return_data_schema,
+        db_schema_name,
+        table_name,
+        delete_v,
+        rows_v,
+        offs.size());
+
+    // NOTE: the fb may be incomplete/empty, but must finish() else internal
+    // fb lib assert finished() fails, hence we must always return a valid fb
+    // and catch any ret error code upstream
+    flatbldr.Finish(table);
+    std::cout << "processSkyFb_fbu_cols done." << std::endl ;
+
+    return errcode;
+} //processSkyFb_fbu_cols
+
+int processSkyFb_fbu_rows(
     flatbuffers::FlatBufferBuilder& flatbldr,
     schema_vec& data_schema,
     schema_vec& query_schema,
@@ -412,7 +729,7 @@ int processSkyFb_fbu(
 
         // apply predicates to this record
         if (!preds.empty()) {
-            bool pass = applyPredicates_fbu(preds, rec);
+            bool pass = applyPredicates_fbu_row(preds, rec);
             if (!pass) continue;  // skip non matching rows.
         }
 
@@ -626,10 +943,9 @@ int processSkyFb_fbu(
     // fb lib assert finished() fails, hence we must always return a valid fb
     // and catch any ret error code upstream
     flatbldr.Finish(table);
-    std::cout << "processSkyFb_fbu done." << std::endl ;
 
     return errcode;
-} //processSkyFb_fbu
+} //processSkyFb_fbu_rows
 
 // simple converstion from schema to its str representation.
 std::string schemaToString(schema_vec schema) {
@@ -1396,28 +1712,29 @@ long long int printFlatbufFBUAsCsv(
         case SFT_FLATBUF_UNION_COL : {
 
             long long int counter = 0;
-            for( unsigned int i = 0; i < sc.size(); i++ ) {
-                if (counter >= max_to_print)
-                    break;
+            bool first = true;
+            // iterate over rows
+            for( unsigned int j = 0; j < skyroot.nrows; j++ ) {
+                if (!first) std::cout << CSV_DELIM;
+                first = false;
 
-                if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
-                col_info col = sc.at(i);
+                // iterate over columns
+                for( unsigned int i = 0; i < sc.size(); i++ ) {
+                    if (counter >= max_to_print)
+                        break;
 
-                // get the record struct, then the row data
-                sky_col_fbu skycol = getSkyCol_fbu( skyroot, i ) ;
-                if (print_verbose)
-                    printSkyColHeader_fbu(skycol);
+                    if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+                    col_info col = sc.at(i);
+
+                    // get the record struct, then the row data
+                    sky_col_fbu skycol = getSkyCol_fbu( skyroot, i ) ;
+                    if (print_verbose)
+                        printSkyColHeader_fbu(skycol);
   
-                auto this_col       = skycol.data_fbu_col ;
-                auto this_col_name  = this_col->col_name() ;
-                auto this_col_index = this_col->col_index() ;
-                auto curr_col_data  = this_col->data() ;
-                std::cout << "blah" << std::endl ;
-
-                bool first = true;
-                for( unsigned int j = 0; j < skyroot.nrows; j++ ) {
-                    if (!first) std::cout << CSV_DELIM;
-                    first = false;
+                    auto this_col       = skycol.data_fbu_col ;
+                    //auto this_col_name  = this_col->col_name() ;
+                    //auto this_col_index = this_col->col_index() ;
+                    auto curr_col_data  = this_col->data() ;
 
                     if (col.nullable) {  // check nullbit
                         bool is_null = false;
@@ -1467,11 +1784,6 @@ long long int printFlatbufFBUAsCsv(
             assert( SkyFormatTypeNotRecognized==0 ) ;
 
     } //switch
-
-    std::cout << "blah" << std::endl ;
-    exit(1) ;
-/* testing...
-...testing */
 
     return -1 ;
 }
@@ -1921,7 +2233,7 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
     return rowpass;
 }
 
-bool applyPredicates_fbu(predicate_vec& pv, sky_rec_fbu& rec) {
+bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec) {
 
     bool rowpass = false;
     bool init_rowpass = false;

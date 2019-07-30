@@ -16,7 +16,7 @@
 int main(int argc, char **argv) {
 
   std::string pool     = "tpchflatbuf" ;
-  std::string oid      = "blahkat_cols4" ;
+  std::string oid      = "obj.0" ;
   SkyFormatType format = SFT_FLATBUF_UNION_COL ;
   bool debug           = true ;
 
@@ -83,17 +83,19 @@ int main(int argc, char **argv) {
                   format ) ;
     std::cout << ret1 << std::endl ;
   
-//    flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
-//    std::string errmsg ;
-//  
-//    int ret = processSkyFb_fbu(
-//                flatbldr,
-//                sky_tbl_schema,
-//                sky_qry_schema,
-//                sky_qry_preds,
-//                dataptr,
-//                datasz,
-//                errmsg ) ;
+    flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
+    std::string errmsg ;
+  
+    std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
+    int ret = processSkyFb_fbu_cols(
+                flatbldr,
+                sky_tbl_schema,
+                sky_qry_schema,
+                sky_qry_preds,
+                dataptr,
+                datasz,
+                errmsg ) ;
+    std::cout << ret << std::endl ;
 
   } //while
 

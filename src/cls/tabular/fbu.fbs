@@ -40,11 +40,11 @@ table Record_FBU {
 }
 
 table Cols_FBU {
-  RIDs : [ uint64 ] ;
   data : [ Col_FBU ] ;
 }
 
 table Col_FBU {
+  RIDs      : [ uint64 ] ;
   nullbits  : [ uint64 ] ;    
   col_name  : string ;
   col_index : ubyte  ;

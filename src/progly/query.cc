@@ -201,6 +201,14 @@ static void print_data(const char *dataptr,
                                              SFT_FLATBUF_UNION_ROW );
             break;
         case SFT_FLATBUF_UNION_COL:
+            row_counter += \
+                Tables::printFlatbufFBUAsCsv(dataptr,
+                                             datasz,
+                                             print_header,
+                                             print_verbose,
+                                             row_limit - row_counter,
+                                             SFT_FLATBUF_UNION_COL );
+            break;
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
@@ -411,7 +419,8 @@ void worker()
             // as fb_meta, or set optional args to false/type for manually
             // testing new formats
             //sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
-            sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_ROW);
+            //sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_ROW);
+            sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_COL);
             const char* dataptr = m.data_ptr;
             size_t datasz = m.data_size;
             int data_format = m.format_type;
@@ -439,7 +448,11 @@ void worker()
                     rows_returned += root.nrows;
                     break;
                 }
-                case SFT_FLATBUF_UNION_COL:
+                case SFT_FLATBUF_UNION_COL: {
+                    sky_root root = Tables::getSkyRoot(dataptr, 0, SFT_FLATBUF_UNION_COL);
+                    rows_returned += root.nrows;
+                    break;
+                }
                 case SFT_FLATBUF_CSV_ROW:
                 case SFT_PG_TUPLE:
                 case SFT_CSV:
@@ -483,11 +496,16 @@ void worker()
                         sky_root root = Tables::getSkyRoot(dataptr, 0, SFT_FLATBUF_UNION_ROW);
                         result_count += root.nrows;
                         print_data(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
-                        std::cout << "blah2" << std::endl ;
                         break;
                     }
 
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_COL: {
+                        sky_root root = Tables::getSkyRoot(dataptr, 0, SFT_FLATBUF_UNION_COL);
+                        result_count += root.nrows;
+                        print_data(dataptr, datasz, SFT_FLATBUF_UNION_COL);
+                        break;
+                    }
+
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -555,13 +573,13 @@ void worker()
                     case SFT_FLATBUF_UNION_ROW: {
                         flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                         //returns a flex rows fb, not an fbu rows fb
-                        int ret = processSkyFb_fbu(flatbldr,
-                                                   sky_tbl_schema,
-                                                   sky_qry_schema,
-                                                   sky_qry_preds,
-                                                   dataptr,
-                                                   datasz, // size in bytes, unused
-                                                   errmsg);
+                        int ret = processSkyFb_fbu_rows(flatbldr,
+                                                        sky_tbl_schema,
+                                                        sky_qry_schema,
+                                                        sky_qry_preds,
+                                                        dataptr,
+                                                        datasz, // size in bytes, unused
+                                                        errmsg);
                         if (ret != 0) {
                             int more_processing_failure = true;
                             std::cerr << "ERROR: query.cc: processing flatbuf: "
@@ -578,7 +596,31 @@ void worker()
                         break;
                     }
 
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_COL: {
+                        flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
+                        //returns a flex rows fb, not an fbu col fb
+                        int ret = processSkyFb_fbu_cols(flatbldr,
+                                                        sky_tbl_schema,
+                                                        sky_qry_schema,
+                                                        sky_qry_preds,
+                                                        dataptr,
+                                                        datasz, // size in bytes, unused
+                                                        errmsg);
+                        if (ret != 0) {
+                            int more_processing_failure = true;
+                            std::cerr << "ERROR: query.cc: processing flatbuf: "
+                                      << errmsg << "\n Tables::ErrCodes=" << ret
+                                      << endl;
+                            assert(more_processing_failure);
+                        }
+
+                        dataptr =                                 \
+                            reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                        sky_root root = getSkyRoot(dataptr, datasz);
+                        result_count += root.nrows;
+                        print_data(dataptr, datasz, SFT_FLATBUF_FLEX_ROW);
+                        break;
+                    }
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
