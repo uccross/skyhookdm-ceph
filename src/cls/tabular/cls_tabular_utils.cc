@@ -378,7 +378,7 @@ int processSkyFb_fbu_cols(
     // each row that passes, and added to flexbuf after loop below.
     bool encode_aggs = false;
     if (hasAggPreds(preds)) encode_aggs = true;
-    bool encode_rows = !encode_aggs;
+    //bool encode_rows = !encode_aggs;
 
     // determines if we process specific rows or all rows, since
     // row_nums vector is optional parameter - default process all rows.
@@ -1711,17 +1711,17 @@ long long int printFlatbufFBUAsCsv(
 
         case SFT_FLATBUF_UNION_COL : {
 
-            long long int counter = 0;
-            bool first = true;
             // iterate over rows
+            long long int counter = 0;
             for( unsigned int j = 0; j < skyroot.nrows; j++ ) {
-                if (!first) std::cout << CSV_DELIM;
-                first = false;
+                if (counter >= max_to_print)
+                    break;
 
                 // iterate over columns
+                bool first = true;
                 for( unsigned int i = 0; i < sc.size(); i++ ) {
-                    if (counter >= max_to_print)
-                        break;
+                    if (!first) std::cout << CSV_DELIM;
+                    first = false;
 
                     if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
                     col_info col = sc.at(i);
@@ -1754,28 +1754,28 @@ long long int printFlatbufFBUAsCsv(
                           auto column_of_data = 
                               static_cast< const Tables::SDT_UINT64_FBU* >( curr_col_data ) ;
                           auto data_at_row = column_of_data->data()->Get(j) ;
-                          std::cout << std::to_string( data_at_row ) << std::endl ;
+                          std::cout << std::to_string( data_at_row ) ;
                           break ;
                       }
                       case SDT_FLOAT : {
                           auto column_of_data = 
                               static_cast< const Tables::SDT_FLOAT_FBU* >( curr_col_data ) ;
                           auto data_at_row = column_of_data->data()->Get(j) ;
-                          std::cout << std::to_string( data_at_row ) << std::endl ;
+                          std::cout << std::to_string( data_at_row ) ;
                           break ;
                       }
                       case SDT_STRING : {
                           auto column_of_data = 
                               static_cast< const Tables::SDT_STRING_FBU* >( curr_col_data ) ;
                           auto data_at_row = column_of_data->data()->Get(j)->str() ;
-                          std::cout << data_at_row << std::endl ;
+                          std::cout << data_at_row ;
                           break ;
                       }
                       default :
                           assert (TablesErrCodes::UnknownSkyDataType==0);
                     } //switch
                 } //for
-              std::cout << "looping..." << std::endl ;
+                std::cout << std::endl ;
             } //for
             return counter ;
             break ;
