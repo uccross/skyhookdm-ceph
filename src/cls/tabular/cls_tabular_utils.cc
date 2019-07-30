@@ -994,12 +994,12 @@ createFbMeta(
     flatbuffers::Offset<FB_Meta> meta_offset = Tables::CreateFB_Meta( \
             *meta_builder,
             data_format,
-            data_deleted,
+            data_blob,
             data_size,
+            data_deleted,
             data_orig_off,
             data_orig_len,
-            data_compression,
-            data_blob);
+            data_compression);
     meta_builder->Finish(meta_offset);
     assert (meta_builder->GetSize()>0);   // temp check for debug only
 }

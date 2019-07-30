@@ -1440,9 +1440,9 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                 new flatbuffers::FlatBufferBuilder();
                         createFbMeta(meta_builder,
                                      SFT_FLATBUF_FLEX_ROW,
-                                     reinterpret_cast<unsigned char*>( \
+                                     reinterpret_cast<unsigned char*>(
                                             result_builder.GetBufferPointer()),
-                                            result_builder.GetSize());
+                                     result_builder.GetSize());
 
                          // add meta_builder's data into a bufferlist as char*
                         bufferlist meta_bl;

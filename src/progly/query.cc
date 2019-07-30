@@ -415,7 +415,6 @@ void worker()
             // default usage here assumes the fbmeta is already in the bl
             sky_meta meta = getSkyMeta(bl);
 
-
             // this code block is only used for accounting (rows processed)
             switch (meta.blob_format) {
                 case SFT_FLATBUF_FLEX_ROW: {

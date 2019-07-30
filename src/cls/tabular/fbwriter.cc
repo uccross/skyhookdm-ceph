@@ -662,11 +662,11 @@ writeToDisk(
     // CREATE An FB_META, using an empty builder first.
     flatbuffers::FlatBufferBuilder *meta_builder = \
             new flatbuffers::FlatBufferBuilder();
-    createFbMeta(meta_builder,
-                 SFT_FLATBUF_FLEX_ROW,
-                 reinterpret_cast<unsigned char*>( \
-                        bucket->fb->GetBufferPointer()),
-                        bucket->fb->GetSize());
+    createFbMeta(
+            meta_builder,
+            SFT_FLATBUF_FLEX_ROW,
+            reinterpret_cast<unsigned char*>(bucket->fb->GetBufferPointer()),
+            bucket->fb->GetSize());
 
     // add meta_builder's data into a bufferlist as char*
     bufferlist meta_bl;
