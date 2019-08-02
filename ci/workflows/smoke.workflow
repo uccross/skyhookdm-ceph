@@ -3,7 +3,7 @@ workflow "smoke tests" {
 }
 
 action "build skyhook cls" {
-  uses = "popperized/ceph-builder:skyhook-bionic"
+  uses = "docker://popperized/ceph-builder:skyhook-bionic"
   args = "cls_tabular run-query ceph_test_skyhook_query"
   env = {
     CMAKE_FLAGS = "-DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_RBD=OFF -DWITH_CEPHFS=OFF -DWITH_RADOSGW=OFF -DWITH_LEVELDB=OFF -DWITH_MANPAGE=OFF -DWITH_RDMA=OFF -DWITH_OPENLDAP=OFF -DWITH_FUSE=OFF -DWITH_LIBCEPHFS=OFF -DWITH_KRBD=OFF -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF -DWITH_SYSTEMD=OFF -DWITH_SPDK=OFF -DWITH_CCACHE=ON -DBOOST_J=4"
