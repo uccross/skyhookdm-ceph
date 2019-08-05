@@ -58,7 +58,8 @@ enum SkyFormatType {
     SFT_ARROW,
     SFT_PG_TUPLE,
     SFT_CSV,
-    SFT_HDF5
+    SFT_HDF5,
+    SFT_JSON
 };
 
 enum CompressionType {

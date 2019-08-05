@@ -1,7 +1,7 @@
 namespace Tables;
 
 table FB_Meta {
-  blob_format      : int32;     // format of contents stored in data blob
+  blob_format      : int32;     // enum SkyFormatType of contents stored in data blob
   blob_data        : [ ubyte ]; // any supported format (flatbuf,arrow,csv...)
   blob_size        : uint64;    // number of bytes in data blob
   blob_deleted     : bool;      // has this data been deleted?

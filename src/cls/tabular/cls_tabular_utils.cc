@@ -921,8 +921,11 @@ long long int printFlatbufFlexRowAsCsv(
 
         if (root.delete_vec.at(i) == 1) continue;  // skip dead rows.
 
-        // get the record struct, then the row data
-        sky_rec skyrec = getSkyRec(static_cast<row_offs>(root.data_vec)->Get(i));
+        // get the record struct
+        sky_rec skyrec = \
+            getSkyRec(static_cast<row_offs>(root.data_vec)->Get(i));
+
+        // now get the flexbuf row's data as a flexbuf vec
         auto row = skyrec.data.AsVector();
 
         if (print_verbose)
@@ -975,6 +978,78 @@ long long int printFlatbufFlexRowAsCsv(
     return counter;
 }
 
+
+long long int printJSONAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print) {
+
+    // get root table ptr as sky struct
+    sky_root root = getSkyRoot(dataptr, datasz, SFT_JSON);
+    schema_vec sc = schemaFromString(root.data_schema);
+    assert(!sc.empty());
+
+    if (print_verbose)
+        printSkyRootHeader(root);
+
+    // print header row showing schema
+    if (print_header) {
+        bool first = true;
+        for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
+            std::cout << it->name;
+            if (it->is_key) std::cout << "(key)";
+            if (!it->nullable) std::cout << "(NOT NULL)";
+
+        }
+        std::cout << std::endl; // newline to start first row.
+    }
+
+    // iterate over each row data (Record_FBX)
+    // NOTE: JSON stores all rows (json objs) in single record currently.
+    long long int counter = 0;
+    for (uint32_t i = 0; i < root.nrows; i++, counter++) {
+        if (counter >= max_to_print)
+            break;
+
+        if (root.delete_vec.at(i) == 1) continue;  // skip dead rows.
+
+        // get the root pointer from skyhookv2_csv.fbs, used for json and
+        // csv text data
+        const Table_FBX* rootfbx = GetTable_FBX(dataptr);
+
+        // ptr to records offsets
+        const flatbuffers::Vector<flatbuffers::Offset<Record_FBX>>* \
+            offs = rootfbx->rows_vec();
+
+        // get the next record
+        const Record_FBX* rec = offs->Get(i);
+
+        // NOTE:
+        // rec->RID() and rec->nullbits() are set but not yet used for JSON
+
+        // NOTE: this a vector of strings, but for now JSON data stored as
+        // single string in elem[0], so data vector size here is only 1.
+        const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>* \
+            data = rec->data();
+
+        // iterate over json data, extracting from flatbuffers vec as a string.
+        std::string json_str;
+        for (unsigned j = 0; j < data->size(); j++) {
+
+            // TODO: unpack json objects (rows) from json string
+            // and print cols from each row according to schema_vec sc.
+            json_str = data->Get(j)->str();
+            std::cout << json_str << std::endl;
+        }
+    }
+
+    return counter;
+}
+
 // creates an fb meta data structure to wrap the underlying data
 // format (SkyFormatType)
 void
@@ -1019,10 +1094,12 @@ sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
             meta->blob_orig_off(),     // data position in original file
             meta->blob_orig_len(),     // data len in original file
             meta->blob_compression(),  // blob compression
-            meta->blob_format(),       // the blob's format (i.e.,SkyFormatType)
-            meta->blob_deleted(),      // is this blob still valid (not deleted)
+            meta->blob_format(),       // blob's format (i.e.,SkyFormatType)
+            meta->blob_deleted(),      // blob valid (not deleted)
             meta->blob_data()->size(), // blob actual size
-            reinterpret_cast<const char*>(meta->blob_data()->Data()));  // data blob
+
+            // serialized blob data
+            reinterpret_cast<const char*>(meta->blob_data()->Data()));
     }
     else {
         return sky_meta(    // for testing new raw formats without meta wrapper
@@ -1067,6 +1144,22 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             break;
         }
 
+        case SFT_JSON: {
+            const Table_FBX* root = GetTable_FBX(ds);
+            skyhook_version = root->skyhook_version();
+            data_format_type = root->data_format_type();
+            data_structure_version = root->data_structure_version();
+            data_schema_version = root->data_schema_version();
+            data_schema = root->data_schema()->str();
+            db_schema_name = root->db_schema_name()->str();
+            table_name = root->table_name()->str();
+            delete_vec = delete_vector(root->delete_vector()->begin(),
+                                       root->delete_vector()->end());
+            data_vec = root->rows_vec();
+            nrows = root->nrows();
+            break;
+        }
+
         case SFT_ARROW:
         case SFT_FLATBUF_UNION_ROW:
         case SFT_FLATBUF_UNION_COL:
@@ -1091,14 +1184,42 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
     );
 }
 
-sky_rec getSkyRec(const Tables::Record* rec) {
+sky_rec getSkyRec(const Tables::Record* rec, int format) {
 
+    switch (format) {
+        case SFT_FLATBUF_FLEX_ROW:
+            return sky_rec(
+                rec->RID(),
+                nullbits_vector(rec->nullbits()->begin(),
+                                rec->nullbits()->end()),
+                rec->data_flexbuffer_root()
+            );
+            break;
+
+        case SFT_JSON:
+
+            break;
+
+        default:
+            assert (TablesErrCodes::SkyFormatTypeNotRecognized==0);
+
+    }
+
+    // NOTE: default in declaration is SFT_FLATBUF_FLEX_ROW)
     return sky_rec(
         rec->RID(),
-        nullbits_vector(rec->nullbits()->begin(), rec->nullbits()->end()),
+        nullbits_vector(rec->nullbits()->begin(),
+                        rec->nullbits()->end()),
         rec->data_flexbuffer_root()
     );
 }
+
+/* TODO:
+* update sky_rec struct for rec fbx
+* sky_rec getSkyRec(const Tables::Record_FBX *rec, int format) {
+*
+*}
+*/
 
 bool hasAggPreds(predicate_vec &preds) {
     for (auto it=preds.begin(); it!=preds.end();++it)
@@ -1506,7 +1627,7 @@ std::string buildKeyPrefix(
     std::string key_cols_str;
 
     if (schema_name.empty())
-        schema_name = SCHEMA_NAME_DEFAULT;
+        schema_name = DBSCHEMA_NAME_DEFAULT;
 
     if (table_name.empty())
         table_name = TABLE_NAME_DEFAULT;

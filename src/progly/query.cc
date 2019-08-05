@@ -157,7 +157,7 @@ static void print_row(const char *row)
   print_lock.unlock();
 }
 
-// TODO: change to generic name, printData
+
 static void print_data(const char *dataptr,
                        const size_t datasz,
                        const int ds_format=SFT_FLATBUF_FLEX_ROW)
@@ -175,21 +175,29 @@ static void print_data(const char *dataptr,
     print_lock.lock();
     switch (ds_format) {
         case SFT_FLATBUF_FLEX_ROW:
-            row_counter += \
-                Tables::printFlatbufFlexRowAsCsv(dataptr,
-                                                 datasz,
-                                                 print_header,
-                                                 print_verbose,
-                                                 row_limit - row_counter);
+            row_counter += Tables::printFlatbufFlexRowAsCsv(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter);
             break;
         case SFT_ARROW:
-            row_counter += \
-                Tables::printArrowbufRowAsCsv(dataptr,
-                                              datasz,
-                                              print_header,
-                                              print_verbose,
-                                              row_limit - row_counter);
+            row_counter += Tables::printArrowbufRowAsCsv(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter);
 
+            break;
+        case SFT_JSON:
+            row_counter += Tables::printJSONAsCsv(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter);
             break;
         case SFT_FLATBUF_UNION_ROW:
         case SFT_FLATBUF_UNION_COL:
@@ -203,6 +211,7 @@ static void print_data(const char *dataptr,
     print_lock.unlock();
 }
 
+// NOTE: these only used for older fixed size rows test dataset
 static const size_t order_key_field_offset = 0;
 static const size_t line_number_field_offset = 12;
 static const size_t quantity_field_offset = 16;
@@ -433,6 +442,11 @@ void worker()
                     rows_returned += std::stoi(metadata->value(METADATA_NUM_ROWS));
                     break;
                 }
+                case SFT_JSON: {
+                    sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                    rows_returned += root.nrows;
+                    break;
+                }
                 case SFT_FLATBUF_UNION_ROW:
                 case SFT_FLATBUF_UNION_COL:
                 case SFT_FLATBUF_CSV_ROW:
@@ -457,6 +471,15 @@ void worker()
             if (!more_processing) {
 
                 switch (meta.blob_format) {
+                    case SFT_JSON: {
+                        sky_root root = \
+                            Tables::getSkyRoot(meta.blob_data, meta.blob_size);
+                        result_count += root.nrows;
+                        print_data(meta.blob_data,
+                                   meta.blob_size,
+                                   SFT_JSON);
+                        break;
+                    }
                     case SFT_FLATBUF_FLEX_ROW: {
                         sky_root root = \
                             Tables::getSkyRoot(meta.blob_data, meta.blob_size);
@@ -552,6 +575,9 @@ void worker()
                         }
                         break;
                     }
+
+                    case SFT_JSON:  // TODO: call processJSON() here.
+                        break;
 
                     case SFT_FLATBUF_UNION_ROW:
                     case SFT_FLATBUF_UNION_COL:

@@ -232,11 +232,12 @@ const std::string IDX_KEY_DELIM_INNER = "-";
 const std::string IDX_KEY_DELIM_OUTER = ":";
 const std::string IDX_KEY_DELIM_UNIQUE = "ENFORCEUNIQ";
 const std::string IDX_KEY_COLS_DEFAULT = "*";
-const std::string SCHEMA_NAME_DEFAULT = "*";
+const std::string DBSCHEMA_NAME_DEFAULT = "*";
 const std::string TABLE_NAME_DEFAULT = "*";
 const std::string RID_INDEX = "_RID_INDEX_";
 const int RID_COL_INDEX = -99; // magic number...
 const long long int ROW_LIMIT_DEFAULT = LLONG_MAX;
+const int NULLBITS64T_SIZE = 2;  // len of nullbits vector
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -623,7 +624,8 @@ typedef struct root_table sky_root;
 struct rec_table {
     const int64_t RID;
     nullbits_vector nullbits;
-    const row_data_ref data;
+    const row_data_ref data;  //flexbuffers::Reference
+    // const void* data_ref;
 
     rec_table(int64_t _RID, nullbits_vector _nullbits, row_data_ref _data) :
         RID(_RID),
@@ -717,34 +719,52 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
     ";
 
 // creates a skymeta st
-void
-createFbMeta(flatbuffers::FlatBufferBuilder *meta_builder,
-              int data_format,
-              unsigned char *data,
-              size_t data_size,
-              bool data_deleted=false,
-              size_t data_orig_off=0,
-              size_t data_orig_len=0,
-              CompressionType data_compression=none);
+void createFbMeta(
+    flatbuffers::FlatBufferBuilder *meta_builder,
+    int data_format,
+    unsigned char *data,
+    size_t data_size,
+    bool data_deleted=false,
+    size_t data_orig_off=0,
+    size_t data_orig_len=0,
+    CompressionType data_compression=none);
 
 // these extract the current data format (flatbuf) into a skyhook
 // root table and row table data structure defined above, abstracting
 // skyhook data partitions from the underlying data format.
-sky_meta getSkyMeta(bufferlist bl,
-                    bool is_meta=true, // when true, format arg is ignored
-                    int data_format=SFT_FLATBUF_FLEX_ROW);
+sky_meta getSkyMeta(
+    bufferlist bl,
+    bool is_meta=true, // when true, format arg is ignored
+    int data_format=SFT_FLATBUF_FLEX_ROW);
 
-sky_root getSkyRoot(const char *ds,
-                    size_t ds_size=0,
-                    int ds_format=SFT_FLATBUF_FLEX_ROW);
+sky_root getSkyRoot(
+    const char *ds,
+    size_t ds_size=0,
+    int ds_format=SFT_FLATBUF_FLEX_ROW);
 
-sky_rec getSkyRec(const Tables::Record *rec);
+sky_rec getSkyRec(
+    const Tables::Record *rec,
+    int format=SFT_FLATBUF_FLEX_ROW);
+
+/*
+* TODO:
+* sky_rec getSkyRec(
+*    const Tables::Record_FBX *rec,
+*    int format=SFT_CSV);
+*/
 
 // print functions
 void printSkyRootHeader(sky_root &r);
 void printSkyRecHeader(sky_rec &r);
 
 long long int printFlatbufFlexRowAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
+long long int printJSONAsCsv(
         const char* dataptr,
         const size_t datasz,
         bool print_header,

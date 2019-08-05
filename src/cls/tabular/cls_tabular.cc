@@ -277,6 +277,7 @@ int exec_build_sky_index_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
                     // key data is built up from the relevant col vals
                     key_data.clear();
+
                     auto row = rec.data.AsVector();
                     for (unsigned i = 0; i < idx_schema.size(); i++) {
                         if (i > 0) key_data += Tables::IDX_KEY_DELIM_INNER;
@@ -1412,6 +1413,51 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                     // call associated process method based on ds type
                     switch (meta.blob_format) {
+
+
+                    case SFT_JSON: {
+
+                        sky_root root = \
+                            Tables::getSkyRoot(meta.blob_data,
+                                               meta.blob_size,
+                                               meta.blob_format);
+
+                        // TODO: write json processing function,
+                        // now we just pass thru the original
+                        // meta.data_blob as the processed result data
+                        char* orig_data = const_cast<char*>(meta.blob_data);
+                        size_t orig_size = meta.blob_size;
+
+                        // TODO: call processJSON() here. See below for similar
+                        // function required here to get result data
+                        char* result_data = orig_data;
+                        size_t result_size = orig_size;
+
+                        flatbuffers::FlatBufferBuilder *meta_builder = \
+                                new flatbuffers::FlatBufferBuilder();
+                        createFbMeta(meta_builder,
+                                     SFT_FLATBUF_FLEX_ROW,
+                                     reinterpret_cast<unsigned char*>(
+                                        result_data),
+                                     result_size);
+
+                         // add meta_builder's data into a bufferlist as char*
+                        bufferlist meta_bl;
+                        meta_bl.append(reinterpret_cast<const char*>( \
+                                            meta_builder->GetBufferPointer()),
+                                            meta_builder->GetSize());
+
+                        // add this result into our results bl
+                        ::encode(meta_bl, result_bl);
+                        delete meta_builder;
+
+                        if (op.index_read)
+                            ds_rows_processed = row_nums.size();
+                        else
+                            ds_rows_processed = root.nrows;
+
+                        break;
+                    }
 
                     case SFT_FLATBUF_FLEX_ROW: {
                         sky_root root = \

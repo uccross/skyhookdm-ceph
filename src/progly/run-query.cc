@@ -118,7 +118,7 @@ int main(int argc, char **argv)
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
     // query parameters (new) flatbufs
-    ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::SCHEMA_NAME_DEFAULT), "Database schema name")
+    ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::DBSCHEMA_NAME_DEFAULT), "Database schema name")
     ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
     ("data-schema", po::value<std::string>(&data_schema)->default_value(data_schema_example), data_schema_format_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
