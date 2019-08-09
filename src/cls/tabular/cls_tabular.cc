@@ -1405,11 +1405,20 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     */
 
                     // default usage here assumes the fbmeta is already in the bl
-                    sky_meta meta = getSkyMeta(bl);
+                    sky_meta meta = getSkyMeta(&bl);
 
                     // debug/accounting
                     std::string errmsg;
                     int ds_rows_processed = 0;
+
+                    // CREATE An FB_META, start with an empty builder first
+                    flatbuffers::FlatBufferBuilder *meta_builder =      \
+                        new flatbuffers::FlatBufferBuilder();
+
+                    sky_root root =                             \
+                        Tables::getSkyRoot(meta.blob_data,
+                                           meta.blob_size,
+                                           meta.blob_format);
 
                     // call associated process method based on ds type
                     switch (meta.blob_format) {
@@ -1460,10 +1469,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     }
 
                     case SFT_FLATBUF_FLEX_ROW: {
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data,
-                                               meta.blob_size,
-                                               meta.blob_format);
 
                         flatbuffers::FlatBufferBuilder result_builder(1024);
                         ret = processSkyFb(result_builder,
@@ -1481,30 +1486,12 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                             return -1;
                         }
 
-                        // CREATE An FB_META, start with an empty builder first
-                        flatbuffers::FlatBufferBuilder *meta_builder = \
-                                new flatbuffers::FlatBufferBuilder();
                         createFbMeta(meta_builder,
                                      SFT_FLATBUF_FLEX_ROW,
                                      reinterpret_cast<unsigned char*>(
                                             result_builder.GetBufferPointer()),
                                      result_builder.GetSize());
 
-                         // add meta_builder's data into a bufferlist as char*
-                        bufferlist meta_bl;
-                        meta_bl.append(reinterpret_cast<const char*>( \
-                                            meta_builder->GetBufferPointer()),
-                                            meta_builder->GetSize());
-
-                        // add this result into our results bl
-                        ::encode(meta_bl, result_bl);
-                        delete meta_builder;
-
-                        if (op.index_read)
-                            ds_rows_processed = row_nums.size();
-                        else
-                            ds_rows_processed = root.nrows;
-                        break;
                     }
 
                     case SFT_ARROW: {
@@ -1517,7 +1504,24 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                            meta.blob_size,
                                            errmsg,
                                            row_nums);
-                        // TODO: Add the output to result ds
+
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1;
+                        }
+
+                        std::shared_ptr<arrow::Buffer> buffer;
+                        convert_arrow_to_buffer(table, &buffer);
+                        createFbMeta(meta_builder,
+                                     SFT_ARROW,
+                                     (unsigned char *)buffer->ToString().c_str(),
+                                     buffer->size());
+
+                        if (op.index_read)
+                            ds_rows_processed = row_nums.size();
+                        else
+                            ds_rows_processed = root.nrows;
                         break;
                     }
 
@@ -1529,6 +1533,22 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     default:
                         assert (SkyFormatTypeNotRecognized==0);
                     }
+
+                    // add meta_builder's data into a bufferlist as char*
+                    bufferlist meta_bl;
+                    meta_bl.append(reinterpret_cast<const char*>(       \
+                                           meta_builder->GetBufferPointer()),
+                                   meta_builder->GetSize());
+
+                    // add this result into our results bl
+                    ::encode(meta_bl, result_bl);
+                    delete meta_builder;
+
+                    if (op.index_read)
+                        ds_rows_processed = row_nums.size();
+                    else
+                        ds_rows_processed = root.nrows;
+                    break;
 
                     // add this processed ds to sequence of bls and update counter
                     rows_processed += ds_rows_processed;
@@ -1857,6 +1877,7 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     int format_type = SFT_FLATBUF_FLEX_ROW; // TODO: get from fb_meta
     transform_op op;
+    int offset = 0;
 
     // unpack the requested op from the inbl.
     try {
@@ -1871,26 +1892,6 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
     CLS_LOG(20, "transform_db_op: transform_format_type=%d", op.required_type);
 
-    // TODO:remove
-    // get/set format type using fb_meta
-    /*
-    int ret = get_sky_format_type(hctx, format_type);
-    if (ret == -ENOENT || ret == -ENODATA) {
-        // If sky_format_type is not present then insert it in xattr.
-        // Default value is set as a Flatbuffer
-        ret = set_sky_format_type(hctx, SFT_FLATBUF_FLEX_ROW);
-        if(ret < 0) {
-            CLS_ERR("transform_db_op: error setting sky_format_type entry to xattr %d", ret);
-            return ret;
-        }
-        format_type = SFT_FLATBUF_FLEX_ROW;
-    }
-    else if (ret < 0) {
-        CLS_ERR("ERROR: transform_db_op: sky_format_type entry from xattr %d", ret);
-        return ret;
-    }
-    */
-
     // Check if transformation is required or not
     if (format_type == op.required_type) {
         // Source and destination object types are same, therefore no tranformation
@@ -1899,20 +1900,19 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return 0;
     }
 
-    // Object contains one bl that itself wraps a seq of encoded bls of skyhook fb/arrow
-    bufferlist wrapped_bls;
-    bufferlist trans_wrapped_bls;
-    int ret = cls_cxx_read(hctx, 0, 0, &wrapped_bls);
+    // Object is sequence of actual data along with encoded metadata
+    bufferlist encoded_meta_bls;
+    int ret = cls_cxx_read(hctx, 0, 0, &encoded_meta_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
         return ret;
     }
 
     using namespace Tables;
-    ceph::bufferlist::iterator it = wrapped_bls.begin();
+    ceph::bufferlist::iterator it = encoded_meta_bls.begin();
     while (it.get_remaining() > 0) {
         bufferlist bl;
-        bufferlist trans_bl;
+        bufferlist transformed_encoded_meta_bl;
         try {
             ::decode(bl, it);  // unpack the next bl
         } catch (const buffer::error &err) {
@@ -1920,14 +1920,26 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             return -EINVAL;
         }
 
-        // Get our data as contiguous bytes
-        const char* data = bl.c_str();
-        size_t data_size = bl.length();
+        // default usage here assumes the fbmeta is already in the bl
+        sky_meta meta = getSkyMeta(&bl);
         std::string errmsg;
 
+        // Check if transformation is required or not
+        if (meta.blob_format == op.required_type) {
+            // Source and destination object types are same, therefore no tranformation
+            // is required.
+            CLS_LOG(20, "No Transforming required");
+            return 0;
+        }
+
+        // CREATE An FB_META, start with an empty builder first
+        flatbuffers::FlatBufferBuilder *meta_builder =                  \
+            new flatbuffers::FlatBufferBuilder();
+
+        // According to the format type transform the object
         if (op.required_type == SFT_ARROW) {
             std::shared_ptr<arrow::Table> table;
-            ret = transform_fb_to_arrow(data, data_size, errmsg, &table);
+            ret = transform_fb_to_arrow(meta.blob_data, meta.blob_size, errmsg, &table);
             if (ret != 0) {
                 CLS_ERR("ERROR: transforming object from flatbuffer to arrow");
                 return ret;
@@ -1936,37 +1948,43 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // Convert arrow to a buffer
             std::shared_ptr<arrow::Buffer> buffer;
             convert_arrow_to_buffer(table, &buffer);
-            trans_bl.append(buffer->ToString().c_str(), buffer->size());
-            ::encode(trans_bl, trans_wrapped_bls);
+
+            createFbMeta(meta_builder,
+                         SFT_ARROW,
+                         reinterpret_cast<unsigned char*>(buffer->mutable_data()),
+                         buffer->size());
 
         } else if (op.required_type == SFT_FLATBUF_FLEX_ROW) {
             flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
 
-            ret = transform_arrow_to_fb(data, data_size, errmsg, flatbldr);
+            ret = transform_arrow_to_fb(meta.blob_data, meta.blob_size, errmsg, flatbldr);
             if (ret != 0) {
                 CLS_ERR("ERROR: transforming object from arrow to flatbuffer");
                 return ret;
             }
+            createFbMeta(meta_builder,
+                         SFT_FLATBUF_FLEX_ROW,
+                         reinterpret_cast<unsigned char*>(
+                                 flatbldr.GetBufferPointer()),
+                         flatbldr.GetSize());
         }
-    }
 
-    // Write the object back to Ceph
-    ret = cls_cxx_write_full(hctx, &trans_wrapped_bls);
-    if (ret < 0) {
-        CLS_ERR("ERROR: writing obj full %d", ret);
-        return ret;
-    }
+        // Add meta_builder's data into a bufferlist as char*
+        bufferlist meta_bl;
+        meta_bl.append(reinterpret_cast<const char*>(                   \
+                               meta_builder->GetBufferPointer()),
+                       meta_builder->GetSize());
+        ::encode(meta_bl, transformed_encoded_meta_bl);
+        delete meta_builder;
 
-    // TODO:remove
-    // get/set format type using fb_meta
-    /*
-    // Set the destination object format type
-    ret = set_sky_format_type(hctx, op.required_type);
-    if(ret < 0) {
-        CLS_ERR("transform_db_op: error setting sky_format_type entry to xattr %d", ret);
-        return ret;
+        // Write the object back to Ceph
+        ret = cls_cxx_write(hctx, offset, transformed_encoded_meta_bl.length(), &transformed_encoded_meta_bl);
+        if (ret < 0) {
+            CLS_ERR("ERROR: writing obj full %d", ret);
+            return ret;
+        }
+        offset += transformed_encoded_meta_bl.length();
     }
-    */
     return 0;
 }
 

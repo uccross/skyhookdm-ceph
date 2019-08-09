@@ -733,7 +733,7 @@ void createFbMeta(
 // root table and row table data structure defined above, abstracting
 // skyhook data partitions from the underlying data format.
 sky_meta getSkyMeta(
-    bufferlist bl,
+    bufferlist *bl,
     bool is_meta=true, // when true, format arg is ignored
     int data_format=SFT_FLATBUF_FLEX_ROW);
 
@@ -887,6 +887,9 @@ int write_to_file(const char *filename, arrow::Buffer* buffer);
 // Function related to extract/convert arrow buffer
 int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table,
                               const std::shared_ptr<arrow::Buffer> &buffer);
+int extract_arrow_from_string(std::shared_ptr<arrow::Table>* table,
+                              const char *ds, int ds_size);
+
 int convert_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table,
                             std::shared_ptr<arrow::Buffer>* buffer);
 

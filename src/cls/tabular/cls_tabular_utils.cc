@@ -14,6 +14,22 @@
 
 namespace Tables {
 
+/*
+ * Function: processArrow
+ * Description: Process the input arrow table for the corresponding input
+ *              query and encapsulate the output in an output arrow table.
+ * @param[out] table       : Ouput arrow table
+ * @param[in] tbl_schema   : Schema of an input table
+ * @param[in] query_schema : Schema of an query
+ * @param[in] preds        : Predicates for the query
+ * @param[in] dataptr      : Input table in the form of char array
+ * @param[in] datasz       : Size of char array
+ * @param[out] errmsg      : Error message
+ * @param[out] row_nums    : Specified rows to be processed
+ *
+ * Return Value: error code
+ */
+
 int processArrow(
     std::shared_ptr<arrow::Table>* table,
     schema_vec& tbl_schema,
@@ -26,16 +42,15 @@ int processArrow(
 {
     int errcode = 0;
     int processed_rows = 0;
+    int num_cols = std::distance(tbl_schema.begin(), tbl_schema.end());
     auto pool = arrow::default_memory_pool();
     std::vector<arrow::ArrayBuilder *> builder_list;
     std::vector<std::shared_ptr<arrow::Array>> array_list;
     std::vector<std::shared_ptr<arrow::Field>> output_tbl_fields_vec;
-    std::shared_ptr<arrow::Buffer> buffer;
+    std::shared_ptr<arrow::Buffer> buffer = arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(dataptr)), datasz);
     std::shared_ptr<arrow::Table> input_table, temp_table;
 
     // Get input table from dataptr
-    std::string str_data(dataptr, datasz);
-    arrow::Buffer::FromString(str_data, &buffer);
     extract_arrow_from_buffer(&input_table, buffer);
 
     auto schema = input_table->schema();
@@ -57,13 +72,13 @@ int processArrow(
     }
 
     // Iterate through query schema vector to get the details of columns i.e name and type.
-    // Also, et the builder arrays required for each data type
+    // Also, get the builder arrays required for each data type
     for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
         col_info col = *it;
 
         // Create the array builders for respective datatypes. Use these array
         // builders to store data to array vectors. These array vectors holds the
-        // actual column values. Also, add the details of column
+        // actual column values. Also, add the details of column (Name and Datatype)
         switch(col.type) {
 
             case SDT_BOOL: {
@@ -185,16 +200,19 @@ int processArrow(
             return RowIndexOOB;
         }
 
+        // skip dead rows.
+        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0);
+        if (std::static_pointer_cast<arrow::BooleanArray>(delvec_chunk)->Value(i) == true) continue;
+
         // Apply predicates
         if (!preds.empty()) {
             bool pass = applyPredicatesArrow(preds, input_table, i);
             if (!pass) continue;  // skip non matching rows.
-            processed_rows++;
         }
+        processed_rows++;
 
-        // TODO Skip deleted row
-
-        // iter over the query schema, locating it within the data schema
+        // iter over the query schema and add the values from input table
+        // to output table
         for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
             col_info col = *it;
             auto builder = builder_list[std::distance(query_schema.begin(), it)];
@@ -1314,11 +1332,11 @@ createFbMeta(
 // along with its metadata.  This unified structure is used as the primary
 // store/send/retreive data structure for many supported formats
 // format type is ignored if is_meta=true
-sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
+sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
 
     if (is_meta) {
-        // get data as contiguous bytes before accessing
-        const FB_Meta* meta = GetFB_Meta(bl.c_str());
+        const FB_Meta* meta = GetFB_Meta(bl->c_str());
+
         return sky_meta(
             meta->blob_orig_off(),     // data position in original file
             meta->blob_orig_len(),     // data len in original file
@@ -1337,11 +1355,12 @@ sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
             none,           // no compression
             data_format,    // user specified arg for testing formats
             false,          // deleted?
-            bl.length(),    // formatted data size in bytes
-            bl.c_str());    // get data as contiguous bytes before accessing
+            bl->length(),    // formatted data size in bytes
+            bl->c_str());    // get data as contiguous bytes before accessing
     }
 }
 
+int test = 0;
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
 
     int skyhook_version;
@@ -1389,7 +1408,24 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             break;
         }
 
-        case SFT_ARROW:
+        case SFT_ARROW: {
+            std::shared_ptr<arrow::Table> table;
+            std::shared_ptr<arrow::Buffer> buffer = arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(ds)), ds_size);
+            extract_arrow_from_buffer(&table, buffer);
+            auto schema = table->schema();
+            auto metadata = schema->metadata();
+            skyhook_version = std::stoi(metadata->value(METADATA_SKYHOOK_VERSION));
+            data_format_type = std::stoi(metadata->value(METADATA_DATA_FORMAT_TYPE));
+            data_structure_version = std::stoi(metadata->value(METADATA_DATA_STRUCTURE_VERSION));
+            data_schema_version = std::stoi(metadata->value(METADATA_DATA_SCHEMA_VERSION));
+            data_schema = metadata->value(METADATA_DATA_SCHEMA);
+            db_schema_name = metadata->value(METADATA_DB_SCHEMA);
+            table_name = metadata->value(METADATA_TABLE_NAME);
+            data_vec = NULL;
+            nrows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+            break;
+        }
+
         case SFT_FLATBUF_UNION_ROW:
         case SFT_FLATBUF_UNION_COL:
         case SFT_FLATBUF_CSV_ROW:
@@ -1710,6 +1746,7 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
     return rowpass;
 }
 
+//TODO: This function can be merged with applyPredicates
 bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& table,
                           int element_index)
 {
@@ -2331,8 +2368,7 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 
   // Read file
   infile.read(cdata.get(), length);
-  std::string data(cdata.get(), length);
-  arrow::Buffer::FromString(data, buffer);
+  *buffer = arrow::Buffer::Wrap(cdata.get(), length);
   return 0;
 }
 
@@ -2343,9 +2379,8 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 
 int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
-    std::ofstream ofile("/tmp/skyhook.arrow");
-    std::string str(buffer->ToString());
-    ofile.write(buffer->ToString().c_str(), buffer->size());
+    std::ofstream ofile(filename);
+    ofile.write(reinterpret_cast<const char*>(buffer->data()), buffer->size());
     return 0;
 }
 
@@ -2383,6 +2418,15 @@ int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::s
     return 0;
 }
 
+/*
+ * Function: flatten_table
+ * Description: Flatten the input table i.e. merged chunks for a column into
+ *              single chunk.
+ * @param[in] input_table   : Arrow table to be flattened
+ * @param[out] errmsg       : Error message
+ * @param[out] output_table : Flattened output table
+ * Return Value: error code
+ */
 int flatten_table(const std::shared_ptr<arrow::Table> &input_table,
                   std::string& errmsg,
                   std::shared_ptr<arrow::Table> *output_table)
@@ -2773,6 +2817,7 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
     return 0;
 }
 
+// TODO: This function may need some changes as we have a single chunk for a column
 int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
 {
     std::vector<std::shared_ptr<arrow::Array>> array_list;
@@ -2968,8 +3013,8 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     std::shared_ptr<arrow::Table> table;
     std::shared_ptr<arrow::Buffer> buffer;
 
-    std::string str_data(dataptr, datasz);
-    arrow::Buffer::FromString(str_data, &buffer);
+    std::string str_buff(dataptr, datasz);
+    arrow::Buffer::FromString(str_buff, &buffer);
 
     extract_arrow_from_buffer(&table, buffer);
     // From Table get the schema and from schema get the skyhook schema
@@ -3141,7 +3186,7 @@ int transform_fb_to_arrow(const char* fb,
     metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
                      std::to_string(root.data_structure_version));
     metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
-                     std::to_string(root.data_format_type));
+                     std::to_string(SFT_ARROW));
     metadata->Append(ToString(METADATA_DATA_SCHEMA), root.data_schema);
     metadata->Append(ToString(METADATA_DB_SCHEMA), root.db_schema_name);
     metadata->Append(ToString(METADATA_TABLE_NAME), root.table_name);
@@ -3397,11 +3442,7 @@ int transform_arrow_to_fb(const char* data,
 
     // Placeholder function
     std::shared_ptr<arrow::Table> table;
-    std::shared_ptr<arrow::Buffer> buffer;
-
-    std::string str_data(data, data_size);
-    arrow::Buffer::FromString(str_data, &buffer);
-
+    std::shared_ptr<arrow::Buffer> buffer = arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(data)), data_size);
     extract_arrow_from_buffer(&table, buffer);
 
     ret = print_arrowbuf_colwise(table);
@@ -3410,28 +3451,5 @@ int transform_arrow_to_fb(const char* data,
     }
     return 0;
 }
-
-//TODO: remove
-/*
-This is a test code for checking decode arrow table works fine or not
-int test_bls(bufferlist *wrapped_bls)
-{
-    // Create bl1
-    bufferlist bl1;
-    std::shared_ptr<arrow::Table> table1;
-    std::shared_ptr<arrow::Buffer> buffer1;
-    read_from_file("/tmp/skyhook_1.arrow", &buffer1);
-    bl1.append(buffer1->ToString().c_str(), buffer1->size());
-    ::encode(bl1, *wrapped_bls);
-
-    // Create bl2
-    bufferlist bl2;
-    std::shared_ptr<arrow::Table> table2;
-    std::shared_ptr<arrow::Buffer> buffer2;
-    read_from_file("/tmp/skyhook_2.arrow", &buffer2);
-    bl2.append(buffer2->ToString().c_str(), buffer2->size());
-    ::encode(bl2, *wrapped_bls);
-    return 0;
-}*/
 
 } // end namespace Tables
