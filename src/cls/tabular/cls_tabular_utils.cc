@@ -1711,30 +1711,41 @@ long long int printFlatbufFBUAsCsv(
 
         case SFT_FLATBUF_UNION_COL : {
 
-            // iterate over rows
-            long long int counter = 0;
-            for( unsigned int j = 0; j < skyroot.nrows; j++ ) {
-                if (counter >= max_to_print)
-                    break;
+            long long int counter = 0 ; //counts rows returned
+            unsigned int cols_length = getSkyCols_fbu_length( skyroot ) ;
 
-                // iterate over columns
+            //std::cout << "sc.size() = " << sc.size() << std::endl ; 
+
+            // iterate over columns
+            for( unsigned int i = 0; i < sc.size(); i++ ) {
+                //if (counter >= max_to_print) break ;
+                if( i >= cols_length ) break ;
+
+                // iterate over rows
                 bool first = true;
-                for( unsigned int i = 0; i < sc.size(); i++ ) {
+                //for( unsigned int j = 0; j < skyroot.nrows; j++, counter++ ) {
+                for( unsigned int j = 0; j < skyroot.nrows; j++ ) {
+                    if (skyroot.delete_vec.at(j) == 1) continue;  // skip dead rows.
+                    col_info col = sc.at(i);
+
+                    // print delimiter
                     if (!first) std::cout << CSV_DELIM;
                     first = false;
 
-                    if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
-                    col_info col = sc.at(i);
-
-                    // get the record struct, then the row data
+                    // get column
                     sky_col_fbu skycol = getSkyCol_fbu( skyroot, i ) ;
+
                     if (print_verbose)
                         printSkyColHeader_fbu(skycol);
-  
+
                     auto this_col       = skycol.data_fbu_col ;
                     //auto this_col_name  = this_col->col_name() ;
                     //auto this_col_index = this_col->col_index() ;
                     auto curr_col_data  = this_col->data() ;
+                    auto curr_col_data_type  = this_col->data_type() ;
+                    //std::cout << "curr_col_data_type = " << curr_col_data_type << std::endl ;
+                    auto curr_col_data_type_sky = FBU_TO_SDT.at( curr_col_data_type ) ;
+                    //std::cout << "curr_col_data_type_sky = " << curr_col_data_type_sky << std::endl ;
 
                     if (col.nullable) {  // check nullbit
                         bool is_null = false;
@@ -1749,7 +1760,8 @@ long long int printFlatbufFBUAsCsv(
                         }
                     }
 
-                    switch( col.type ) {
+                    //switch( col.type ) {
+                    switch( curr_col_data_type_sky ) {
                       case SDT_UINT64 : {
                           auto column_of_data = 
                               static_cast< const Tables::SDT_UINT64_FBU* >( curr_col_data ) ;
@@ -1949,23 +1961,39 @@ sky_rec_fbu getSkyRec_fbu( sky_root root, int recid ) {
     } //switch
 } //getSkyRec_fbu
 
+int getSkyCols_fbu_length( sky_root root ) {
+    switch( root.data_format_type ) {
+        case SFT_FLATBUF_UNION_COL : {
+          auto cols = static_cast< const Tables::Cols_FBU* >( root.data_vec ) ;
+          auto cols_data = cols->data() ;
+          return cols_data->Length() ;
+          break ;
+        }
+        default:
+            assert (SkyFormatTypeNotRecognized==0);
+    } //switch
+
+} //getSkyCol_fbu
+
 sky_col_fbu getSkyCol_fbu( sky_root root, int colid ) {
     switch( root.data_format_type ) {
         case SFT_FLATBUF_UNION_COL : {
-            auto cols = static_cast< const Tables::Cols_FBU* >( root.data_vec ) ;
-            auto cols_data = cols->data() ;
-            auto col_at_index = cols_data->Get( colid ) ;
-            //auto col_name = col_at_index->col_name() ;
-            //auto col_index = col_at_index->col_index() ;
-            auto col_nullbits = col_at_index->nullbits() ;
-            auto a = col_nullbits->begin() ;
-            auto b = col_nullbits->end() ;
-            auto null_vec = nullbits_vector( a, b ) ;
-            return sky_col_fbu(
-              colid,
-              null_vec,
-              col_at_index
-            );
+          auto cols = static_cast< const Tables::Cols_FBU* >( root.data_vec ) ;
+          auto cols_data = cols->data() ;
+          //std::cout << "cols_data->Length() = " << cols_data->Length() << std::endl ; 
+          const Tables::Col_FBU* col_at_index ;
+          col_at_index = cols_data->Get( colid ) ;
+          //auto col_name = col_at_index->col_name() ;
+          //auto col_index = col_at_index->col_index() ;
+          auto col_nullbits = col_at_index->nullbits() ;
+          auto a = col_nullbits->begin() ;
+          auto b = col_nullbits->end() ;
+          auto null_vec = nullbits_vector( a, b ) ;
+          return sky_col_fbu(
+            colid,
+            null_vec,
+            col_at_index
+          );
           break ;
         }
         default:

@@ -207,6 +207,12 @@ const std::unordered_map<std::string, bool> IDX_STOPWORDS= {
     {"was", 1}, {"were", 1}, {"will", 1}, {"with", 1}
 };
 
+const std::map<int, int> FBU_TO_SDT = {
+    { Tables::DataTypes_FBU_SDT_UINT64_FBU, SDT_UINT64 },
+    { Tables::DataTypes_FBU_SDT_FLOAT_FBU, SDT_FLOAT },
+    { Tables::DataTypes_FBU_SDT_STRING_FBU, SDT_STRING }
+};
+
 const int offset_to_skyhook_version = 4;
 const int offset_to_schema_version = 6;
 const int offset_to_table_name = 8;
@@ -754,6 +760,7 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format=SFT_FLATBUF_FL
 sky_rec getSkyRec(const Tables::Record *rec);
 sky_rec_fbu getSkyRec_fbu(sky_root root, int recid);
 sky_col_fbu getSkyCol_fbu(sky_root root, int colid);
+int getSkyCols_fbu_length( sky_root root ) ;
 
 // print functions
 void printSkyRootHeader(sky_root &r);
