@@ -17,7 +17,8 @@ int main(int argc, char **argv) {
 
   std::string pool     = "tpchflatbuf" ;
   std::string oid      = "obj.0" ;
-  SkyFormatType format = SFT_FLATBUF_UNION_COL ;
+  SkyFormatType format = SFT_FLATBUF_UNION_ROW ;
+  //SkyFormatType format = SFT_FLATBUF_UNION_COL ;
   bool debug           = true ;
 
   // --------------------------------- //
@@ -86,8 +87,9 @@ int main(int argc, char **argv) {
     flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
     std::string errmsg ;
   
+    // ROWS
     std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
-    int ret = processSkyFb_fbu_cols(
+    int ret = processSkyFb_fbu_rows(
                 flatbldr,
                 sky_tbl_schema,
                 sky_qry_schema,
@@ -96,6 +98,18 @@ int main(int argc, char **argv) {
                 datasz,
                 errmsg ) ;
     std::cout << ret << std::endl ;
+
+    // COLS
+    //std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
+    //int ret = processSkyFb_fbu_cols(
+    //            flatbldr,
+    //            sky_tbl_schema,
+    //            sky_qry_schema,
+    //            sky_qry_preds,
+    //            dataptr,
+    //            datasz,
+    //            errmsg ) ;
+    //std::cout << ret << std::endl ;
 
   } //while
 
