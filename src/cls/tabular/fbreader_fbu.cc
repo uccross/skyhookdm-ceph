@@ -74,7 +74,7 @@ void do_read( bool debug,
   // get format
   SkyFormatType skyformat ;
   if( format == "SFT_FLATBUF_UNION_ROW" )
-    format = SFT_FLATBUF_UNION_ROW ;
+    skyformat = SFT_FLATBUF_UNION_ROW ;
   else if( format == "SFT_FLATBUF_UNION_COL" )
     skyformat = SFT_FLATBUF_UNION_COL ;
   else {
