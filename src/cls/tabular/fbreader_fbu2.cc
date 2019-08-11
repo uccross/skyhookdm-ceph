@@ -108,6 +108,7 @@ void do_read( bool debug,
   size_t blob_sz              = meta->blob_data()->size() ;
   std::cout << "blob_sz = " << blob_sz << std::endl ;
 
+  //TODO: use different method for getting bufferlist from ptr.
   ceph::bufferlist bl_seq ;
   bl_seq.append( blob_dataptr, blob_sz ) ;
   ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
