@@ -280,3 +280,8 @@ add_executable(fbwriter tabular/fbwriter.cc  tabular/cls_tabular_utils.cc)
 target_link_libraries(fbwriter librados global re2 arrow parquet)
 install(TARGETS fbwriter DESTINATION bin)
 
+# skyhook fbwriter_fbu
+add_executable(fbwriter_fbu tabular/fbwriter_fbu.cc tabular/cls_tabular_utils.cc)
+target_link_libraries(fbwriter_fbu librados global re2 arrow parquet )
+install(TARGETS fbwriter_fbu DESTINATION bin)
+
