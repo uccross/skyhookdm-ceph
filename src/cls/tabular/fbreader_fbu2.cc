@@ -98,7 +98,7 @@ void do_read( bool debug,
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
   ceph::bufferlist meta_wrapper_bl ;
   ::decode( meta_wrapper_bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
-  const char* meta_dataptr = meta_wrapper_bl.c_str() ;
+  //const char* meta_dataptr = meta_wrapper_bl.c_str() ;
   size_t meta_datasz       = meta_wrapper_bl.length() ;
   std::cout << "meta_datasz = " << meta_datasz << std::endl ;
 
