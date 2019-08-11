@@ -38,6 +38,7 @@
 #include "skyhookv2_generated.h"
 #include "skyhookv2_csv_generated.h"
 #include "fb_meta_generated.h"
+#include "fbu_generated.h"
 
 namespace Tables {
 
