@@ -845,6 +845,7 @@ int processSkyFb_fbu_rows(
         const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
 int processSkyFb_fbu_cols(
+        ceph::bufferlist,
         flatbuffers::FlatBufferBuilder& flatb,
         schema_vec& data_schema,
         schema_vec& query_schema,

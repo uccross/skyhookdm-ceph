@@ -406,7 +406,10 @@ void worker()
 
         // decode and process each bl (contains 1 flatbuf) in a loop.
         ceph::bufferlist::iterator it = wrapped_bls.begin();
+        int kat_counter = 0 ;
         while (it.get_remaining() > 0) {
+            //std::cout << "kat_counter = " << kat_counter << std::endl ; 
+            //std::cout << "it.get_remaining() = " << it.get_remaining() << std::endl ;
             ceph::bufferlist bl;
             try {
                 ::decode(bl, it);  // unpack the next data struct
@@ -419,8 +422,8 @@ void worker()
             // as fb_meta, or set optional args to false/type for manually
             // testing new formats
             //sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
-            //sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_ROW);
-            sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_COL);
+            sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_ROW);
+            //sky_meta m = getSkyMeta(bl, false, SFT_FLATBUF_UNION_COL);
             const char* dataptr = m.data_ptr;
             size_t datasz = m.data_size;
             int data_format = m.format_type;
@@ -599,7 +602,8 @@ void worker()
                     case SFT_FLATBUF_UNION_COL: {
                         flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                         //returns a flex rows fb, not an fbu col fb
-                        int ret = processSkyFb_fbu_cols(flatbldr,
+                        int ret = processSkyFb_fbu_cols(wrapped_bls,
+                                                        flatbldr,
                                                         sky_tbl_schema,
                                                         sky_qry_schema,
                                                         sky_qry_preds,
@@ -616,9 +620,11 @@ void worker()
 
                         dataptr =                                 \
                             reinterpret_cast<char*>(flatbldr.GetBufferPointer());
+                        datasz = flatbldr.GetSize() ;
                         sky_root root = getSkyRoot(dataptr, datasz);
                         result_count += root.nrows;
                         print_data(dataptr, datasz, SFT_FLATBUF_FLEX_ROW);
+                        goto break_while ;  //force loop to break for Cols processing bc passing bufferlist iterator.
                         break;
                     }
                     case SFT_FLATBUF_CSV_ROW:
@@ -626,9 +632,12 @@ void worker()
                     case SFT_CSV:
                     default:
                         assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-                }
-            }
+                } //switch
+            } //if else
+            kat_counter++ ;
         } // endloop of processing sequence of encoded bls
+        break_while : //force loop to break for Cols processing bc passing bufferlist iterator.
+        if( true ) {}
 
     } else {   // older processing code below
 

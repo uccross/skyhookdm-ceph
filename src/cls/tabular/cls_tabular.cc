@@ -1490,7 +1490,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     case SFT_FLATBUF_UNION_COL: {
                         sky_root root =  Tables::getSkyRoot(dataptr, datasz, data_format);
                         flatbuffers::FlatBufferBuilder flatbldr(1024);
-                        ret = processSkyFb_fbu_cols(flatbldr,
+                        ret = processSkyFb_fbu_cols(b,
+                                                    flatbldr,
                                                     data_schema,
                                                     query_schema,
                                                     query_preds,

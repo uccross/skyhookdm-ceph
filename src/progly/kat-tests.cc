@@ -17,8 +17,8 @@ int main(int argc, char **argv) {
 
   std::string pool     = "tpchflatbuf" ;
   std::string oid      = "obj.0" ;
-  SkyFormatType format = SFT_FLATBUF_UNION_ROW ;
-  //SkyFormatType format = SFT_FLATBUF_UNION_COL ;
+  //SkyFormatType format = SFT_FLATBUF_UNION_ROW ;
+  SkyFormatType format = SFT_FLATBUF_UNION_COL ;
   bool debug           = true ;
 
   // --------------------------------- //
@@ -75,43 +75,57 @@ int main(int argc, char **argv) {
     bool print_header  = true ;
     bool print_verbose = true ;
     int max_to_print   = 10 ;
-    auto ret1 = Tables::printFlatbufFBUAsCsv( 
-                  dataptr, 
-                  datasz, 
-                  print_header, 
-                  print_verbose, 
-                  max_to_print, 
-                  format ) ;
-    std::cout << ret1 << std::endl ;
+//    auto ret1 = Tables::printFlatbufFBUAsCsv( 
+//                  dataptr, 
+//                  datasz, 
+//                  print_header, 
+//                  print_verbose, 
+//                  max_to_print, 
+//                  format ) ;
+//    std::cout << ret1 << std::endl ;
   
     flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
     std::string errmsg ;
   
     // ROWS
-    std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
-    int ret = processSkyFb_fbu_rows(
-                flatbldr,
-                sky_tbl_schema,
-                sky_qry_schema,
-                sky_qry_preds,
-                dataptr,
-                datasz,
-                errmsg ) ;
-    std::cout << ret << std::endl ;
-
-    // COLS
-    //std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
-    //int ret = processSkyFb_fbu_cols(
-    //            flatbldr,
-    //            sky_tbl_schema,
-    //            sky_qry_schema,
-    //            sky_qry_preds,
-    //            dataptr,
-    //            datasz,
-    //            errmsg ) ;
-    //std::cout << ret << std::endl ;
+//    std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
+//    int ret2 = processSkyFb_fbu_rows(
+//                flatbldr,
+//                sky_tbl_schema,
+//                sky_qry_schema,
+//                sky_qry_preds,
+//                dataptr,
+//                datasz,
+//                errmsg ) ;
+//    std::cout << ret2 << std::endl ;
 
   } //while
+
+  // COLS
+  flatbuffers::FlatBufferBuilder flatbldr_cols( 1024 ) ; // pre-alloc
+  std::string errmsg_cols ;
+
+  ceph::bufferlist bl ;
+  ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+  const char* dataptr = bl.c_str() ;
+  size_t datasz       = bl.length() ;
+
+  bool print_header  = true ;
+  bool print_verbose = true ;
+  int max_to_print   = 10 ;
+
+  std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
+  int ret3 = processSkyFb_fbu_cols(
+              wrapped_bl_seq,
+              flatbldr_cols,
+              sky_tbl_schema,
+              sky_qry_schema,
+              sky_qry_preds,
+              dataptr,
+              datasz,
+              errmsg_cols ) ;
+  std::cout << ret3 << std::endl ;
+
 
   return 0 ;
 }
