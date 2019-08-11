@@ -2353,7 +2353,6 @@ void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val) {
 /* @todo: This is a temporary function to demonstrate buffer is read from the file.
  * In reality, Ceph will return a bufferlist containing a buffer.
  */
-
 int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 {
   // Open file
@@ -2376,7 +2375,6 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 /* @todo: This is a temporary function to demonstrate buffer is written on to a file.
  * In reality, the buffer is given to Ceph which takes care of writing.
  */
-
 int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
     std::ofstream ofile(filename);
@@ -3442,7 +3440,9 @@ int transform_arrow_to_fb(const char* data,
 
     // Placeholder function
     std::shared_ptr<arrow::Table> table;
-    std::shared_ptr<arrow::Buffer> buffer = arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(data)), data_size);
+    std::shared_ptr<arrow::Buffer> buffer = \
+        arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(data)),
+                                   data_size);
     extract_arrow_from_buffer(&table, buffer);
 
     ret = print_arrowbuf_colwise(table);

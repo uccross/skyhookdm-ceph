@@ -1442,29 +1442,11 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         char* result_data = orig_data;
                         size_t result_size = orig_size;
 
-                        flatbuffers::FlatBufferBuilder *meta_builder = \
-                                new flatbuffers::FlatBufferBuilder();
                         createFbMeta(meta_builder,
                                      SFT_FLATBUF_FLEX_ROW,
                                      reinterpret_cast<unsigned char*>(
                                         result_data),
                                      result_size);
-
-                         // add meta_builder's data into a bufferlist as char*
-                        bufferlist meta_bl;
-                        meta_bl.append(reinterpret_cast<const char*>( \
-                                            meta_builder->GetBufferPointer()),
-                                            meta_builder->GetSize());
-
-                        // add this result into our results bl
-                        ::encode(meta_bl, result_bl);
-                        delete meta_builder;
-
-                        if (op.index_read)
-                            ds_rows_processed = row_nums.size();
-                        else
-                            ds_rows_processed = root.nrows;
-
                         break;
                     }
 
@@ -1491,7 +1473,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                      reinterpret_cast<unsigned char*>(
                                             result_builder.GetBufferPointer()),
                                      result_builder.GetSize());
-
+                        break;
                     }
 
                     case SFT_ARROW: {
@@ -1517,11 +1499,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                      SFT_ARROW,
                                      (unsigned char *)buffer->ToString().c_str(),
                                      buffer->size());
-
-                        if (op.index_read)
-                            ds_rows_processed = row_nums.size();
-                        else
-                            ds_rows_processed = root.nrows;
                         break;
                     }
 
@@ -1978,7 +1955,8 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         delete meta_builder;
 
         // Write the object back to Ceph
-        ret = cls_cxx_write(hctx, offset, transformed_encoded_meta_bl.length(), &transformed_encoded_meta_bl);
+        ret = cls_cxx_write(hctx, offset, transformed_encoded_meta_bl.length(),
+                            &transformed_encoded_meta_bl);
         if (ret < 0) {
             CLS_ERR("ERROR: writing obj full %d", ret);
             return ret;
