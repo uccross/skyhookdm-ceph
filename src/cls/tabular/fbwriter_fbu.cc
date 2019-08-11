@@ -549,6 +549,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     ::encode( bl, wrapper_bl ) ;
 
     std::cout << "datasz = " << datasz << std::endl ;
+    std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
 
     // --------------------------------------------- //
     // build out FB_Meta
@@ -556,8 +557,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     flatbuffers::FlatBufferBuilder *meta_builder = new flatbuffers::FlatBufferBuilder();
     Tables::createFbMeta( meta_builder, 
                           SFT_FLATBUF_UNION_ROW,
-                          reinterpret_cast<unsigned char*>( dataptr ),
-                          datasz ) ;
+                          reinterpret_cast<unsigned char*>( wrapper_bl.c_str() ),
+                          wrapper_bl.length() ) ;
 
     // add meta_builder's data into a bufferlist as char*
     ceph::bufferlist meta_bl ;
@@ -855,13 +856,11 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     // --------------------------------------------- //
     // build out FB_Meta
     // --------------------------------------------- //
-    char* bl_seq_dataptr = bl_seq.c_str() ;
-
     flatbuffers::FlatBufferBuilder *meta_builder = new flatbuffers::FlatBufferBuilder();
     Tables::createFbMeta( meta_builder, 
                           SFT_FLATBUF_UNION_COL,
-                          reinterpret_cast<unsigned char*>( bl_seq_dataptr ),
-                          buffer_size ) ;
+                          reinterpret_cast<unsigned char*>( bl_seq.c_str() ),
+                          bl_seq.length() ) ;
 
     // add meta_builder's data into a bufferlist as char*
     ceph::bufferlist meta_bl ;

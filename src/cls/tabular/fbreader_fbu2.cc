@@ -94,41 +94,50 @@ void do_read( bool debug,
   if( debug )
     std::cout << "num_bytes_read : " << num_bytes_read << std::endl ; 
 
+  // extract FB_Meta. wrapped_bl_seq will only ever contain 1 bl, which is an FB_Meta.
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
+  ceph::bufferlist meta_wrapper_bl ;
+  ::decode( meta_wrapper_bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+  const char* meta_dataptr = meta_wrapper_bl.c_str() ;
+  size_t meta_datasz       = meta_wrapper_bl.length() ;
+  std::cout << "meta_datasz = " << meta_datasz << std::endl ;
+
+  // get the blob
+  const Tables::FB_Meta* meta = Tables::GetFB_Meta( meta_wrapper_bl.c_str() ) ;
+  const char* blob_dataptr    = reinterpret_cast<const char*>( meta->blob_data()->Data() ) ;
+  size_t blob_sz              = meta->blob_data()->size() ;
+  std::cout << "blob_sz = " << blob_sz << std::endl ;
+
+  ceph::bufferlist bl_seq ;
+  bl_seq.append( blob_dataptr, blob_sz ) ;
+  ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
 
   // ================================================================================ //
   // display data
 
-  while( it_wrapped.get_remaining() > 0 ) {
+  while( it_bl_seq.get_remaining() > 0 ) {
 
     if( debug )
-      std::cout << "it_wrapped.get_remaining() = " << it_wrapped.get_remaining() << std::endl ;
+      std::cout << "it_bl_seq.get_remaining() = " << it_bl_seq.get_remaining() << std::endl ;
 
-    // extract FB_Meta
-    ceph::bufferlist meta_wrapper_bl ;
-    ::decode( meta_wrapper_bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
-    const char* meta_dataptr = meta_wrapper_bl.c_str() ;
-    size_t meta_datasz       = meta_wrapper_bl.length() ;
+    ceph::bufferlist bl ;
+    ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+    const char* dataptr = bl.c_str() ;
+    size_t datasz       = bl.length() ;
+    std::cout << "datasz = " << datasz << std::endl ;
+
     bool print_header   = true ;
     bool print_verbose  = false ;
     if( debug )
       print_verbose  = true ;
     long long int max_to_print = 0 ;
 
-    std::cout << "meta_datasz = " << meta_datasz << std::endl ;
-
-    // get the blob
-    const Tables::FB_Meta* meta = Tables::GetFB_Meta( meta_wrapper_bl.c_str() ) ;
-    const char* blob_dataptr    = reinterpret_cast<const char*>( meta->blob_data()->Data() ) ;
-    size_t blob_sz              = meta->blob_data()->size() ;
-    std::cout << "blob_sz = " << blob_sz << std::endl ;
-
-    printFlatbufFBUAsCSV(
-      blob_dataptr,
-      blob_sz,
-      print_header,
-      print_verbose,
-      max_to_print ) ;
+      printFlatbufFBUAsCSV(
+        dataptr,
+        datasz,
+        print_header,
+        print_verbose,
+        max_to_print ) ;
 
     if( debug )
       std::cout << "loop while" << std::endl ;
