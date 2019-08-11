@@ -104,29 +104,41 @@ void do_read( bool debug,
     if( debug )
       std::cout << "it_wrapped.get_remaining() = " << it_wrapped.get_remaining() << std::endl ;
 
-    // grab the Root
-    ceph::bufferlist bl ;
-    ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
-    const char* dataptr = bl.c_str() ;
-    size_t datasz       = bl.length() ;
+    // get the FB_Meta
+    ceph::bufferlist meta_bl ;
+    ::decode( meta_bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+    const char* meta_dataptr = meta_bl.c_str() ;
+    size_t meta_datasz       = meta_bl.length() ;
+    //auto fb_meta = Tables::GetFB_Meta( meta_dataptr ) ;
+    //Tables::sky_meta fb_meta = Tables::getSkyMeta( meta_bl ) ;
+
+    // grab the Root blob
+    //const char* dataptr = reinterpret_cast<const char*>( fb_meta->blob_data()->Data() ) ;
+    //size_t datasz       = fb_meta->blob_size() ;
+
+std::cout << "meta_datasz = " << std::to_string( meta_datasz ) << std::endl ;
+//std::cout << "datasz = " << std::to_string( datasz ) << std::endl ;
+std::cout << "blah" << std::endl ;
+exit(1) ;
+
+
+    // read params
     bool print_header   = true ;
     bool print_verbose  = false ;
-    if( debug )
-      print_verbose  = true ;
+    if( debug ) print_verbose  = true ;
     long long int max_to_print = 0 ;
-
+/*
     printFlatbufFBUAsCSV(
       dataptr,
       datasz,
       print_header,
       print_verbose,
       max_to_print ) ;
-
+*/
     if( debug )
       std::cout << "loop while" << std::endl ;
 
   } // while
-
   ioctx.close() ;
 
 } // do_read
@@ -145,6 +157,7 @@ long long int printFlatbufFBUAsCSV(
   auto ncols      = root->ncols() ;
   auto format     = root->relationData_type() ;
   auto data       = root->relationData() ;
+
 
   if( print_verbose ) {
     std::cout << "format     : " << format << std::endl ;
