@@ -123,21 +123,28 @@ struct cmdline_inputs_t {
   uint64_t ncols ;
   uint64_t cols_per_fb ;
   std::string writeto ;
+  std::string targetformat ;
   std::string targetoid ;
   std::string targetpool ;
 } ;
 
-int writeToDisk( librados::bufferlist wrapper_bl, int bufsz, std::string target_oid ) {
-
+int writeToDisk( librados::bufferlist wrapper_bl, 
+                 int bufsz, 
+                 std::string target_format, 
+                 std::string target_oid ) {
   int mode = 0600 ;
-  std::string fname = "Skyhook.v2."+ target_oid ;
+  std::string fname = "skyhook."+ target_format + "." + target_oid + ".0" ;
   wrapper_bl.write_file( fname.c_str(), mode ) ;
   printf( "buff size: %d, wrapper_bl size: %d\n", bufsz, wrapper_bl.length() ) ;
 
   return 0;
 }
 
-int writeToCeph( librados::bufferlist bl_seq, int bufsz, std::string target_oid, std::string target_pool ) {
+int writeToCeph( librados::bufferlist bl_seq, 
+                 int bufsz, 
+                 std::string target_format, 
+                 std::string target_oid, 
+                 std::string target_pool ) {
 
   // save to ceph object
   // connect to rados
@@ -155,7 +162,7 @@ int writeToCeph( librados::bufferlist bl_seq, int bufsz, std::string target_oid,
   const char *obj_name = target_oid.c_str() ;
   bufferlist::iterator p = bl_seq.begin();
   size_t i = p.get_remaining() ;
-  std::cout << i << std::endl ;
+  std::cout << "num bytes written : " << i << std::endl ;
   ret = ioctx.write( obj_name, bl_seq, i, 0 ) ;
 
   ioctx.close() ;
@@ -204,6 +211,7 @@ int main( int argc, char *argv[] ) {
   uint64_t ncols ;
   uint64_t cols_per_fb ;
   std::string writeto ;
+  std::string targetformat ;
   std::string targetoid ;
   std::string targetpool ;
 
@@ -220,6 +228,7 @@ int main( int argc, char *argv[] ) {
     ("ncols", po::value<uint64_t>(&ncols)->required(), "ncols")
     ("cols_per_fb", po::value<uint64_t>(&cols_per_fb), "cols_per_fb")
     ("writeto", po::value<std::string>(&writeto)->required(), "writeto")
+    ("targetformat", po::value<std::string>(&targetformat)->required(), "targetformat")
     ("targetoid", po::value<std::string>(&targetoid)->required(), "targetoid")
     ("targetpool", po::value<std::string>(&targetpool)->required(), "targetpool") ;
 
@@ -243,6 +252,7 @@ int main( int argc, char *argv[] ) {
   inputs.nrows            = nrows ;
   inputs.ncols            = ncols ;
   inputs.writeto          = writeto ;
+  inputs.targetformat     = targetformat ;
   inputs.targetoid        = targetoid ;
   inputs.targetpool       = targetpool ;
   inputs.cols_per_fb      = cols_per_fb ;
@@ -266,6 +276,10 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     std::cout << "inputs.table_name       : " << inputs.table_name              << std::endl ;
     std::cout << "inputs.nrows            : " << std::to_string( inputs.nrows ) << std::endl ;
     std::cout << "inputs.ncols            : " << std::to_string( inputs.ncols ) << std::endl ;
+    std::cout << "inputs.writeto          : " << inputs.writeto << std::endl ;
+    std::cout << "inputs.targetformat     : " << inputs.targetformat << std::endl ;
+    std::cout << "inputs.targetoid        : " << inputs.targetoid << std::endl ;
+    std::cout << "inputs.targetpool       : " << inputs.targetpool << std::endl ;
     std::cout << "inputs.cols_per_fb      : " << std::to_string( inputs.cols_per_fb ) << std::endl ;
   }
 
@@ -526,17 +540,41 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 
     builder.Finish( root ) ;
 
-    const char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+    //const char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+    char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
     int datasz          = builder.GetSize() ;
     librados::bufferlist bl;
     bl.append( dataptr, datasz ) ;
     librados::bufferlist wrapper_bl ;
     ::encode( bl, wrapper_bl ) ;
 
+    //std::cout << "datasz = " << datasz << std::endl ;
+
+    // --------------------------------------------- //
+    // build out FB_Meta
+    // --------------------------------------------- //
+    flatbuffers::FlatBufferBuilder *meta_builder = new flatbuffers::FlatBufferBuilder();
+    Tables::createFbMeta( meta_builder, 
+                          SFT_FLATBUF_UNION_ROW,
+                          reinterpret_cast<unsigned char*>( dataptr ),
+                          datasz ) ;
+
+    // add meta_builder's data into a bufferlist as char*
+    ceph::bufferlist meta_bl ;
+    char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
+    int meta_builder_size  = meta_builder->GetSize() ;
+    //std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
+    meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
+    delete meta_builder;
+
+    // --------------------------------------------- //
+    // do the write
+    // --------------------------------------------- //
     if( inputs.writeto == "ceph" )
-      writeToCeph( wrapper_bl, datasz, inputs.targetoid, inputs.targetpool ) ;
+      //writeToCeph( wrapper_bl, datasz, inputs.targetoid, inputs.targetpool ) ;
+      writeToCeph( meta_bl, meta_builder_size, inputs.targetformat, inputs.targetoid, inputs.targetpool ) ;
     else if( inputs.writeto == "disk" )
-      writeToDisk( wrapper_bl, datasz, inputs.targetoid ) ;
+      writeToDisk( wrapper_bl, datasz, inputs.targetformat, inputs.targetoid ) ;
     else {
       std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
       exit( 1 ) ;
@@ -808,11 +846,16 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       }//if
     } //for
 
+    // --------------------------------------------- //
+    // build out FB_META
+    // --------------------------------------------- //
+    //
+
     // write bufferlist
     if( inputs.writeto == "ceph" )
-      writeToCeph( bl_seq, buffer_size, inputs.targetoid, inputs.targetpool ) ;
+      writeToCeph( bl_seq, buffer_size, inputs.targetformat, inputs.targetoid, inputs.targetpool ) ;
     else if( inputs.writeto == "disk" )
-      writeToDisk( bl_seq, buffer_size, inputs.targetoid ) ;
+      writeToDisk( bl_seq, buffer_size, inputs.targetformat, inputs.targetoid ) ;
     else {
       std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
       exit( 1 ) ;
