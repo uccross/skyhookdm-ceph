@@ -115,6 +115,8 @@ void do_read( bool debug,
       print_verbose  = true ;
     long long int max_to_print = 0 ;
 
+    std::cout << "datasz = " << datasz << std::endl ;
+
     printFlatbufFBUAsCSV(
       dataptr,
       datasz,
