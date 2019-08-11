@@ -104,41 +104,37 @@ void do_read( bool debug,
     if( debug )
       std::cout << "it_wrapped.get_remaining() = " << it_wrapped.get_remaining() << std::endl ;
 
-    // get the FB_Meta
-    ceph::bufferlist meta_bl ;
-    ::decode( meta_bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
-    const char* meta_dataptr = meta_bl.c_str() ;
-    size_t meta_datasz       = meta_bl.length() ;
-    //auto fb_meta = Tables::GetFB_Meta( meta_dataptr ) ;
-    //Tables::sky_meta fb_meta = Tables::getSkyMeta( meta_bl ) ;
-
-    // grab the Root blob
-    //const char* dataptr = reinterpret_cast<const char*>( fb_meta->blob_data()->Data() ) ;
-    //size_t datasz       = fb_meta->blob_size() ;
-
-std::cout << "meta_datasz = " << std::to_string( meta_datasz ) << std::endl ;
-//std::cout << "datasz = " << std::to_string( datasz ) << std::endl ;
-std::cout << "blah" << std::endl ;
-exit(1) ;
-
-
-    // read params
+    // extract FB_Meta
+    ceph::bufferlist meta_wrapper_bl ;
+    ::decode( meta_wrapper_bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
+    const char* meta_dataptr = meta_wrapper_bl.c_str() ;
+    size_t meta_datasz       = meta_wrapper_bl.length() ;
     bool print_header   = true ;
     bool print_verbose  = false ;
-    if( debug ) print_verbose  = true ;
+    if( debug )
+      print_verbose  = true ;
     long long int max_to_print = 0 ;
-/*
+
+    std::cout << "meta_datasz = " << meta_datasz << std::endl ;
+
+    // get the blob
+    const Tables::FB_Meta* meta = Tables::GetFB_Meta( meta_wrapper_bl.c_str() ) ;
+    const char* blob_dataptr    = reinterpret_cast<const char*>( meta->blob_data()->Data() ) ;
+    size_t blob_sz              = meta->blob_data()->size() ;
+    std::cout << "blob_sz = " << blob_sz << std::endl ;
+
     printFlatbufFBUAsCSV(
-      dataptr,
-      datasz,
+      blob_dataptr,
+      blob_sz,
       print_header,
       print_verbose,
       max_to_print ) ;
-*/
+
     if( debug )
       std::cout << "loop while" << std::endl ;
 
   } // while
+
   ioctx.close() ;
 
 } // do_read
@@ -157,7 +153,6 @@ long long int printFlatbufFBUAsCSV(
   auto ncols      = root->ncols() ;
   auto format     = root->relationData_type() ;
   auto data       = root->relationData() ;
-
 
   if( print_verbose ) {
     std::cout << "format     : " << format << std::endl ;
