@@ -109,6 +109,25 @@ void do_read( bool debug,
   std::cout << "blob_sz = " << blob_sz << std::endl ;
 
   //TODO: use different method for getting bufferlist from ptr.
+  //  fb char* data ptr and len
+  //  const char *c = fb->GetBuffer();
+  //  int size = fb->GetBufferSize();
+  //  
+  //  // standard bl.append our char* array
+  //  bufferlist bl1;
+  //  bl1.append(c, size);
+  //  
+  //  // create bufptr and push ptr onto end of bl
+  //  bufferptr p(c, size);
+  //  bufferlist bl2;
+  //  bl2.push_back(p);
+  //  
+  //  // iterator with copy_shallow
+  //  bufferptr p(c, size);
+  //  bufferlist bl3;
+  //  iterator it(&bl3);
+  //  it.copy_shallow(size,p);
+  //
   ceph::bufferlist bl_seq ;
   bl_seq.append( blob_dataptr, blob_sz ) ;
   ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
