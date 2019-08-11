@@ -342,7 +342,6 @@ static void add_extra_row_cost(uint64_t cost)
 void worker()
 {
   std::unique_lock<std::mutex> lock(work_lock);
-
   while (true) {
     // wait for work, or done
     if (ready_ios.empty()) {
@@ -422,7 +421,7 @@ void worker()
             */
 
             // default usage here assumes the fbmeta is already in the bl
-            sky_meta meta = getSkyMeta(bl);
+            sky_meta meta = getSkyMeta(&bl);
 
             // this code block is only used for accounting (rows processed)
             switch (meta.blob_format) {
@@ -432,14 +431,10 @@ void worker()
                     break;
                 }
                 case SFT_ARROW: {
-                    std::shared_ptr<arrow::Buffer> buffer;
-                    std::shared_ptr<arrow::Table> table;
-                    std::string str_data(meta.blob_data, meta.blob_size);
-                    arrow::Buffer::FromString(str_data, &buffer);
-                    extract_arrow_from_buffer(&table, buffer);
-                    auto schema = table->schema();
-                    auto metadata = schema->metadata();
-                    rows_returned += std::stoi(metadata->value(METADATA_NUM_ROWS));
+                    sky_root root = Tables::getSkyRoot(meta.blob_data,
+                                                       meta.blob_size,
+                                                       SFT_ARROW);
+                    rows_returned += root.nrows;
                     break;
                 }
                 case SFT_JSON: {
@@ -490,18 +485,12 @@ void worker()
                         break;
                     }
                     case SFT_ARROW: {
-                        // TODO Add nrow to rows_returned
-                        std::shared_ptr<arrow::Buffer> buffer;
-                        std::shared_ptr<arrow::Table> table;
-                        std::string str_data(meta.blob_data, meta.blob_size);
-                        arrow::Buffer::FromString(str_data, &buffer);
-                        extract_arrow_from_buffer(&table, buffer);
-                        auto schema = table->schema();
-                        auto metadata = schema->metadata();
-                        result_count += \
-                            std::stoi(metadata->value(METADATA_NUM_ROWS));
-                        print_data(buffer->ToString().c_str(),
-                                   buffer->size(),
+                        sky_root root = Tables::getSkyRoot(meta.blob_data,
+                                                           meta.blob_size,
+                                                           SFT_ARROW);
+                        result_count += root.nrows;
+                        print_data(meta.blob_data,
+                                   meta.blob_size,
                                    SFT_ARROW);
                         break;
                     }
@@ -565,7 +554,6 @@ void worker()
                             assert(more_processing_failure);
                         }
                         else {
-                            // TODO Get buffer and buffersize, print the buffer
                             std::shared_ptr<arrow::Buffer> buffer;
                             auto schema = table->schema();
                             auto metadata = schema->metadata();

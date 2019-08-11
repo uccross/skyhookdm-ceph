@@ -14,6 +14,22 @@
 
 namespace Tables {
 
+/*
+ * Function: processArrow
+ * Description: Process the input arrow table for the corresponding input
+ *              query and encapsulate the output in an output arrow table.
+ * @param[out] table       : Ouput arrow table
+ * @param[in] tbl_schema   : Schema of an input table
+ * @param[in] query_schema : Schema of an query
+ * @param[in] preds        : Predicates for the query
+ * @param[in] dataptr      : Input table in the form of char array
+ * @param[in] datasz       : Size of char array
+ * @param[out] errmsg      : Error message
+ * @param[out] row_nums    : Specified rows to be processed
+ *
+ * Return Value: error code
+ */
+
 int processArrow(
     std::shared_ptr<arrow::Table>* table,
     schema_vec& tbl_schema,
@@ -24,14 +40,29 @@ int processArrow(
     std::string& errmsg,
     const std::vector<uint32_t>& row_nums)
 {
-    std::shared_ptr<arrow::Buffer> buffer;
-    std::shared_ptr<arrow::Table> proj_table, temp_table;
-    std::string str_data(dataptr, datasz);
-    arrow::Buffer::FromString(str_data, &buffer);
-    extract_arrow_from_buffer(&proj_table, buffer);
+    int errcode = 0;
+    int processed_rows = 0;
+    int num_cols = std::distance(tbl_schema.begin(), tbl_schema.end());
+    auto pool = arrow::default_memory_pool();
+    std::vector<arrow::ArrayBuilder *> builder_list;
+    std::vector<std::shared_ptr<arrow::Array>> array_list;
+    std::vector<std::shared_ptr<arrow::Field>> output_tbl_fields_vec;
+    std::shared_ptr<arrow::Buffer> buffer = arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(dataptr)), datasz);
+    std::shared_ptr<arrow::Table> input_table, temp_table;
 
-    auto schema = proj_table->schema();
+    // Get input table from dataptr
+    extract_arrow_from_buffer(&input_table, buffer);
+
+    auto schema = input_table->schema();
     auto metadata = schema->metadata();
+
+    // Get number of rows to be processed
+    bool process_all_rows = true;
+    uint32_t nrows = atoi(metadata->value(METADATA_NUM_ROWS).c_str());
+    if (!row_nums.empty()) {
+        process_all_rows = false;  // process specified row numbers only
+        nrows = row_nums.size();
+    }
 
     // identify the max col idx, to prevent flexbuf vector oob error
     int col_idx_max = -1;
@@ -40,40 +71,256 @@ int processArrow(
             col_idx_max = it->idx;
     }
 
-    bool project_all = std::equal (tbl_schema.begin(), tbl_schema.end(),
-                                   query_schema.begin(), compareColInfo);
+    // Iterate through query schema vector to get the details of columns i.e name and type.
+    // Also, get the builder arrays required for each data type
+    for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
+        col_info col = *it;
 
-    //    proj_table = std::make_shared<arrow::Table>(proj_table);
-    if (!project_all) {
-        for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
-            for (auto it2 = tbl_schema.begin(); it2 != tbl_schema.end(); ++it2) {
-                if (!it2->compareName((*it).name))
-                    proj_table->RemoveColumn((*it2).idx, &temp_table);
+        // Create the array builders for respective datatypes. Use these array
+        // builders to store data to array vectors. These array vectors holds the
+        // actual column values. Also, add the details of column (Name and Datatype)
+        switch(col.type) {
+
+            case SDT_BOOL: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::BooleanBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::boolean()));
+                break;
+            }
+            case SDT_INT8: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int8()));
+                break;
+            }
+            case SDT_INT16: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int16Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int16()));
+                break;
+            }
+            case SDT_INT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int32Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int32()));
+                break;
+            }
+            case SDT_INT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int64Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int64()));
+                break;
+            }
+            case SDT_UINT8: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint8()));
+                break;
+            }
+            case SDT_UINT16: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt16Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint16()));
+                break;
+            }
+            case SDT_UINT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt32Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint32()));
+                break;
+            }
+            case SDT_UINT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt64Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint64()));
+                break;
+            }
+            case SDT_FLOAT: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::FloatBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::float32()));
+                break;
+            }
+            case SDT_DOUBLE: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::DoubleBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::float64()));
+                break;
+            }
+            case SDT_CHAR: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int8()));
+                break;
+            }
+            case SDT_UCHAR: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint8()));
+                break;
+            }
+            case SDT_DATE:
+            case SDT_STRING: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::StringBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::utf8()));
+                break;
+            }
+            default: {
+                errcode = TablesErrCodes::UnsupportedSkyDataType;
+                errmsg.append("ERROR processArrow()");
+                return errcode;
             }
         }
     }
-    proj_table = temp_table;
-    std::shared_ptr<arrow::KeyValueMetadata> proj_metadata (new arrow::KeyValueMetadata);
-    // Add skyhook metadata to arrow metadata.
-    proj_metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
-                          metadata->value(METADATA_SKYHOOK_VERSION));
-    proj_metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),
-                          metadata->value(METADATA_DATA_SCHEMA_VERSION));
-    proj_metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
-                          metadata->value(METADATA_DATA_STRUCTURE_VERSION));
-    proj_metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
-                          metadata->value(METADATA_DATA_FORMAT_TYPE));
-    proj_metadata->Append(ToString(METADATA_DATA_SCHEMA),
-                          schemaToString(query_schema));
-    proj_metadata->Append(ToString(METADATA_DB_SCHEMA),
-                          metadata->value(METADATA_DB_SCHEMA));
-    proj_metadata->Append(ToString(METADATA_TABLE_NAME),
-                          metadata->value(METADATA_TABLE_NAME));
-    proj_metadata->Append(ToString(METADATA_NUM_ROWS),
-                          metadata->value(METADATA_NUM_ROWS));
 
-    *table = proj_table->ReplaceSchemaMetadata(proj_metadata);
-    return 0;
+    for (uint32_t i = 0; i < nrows; i++) {
+
+        // process row i or the specified row number
+        uint32_t rnum = 0;
+        if (process_all_rows) rnum = i;
+        else rnum = row_nums[i];
+        if (rnum > nrows) {
+            errmsg += "ERROR: rnum(" + std::to_string(rnum) +
+                      ") > nrows(" + to_string(nrows) + ")";
+            return RowIndexOOB;
+        }
+
+        // skip dead rows.
+        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0);
+        if (std::static_pointer_cast<arrow::BooleanArray>(delvec_chunk)->Value(i) == true) continue;
+
+        // Apply predicates
+        if (!preds.empty()) {
+            bool pass = applyPredicatesArrow(preds, input_table, i);
+            if (!pass) continue;  // skip non matching rows.
+        }
+        processed_rows++;
+
+        // iter over the query schema and add the values from input table
+        // to output table
+        for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
+            col_info col = *it;
+            auto builder = builder_list[std::distance(query_schema.begin(), it)];
+
+            auto processing_chunk = input_table->column(col.idx)->data()->chunk(0);
+
+            if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
+                errcode = TablesErrCodes::RequestedColIndexOOB;
+                errmsg.append("ERROR processArrow()");
+                return errcode;
+            } else {
+                if (col.nullable) {  // check nullbit
+                    if (processing_chunk->IsNull(i)) {
+                        builder->AppendNull();
+                        continue;
+                    }
+                }
+
+                // Append data from input tbale to the respective data type builders
+                switch(col.type) {
+
+                case SDT_BOOL:
+                    static_cast<arrow::BooleanBuilder *>(builder)->Append(std::static_pointer_cast<arrow::BooleanArray>(processing_chunk)->Value(i));
+                    break;
+                case SDT_INT8:
+                    static_cast<arrow::Int8Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int8Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_INT16:
+                    static_cast<arrow::Int16Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int16Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_INT32:
+                    static_cast<arrow::Int32Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int32Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_INT64:
+                    static_cast<arrow::Int64Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int64Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_UINT8:
+                    static_cast<arrow::UInt8Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt8Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_UINT16:
+                    static_cast<arrow::UInt16Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt16Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_UINT32:
+                    static_cast<arrow::UInt32Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt32Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_UINT64:
+                    static_cast<arrow::UInt64Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt64Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_FLOAT:
+                    static_cast<arrow::FloatBuilder *>(builder)->Append(std::static_pointer_cast<arrow::FloatArray>(processing_chunk)->Value(i));
+                    break;
+                case SDT_DOUBLE:
+                    static_cast<arrow::DoubleBuilder *>(builder)->Append(std::static_pointer_cast<arrow::DoubleArray>(processing_chunk)->Value(i));
+                    break;
+                case SDT_CHAR:
+                    static_cast<arrow::Int8Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int8Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_UCHAR:
+                    static_cast<arrow::UInt8Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt8Array>(processing_chunk)->Value(i));
+                    break;
+                case SDT_DATE:
+                case SDT_STRING:
+                    static_cast<arrow::StringBuilder *>(builder)->Append(std::static_pointer_cast<arrow::StringArray>(processing_chunk)->GetString(i));
+                    break;
+                default: {
+                    errcode = TablesErrCodes::UnsupportedSkyDataType;
+                    errmsg.append("ERROR processArrow()");
+                    return errcode;
+                }
+                }
+            }
+        }
+    }
+
+    // Finalize the chunks holding the data
+    for (auto it = builder_list.begin(); it != builder_list.end(); ++it) {
+        auto builder = *it;
+        std::shared_ptr<arrow::Array> chunk;
+        builder->Finish(&chunk);
+        array_list.push_back(chunk);
+        delete builder;
+    }
+
+    std::shared_ptr<arrow::KeyValueMetadata> output_tbl_metadata (new arrow::KeyValueMetadata);
+    // Add skyhook metadata to arrow metadata.
+    output_tbl_metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
+                          metadata->value(METADATA_SKYHOOK_VERSION));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),
+                          metadata->value(METADATA_DATA_SCHEMA_VERSION));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
+                          metadata->value(METADATA_DATA_STRUCTURE_VERSION));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
+                          metadata->value(METADATA_DATA_FORMAT_TYPE));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_SCHEMA),
+                          schemaToString(query_schema));
+    output_tbl_metadata->Append(ToString(METADATA_DB_SCHEMA),
+                          metadata->value(METADATA_DB_SCHEMA));
+    output_tbl_metadata->Append(ToString(METADATA_TABLE_NAME),
+                          metadata->value(METADATA_TABLE_NAME));
+    output_tbl_metadata->Append(ToString(METADATA_NUM_ROWS),
+                          std::to_string(processed_rows));
+
+    // Generate schema from schema vector and add the metadata
+    schema = std::make_shared<arrow::Schema>(output_tbl_fields_vec, output_tbl_metadata);
+
+    // Finally, create a arrow table from schema and array vector
+    *table = arrow::Table::Make(schema, array_list);
+    return errcode;
 }
 
 int processSkyFb(
@@ -1085,11 +1332,11 @@ createFbMeta(
 // along with its metadata.  This unified structure is used as the primary
 // store/send/retreive data structure for many supported formats
 // format type is ignored if is_meta=true
-sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
+sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
 
     if (is_meta) {
-        // get data as contiguous bytes before accessing
-        const FB_Meta* meta = GetFB_Meta(bl.c_str());
+        const FB_Meta* meta = GetFB_Meta(bl->c_str());
+
         return sky_meta(
             meta->blob_orig_off(),     // data position in original file
             meta->blob_orig_len(),     // data len in original file
@@ -1108,11 +1355,12 @@ sky_meta getSkyMeta(bufferlist bl, bool is_meta, int data_format) {
             none,           // no compression
             data_format,    // user specified arg for testing formats
             false,          // deleted?
-            bl.length(),    // formatted data size in bytes
-            bl.c_str());    // get data as contiguous bytes before accessing
+            bl->length(),    // formatted data size in bytes
+            bl->c_str());    // get data as contiguous bytes before accessing
     }
 }
 
+int test = 0;
 sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
 
     int skyhook_version;
@@ -1160,7 +1408,24 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             break;
         }
 
-        case SFT_ARROW:
+        case SFT_ARROW: {
+            std::shared_ptr<arrow::Table> table;
+            std::shared_ptr<arrow::Buffer> buffer = arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(ds)), ds_size);
+            extract_arrow_from_buffer(&table, buffer);
+            auto schema = table->schema();
+            auto metadata = schema->metadata();
+            skyhook_version = std::stoi(metadata->value(METADATA_SKYHOOK_VERSION));
+            data_format_type = std::stoi(metadata->value(METADATA_DATA_FORMAT_TYPE));
+            data_structure_version = std::stoi(metadata->value(METADATA_DATA_STRUCTURE_VERSION));
+            data_schema_version = std::stoi(metadata->value(METADATA_DATA_SCHEMA_VERSION));
+            data_schema = metadata->value(METADATA_DATA_SCHEMA);
+            db_schema_name = metadata->value(METADATA_DB_SCHEMA);
+            table_name = metadata->value(METADATA_TABLE_NAME);
+            data_vec = NULL;
+            nrows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+            break;
+        }
+
         case SFT_FLATBUF_UNION_ROW:
         case SFT_FLATBUF_UNION_COL:
         case SFT_FLATBUF_CSV_ROW:
@@ -1459,6 +1724,277 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
                 TypedPredicate<std::string>* p = \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
                 string colval = row[p->colIdx()].AsString().str();
+                colpass = compare(colval,p->Val(),p->opType(),p->colType());
+                break;
+            }
+
+            default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+        }
+
+        // incorporate local col passing into the decision to pass row.
+        switch (chain_optype) {
+            case SOT_logical_or:
+                rowpass |= colpass;
+                break;
+            case SOT_logical_and:
+                rowpass &= colpass;
+                break;
+            default: // should not be reachable
+                rowpass &= colpass;
+        }
+    }
+    return rowpass;
+}
+
+//TODO: This function can be merged with applyPredicates
+bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& table,
+                          int element_index)
+{
+    bool rowpass = false;
+    bool init_rowpass = false;
+
+    int num_cols = table->num_columns();
+    for (auto it = pv.begin(); it != pv.end(); ++it) {
+
+        int chain_optype = (*it)->chainOpType();
+
+        if (!init_rowpass) {
+            if (chain_optype == SOT_logical_or)
+                rowpass = false;
+            else if (chain_optype == SOT_logical_and)
+                rowpass = true;
+            else
+                rowpass = true;  // default to logical AND
+            init_rowpass = true;
+        }
+
+        if ((chain_optype == SOT_logical_and) and !rowpass) break;
+
+        bool colpass = false;
+        switch((*it)->colType()) {
+
+            // NOTE: predicates have typed ints but our int comparison
+            // functions are defined on 64bit ints.
+            case SDT_BOOL: {
+                TypedPredicate<bool>* p = \
+                        dynamic_cast<TypedPredicate<bool>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                bool colval = std::static_pointer_cast<arrow::BooleanArray>(array)->Value(element_index);
+                bool predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_INT8: {
+                TypedPredicate<int8_t>* p = \
+                        dynamic_cast<TypedPredicate<int8_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                int8_t colval = std::static_pointer_cast<arrow::Int8Array>(array)->Value(element_index);
+                int8_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<int64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_INT16: {
+                TypedPredicate<int16_t>* p = \
+                        dynamic_cast<TypedPredicate<int16_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                int16_t colval = std::static_pointer_cast<arrow::Int16Array>(array)->Value(element_index);
+                int16_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<int64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_INT32: {
+                TypedPredicate<int32_t>* p = \
+                        dynamic_cast<TypedPredicate<int32_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                int32_t colval = std::static_pointer_cast<arrow::Int32Array>(array)->Value(element_index);
+                int32_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<int64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_INT64: {
+                TypedPredicate<int64_t>* p = \
+                        dynamic_cast<TypedPredicate<int64_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                int64_t colval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX)
+                    array = table->column(ARROW_RID_INDEX(num_cols))->data()->chunk(0);
+                colval = std::static_pointer_cast<arrow::Int64Array>(array)->Value(element_index);
+                int64_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_UINT8: {
+                TypedPredicate<uint8_t>* p = \
+                        dynamic_cast<TypedPredicate<uint8_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                uint8_t colval = std::static_pointer_cast<arrow::UInt8Array>(array)->Value(element_index);
+                uint8_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<uint64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_UINT16: {
+                TypedPredicate<uint16_t>* p = \
+                        dynamic_cast<TypedPredicate<uint16_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                uint16_t colval = std::static_pointer_cast<arrow::UInt16Array>(array)->Value(element_index);
+                uint16_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<uint64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_UINT32: {
+                TypedPredicate<uint32_t>* p = \
+                        dynamic_cast<TypedPredicate<uint32_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                uint32_t colval = std::static_pointer_cast<arrow::UInt32Array>(array)->Value(element_index);
+                uint32_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<uint64_t>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_UINT64: {
+                TypedPredicate<uint64_t>* p = \
+                        dynamic_cast<TypedPredicate<uint64_t>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                uint64_t colval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX) {
+                    array = table->column(ARROW_RID_INDEX(num_cols))->data()->chunk(0);
+                    colval = std::static_pointer_cast<arrow::Int64Array>(array)->Value(element_index);
+                }
+                else
+                    colval = std::static_pointer_cast<arrow::UInt64Array>(array)->Value(element_index);
+                uint64_t predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_FLOAT: {
+                TypedPredicate<float>* p = \
+                        dynamic_cast<TypedPredicate<float>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                float colval = std::static_pointer_cast<arrow::FloatArray>(array)->Value(element_index);
+                float predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,
+                                      static_cast<double>(predval),
+                                      p->opType());
+                break;
+            }
+
+            case SDT_DOUBLE: {
+                TypedPredicate<double>* p = \
+                        dynamic_cast<TypedPredicate<double>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                double colval = std::static_pointer_cast<arrow::DoubleArray>(array)->Value(element_index);
+                double predval = p->Val();
+                if (p->isGlobalAgg())
+                    p->updateAgg(computeAgg(colval,predval,p->opType()));
+                else
+                    colpass = compare(colval,predval,p->opType());
+                break;
+            }
+
+            case SDT_CHAR: {
+                TypedPredicate<char>* p= \
+                        dynamic_cast<TypedPredicate<char>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                if (p->opType() == SOT_like) {
+                    // use strings for regex
+                    std::string colval = std::to_string((char)std::static_pointer_cast<arrow::Int8Array>(array)->Value(element_index));
+                    std::string predval = std::to_string(p->Val());
+                    colpass = compare(colval,predval,p->opType(),p->colType());
+                }
+                else {
+                    // use int val comparision method
+                    int8_t colval = std::static_pointer_cast<arrow::Int8Array>(array)->Value(element_index);
+                    int8_t predval = p->Val();
+                    if (p->isGlobalAgg())
+                        p->updateAgg(computeAgg(colval,predval,p->opType()));
+                    else
+                        colpass = compare(colval,
+                                          static_cast<int64_t>(predval),
+                                          p->opType());
+                }
+                break;
+            }
+
+            case SDT_UCHAR: {
+                TypedPredicate<unsigned char>* p = \
+                        dynamic_cast<TypedPredicate<unsigned char>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                if (p->opType() == SOT_like) {
+                    // use strings for regex
+                    std::string colval = std::to_string((char)std::static_pointer_cast<arrow::UInt8Array>(array)->Value(element_index));
+                    std::string predval = std::to_string(p->Val());
+                    colpass = compare(colval,predval,p->opType(),p->colType());
+                }
+                else {
+                    // use int val comparision method
+                    uint8_t colval = std::static_pointer_cast<arrow::UInt8Array>(array)->Value(element_index);
+                    uint8_t predval = p->Val();
+                    if (p->isGlobalAgg())
+                        p->updateAgg(computeAgg(colval,predval,p->opType()));
+                    else
+                        colpass = compare(colval,
+                                          static_cast<uint64_t>(predval),
+                                          p->opType());
+                }
+                break;
+            }
+
+            case SDT_STRING:
+            case SDT_DATE: {
+                TypedPredicate<std::string>* p = \
+                        dynamic_cast<TypedPredicate<std::string>*>(*it);
+                auto array = table->column(p->colIdx())->data()->chunk(0);
+                string colval = std::static_pointer_cast<arrow::StringArray>(array)->GetString(element_index);
                 colpass = compare(colval,p->Val(),p->opType(),p->colType());
                 break;
             }
@@ -1817,7 +2353,6 @@ void extract_typedpred_val(Tables::PredicateBase* pb, uint64_t& val) {
 /* @todo: This is a temporary function to demonstrate buffer is read from the file.
  * In reality, Ceph will return a bufferlist containing a buffer.
  */
-
 int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 {
   // Open file
@@ -1832,8 +2367,7 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 
   // Read file
   infile.read(cdata.get(), length);
-  std::string data(cdata.get(), length);
-  arrow::Buffer::FromString(data, buffer);
+  *buffer = arrow::Buffer::Wrap(cdata.get(), length);
   return 0;
 }
 
@@ -1841,12 +2375,10 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 /* @todo: This is a temporary function to demonstrate buffer is written on to a file.
  * In reality, the buffer is given to Ceph which takes care of writing.
  */
-
 int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
-    std::ofstream ofile("/tmp/skyhook.arrow");
-    std::string str(buffer->ToString());
-    ofile.write(buffer->ToString().c_str(), buffer->size());
+    std::ofstream ofile(filename);
+    ofile.write(reinterpret_cast<const char*>(buffer->data()), buffer->size());
     return 0;
 }
 
@@ -1882,6 +2414,280 @@ int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::s
 
     arrow::Table::FromRecordBatches(batch_vec, table);
     return 0;
+}
+
+/*
+ * Function: flatten_table
+ * Description: Flatten the input table i.e. merged chunks for a column into
+ *              single chunk.
+ * @param[in] input_table   : Arrow table to be flattened
+ * @param[out] errmsg       : Error message
+ * @param[out] output_table : Flattened output table
+ * Return Value: error code
+ */
+int flatten_table(const std::shared_ptr<arrow::Table> &input_table,
+                  std::string& errmsg,
+                  std::shared_ptr<arrow::Table> *output_table)
+{
+    int errcode = 0;
+    auto pool = arrow::default_memory_pool();
+    std::vector<std::shared_ptr<arrow::Array>> array_list;
+    std::vector<std::shared_ptr<arrow::Field>> output_tbl_fields_vec;
+    std::vector<arrow::ArrayBuilder *> builder_list;
+
+    auto input_schema = input_table->schema();
+    auto input_metadata = input_schema->metadata();
+    schema_vec sc = schemaFromString(input_metadata->value(METADATA_DATA_SCHEMA));
+    int num_cols = std::distance(sc.begin(), sc.end());
+    int num_rows = std::stoi(input_metadata->value(METADATA_NUM_ROWS));
+    
+    for (auto it = sc.begin(); it != sc.end() && !errcode; ++it) {
+        col_info col = *it;
+
+        // Create the array builders for respective datatypes. Use these array
+        // builders to store data to array vectors. These array vectors holds the
+        // actual column values. Also, add the details of column
+        switch(col.type) {
+
+            case SDT_BOOL: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::BooleanBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::boolean()));
+                break;
+            }
+            case SDT_INT8: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int8()));
+                break;
+            }
+            case SDT_INT16: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int16Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int16()));
+                break;
+            }
+            case SDT_INT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int32Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int32()));
+                break;
+            }
+            case SDT_INT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int64Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int64()));
+                break;
+            }
+            case SDT_UINT8: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint8()));
+                break;
+            }
+            case SDT_UINT16: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt16Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint16()));
+                break;
+            }
+            case SDT_UINT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt32Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint32()));
+                break;
+            }
+            case SDT_UINT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt64Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint64()));
+                break;
+            }
+            case SDT_FLOAT: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::FloatBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::float32()));
+                break;
+            }
+            case SDT_DOUBLE: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::DoubleBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::float64()));
+                break;
+            }
+            case SDT_CHAR: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int8()));
+                break;
+            }
+            case SDT_UCHAR: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint8()));
+                break;
+            }
+            case SDT_DATE:
+            case SDT_STRING: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::StringBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::utf8()));
+                break;
+            }
+            default: {
+                errcode = TablesErrCodes::UnsupportedSkyDataType;
+                errmsg.append("ERROR flatten_table()");
+                return errcode;
+            }
+        }
+    }
+
+    // Add RID column
+    auto rid_ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int64Builder(pool));
+    builder_list.emplace_back(rid_ptr.get());
+    rid_ptr.release();
+    output_tbl_fields_vec.push_back(arrow::field("RID", arrow::int64()));
+
+    // Add deleted vector column
+    auto dv_ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::BooleanBuilder(pool));
+    builder_list.emplace_back(dv_ptr.get());
+    dv_ptr.release();
+    output_tbl_fields_vec.push_back(arrow::field("DELETED_VECTOR", arrow::boolean()));
+
+    /*
+     * Now, we need to copy data from input table to output table.
+     * To do that, we need to iterate through input table for each rows and check
+     * if the row satisifies the predicate conditions. 
+     * 
+     * Processing a row in input table involves iterating through each column or
+     * chunked array. But as each column can have multiple chunks, we need to iterate
+     * through each chunk. Assuming that all the columns have same layout (i.e. same
+     * number of elements, same number of chunks and same number of elements inside
+     * each chunk), use column 0 to get the details of chunks (i.e. number of chunks
+     * and number of elements in each chunk.
+     */ 
+    int chunk_index = 0;
+    auto chunk_it = input_table->column(0)->data()->chunks();
+
+    // Get the number of elements in the first chunk.
+    auto chunk = chunk_it[chunk_index];
+    int element_index = 0;
+    for (int i = 0; i < num_rows; i++, ++element_index) {
+
+        // Check if we have exhausted the current chunk. If yes,
+        // go to next chunk inside the chunked array to get the number of
+        // element in the next chunk.
+        if (element_index == chunk->length()) {
+            chunk_index++;
+            chunk = chunk_it[chunk_index];
+            element_index = 0;
+        }
+
+        // iter over the query schema, locating it within the data schema
+        for (auto it = sc.begin(); it != sc.end() && !errcode; ++it) {
+            col_info col = *it;
+            auto builder = builder_list[std::distance(sc.begin(), it)];
+
+            auto processing_chunk_it = input_table->column(col.idx)->data()->chunks();
+            auto processing_chunk = processing_chunk_it[chunk_index];
+
+            if (processing_chunk->IsNull(element_index)) {
+                builder->AppendNull();
+                continue;
+            }
+
+            // Append data from input tbale to the respective data type builders
+            switch(col.type) {
+
+            case SDT_BOOL:
+                static_cast<arrow::BooleanBuilder *>(builder)->Append(std::static_pointer_cast<arrow::BooleanArray>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_INT8:
+                static_cast<arrow::Int8Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int8Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_INT16:
+                static_cast<arrow::Int16Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int16Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_INT32:
+                static_cast<arrow::Int32Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int32Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_INT64:
+                static_cast<arrow::Int64Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int64Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_UINT8:
+                static_cast<arrow::UInt8Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt8Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_UINT16:
+                static_cast<arrow::UInt16Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt16Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_UINT32:
+                static_cast<arrow::UInt32Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt32Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_UINT64:
+                static_cast<arrow::UInt64Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt64Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_FLOAT:
+                static_cast<arrow::FloatBuilder *>(builder)->Append(std::static_pointer_cast<arrow::FloatArray>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_DOUBLE:
+                static_cast<arrow::DoubleBuilder *>(builder)->Append(std::static_pointer_cast<arrow::DoubleArray>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_CHAR:
+                static_cast<arrow::Int8Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int8Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_UCHAR:
+                static_cast<arrow::UInt8Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt8Array>(processing_chunk)->Value(element_index));
+                break;
+            case SDT_DATE:
+            case SDT_STRING:
+                static_cast<arrow::StringBuilder *>(builder)->Append(std::static_pointer_cast<arrow::StringArray>(processing_chunk)->GetString(element_index));
+                break;
+            default: {
+                errcode = TablesErrCodes::UnsupportedSkyDataType;
+                errmsg.append("ERROR processArrow()");
+                return errcode;
+            }
+            }
+        }
+        // Add entries for RID and Deleted vector
+        auto processing_chunk_it = input_table->column(ARROW_RID_INDEX(num_cols))->data()->chunks();
+        auto processing_chunk = processing_chunk_it[chunk_index];
+        static_cast<arrow::Int64Builder *>(builder_list[ARROW_RID_INDEX(num_cols)])->Append(std::static_pointer_cast<arrow::Int64Array>(processing_chunk)->Value(element_index));
+            
+        processing_chunk_it = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunks();
+        processing_chunk = processing_chunk_it[chunk_index];
+        static_cast<arrow::UInt8Builder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(std::static_pointer_cast<arrow::BooleanArray>(processing_chunk)->Value(element_index));
+    }
+
+    // Finalize the chunks holding the data
+    for (auto it = builder_list.begin(); it != builder_list.end(); ++it) {
+        auto builder = *it;
+        std::shared_ptr<arrow::Array> chunk;
+        builder->Finish(&chunk);
+        array_list.push_back(chunk);
+        delete builder;
+    }
+
+    // Generate schema from schema vector and add the metadata
+    auto schema = std::make_shared<arrow::Schema>(output_tbl_fields_vec, input_metadata);
+
+    // Finally, create a arrow table from schema and array vector
+    *output_table = arrow::Table::Make(schema, array_list);
+    return errcode;
 }
 
 /*
@@ -2009,6 +2815,7 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
     return 0;
 }
 
+// TODO: This function may need some changes as we have a single chunk for a column
 int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
 {
     std::vector<std::shared_ptr<arrow::Array>> array_list;
@@ -2200,12 +3007,12 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     // a vector of chunks i.e. arrays which holds actual data.
 
     // Declare vector for columns (i.e. chunked_arrays)
-    std::vector<std::vector<std::shared_ptr<arrow::Array>>> chunked_array_vec;
+    std::vector<std::shared_ptr<arrow::Array>> chunk_vec;
     std::shared_ptr<arrow::Table> table;
     std::shared_ptr<arrow::Buffer> buffer;
 
-    std::string str_data(dataptr, datasz);
-    arrow::Buffer::FromString(str_data, &buffer);
+    std::string str_buff(dataptr, datasz);
+    arrow::Buffer::FromString(str_buff, &buffer);
 
     extract_arrow_from_buffer(&table, buffer);
     // From Table get the schema and from schema get the skyhook schema
@@ -2223,12 +3030,12 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     for (auto it = sc.begin(); it != sc.end(); ++it) {
         col_info col = *it;
         if (print_header) {
-            std::cout << table->column(col.idx)->name();
+            std::cout << table->column(std::distance(sc.begin(), it))->name();
             if (it->is_key) std::cout << "(key)";
             if (!it->nullable) std::cout << "(NOT NULL)";
             std::cout << CSV_DELIM;
         }
-        chunked_array_vec.emplace_back(table->column(col.idx)->data()->chunks());
+        chunk_vec.emplace_back(table->column(std::distance(sc.begin(), it))->data()->chunk(0));
     }
 
     if (print_verbose) {
@@ -2242,101 +3049,81 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
         }
 
         // Add RID and delete vector column
-        chunked_array_vec.emplace_back(table->column(ARROW_RID_INDEX(num_cols))->data()->chunks());
-        chunked_array_vec.emplace_back(table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunks());
+        chunk_vec.emplace_back(table->column(ARROW_RID_INDEX(num_cols))->data()->chunk(0));
+        chunk_vec.emplace_back(table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0));
     }
 
     if (print_header)
         std::cout << std::endl;
 
-    // As number of elements in all the columns are equal use chunked_array 0 to get number of
-    // elements.
-    int array_index = 0;
-    auto array_it = chunked_array_vec[0];
-
-    // Get the number of elements in the first array.
-    auto array = array_it[array_index];
-    int array_num_elements = array->length();
-    int array_element_it = 0;
-    for (int i = 0; i < num_rows; i++, array_element_it++) {
-
-        // Check if we have exhausted the current array. If yes,
-        // go to next array inside the chunked array to get the number of
-        // element in the next array.
-        if (array_element_it == array_num_elements) {
-            array_index++;
-            array = array_it[array_index];
-            array_num_elements = array->length();
-            array_element_it = 0;
-        }
+    for (int i = 0; i < num_rows; i++) {
 
         // For this row get the data from each columns
         for (auto it = sc.begin(); it != sc.end(); ++it) {
             col_info col = *it;
-            auto print_array_it = chunked_array_vec[std::distance(sc.begin(), it)];
-            auto print_array = print_array_it[array_index];
+            auto print_array = chunk_vec[std::distance(sc.begin(), it)];
 
-            if (print_array->IsNull(array_element_it)) {
+            if (print_array->IsNull(i)) {
                 std::cout << "NULL" << CSV_DELIM;
                 continue;
             }
 
             switch(col.type) {
                 case SDT_BOOL: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::BooleanArray>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::BooleanArray>(print_array)->Value(i));
                     break;
                 }
                 case SDT_INT8: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_INT16: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int16Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int16Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_INT32: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int32Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int32Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_INT64: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int64Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::Int64Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_UINT8: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_UINT16: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt16Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt16Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_UINT32: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt32Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt32Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_UINT64: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt64Array>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::UInt64Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_CHAR: {
-                    std::cout << (char)std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(array_element_it);
+                    std::cout << (char)std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(i);
                     break;
                 }
                 case SDT_UCHAR: {
-                    std::cout << (char)std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(array_element_it);
+                    std::cout << (char)std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(i);
                     break;
                 }
                 case SDT_FLOAT: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::FloatArray>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::FloatArray>(print_array)->Value(i));
                     break;
                 }
                 case SDT_DOUBLE: {
-                    std::cout << std::to_string(std::static_pointer_cast<arrow::DoubleArray>(print_array)->Value(array_element_it));
+                    std::cout << std::to_string(std::static_pointer_cast<arrow::DoubleArray>(print_array)->Value(i));
                     break;
                 }
                 case SDT_DATE:
                 case SDT_STRING: {
-                    std::cout << std::static_pointer_cast<arrow::StringArray>(print_array)->GetString(array_element_it);
+                    std::cout << std::static_pointer_cast<arrow::StringArray>(print_array)->GetString(i);
                     break;
                 }
                 default: {
@@ -2347,14 +3134,12 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
         }
         if (print_verbose) {
             // Print RID
-            auto print_array_it = chunked_array_vec[ARROW_RID_INDEX(num_cols)];
-            auto print_array = print_array_it[array_index];
-            std::cout << std::to_string(std::static_pointer_cast<arrow::Int64Array>(print_array)->Value(array_element_it)) << CSV_DELIM;
+            auto print_array = chunk_vec[ARROW_RID_INDEX(num_cols)];
+            std::cout << std::to_string(std::static_pointer_cast<arrow::Int64Array>(print_array)->Value(i)) << CSV_DELIM;
 
             // Print Deleted Vector
-            print_array_it = chunked_array_vec[ARROW_DELVEC_INDEX(num_cols)];
-            print_array = print_array_it[array_index];
-            std::cout << std::to_string(std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(array_element_it)) << CSV_DELIM;
+            print_array = chunk_vec[ARROW_DELVEC_INDEX(num_cols)];
+            std::cout << std::to_string(std::static_pointer_cast<arrow::BooleanArray>(print_array)->Value(i)) << CSV_DELIM;
         }
         std::cout << std::endl;  // newline to start next row.
     }
@@ -2399,7 +3184,7 @@ int transform_fb_to_arrow(const char* fb,
     metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
                      std::to_string(root.data_structure_version));
     metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
-                     std::to_string(root.data_format_type));
+                     std::to_string(SFT_ARROW));
     metadata->Append(ToString(METADATA_DATA_SCHEMA), root.data_schema);
     metadata->Append(ToString(METADATA_DB_SCHEMA), root.db_schema_name);
     metadata->Append(ToString(METADATA_TABLE_NAME), root.table_name);
@@ -2624,7 +3409,7 @@ int transform_fb_to_arrow(const char* fb,
         // Add entries for RID and Deleted vector
         int num_cols = std::distance(sc.begin(), sc.end());
         static_cast<arrow::Int64Builder *>(builder_list[ARROW_RID_INDEX(num_cols)])->Append(rec.RID);
-        static_cast<arrow::UInt8Builder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(del_vec[i]);
+        static_cast<arrow::BooleanBuilder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(del_vec[i]);
 
     }
 
@@ -2655,11 +3440,9 @@ int transform_arrow_to_fb(const char* data,
 
     // Placeholder function
     std::shared_ptr<arrow::Table> table;
-    std::shared_ptr<arrow::Buffer> buffer;
-
-    std::string str_data(data, data_size);
-    arrow::Buffer::FromString(str_data, &buffer);
-
+    std::shared_ptr<arrow::Buffer> buffer = \
+        arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(data)),
+                                   data_size);
     extract_arrow_from_buffer(&table, buffer);
 
     ret = print_arrowbuf_colwise(table);
@@ -2668,28 +3451,5 @@ int transform_arrow_to_fb(const char* data,
     }
     return 0;
 }
-
-//TODO: remove
-/*
-This is a test code for checking decode arrow table works fine or not
-int test_bls(bufferlist *wrapped_bls)
-{
-    // Create bl1
-    bufferlist bl1;
-    std::shared_ptr<arrow::Table> table1;
-    std::shared_ptr<arrow::Buffer> buffer1;
-    read_from_file("/tmp/skyhook_1.arrow", &buffer1);
-    bl1.append(buffer1->ToString().c_str(), buffer1->size());
-    ::encode(bl1, *wrapped_bls);
-
-    // Create bl2
-    bufferlist bl2;
-    std::shared_ptr<arrow::Table> table2;
-    std::shared_ptr<arrow::Buffer> buffer2;
-    read_from_file("/tmp/skyhook_2.arrow", &buffer2);
-    bl2.append(buffer2->ToString().c_str(), buffer2->size());
-    ::encode(bl2, *wrapped_bls);
-    return 0;
-}*/
 
 } // end namespace Tables
