@@ -704,9 +704,6 @@ void worker()
                         sky_root root = getSkyRoot(processed_data, 0);
                         result_count += root.nrows;
                         print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
-std::cout << "ret = " << ret << std::endl ; 
-std::cout << "blah2" << std::endl ;
-exit(1) ;
                         break ;
                     }
                     case SFT_FLATBUF_CSV_ROW:
