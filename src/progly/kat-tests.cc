@@ -17,8 +17,6 @@ int main(int argc, char **argv) {
 
   std::string pool     = "tpchflatbuf" ;
   std::string oid      = "obj.0" ;
-  //SkyFormatType format = SFT_FLATBUF_UNION_ROW ;
-  SkyFormatType format = SFT_FLATBUF_UNION_COL ;
   bool debug           = true ;
 
   // --------------------------------- //
@@ -113,16 +111,18 @@ int main(int argc, char **argv) {
     bool print_verbose  = false ;
     if( debug )
       print_verbose  = true ;
-    long long int max_to_print = 4 ;
+    long long int max_to_print = 1000 ;
 
-//    auto ret1 = Tables::printFlatbufFBUAsCsv( 
-//                  dataptr, 
-//                  datasz, 
-//                  print_header, 
-//                  print_verbose, 
-//                  max_to_print, 
-//                  format ) ;
-//    std::cout << ret1 << std::endl ;
+    //SkyFormatType format = SFT_FLATBUF_UNION_ROW ;
+    SkyFormatType format = SFT_FLATBUF_UNION_COL ;
+    auto ret1 = Tables::printFlatbufFBUAsCsv( 
+                  dataptr, 
+                  datasz, 
+                  print_header, 
+                  print_verbose, 
+                  max_to_print, 
+                  format ) ;
+    std::cout << ret1 << std::endl ;
 
     if( debug )
       std::cout << "loop while" << std::endl ;

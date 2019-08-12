@@ -203,8 +203,14 @@ long long int printFlatbufFBUAsCSV(
 
       auto curr_rec           = rows_data->Get(i) ;
       auto curr_rid           = curr_rec->RID() ;
+      //auto curr_nullbits      = curr_rec->nullbits() ;
       auto curr_rec_data      = curr_rec->data() ;
       auto curr_rec_data_type = curr_rec->data_type() ;
+
+      //std::cout << "     nullbits : " ;
+      //for( unsigned int j = 0; j < curr_nullbits->Length(); j++ )
+      //  std::cout << curr_nullbits->Get(j) << "," ;
+      //std::cout << std::endl ;
 
       if( print_verbose )
         std::cout << curr_rid << ":\t" ;
