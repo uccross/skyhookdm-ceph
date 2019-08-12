@@ -921,13 +921,13 @@ int processSkyFb_fbu_cols(
     bool project_all = std::equal(data_schema.begin(), data_schema.end(),
                                   query_schema.begin(), compareColInfo);
 
-    std::cout << "project_all = " << project_all << std::endl ;
+    //std::cout << "project_all = " << project_all << std::endl ;
 
     // get indices to process
     std::vector<int> project_indices ;
     for (auto it=query_schema.begin(); it!=query_schema.end() && !errcode; ++it) {
         col_info col = *it ;
-        std::cout << "col.idx = " << col.idx << std::endl ;
+        //std::cout << "col.idx = " << col.idx << std::endl ;
         project_indices.push_back( col.idx ) ;
     }
 
@@ -937,7 +937,7 @@ int processSkyFb_fbu_cols(
     if (hasAggPreds(preds)) encode_aggs = true;
     //bool encode_rows = !encode_aggs;
 
-    std::cout << "nrows = " << nrows << std::endl ;
+    //std::cout << "nrows = " << nrows << std::endl ;
 
     // 1. check the preds for passing
     // 2a. accumulate agg preds (return flexbuf built after all rows) or
@@ -999,7 +999,7 @@ int processSkyFb_fbu_cols(
                 // iter over the query schema, locating it within the data schema
                 for( int j = 0; (unsigned)j < cols_length; j++ ) {
                     //std::cout << "j = " << j << std::endl ;
-                    std::cout << " col_counter = " << col_counter << std::endl ;
+                    //std::cout << " col_counter = " << col_counter << std::endl ;
 
                     // check if we're supposed to process this column
                     if( std::find( project_indices.begin(), 
@@ -1055,7 +1055,7 @@ int processSkyFb_fbu_cols(
                                 auto column_of_data = 
                                     static_cast< const Tables::SDT_UINT64_FBU* >( curr_col_data ) ;
                                 auto data_at_row = column_of_data->data()->Get( rnum ) ;
-                                std::cout << std::to_string( data_at_row ) << std::endl ;
+                                //std::cout << std::to_string( data_at_row ) << std::endl ;
                                 flexbldr->Add( data_at_row );
                                 break;
                             }
@@ -1072,7 +1072,7 @@ int processSkyFb_fbu_cols(
                                 auto column_of_data = 
                                     static_cast< const Tables::SDT_FLOAT_FBU* >( curr_col_data ) ;
                                 auto data_at_row = column_of_data->data()->Get( rnum ) ;
-                                std::cout << std::to_string( data_at_row ) << std::endl ;
+                                //std::cout << std::to_string( data_at_row ) << std::endl ;
                                 flexbldr->Add( data_at_row );
                                 break;
                             }
@@ -1086,7 +1086,7 @@ int processSkyFb_fbu_cols(
                                 auto column_of_data = 
                                     static_cast< const Tables::SDT_STRING_FBU* >( curr_col_data ) ;
                                 auto data_at_row = column_of_data->data()->Get( rnum )->str() ;
-                                std::cout << data_at_row << std::endl ;
+                                //std::cout << data_at_row << std::endl ;
                                 flexbldr->Add( data_at_row );
                                 break;
                             }
@@ -1240,7 +1240,7 @@ int processSkyFb_fbu_cols(
     // fb lib assert finished() fails, hence we must always return a valid fb
     // and catch any ret error code upstream
     flatbldr.Finish(table);
-    std::cout << "processSkyFb_fbu_cols done." << std::endl ;
+    //std::cout << "processSkyFb_fbu_cols done." << std::endl ;
 
     return errcode;
 } //processSkyFb_fbu_cols
@@ -1924,7 +1924,7 @@ long long int printFlatbufFBUAsCsv(
         long long int max_to_print,
         SkyFormatType format ) {
 
-    std::cout << "format = " << format << std::endl ;
+    //std::cout << "format = " << format << std::endl ;
     sky_root skyroot = getSkyRoot( dataptr, datasz, format ) ;
     schema_vec sc    = schemaFromString( skyroot.data_schema ) ;
     assert( !sc.empty() ) ;
@@ -2045,9 +2045,9 @@ long long int printFlatbufFBUAsCsv(
                     //auto this_col_index = this_col->col_index() ;
                     auto curr_col_data  = this_col->data() ;
                     auto curr_col_data_type  = this_col->data_type() ;
-                    std::cout << "curr_col_data_type = " << curr_col_data_type << std::endl ;
+                    //std::cout << "curr_col_data_type = " << curr_col_data_type << std::endl ;
                     auto curr_col_data_type_sky = FBU_TO_SDT.at( curr_col_data_type ) ;
-                    std::cout << "curr_col_data_type_sky = " << curr_col_data_type_sky << std::endl ;
+                    //std::cout << "curr_col_data_type_sky = " << curr_col_data_type_sky << std::endl ;
 
                     if (col.nullable) {  // check nullbit
                         bool is_null = false;
