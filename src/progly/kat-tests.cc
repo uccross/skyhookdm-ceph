@@ -8,6 +8,9 @@
 *
 */
 
+
+// e.g. $ bin/kat-tests PROCESS COL
+
 #include "include/rados/librados.hpp" // for librados
 #include <boost/algorithm/string.hpp> // for boost::trim
 #include "cls/tabular/cls_tabular_utils.h"
@@ -36,27 +39,6 @@ int main(int argc, char **argv) {
   if( debug )
     std::cout << "num_bytes_read : " << num_bytes_read << std::endl ;
   // --------------------------------- //
-
-  const std::string KATS_SCHEMA_STRING (" \
-    0 " +  std::to_string(Tables::SDT_UINT64) + " 0 0 ATT0 \n\
-    1 " +  std::to_string(Tables::SDT_FLOAT) + " 0 0 ATT1 \n\
-    2 " +  std::to_string(Tables::SDT_STRING) + " 0 0 ATT2 \n\
-    3 " +  std::to_string(Tables::SDT_UINT64) + " 0 0 ATT3 \n\
-    ");
-
-  //std::cout << KATS_SCHEMA_STRING << std::endl ;
-  //exit(1) ;
-
-  Tables::schema_vec sky_tbl_schema = Tables::schemaFromString( KATS_SCHEMA_STRING ) ;
-
-  std::string project_cols = "att0,att1,att2,att3" ;
-  boost::trim( project_cols ) ;
-  boost::to_upper( project_cols ) ;
-  Tables::schema_vec sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols) ;
-
-  std::string query_preds = "" ;
-  boost::trim( query_preds ) ;
-  Tables::predicate_vec sky_qry_preds = predsFromString( sky_tbl_schema, query_preds ) ;
 
   // extract FB_Meta. wrapped_bl_seq will only ever contain 1 bl, which is an FB_Meta.
   ceph::bufferlist::iterator it_wrapped = wrapped_bl_seq.begin() ;
@@ -94,78 +76,131 @@ int main(int argc, char **argv) {
   //
   ceph::bufferlist bl_seq ;
   bl_seq.append( blob_dataptr, blob_sz ) ;
-  ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
 
-  while( it_bl_seq.get_remaining() > 0 ) {
+  if( (std::string)argv[1] == "PRINT" ) {
+    ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+  
+    while( it_bl_seq.get_remaining() > 0 ) {
+  
+      if( debug )
+        std::cout << "it_bl_seq.get_remaining() = " << it_bl_seq.get_remaining() << std::endl ;
+  
+      ceph::bufferlist bl ;
+      ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+      const char* dataptr = bl.c_str() ;
+      size_t datasz       = bl.length() ;
+      std::cout << "datasz = " << datasz << std::endl ;
+  
+      bool print_header   = true ;
+      bool print_verbose  = false ;
+      if( debug )
+        print_verbose  = true ;
+      long long int max_to_print = 1000 ;
+  
+      SkyFormatType format ;
+      if( (std::string)argv[2] == "ROW" )
+        format = SFT_FLATBUF_UNION_ROW ;
+      else if ( (std::string)argv[2] == "COL" ) 
+        format = SFT_FLATBUF_UNION_COL ;
+      else {
+        std::cout << "2argument not recognized : '" << argv[2] << "'" << std::endl ;
+        exit(1) ;
+      }
+      std::cout << "kat-tests running with format == " << format << std::endl ;
+      auto ret1 = Tables::printFlatbufFBUAsCsv( 
+                    dataptr, 
+                    datasz, 
+                    print_header, 
+                    print_verbose, 
+                    max_to_print, 
+                    format ) ;
+      std::cout << ret1 << std::endl ;
+  
+      if( debug )
+        std::cout << "loop while" << std::endl ;
+    } // while
+  } // argv[1] == 0
 
-    if( debug )
-      std::cout << "it_bl_seq.get_remaining() = " << it_bl_seq.get_remaining() << std::endl ;
+  else if( (std::string)argv[1] == "PROCESS" ) {
+    flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
+    std::string errmsg ;
 
-    ceph::bufferlist bl ;
-    ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
-    const char* dataptr = bl.c_str() ;
-    size_t datasz       = bl.length() ;
-    std::cout << "datasz = " << datasz << std::endl ;
+    const std::string KATS_SCHEMA_STRING (" \
+      0 " +  std::to_string(Tables::SDT_UINT64) + " 0 0 ATT0 \n\
+      1 " +  std::to_string(Tables::SDT_FLOAT) + " 0 0 ATT1 \n\
+      2 " +  std::to_string(Tables::SDT_STRING) + " 0 0 ATT2 \n\
+      3 " +  std::to_string(Tables::SDT_UINT64) + " 0 0 ATT3 \n\
+      ");
 
-    bool print_header   = true ;
-    bool print_verbose  = false ;
-    if( debug )
-      print_verbose  = true ;
-    long long int max_to_print = 1000 ;
+    //std::cout << KATS_SCHEMA_STRING << std::endl ;
+    //exit(1) ;
 
-    //SkyFormatType format = SFT_FLATBUF_UNION_ROW ;
-    SkyFormatType format = SFT_FLATBUF_UNION_COL ;
-    auto ret1 = Tables::printFlatbufFBUAsCsv( 
-                  dataptr, 
-                  datasz, 
-                  print_header, 
-                  print_verbose, 
-                  max_to_print, 
-                  format ) ;
-    std::cout << ret1 << std::endl ;
+    Tables::schema_vec sky_tbl_schema = Tables::schemaFromString( KATS_SCHEMA_STRING ) ;
 
-    if( debug )
-      std::cout << "loop while" << std::endl ;
+    std::string project_cols = "att0,att1,att2,att3" ;
+    boost::trim( project_cols ) ;
+    boost::to_upper( project_cols ) ;
+    Tables::schema_vec sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols) ;
+
+    std::string query_preds = "" ;
+    boost::trim( query_preds ) ;
+    Tables::predicate_vec sky_qry_preds = predsFromString( sky_tbl_schema, query_preds ) ;
 
     // ROWS
-//    std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
-//    int ret2 = processSkyFb_fbu_rows(
-//                flatbldr,
-//                sky_tbl_schema,
-//                sky_qry_schema,
-//                sky_qry_preds,
-//                dataptr,
-//                datasz,
-//                errmsg ) ;
-//    std::cout << ret2 << std::endl ;
-  } // while
+    if( (std::string)argv[2] == "ROW" ) {
+      std::cout << "calling processSkyFb_fbu_rows..." << std::endl ;
 
+      ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+      ceph::bufferlist bl ;
+      ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+      const char* dataptr = bl.c_str() ;
+      size_t datasz       = bl.length() ;
+      std::cout << "datasz = " << datasz << std::endl ;
 
-  // COLS
-//  flatbuffers::FlatBufferBuilder flatbldr_cols( 1024 ) ; // pre-alloc
-//  std::string errmsg_cols ;
-//
-//  ceph::bufferlist bl ;
-//  ::decode( bl, it_wrapped ) ; // this decrements get_remaining by moving iterator
-//  const char* dataptr = bl.c_str() ;
-//  size_t datasz       = bl.length() ;
-//
-//  bool print_header  = true ;
-//  bool print_verbose = true ;
-//  int max_to_print   = 10 ;
+      int ret2 = processSkyFb_fbu_rows(
+                  flatbldr,
+                  sky_tbl_schema,
+                  sky_qry_schema,
+                  sky_qry_preds,
+                  dataptr,
+                  datasz,
+                  errmsg ) ;
+      std::cout << ret2 << std::endl ;
+    }
 
-//  std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
-//  int ret3 = processSkyFb_fbu_cols(
-//              wrapped_bl_seq,
-//              flatbldr_cols,
-//              sky_tbl_schema,
-//              sky_qry_schema,
-//              sky_qry_preds,
-//              dataptr,
-//              datasz,
-//              errmsg_cols ) ;
-//  std::cout << ret3 << std::endl ;
+    // COLS
+    else if( (std::string)argv[2] == "COL" ) {
+      std::cout << "calling processSkyFb_fbu_cols..." << std::endl ;
 
+      // primer
+      ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+      ceph::bufferlist bl ;
+      ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+      const char* dataptr = bl.c_str() ;
+      size_t datasz       = bl.length() ;
+      std::cout << "datasz = " << datasz << std::endl ;
+
+      int ret3 = processSkyFb_fbu_cols(
+                  bl_seq,
+                  flatbldr,
+                  sky_tbl_schema,
+                  sky_qry_schema,
+                  sky_qry_preds,
+                  dataptr,
+                  datasz,
+                  errmsg ) ;
+      std::cout << ret3 << std::endl ;
+    }
+    else {
+      std::cout << "0argument not recognized : '" << argv[2] << "'" << std::endl ;
+      exit(1) ;
+    }
+
+  } // argv[1] == 1
+  else {
+    std::cout << "1argument not recognized : '" << argv[1] << "'" << std::endl ;
+    exit(1) ;
+  }
 
   return 0 ;
 }
