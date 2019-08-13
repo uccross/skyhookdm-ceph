@@ -2378,7 +2378,7 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
     std::ofstream ofile(filename);
-    ofile.write(reinterpret_cast<const char*>(buffer->data()), buffer->size());
+    ofile.write(reinterpret_cast<const char*>(buffer->mutable_data()), buffer->size());
     return 0;
 }
 
@@ -2402,6 +2402,19 @@ int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::s
     const std::shared_ptr<arrow::io::InputStream> buf_reader = std::make_shared<arrow::io::BufferReader>(buffer);
     std::shared_ptr<arrow::ipc::RecordBatchReader> reader;
     arrow::ipc::RecordBatchStreamReader::Open(buf_reader, &reader);
+
+    auto schema = reader->schema();
+    auto metadata = schema->metadata();
+
+    if (atoi(metadata->value(METADATA_NUM_ROWS).c_str()) == 0) {
+        // Table has no values and current version of Apache Arrow does not allow
+        // converting empty recordbatches to arrow table.
+        // https://www.mail-archive.com/issues@arrow.apache.org/msg30289.html
+        // Therefore, create and return empty arrow table
+        std::vector<std::shared_ptr<arrow::Array>> array_list;
+
+        *table = arrow::Table::Make(schema, array_list);
+    }
 
     // Initilaization related to read to apache arrow
     std::vector<std::shared_ptr<arrow::RecordBatch>> batch_vec;

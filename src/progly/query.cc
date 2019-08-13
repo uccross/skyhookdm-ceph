@@ -390,7 +390,7 @@ void worker()
                 int decode_runquery_cls = 0;
                 assert(decode_runquery_cls);
             }
-            nrows_processed += nrows_server_processed;
+            rows_returned += nrows_server_processed;
         } else {
             wrapped_bls = s->bl;  // contains a seq of encoded bls.
         }
@@ -423,34 +423,36 @@ void worker()
             // default usage here assumes the fbmeta is already in the bl
             sky_meta meta = getSkyMeta(&bl);
 
-            // this code block is only used for accounting (rows processed)
-            switch (meta.blob_format) {
-                case SFT_FLATBUF_FLEX_ROW: {
-                    sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
-                    rows_returned += root.nrows;
-                    break;
+            // Server has already told how much rows are there.
+            if (!use_cls) {
+                // this code block is only used for accounting (rows processed)
+                switch (meta.blob_format) {
+                    case SFT_FLATBUF_FLEX_ROW: {
+                        sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                        rows_returned += root.nrows;
+                        break;
+                    }
+                    case SFT_ARROW: {
+                        sky_root root = Tables::getSkyRoot(meta.blob_data,
+                                                           meta.blob_size,
+                                                           SFT_ARROW);
+                        rows_returned += root.nrows;
+                        break;
+                    }
+                    case SFT_JSON: {
+                        sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                        rows_returned += root.nrows;
+                        break;
+                    }
+                    case SFT_FLATBUF_UNION_ROW:
+                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_CSV_ROW:
+                    case SFT_PG_TUPLE:
+                    case SFT_CSV:
+                    default:
+                        assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
                 }
-                case SFT_ARROW: {
-                    sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                       meta.blob_size,
-                                                       SFT_ARROW);
-                    rows_returned += root.nrows;
-                    break;
-                }
-                case SFT_JSON: {
-                    sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
-                    rows_returned += root.nrows;
-                    break;
-                }
-                case SFT_FLATBUF_UNION_ROW:
-                case SFT_FLATBUF_UNION_COL:
-                case SFT_FLATBUF_CSV_ROW:
-                case SFT_PG_TUPLE:
-                case SFT_CSV:
-                default:
-                    assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
             }
-
 
             // check if we need to do any more processing: project/select/agg
             // TODO: check for/add global aggs here.
@@ -466,35 +468,21 @@ void worker()
             if (!more_processing) {
 
                 switch (meta.blob_format) {
-                    case SFT_JSON: {
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data, meta.blob_size);
-                        result_count += root.nrows;
-                        print_data(meta.blob_data,
-                                   meta.blob_size,
-                                   SFT_JSON);
-                        break;
-                    }
-                    case SFT_FLATBUF_FLEX_ROW: {
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data, meta.blob_size);
-                        result_count += root.nrows;
-                        print_data(meta.blob_data,
-                                   meta.blob_size,
-                                   SFT_FLATBUF_FLEX_ROW);
-                        break;
-                    }
+                    case SFT_JSON:
+                    case SFT_FLATBUF_FLEX_ROW:
                     case SFT_ARROW: {
-                        sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                           meta.blob_size,
-                                                           SFT_ARROW);
+
+                        // Server has already returned the result count.
+                        sky_root root =                                 \
+                            Tables::getSkyRoot(meta.blob_data, meta.blob_size, meta.blob_format);
+
                         result_count += root.nrows;
+
                         print_data(meta.blob_data,
                                    meta.blob_size,
-                                   SFT_ARROW);
+                                   meta.blob_format);
                         break;
                     }
-
                     case SFT_FLATBUF_UNION_ROW:
                     case SFT_FLATBUF_UNION_COL:
                     case SFT_FLATBUF_CSV_ROW:
