@@ -209,7 +209,7 @@ long long int printFlatbufFBUAsCSV(
 
       //std::cout << "     nullbits : " ;
       //for( unsigned int j = 0; j < curr_nullbits->Length(); j++ )
-      //  std::cout << curr_nullbits->Get(j) << "," ;
+      //  std::cout << curr_nullbits->Get(j) << "|" ;
       //std::cout << std::endl ;
 
       if( print_verbose )
@@ -239,7 +239,7 @@ long long int printFlatbufFBUAsCSV(
         } //switch
 
         if( j < curr_rec_data->Length()-1 )
-          std::cout << "," ;
+          std::cout << "|" ;
 
       } //for loop
       std::cout << std::endl ;
@@ -304,7 +304,7 @@ long long int printFlatbufFBUAsCSV(
       for( unsigned int j = 0; j < out_data.size(); j++ ) {
         this_row = this_row + out_data[j][i] ;
         if( j < ( out_data.size()-1 ) )
-          this_row = this_row + "," ;
+          this_row = this_row + "|" ;
       }
       std::cout << this_row << std::endl ;
     } //for

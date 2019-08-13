@@ -1415,10 +1415,52 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     flatbuffers::FlatBufferBuilder *meta_builder =      \
                         new flatbuffers::FlatBufferBuilder();
 
-                    sky_root root =                             \
-                        Tables::getSkyRoot(meta.blob_data,
-                                           meta.blob_size,
-                                           meta.blob_format);
+                    // this code block is only used for accounting (rows processed)
+                    int root_rows = 0 ;
+                    switch (meta.blob_format) {
+                        case SFT_FLATBUF_FLEX_ROW: {
+                            sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                            root_rows = root.nrows;
+                            break;
+                        }
+                        case SFT_ARROW: {
+                            sky_root root = Tables::getSkyRoot(meta.blob_data,
+                                                               meta.blob_size,
+                                                               SFT_ARROW);
+                            root_rows = root.nrows;
+                            break;
+                        }
+                        case SFT_JSON: {
+                            sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                            root_rows += root.nrows;
+                            break;
+                        }
+                        case SFT_FLATBUF_UNION_ROW:
+                        case SFT_FLATBUF_UNION_COL: {
+
+                            // extract ptr to meta data blob
+                            const char* blob_dataptr = reinterpret_cast<const char*>( meta.blob_data ) ;
+                            size_t blob_sz           = meta.blob_size ;
+                            //std::cout << "blob_sz = " << blob_sz << std::endl ;
+
+                            // extract bl_seq bufferlist
+                            ceph::bufferlist bl_seq ;
+                            bl_seq.append( blob_dataptr, blob_sz ) ;
+
+                            // just need to grab the first bufferlist in the bl_seq
+                            ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+                            ceph::bufferlist bl ;
+                            ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+                            const char* dataptr = bl.c_str() ;
+                            size_t datasz       = bl.length() ;
+                            //std::cout << "datasz = " << datasz << std::endl ;
+
+                            // get the number of rows returned for accounting purposes
+                            sky_root root = getSkyRoot( dataptr, datasz, SFT_FLATBUF_UNION_ROW ) ;
+                            root_rows = root.nrows;
+                            break ;
+                        }
+                    } //switch
 
                     // call associated process method based on ds type
                     switch (meta.blob_format) {
@@ -1503,7 +1545,63 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     }
 
                     case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_COL: {
+                        flatbuffers::FlatBufferBuilder result_builder(1024);
+                        int ret ;
+
+                        // extract ptr to meta data blob
+                        const char* blob_dataptr = reinterpret_cast<const char*>( meta.blob_data ) ;
+                        size_t blob_sz           = meta.blob_size ;
+
+                        // extract bl_seq bufferlist
+                        ceph::bufferlist bl_seq ;
+                        bl_seq.append( blob_dataptr, blob_sz ) ;
+
+                        // bl_seq for ROW format will only contain one bl
+                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+
+                        ceph::bufferlist bl ;
+                        ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+                        const char* dataptr = bl.c_str() ;
+                        size_t datasz       = bl.length() ;
+
+                        if( meta.blob_format == SFT_FLATBUF_UNION_ROW )
+                            ret = processSkyFb_fbu_rows(
+                                   result_builder,
+                                   data_schema,
+                                   query_schema,
+                                   query_preds,
+                                   dataptr,
+                                   datasz,
+                                   errmsg,
+                                   row_nums ) ;
+                        else if( meta.blob_format == SFT_FLATBUF_UNION_COL )
+                            ret = processSkyFb_fbu_cols(
+                                    bl_seq,
+                                    result_builder,
+                                    data_schema,
+                                    query_schema,
+                                    query_preds,
+                                    dataptr,
+                                    datasz,
+                                    errmsg,
+                                    row_nums ) ;
+                        else
+                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processSkyFb_fbu_* %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1 ;
+                        }
+
+                        createFbMeta(meta_builder,
+                                     SFT_FLATBUF_FLEX_ROW,
+                                     reinterpret_cast<unsigned char*>(
+                                            result_builder.GetBufferPointer()),
+                                     result_builder.GetSize());
+                        break ;
+                    }
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -1524,7 +1622,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     if (op.index_read)
                         ds_rows_processed = row_nums.size();
                     else
-                        ds_rows_processed = root.nrows;
+                        ds_rows_processed = root_rows;
                     break;
 
                     // add this processed ds to sequence of bls and update counter

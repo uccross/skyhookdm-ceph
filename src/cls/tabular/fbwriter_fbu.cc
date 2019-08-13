@@ -37,6 +37,9 @@
 
 namespace po = boost::program_options ;
 
+const uint8_t SKYHOOK_VERSION = 1 ;
+const uint8_t SCHEMA_VERSION  = 1 ;
+
 struct filedata_t {
   std::vector< std::vector< uint64_t  > > listof_int_vect_raw ;
   std::vector< std::vector< float > > listof_float_vect_raw ;
@@ -118,6 +121,8 @@ struct cmdline_inputs_t {
   std::string filename ;
   std::string schema_datatypes ;
   std::string schema_attnames ;
+  std::string schema_iskey ;
+  std::string schema_isnullable ;
   std::string table_name ;
   uint64_t nrows ;
   uint64_t ncols ;
@@ -173,6 +178,8 @@ void do_write( cmdline_inputs_t, bool ) ;
 std::string getSchemaString( uint64_t ncols,
                              std::vector< std::string > schema_attnames,
                              std::vector< Tables::SkyDataType > schema_datatypes_sdt,
+                             std::vector< std::string > schema_iskey,
+                             std::vector< std::string > schema_isnullable,
                              bool debug ) ;
 
 std::vector< std::string > parse_csv_str( std::string instr ) {
@@ -206,6 +213,8 @@ int main( int argc, char *argv[] ) {
   std::string filename ;
   std::string schema_datatypes ;
   std::string schema_attnames ;
+  std::string schema_iskey ;
+  std::string schema_isnullable ;
   std::string table_name ;
   uint64_t nrows ;
   uint64_t ncols ;
@@ -223,6 +232,8 @@ int main( int argc, char *argv[] ) {
     ("filename", po::value<std::string>(&filename)->required(), "filename")
     ("schema_datatypes", po::value<std::string>(&schema_datatypes)->required(), "schema_datatypes")
     ("schema_attnames", po::value<std::string>(&schema_attnames)->required(), "schema_attnames")
+    ("schema_iskey", po::value<std::string>(&schema_iskey)->required(), "schema_iskey")
+    ("schema_isnullable", po::value<std::string>(&schema_isnullable)->required(), "schema_isnullable")
     ("table_name", po::value<std::string>(&table_name)->required(), "table_name")
     ("nrows", po::value<uint64_t>(&nrows)->required(), "nrows")
     ("ncols", po::value<uint64_t>(&ncols)->required(), "ncols")
@@ -243,19 +254,21 @@ int main( int argc, char *argv[] ) {
   po::notify( vm ) ;
 
   cmdline_inputs_t inputs ;
-  inputs.debug            = debug ;
-  inputs.write_type       = write_type ;
-  inputs.filename         = filename ;
-  inputs.schema_datatypes = schema_datatypes ;
-  inputs.schema_attnames  = schema_attnames ;
-  inputs.table_name       = table_name ;
-  inputs.nrows            = nrows ;
-  inputs.ncols            = ncols ;
-  inputs.writeto          = writeto ;
-  inputs.targetformat     = targetformat ;
-  inputs.targetoid        = targetoid ;
-  inputs.targetpool       = targetpool ;
-  inputs.cols_per_fb      = cols_per_fb ;
+  inputs.debug             = debug ;
+  inputs.write_type        = write_type ;
+  inputs.filename          = filename ;
+  inputs.schema_datatypes  = schema_datatypes ;
+  inputs.schema_attnames   = schema_attnames ;
+  inputs.schema_iskey      = schema_iskey ;
+  inputs.schema_isnullable = schema_isnullable ;
+  inputs.table_name        = table_name ;
+  inputs.nrows             = nrows ;
+  inputs.ncols             = ncols ;
+  inputs.writeto           = writeto ;
+  inputs.targetformat      = targetformat ;
+  inputs.targetoid         = targetoid ;
+  inputs.targetpool        = targetpool ;
+  inputs.cols_per_fb       = cols_per_fb ;
 
   do_write( inputs, debug ) ;
 
@@ -268,20 +281,26 @@ int main( int argc, char *argv[] ) {
 void do_write( cmdline_inputs_t inputs, bool debug ) {
 
   if( inputs.debug ) {
-    std::cout << "inputs.debug            : " << inputs.debug                   << std::endl ;
-    std::cout << "inputs.write_type       : " << inputs.write_type              << std::endl ;
-    std::cout << "inputs.filename         : " << inputs.filename                << std::endl ;
-    std::cout << "inputs.schema_datatypes : " << inputs.schema_datatypes        << std::endl ;
-    std::cout << "inputs.schema_attnames  : " << inputs.schema_attnames         << std::endl ;
-    std::cout << "inputs.table_name       : " << inputs.table_name              << std::endl ;
-    std::cout << "inputs.nrows            : " << std::to_string( inputs.nrows ) << std::endl ;
-    std::cout << "inputs.ncols            : " << std::to_string( inputs.ncols ) << std::endl ;
-    std::cout << "inputs.writeto          : " << inputs.writeto << std::endl ;
-    std::cout << "inputs.targetformat     : " << inputs.targetformat << std::endl ;
-    std::cout << "inputs.targetoid        : " << inputs.targetoid << std::endl ;
-    std::cout << "inputs.targetpool       : " << inputs.targetpool << std::endl ;
-    std::cout << "inputs.cols_per_fb      : " << std::to_string( inputs.cols_per_fb ) << std::endl ;
+    std::cout << "inputs.debug             : " << inputs.debug                   << std::endl ;
+    std::cout << "inputs.write_type        : " << inputs.write_type              << std::endl ;
+    std::cout << "inputs.filename          : " << inputs.filename                << std::endl ;
+    std::cout << "inputs.schema_datatypes  : " << inputs.schema_datatypes        << std::endl ;
+    std::cout << "inputs.schema_attnames   : " << inputs.schema_attnames         << std::endl ;
+    std::cout << "inputs.schema_iskey      : " << inputs.schema_iskey            << std::endl ;
+    std::cout << "inputs.schema_isnullable : " << inputs.schema_isnullable       << std::endl ;
+    std::cout << "inputs.table_name        : " << inputs.table_name              << std::endl ;
+    std::cout << "inputs.nrows             : " << std::to_string( inputs.nrows ) << std::endl ;
+    std::cout << "inputs.ncols             : " << std::to_string( inputs.ncols ) << std::endl ;
+    std::cout << "inputs.writeto           : " << inputs.writeto                 << std::endl ;
+    std::cout << "inputs.targetformat      : " << inputs.targetformat            << std::endl ;
+    std::cout << "inputs.targetoid         : " << inputs.targetoid               << std::endl ;
+    std::cout << "inputs.targetpool        : " << inputs.targetpool              << std::endl ;
+    std::cout << "inputs.cols_per_fb       : " << std::to_string( inputs.cols_per_fb ) << std::endl ;
   }
+
+  //parse csv
+  std::vector< std::string > schema_iskey      = parse_csv_str( inputs.schema_iskey ) ;
+  std::vector< std::string > schema_isnullable = parse_csv_str( inputs.schema_isnullable ) ;
 
   // -----------------------------------------------
   // flatbuffer prelims
@@ -494,6 +513,9 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     // generate schema string
     std::string schema_string = "" ;
     for( unsigned int i = 0; i < ncols; i++ ) {
+      std::string this_iskey = schema_iskey[ i ] ;
+      std::string this_isnullable = schema_isnullable[ i ] ;
+
       std::string att_name = schema_attnames[ i ] ;
       auto att_type = schema_datatypes_sdt[ i ] ;
       std::string this_entry = " " + std::to_string( i ) + " " ;
@@ -511,7 +533,7 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
           std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
           exit( 1 ) ;
       } //switch
-      this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+      this_entry = this_entry + " " + this_iskey + " " + this_isnullable + " " + att_name + " \n" ;
       schema_string = schema_string + this_entry ;
     } //for
 
@@ -526,9 +548,9 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     auto root = CreateRoot_FBU(
       builder,                          //builder
       SFT_FLATBUF_UNION_ROW,           //data_format_type
-      0,                                //skyhook_version
-      0,                                //data_structure_version
-      0,                                //data_schema_version
+      SKYHOOK_VERSION,                  //skyhook_version
+      SCHEMA_VERSION,                   //data_structure_version
+      SCHEMA_VERSION,                   //data_schema_version
       schema_string_fb,                 //data_schema string
       db_schema_name,                   //db_schema_name TODO: parameterize
       (uint32_t)nrows,                  //nrows
@@ -639,6 +661,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     auto schema_string = getSchemaString( ncols, 
                                           schema_attnames, 
                                           schema_datatypes_sdt,
+                                          schema_iskey,
+                                          schema_isnullable,
                                           debug ) ;
     auto schema_string_fb = builder.CreateString( schema_string ) ;
 
@@ -826,9 +850,9 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         auto root = CreateRoot_FBU(
           builder,                          // builder
           SFT_FLATBUF_UNION_COL,           // data_format_type
-          0,                                // skyhook_version
-          0,                                // data_structure_version
-          0,                                // data_schema_version
+          SKYHOOK_VERSION,                  // skyhook_version
+          SCHEMA_VERSION,                   // data_structure_version
+          SCHEMA_VERSION,                   // data_schema_version
           schema_string_fb,                 // data_schema string
           db_schema_name,                   // db_schema_name TODO: parameterize
           (uint32_t)nrows,                  // nrows
@@ -899,9 +923,14 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
 std::string getSchemaString( uint64_t ncols, 
                              std::vector< std::string > schema_attnames, 
                              std::vector< Tables::SkyDataType > schema_datatypes_sdt,
+                             std::vector< std::string > schema_iskey, 
+                             std::vector< std::string > schema_isnullable, 
                              bool debug ) {
   std::string schema_string = "" ;
   for( unsigned int i = 0; i < ncols; i++ ) {
+    std::string this_iskey = schema_iskey[ i ] ;
+    std::string this_isnullable = schema_isnullable[ i ] ;
+
     std::string att_name = schema_attnames[ i ] ;
     auto att_type = schema_datatypes_sdt[ i ] ;
     std::string this_entry = " " + std::to_string( i ) + " " ;
@@ -919,7 +948,7 @@ std::string getSchemaString( uint64_t ncols,
         std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
         exit( 1 ) ;
     } //switch
-    this_entry = this_entry + " 0 0 " + att_name + " \n" ;
+    this_entry = this_entry + " " + this_iskey + " " + this_isnullable + " " + att_name + " \n" ;
     schema_string = schema_string + this_entry ;
   } //for
 

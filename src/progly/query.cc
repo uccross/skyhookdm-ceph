@@ -534,7 +534,6 @@ void worker()
                         // extract ptr to meta data blob
                         const char* blob_dataptr = reinterpret_cast<const char*>( meta.blob_data ) ;
                         size_t blob_sz           = meta.blob_size ;
-                        //std::cout << "blob_sz = " << blob_sz << std::endl ;
 
                         // extract bl_seq bufferlist
                         ceph::bufferlist bl_seq ;
@@ -550,7 +549,6 @@ void worker()
                             ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
                             const char* dataptr = bl.c_str() ;
                             size_t datasz       = bl.length() ;
-                            //std::cout << "datasz = " << datasz << std::endl ;
 
                             // get the number of rows returned for accounting purposes
                             if( first_iteration ) {

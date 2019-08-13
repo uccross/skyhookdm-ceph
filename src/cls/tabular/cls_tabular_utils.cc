@@ -677,7 +677,6 @@ int processSkyFb_fbu_rows(
 
         // build the return projection for this row.
         auto row = rec.data_fbu_rows ;
-        //auto row = rec.data.AsVector();
         flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
         flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
 
@@ -1012,15 +1011,11 @@ int processSkyFb_fbu_cols(
                     // get a skyhook col struct
                     sky_col_fbu skycol = getSkyCol_fbu( root, j );
                     auto this_col       = skycol.data_fbu_col ;
-                    //auto this_col_name  = this_col->col_name() ;
-                    //auto this_col_index = this_col->col_index() ;
                     auto curr_col_data  = this_col->data() ;
                     auto curr_col_data_rids = this_col->RIDs() ;
                     this_rid = curr_col_data_rids->Get( rnum ) ;
                     auto curr_col_data_type  = this_col->data_type() ;
-                    //std::cout << "curr_col_data_type = " << curr_col_data_type << std::endl ;
                     auto curr_col_data_type_sky = FBU_TO_SDT.at( curr_col_data_type ) ;
-                    //std::cout << "curr_col_data_type_sky = " << curr_col_data_type_sky << std::endl ;
 
                     if (j < AGG_COL_LAST or j > col_idx_max) {
                         errcode = TablesErrCodes::RequestedColIndexOOB;
@@ -2041,13 +2036,9 @@ long long int printFlatbufFBUAsCsv(
                         printSkyColHeader_fbu(skycol);
 
                     auto this_col       = skycol.data_fbu_col ;
-                    //auto this_col_name  = this_col->col_name() ;
-                    //auto this_col_index = this_col->col_index() ;
                     auto curr_col_data  = this_col->data() ;
                     auto curr_col_data_type  = this_col->data_type() ;
-                    //std::cout << "curr_col_data_type = " << curr_col_data_type << std::endl ;
                     auto curr_col_data_type_sky = FBU_TO_SDT.at( curr_col_data_type ) ;
-                    //std::cout << "curr_col_data_type_sky = " << curr_col_data_type_sky << std::endl ;
 
                     if (col.nullable) {  // check nullbit
                         bool is_null = false;
@@ -2062,25 +2053,23 @@ long long int printFlatbufFBUAsCsv(
                         }
                     }
 
-                    //switch( col.type ) {
                     switch( curr_col_data_type_sky ) {
                       case SDT_UINT64 : {
-                          auto column_of_data = 
-
+                          auto column_of_data = \
                               static_cast< const Tables::SDT_UINT64_FBU* >( curr_col_data ) ;
                           auto data_at_row = column_of_data->data()->Get(j) ;
                           std::cout << std::to_string( data_at_row ) ;
                           break ;
                       }
                       case SDT_FLOAT : {
-                          auto column_of_data = 
+                          auto column_of_data = \
                               static_cast< const Tables::SDT_FLOAT_FBU* >( curr_col_data ) ;
                           auto data_at_row = column_of_data->data()->Get(j) ;
                           std::cout << std::to_string( data_at_row ) ;
                           break ;
                       }
                       case SDT_STRING : {
-                          auto column_of_data = 
+                          auto column_of_data = \
                               static_cast< const Tables::SDT_STRING_FBU* >( curr_col_data ) ;
                           auto data_at_row = column_of_data->data()->Get(j)->str() ;
                           std::cout << data_at_row ;
