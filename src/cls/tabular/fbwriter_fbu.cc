@@ -40,6 +40,105 @@ namespace po = boost::program_options ;
 const uint8_t SKYHOOK_VERSION = 1 ;
 const uint8_t SCHEMA_VERSION  = 1 ;
 
+std::vector< std::string > parse_csv_str( std::string, char ) ;
+
+struct linedata_t {
+
+  std::vector< uint64_t  >   uint64s ;
+  std::vector< float >       floats ;
+  std::vector< std::string > strs ;
+
+  int uint64_idx ;
+  int float_idx ;
+  int str_idx ;
+
+  void parseLine( std::vector< Tables::SkyDataType > schema_datatypes_sdt, 
+                  std::string line ) {
+
+    std::cout << "parsing : " << line << std::endl ;
+    std::vector< std::string > line_vect = parse_csv_str( line, '|' ) ;
+    for( unsigned int i = 0; i < line_vect.size(); i++ ) {
+      Tables::SkyDataType atttype = schema_datatypes_sdt[i] ;
+      std::string datum           = line_vect[i] ;
+
+      switch( atttype ) {
+        case Tables::SDT_UINT64 :
+          uint64s.push_back( std::stoi( datum ) ) ;
+          break ;
+        case Tables::SDT_FLOAT :
+          floats.push_back( std::stof( datum ) ) ;
+          break ;
+        case Tables::SDT_STRING :
+          strs.push_back( datum ) ;
+          break ;
+        default :
+          std::cout << "\n>>3 unrecognized atttype '" << std::to_string( atttype ) << "'" << std::endl ;
+          exit( 1 ) ;
+      } //switch
+
+    } //for
+  } // parseLine
+
+  void toString() {
+    std::cout << "=============================================" << std::endl ;
+    bool first = true ;
+    for( unsigned int i = 0; i < uint64s.size(); i++ ) {
+      if( !first ) std::cout << "|" ;
+      else first = false ;
+      std::cout << uint64s[i] ;
+    }
+    std::cout << std::endl ;
+    std::cout << "=============================================" << std::endl ;
+    first = true ;
+    for( unsigned int i = 0; i < floats.size(); i++ ) {
+      if( !first ) std::cout << "|" ;
+      else first = false ;
+      std::cout << floats[i] ;
+    }
+    std::cout << std::endl ;
+    std::cout << "=============================================" << std::endl ;
+    first = true ;
+    for( unsigned int i = 0; i < strs.size(); i++ ) {
+      if( !first ) std::cout << "|" ;
+      else first = false ;
+      std::cout << strs[i] ;
+    }
+    std::cout << std::endl ;
+  } // toString
+
+  // constructor
+  linedata_t( std::vector< Tables::SkyDataType > schema_datatypes_sdt, 
+                           std::string line ) {
+
+    uint64_idx = 0 ;
+    float_idx  = 0 ;
+    str_idx    = 0 ;
+
+    // parse
+    parseLine( schema_datatypes_sdt, line ) ;
+    // to string
+    toString() ;
+  } ;
+
+  uint64_t get_uint64() {
+    uint64_t curr_uint64 = uint64s[ uint64_idx ] ;
+    uint64_idx++ ;
+    return curr_uint64 ;
+  }
+
+  float get_float() {
+    float curr_float = floats[ float_idx ] ;
+    float_idx++ ;
+    return curr_float ;
+  }
+
+  std::string get_str() {
+    std::string curr_str = strs[ str_idx ] ;
+    str_idx++ ;
+    return curr_str ;
+  }
+} ; //linedata_t
+
 struct filedata_t {
   std::vector< std::vector< uint64_t  > > listof_int_vect_raw ;
   std::vector< std::vector< float > > listof_float_vect_raw ;
@@ -174,37 +273,55 @@ int writeToCeph( librados::bufferlist bl_seq,
   return 0 ;
 }
 
-void do_write( cmdline_inputs_t, bool ) ;
-std::string getSchemaString( uint64_t ncols,
-                             std::vector< std::string > schema_attnames,
-                             std::vector< Tables::SkyDataType > schema_datatypes_sdt,
-                             std::vector< std::string > schema_iskey,
-                             std::vector< std::string > schema_isnullable,
-                             bool debug ) ;
+void do_write( cmdline_inputs_t, uint64_t, bool ) ;
 
-std::vector< std::string > parse_csv_str( std::string instr ) {
+std::vector< std::string > parse_csv_str( std::string instr, char delim ) {
   std::stringstream ss( instr ) ;
   std::vector< std::string > result ;
   while( ss.good() ) {
       std::string substr ;
-      getline( ss, substr, ',' ) ;
+      getline( ss, substr, delim ) ;
       result.push_back( substr ) ;
   }
   return result ;
 }
 
-std::vector< std::string > parse_psv_str( std::string instr ) {
-  std::stringstream ss( instr ) ;
-  std::vector< std::string > result ;
-  while( ss.good() ) {
-      std::string substr ;
-      getline( ss, substr, '|' ) ;
-      result.push_back( substr ) ;
-  }
-  return result ;
-}
+std::string get_schema_string( 
+  int ncols, 
+  std::vector< std::string > schema_iskey, 
+  std::vector< std::string > schema_isnullable, 
+  std::vector< std::string > schema_attnames, 
+  std::vector< Tables::SkyDataType > schema_datatypes_sdt ) {
 
+  std::string schema_string = "" ;
+  for( int i = 0; i < ncols; i++ ) {
+    std::string this_iskey = schema_iskey[ i ] ;
+    std::string this_isnullable = schema_isnullable[ i ] ;
 
+    std::string att_name = schema_attnames[ i ] ;
+    auto att_type = schema_datatypes_sdt[ i ] ;
+    std::string this_entry = " " + std::to_string( i ) + " " ;
+    switch( att_type ) {
+      case Tables::SDT_UINT64 :
+        this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
+        break ;
+      case Tables::SDT_FLOAT :
+        this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
+        break ;
+      case Tables::SDT_STRING :
+        this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
+        break ;
+      default :
+        std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+        exit( 1 ) ;
+    } //switch
+    this_entry = this_entry + " " + this_iskey + " " + this_isnullable + " " + att_name + " \n" ;
+    schema_string = schema_string + this_entry ;
+  } //for
+
+  return schema_string ;
+
+} // get schema string:
 
 int main( int argc, char *argv[] ) {
 
@@ -223,6 +340,7 @@ int main( int argc, char *argv[] ) {
   std::string targetformat ;
   std::string targetoid ;
   std::string targetpool ;
+  std::uint64_t numrowsperobj ;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
@@ -241,7 +359,8 @@ int main( int argc, char *argv[] ) {
     ("writeto", po::value<std::string>(&writeto)->required(), "writeto")
     ("targetformat", po::value<std::string>(&targetformat)->required(), "targetformat")
     ("targetoid", po::value<std::string>(&targetoid)->required(), "targetoid")
-    ("targetpool", po::value<std::string>(&targetpool)->required(), "targetpool") ;
+    ("targetpool", po::value<std::string>(&targetpool)->required(), "targetpool")
+    ("numrowsperobj", po::value<uint64_t>(&numrowsperobj)->required(), "numrowsperobj") ;
 
   po::options_description all_opts( "Allowed options" ) ;
   all_opts.add( gen_opts ) ;
@@ -252,6 +371,13 @@ int main( int argc, char *argv[] ) {
     return 1;
   }
   po::notify( vm ) ;
+
+  // make sure number of rows is evenly distributed 
+  // among objects.
+  // therefore, this is constrainted to "good" numbers
+  // easily divisible by other "good" numbers.
+  // all objects will contain the same number of rows.
+  assert( ( nrows % numrowsperobj ) == 0 ) ;
 
   cmdline_inputs_t inputs ;
   inputs.debug             = debug ;
@@ -270,7 +396,7 @@ int main( int argc, char *argv[] ) {
   inputs.targetpool        = targetpool ;
   inputs.cols_per_fb       = cols_per_fb ;
 
-  do_write( inputs, debug ) ;
+  do_write( inputs, numrowsperobj, debug ) ;
 
   return 0 ;
 } // main
@@ -278,7 +404,7 @@ int main( int argc, char *argv[] ) {
 // =========== //
 //   DO WRITE  //
 // =========== //
-void do_write( cmdline_inputs_t inputs, bool debug ) {
+void do_write( cmdline_inputs_t inputs, uint64_t numrowsperobj,  bool debug ) {
 
   if( inputs.debug ) {
     std::cout << "inputs.debug             : " << inputs.debug                   << std::endl ;
@@ -299,8 +425,8 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
   }
 
   //parse csv
-  std::vector< std::string > schema_iskey      = parse_csv_str( inputs.schema_iskey ) ;
-  std::vector< std::string > schema_isnullable = parse_csv_str( inputs.schema_isnullable ) ;
+  std::vector< std::string > schema_iskey      = parse_csv_str( inputs.schema_iskey, ',' ) ;
+  std::vector< std::string > schema_isnullable = parse_csv_str( inputs.schema_isnullable, ',' ) ;
 
   // -----------------------------------------------
   // flatbuffer prelims
@@ -320,12 +446,12 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     auto table_name = builder.CreateString( inputs.table_name ) ;
 
     // parse schema csv strings
-    std::vector< std::string > schema_attnames = parse_csv_str( inputs.schema_attnames ) ;
+    std::vector< std::string > schema_attnames = parse_csv_str( inputs.schema_attnames, ',' ) ;
     std::vector< flatbuffers::Offset< flatbuffers::String > > schema ;
     for( unsigned int i = 0; i < schema_attnames.size(); i++ )
       schema.push_back( builder.CreateString( schema_attnames[i] ) ) ;
 
-    std::vector< std::string > schema_datatypes = parse_csv_str( inputs.schema_datatypes ) ;
+    std::vector< std::string > schema_datatypes = parse_csv_str( inputs.schema_datatypes, ',' ) ;
     std::vector< Tables::SkyDataType > schema_datatypes_sdt ;
     std::vector< uint8_t > record_data_type_vect ;
     for( unsigned int i = 0; i < schema_datatypes.size(); i++ ) {
@@ -349,148 +475,60 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     }//for loop
     auto record_data_types = builder.CreateVector( record_data_type_vect ) ;
 
-    // --------------------------------------------- //
-    // read data from file into general structure
-    // --------------------------------------------- //
-    filedata_t filedata ;
-    // initialize struct with empty vects
-    for( unsigned int i = 0; i < schema_datatypes_sdt.size(); i++ ) {
-      Tables::SkyDataType this_dt = schema_datatypes_sdt[i] ;
-      switch( this_dt ) {
-        case Tables::SDT_UINT64 : {
-          std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
-          // ---- >>>>
-          std::vector< std::string > an_index_pair ;
-          an_index_pair.push_back( key ) ;
-          an_index_pair.push_back( std::to_string( filedata.int_vect_cnt ) ) ;
-          filedata.indexer.push_back( an_index_pair ) ;
-          // <<<< ----
-          std::vector< uint64_t > an_empty_vect ;
-          filedata.listof_int_vect_raw.push_back( an_empty_vect ) ;
-          filedata.int_vect_cnt++ ;
-          break ;
-        }
-        case Tables::SDT_FLOAT : {
-          std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
-          // ---- >>>>
-          std::vector< std::string > an_index_pair ;
-          an_index_pair.push_back( key ) ;
-          an_index_pair.push_back( std::to_string( filedata.float_vect_cnt ) ) ;
-          filedata.indexer.push_back( an_index_pair ) ;
-          // <<<< ----
-          std::vector< float > an_empty_vect ;
-          filedata.listof_float_vect_raw.push_back( an_empty_vect ) ;
-          filedata.float_vect_cnt++ ;
-          break ;
-        }
-        case Tables::SDT_STRING : {
-          std::string key = "att" + std::to_string( i ) + "-" + std::to_string( this_dt ) ;
-          // ---- >>>>
-          std::vector< std::string > an_index_pair ;
-          an_index_pair.push_back( key ) ;
-          an_index_pair.push_back( std::to_string( filedata.string_vect_cnt ) ) ;
-          filedata.indexer.push_back( an_index_pair ) ;
-          // <<<< ----
-          std::vector< std::string > an_empty_vect_strs ;
-          std::vector< flatbuffers::Offset<flatbuffers::String> > an_empty_vect ;
-          filedata.listof_string_vect_raw_strs.push_back( an_empty_vect_strs ) ;
-          filedata.listof_string_vect_raw.push_back( an_empty_vect ) ;
-          filedata.string_vect_cnt++ ;
-          break ;
-        }
-        default :
-          std::cout << ">>2 unrecognized schema_datatype '" << this_dt << "'" << std::endl ;
-          exit( 1 ) ;
-      }//switch
-    } //for loop
-
-    // read csv (pipe delimited) from file
-    std::ifstream infile( inputs.filename ) ;
-    std::string line ;
-    int itnum = 0 ; //need this for some reason?
-    while ( infile.good() && (unsigned)itnum < nrows ) {
-      getline ( infile, line ) ;
-      std::vector< std::string > data_vect = parse_psv_str( line ) ;
-      for( unsigned int i = 0; i < data_vect.size(); i++ ) {
-        int attnum = i ;
-        Tables::SkyDataType atttype = schema_datatypes_sdt[i] ;
-        std::string attkey          = "att" + std::to_string( attnum ) + "-" + std::to_string( atttype ) ;
-        uint64_t att_vect_id        = filedata.get_index( attkey ) ;
-        std::string datum           = data_vect[i] ;
-
-        if( debug )
-          std::cout << attkey << "," << att_vect_id <<  "," << datum << ";" ;
-
-        switch( atttype ) {
-          case Tables::SDT_UINT64 :
-            filedata.listof_int_vect_raw[ att_vect_id ].push_back( std::stoi( datum ) ) ;
-            break ;
-          case Tables::SDT_FLOAT :
-            filedata.listof_float_vect_raw[ att_vect_id ].push_back( std::stof( datum ) ) ;
-            break ;
-          case Tables::SDT_STRING :
-            filedata.listof_string_vect_raw_strs[ att_vect_id ].push_back( datum ) ;
-            filedata.listof_string_vect_raw[ att_vect_id ].push_back( builder.CreateString( datum ) ) ;
-            break ;
-          default :
-            std::cout << "\n>>3 unrecognized atttype '" << std::to_string( atttype ) << "'" << std::endl ;
-            exit( 1 ) ;
-        } //switch
-
-      } //for
-      if( debug )
-        std::cout << std::endl ;
-      itnum++ ;
-    } //while
-    infile.close() ;
-
-    if( debug )
-      filedata.toString() ;
-
-    // --------------------------------------------- //
-    // build out Rows flatbuffer
-    // --------------------------------------------- //
     std::vector< flatbuffers::Offset< Tables::Record_FBU > > row_records ;
     std::vector< uint64_t > nullbits_vector ( 2, 0 ) ; //initialize with one 0 per row.
     auto nullbits_vector_fb = builder.CreateVector( nullbits_vector ) ;
 
-    // create Records as lists of Datas
+    std::ifstream infile( inputs.filename ) ;
+    std::string line ;
+    int writes_counter = 0 ;
     for( unsigned int i = 0; i < nrows; i++ ) {
+
+      // get a line and parse
+      getline ( infile, line ) ;
+      linedata_t parsed_line( schema_datatypes_sdt, line ) ;
 
       // record data
       std::vector< flatbuffers::Offset< void > > data_vect ;
 
-      for( unsigned int j = 0; j < filedata.indexer.size(); j++ ) {
+      bool first = true ;
+      for( unsigned int j = 0; j < schema_datatypes_sdt.size(); j++ ) {
+        if( !first ) std::cout << "," ;
+        else first = false ;
 
-        auto key   = filedata.indexer[j][0] ;
-        auto index = filedata.indexer[j][1] ;
-
-        if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT64 ) ) ) {
+        if( schema_datatypes_sdt[j] == Tables::SDT_UINT64 ) {
+          uint64_t this_data = parsed_line.get_uint64() ;
           std::vector< uint64_t > single_iv ;
-          single_iv.push_back( filedata.listof_int_vect_raw[ std::stoi( index ) ][ i ] ) ;
+          single_iv.push_back( this_data ) ;
+          std::cout << this_data ;
           auto int_vect_fb = builder.CreateVector( single_iv ) ;
           auto iv = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
           data_vect.push_back( iv.Union() ) ;
         }
-        else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_FLOAT ) ) ) {
+        else if( schema_datatypes_sdt[j] == Tables::SDT_FLOAT ) {
+          float this_data = parsed_line.get_float() ;
           std::vector< float > single_fv ;
-          single_fv.push_back( filedata.listof_float_vect_raw[ std::stoi( index ) ][ i ] ) ;
+          single_fv.push_back( this_data ) ;
+          std::cout << this_data ;
           auto float_vect_fb  = builder.CreateVector( single_fv ) ;
           auto fv = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
           data_vect.push_back( fv.Union() ) ;
         }
-        else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_STRING ) ) ) {
+        else if( schema_datatypes_sdt[j] == Tables::SDT_STRING ) {
+          std::string this_data = parsed_line.get_str() ;
           std::vector< flatbuffers::Offset<flatbuffers::String> > single_sv ;
-          single_sv.push_back( filedata.listof_string_vect_raw[ std::stoi( index ) ][ i ] ) ;
+          single_sv.push_back( builder.CreateString( this_data ) ) ;
+          std::cout << this_data ;
           auto string_vect_fb = builder.CreateVector( single_sv ) ;
           auto sv = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
           data_vect.push_back( sv.Union() ) ;
         }
         else {
-          std::cout << ">>> unrecognized key '" << key << "'" << std::endl ;
+          std::cout << ">>> unrecognized data type '" << schema_datatypes_sdt[j] << "'" << std::endl ;
           exit( 1 ) ;
         }
       } // for loop : creates one data_vect row
+      std::cout << std::endl ;
 
       auto data = builder.CreateVector( data_vect ) ;
       auto rec = Tables::CreateRecord_FBU(
@@ -501,113 +539,110 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
         data ) ;                 //data vect
       row_records.push_back( rec ) ;
 
-    } // for loop : processes and saves all rows
+      // --------------------------------------------------- //
+      //  SAVE TO OBJECT
+      // --------------------------------------------------- //
+      if( ( (i+1) % numrowsperobj ) == 0 ) {
+        auto row_records_fb = builder.CreateVector( row_records ) ;
+        row_records.clear() ;
 
-    auto row_records_fb = builder.CreateVector( row_records ) ;
+        // create the Rows flatbuffer:
+        auto rows = Tables::CreateRows_FBU(
+          builder,            //builder
+          row_records_fb ) ;  //data
 
-    // create the Rows flatbuffer:
-    auto rows = Tables::CreateRows_FBU(
-      builder,            //builder
-      row_records_fb ) ;  //data
+        // generate schema string
+        std::string schema_string = get_schema_string(
+                                      ncols, 
+                                      schema_iskey, 
+                                      schema_isnullable, 
+                                      schema_attnames, 
+                                      schema_datatypes_sdt ) ;
 
-    // generate schema string
-    std::string schema_string = "" ;
-    for( unsigned int i = 0; i < ncols; i++ ) {
-      std::string this_iskey = schema_iskey[ i ] ;
-      std::string this_isnullable = schema_isnullable[ i ] ;
+        auto schema_string_fb = builder.CreateString( schema_string ) ;
+        if( debug )
+          std::cout << "schema_string = " << schema_string << std::endl ;
 
-      std::string att_name = schema_attnames[ i ] ;
-      auto att_type = schema_datatypes_sdt[ i ] ;
-      std::string this_entry = " " + std::to_string( i ) + " " ;
-      switch( att_type ) {
-        case Tables::SDT_UINT64 :
-          this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
-          break ;
-        case Tables::SDT_FLOAT :
-          this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
-          break ;
-        case Tables::SDT_STRING :
-          this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
-          break ;
-        default :
-          std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
+        auto db_schema_name = builder.CreateString( "kats_test" ) ;
+        std::vector< uint8_t > delete_vector ( nrows, 0 ) ; //initialize with one 0 per row.
+        auto delete_vector_fb = builder.CreateVector( delete_vector ) ;
+
+        auto root = CreateRoot_FBU(
+          builder,                          //builder
+          SFT_FLATBUF_UNION_ROW,           //data_format_type
+          SKYHOOK_VERSION,                  //skyhook_version
+          SCHEMA_VERSION,                   //data_structure_version
+          SCHEMA_VERSION,                   //data_schema_version
+          schema_string_fb,                 //data_schema string
+          db_schema_name,                   //db_schema_name TODO: parameterize
+          (uint32_t)nrows,                  //nrows
+          (uint32_t)ncols,                  //ncols
+          table_name,                       //table_name
+          delete_vector_fb,                 //delete_vector
+          Tables::Relation_FBU_Rows_FBU,    //relationData_type
+          rows.Union() ) ;                  //relationData
+
+        builder.Finish( root ) ;
+
+        //const char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+        char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
+        int datasz          = builder.GetSize() ;
+        librados::bufferlist bl;
+        bl.append( dataptr, datasz ) ;
+        librados::bufferlist wrapper_bl ;
+        ::encode( bl, wrapper_bl ) ;
+
+        std::cout << "datasz = " << datasz << std::endl ;
+        std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
+
+        // --------------------------------------------- //
+        // build out FB_Meta
+        // --------------------------------------------- //
+        flatbuffers::FlatBufferBuilder *meta_builder = new flatbuffers::FlatBufferBuilder();
+        Tables::createFbMeta( meta_builder, 
+                              SFT_FLATBUF_UNION_ROW,
+                              reinterpret_cast<unsigned char*>( wrapper_bl.c_str() ),
+                              wrapper_bl.length() ) ;
+
+        // add meta_builder's data into a bufferlist as char*
+        ceph::bufferlist meta_bl ;
+        char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
+        int meta_builder_size  = meta_builder->GetSize() ;
+        std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
+        meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
+        delete meta_builder;
+        librados::bufferlist meta_wrapper_bl ;
+        ::encode( meta_bl, meta_wrapper_bl ) ;
+        size_t meta_wrapper_bl_sz = meta_wrapper_bl.length() ;
+        std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
+
+        // --------------------------------------------- //
+        // do the write
+        // --------------------------------------------- //
+        if( inputs.writeto == "ceph" )
+          //writeToCeph( wrapper_bl, datasz, inputs.targetformat, inputs.targetoid, inputs.targetpool ) ;
+          writeToCeph( meta_wrapper_bl, 
+                       meta_builder_size, 
+                       inputs.targetformat, 
+                       inputs.targetoid + "." + std::to_string( writes_counter ), 
+                       inputs.targetpool ) ;
+        else if( inputs.writeto == "disk" )
+          writeToDisk( wrapper_bl, 
+                       datasz, 
+                       inputs.targetformat, 
+                       inputs.targetoid + "." + std::to_string( writes_counter ) ) ;
+        else {
+          std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
           exit( 1 ) ;
-      } //switch
-      this_entry = this_entry + " " + this_iskey + " " + this_isnullable + " " + att_name + " \n" ;
-      schema_string = schema_string + this_entry ;
-    } //for
+        }
+        writes_counter++ ;
+      } // if save to object
 
-    auto schema_string_fb = builder.CreateString( schema_string ) ;
-    if( debug )
-      std::cout << "schema_string = " << schema_string << std::endl ;
+    } // for nrows
 
-    auto db_schema_name = builder.CreateString( "kats_test" ) ;
-    std::vector< uint8_t > delete_vector ( nrows, 0 ) ; //initialize with one 0 per row.
-    auto delete_vector_fb = builder.CreateVector( delete_vector ) ;
-
-    auto root = CreateRoot_FBU(
-      builder,                          //builder
-      SFT_FLATBUF_UNION_ROW,           //data_format_type
-      SKYHOOK_VERSION,                  //skyhook_version
-      SCHEMA_VERSION,                   //data_structure_version
-      SCHEMA_VERSION,                   //data_schema_version
-      schema_string_fb,                 //data_schema string
-      db_schema_name,                   //db_schema_name TODO: parameterize
-      (uint32_t)nrows,                  //nrows
-      (uint32_t)ncols,                  //ncols
-      table_name,                       //table_name
-      delete_vector_fb,                 //delete_vector
-      Tables::Relation_FBU_Rows_FBU,    //relationData_type
-      rows.Union() ) ;                  //relationData
-
-    builder.Finish( root ) ;
-
-    //const char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-    char* dataptr = reinterpret_cast<char*>( builder.GetBufferPointer() ) ;
-    int datasz          = builder.GetSize() ;
-    librados::bufferlist bl;
-    bl.append( dataptr, datasz ) ;
-    librados::bufferlist wrapper_bl ;
-    ::encode( bl, wrapper_bl ) ;
-
-    std::cout << "datasz = " << datasz << std::endl ;
-    std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
-
-    // --------------------------------------------- //
-    // build out FB_Meta
-    // --------------------------------------------- //
-    flatbuffers::FlatBufferBuilder *meta_builder = new flatbuffers::FlatBufferBuilder();
-    Tables::createFbMeta( meta_builder, 
-                          SFT_FLATBUF_UNION_ROW,
-                          reinterpret_cast<unsigned char*>( wrapper_bl.c_str() ),
-                          wrapper_bl.length() ) ;
-
-    // add meta_builder's data into a bufferlist as char*
-    ceph::bufferlist meta_bl ;
-    char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
-    int meta_builder_size  = meta_builder->GetSize() ;
-    std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
-    meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
-    delete meta_builder;
-    librados::bufferlist meta_wrapper_bl ;
-    ::encode( meta_bl, meta_wrapper_bl ) ;
-    size_t meta_wrapper_bl_sz = meta_wrapper_bl.length() ;
-    std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
-
-    // --------------------------------------------- //
-    // do the write
-    // --------------------------------------------- //
-    if( inputs.writeto == "ceph" )
-      //writeToCeph( wrapper_bl, datasz, inputs.targetformat, inputs.targetoid, inputs.targetpool ) ;
-      writeToCeph( meta_wrapper_bl, meta_builder_size, inputs.targetformat, inputs.targetoid, inputs.targetpool ) ;
-    else if( inputs.writeto == "disk" )
-      writeToDisk( wrapper_bl, datasz, inputs.targetformat, inputs.targetoid ) ;
-    else {
-      std::cout << ">>> unrecognized writeto '" << inputs.writeto << "'" << std::endl ;
-      exit( 1 ) ;
-    }
   } //write_type==rows
 
+/* testing ...
   // -----------------------------------------------
   // | FBMeta flatbuffer     | Cols flatbuffer     |
   // -----------------------------------------------
@@ -658,12 +693,12 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
       }
     }
 
-    auto schema_string = getSchemaString( ncols, 
-                                          schema_attnames, 
-                                          schema_datatypes_sdt,
-                                          schema_iskey,
-                                          schema_isnullable,
-                                          debug ) ;
+    auto schema_string = get_schema_string( ncols, 
+                                            schema_attnames, 
+                                            schema_datatypes_sdt,
+                                            schema_iskey,
+                                            schema_isnullable,
+                                            debug ) ;
     auto schema_string_fb = builder.CreateString( schema_string ) ;
 
     // establish rids_vect
@@ -913,49 +948,11 @@ void do_write( cmdline_inputs_t inputs, bool debug ) {
     }
 
   } //cols
+... testing */
 
   // otherwise oops
   else {
     std::cout << ">> unrecognized inputs.write_type = '" << inputs.write_type << "'" << std::endl ;
   }
 } // do_write
-
-std::string getSchemaString( uint64_t ncols, 
-                             std::vector< std::string > schema_attnames, 
-                             std::vector< Tables::SkyDataType > schema_datatypes_sdt,
-                             std::vector< std::string > schema_iskey, 
-                             std::vector< std::string > schema_isnullable, 
-                             bool debug ) {
-  std::string schema_string = "" ;
-  for( unsigned int i = 0; i < ncols; i++ ) {
-    std::string this_iskey = schema_iskey[ i ] ;
-    std::string this_isnullable = schema_isnullable[ i ] ;
-
-    std::string att_name = schema_attnames[ i ] ;
-    auto att_type = schema_datatypes_sdt[ i ] ;
-    std::string this_entry = " " + std::to_string( i ) + " " ;
-    switch( att_type ) {
-      case Tables::SDT_UINT64 :
-        this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
-        break ;
-      case Tables::SDT_FLOAT :
-        this_entry = this_entry + std::to_string( Tables::SDT_FLOAT ) ;
-        break ;
-      case Tables::SDT_STRING :
-        this_entry = this_entry + std::to_string( Tables::SDT_STRING ) ;
-        break ;
-      default :
-        std::cout << ">>4 unrecognized att_type '" << att_type << "'" << std::endl ;
-        exit( 1 ) ;
-    } //switch
-    this_entry = this_entry + " " + this_iskey + " " + this_isnullable + " " + att_name + " \n" ;
-    schema_string = schema_string + this_entry ;
-  } //for
-
-  if( debug )
-    std::cout << "schema_string = " << schema_string << std::endl ;
-
-  return schema_string ;
-} //getSchemaString
-
 
