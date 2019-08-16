@@ -40,6 +40,8 @@ namespace po = boost::program_options ;
 const uint8_t SKYHOOK_VERSION = 1 ;
 const uint8_t SCHEMA_VERSION  = 1 ;
 
+std::string SAVE_DIR = "/mnt/storage1/kat/" ;
+
 std::vector< std::string > parse_csv_str( std::string, char ) ;
 
 struct linedata_t {
@@ -243,7 +245,8 @@ int writeToDisk( librados::bufferlist wrapper_bl,
                  std::string target_oid ) {
   int mode = 0600 ;
   std::string fname = "skyhook."+ target_format + "." + target_oid + ".0" ;
-  wrapper_bl.write_file( fname.c_str(), mode ) ;
+  std::string p = SAVE_DIR + fname ;
+  wrapper_bl.write_file( p.c_str(), mode ) ;
   printf( "buff size: %d, wrapper_bl size: %d\n", bufsz, wrapper_bl.length() ) ;
 
   return 0;
