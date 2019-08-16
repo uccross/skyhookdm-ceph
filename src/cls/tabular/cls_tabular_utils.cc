@@ -682,11 +682,11 @@ int processSkyFb_fbu_rows(
 
         flexbldr->Vector([&]() {
             // iter over the query schema, locating it within the data schema
-            bool first = true ;
+            //bool first = true ;
             for (auto it=query_schema.begin();
                       it!=query_schema.end() && !errcode; ++it) {
-                 if (!first) std::cout << CSV_DELIM;
-                 first = false;
+                //if (!first) std::cout << CSV_DELIM;
+                //first = false;
                 col_info col = *it;
                 if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
                     errcode = TablesErrCodes::RequestedColIndexOOB;
@@ -721,7 +721,7 @@ int processSkyFb_fbu_rows(
                             auto int_col_data =
                               static_cast< const Tables::SDT_UINT64_FBU* >( row->Get(col.idx) ) ;
                             auto data = int_col_data->data()->Get(0) ;
-                            std::cout << std::to_string( data ) ;
+                            //std::cout << std::to_string( data ) ;
                             flexbldr->Add(data);
                             break;
                         }
@@ -738,7 +738,7 @@ int processSkyFb_fbu_rows(
                             auto float_col_data =
                               static_cast< const Tables::SDT_FLOAT_FBU* >( row->Get(col.idx) ) ;
                             auto data = float_col_data->data()->Get(0) ;
-                            std::cout << std::to_string( data ) ;
+                            //std::cout << std::to_string( data ) ;
                             flexbldr->Add(data);
                             break;
                         }
@@ -752,7 +752,7 @@ int processSkyFb_fbu_rows(
                             auto string_col_data =
                               static_cast< const Tables::SDT_STRING_FBU* >( row->Get(col.idx) ) ;
                             auto data = string_col_data->data()->Get(0)->str() ;
-                            std::cout << data ;
+                            //std::cout << data ;
                             flexbldr->Add(data);
                             break;
                         }
@@ -784,7 +784,7 @@ int processSkyFb_fbu_rows(
         // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
         dead_rows.push_back(0);
         offs.push_back(row_off);
-        std::cout << std::endl ;
+        //std::cout << std::endl ;
     } //for
 
     // here we build the return flatbuf result with agg values that were
