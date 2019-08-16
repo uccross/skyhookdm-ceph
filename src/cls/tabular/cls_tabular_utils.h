@@ -823,12 +823,26 @@ int processArrow(
         std::string& errmsg,
         const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
+int processArrowCol(
+        std::shared_ptr<arrow::Table>* table,
+        schema_vec& tbl_schema,
+        schema_vec& query_schema,
+        predicate_vec& preds,
+        const char* dataptr,
+        const size_t datasz,
+        std::string& errmsg,
+        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
+
 inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
 
 inline
 bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& table,
                           int element_index);
+inline
+void applyPredicatesArrowCol(predicate_vec& pv,
+                             std::shared_ptr<arrow::Array> col_array,
+                             int col_idx, std::vector<uint32_t>& row_nums);
 
 inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);

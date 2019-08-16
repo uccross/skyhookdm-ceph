@@ -427,7 +427,7 @@ void worker()
             switch (meta.blob_format) {
                 case SFT_FLATBUF_FLEX_ROW: {
                     sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
-                    rows_returned += root.nrows;
+                    nrows_processed += root.nrows;
                     break;
                 }
                 case SFT_ARROW: {
@@ -451,7 +451,6 @@ void worker()
                     assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
             }
 
-
             // check if we need to do any more processing: project/select/agg
             // TODO: check for/add global aggs here.
             bool more_processing = false;
@@ -461,40 +460,25 @@ void worker()
                 }
             }
 
-
             // nothing left to do here, so we just print results
             if (!more_processing) {
 
                 switch (meta.blob_format) {
-                    case SFT_JSON: {
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data, meta.blob_size);
-                        result_count += root.nrows;
-                        print_data(meta.blob_data,
-                                   meta.blob_size,
-                                   SFT_JSON);
-                        break;
-                    }
-                    case SFT_FLATBUF_FLEX_ROW: {
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data, meta.blob_size);
-                        result_count += root.nrows;
-                        print_data(meta.blob_data,
-                                   meta.blob_size,
-                                   SFT_FLATBUF_FLEX_ROW);
-                        break;
-                    }
+                    case SFT_JSON:
+                    case SFT_FLATBUF_FLEX_ROW:
                     case SFT_ARROW: {
-                        sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                           meta.blob_size,
-                                                           SFT_ARROW);
+
+                        sky_root root =                                 \
+                            Tables::getSkyRoot(meta.blob_data, meta.blob_size,
+                                               meta.blob_format);
+
                         result_count += root.nrows;
+
                         print_data(meta.blob_data,
                                    meta.blob_size,
-                                   SFT_ARROW);
+                                   meta.blob_format);
                         break;
                     }
-
                     case SFT_FLATBUF_UNION_ROW:
                     case SFT_FLATBUF_UNION_COL:
                     case SFT_FLATBUF_CSV_ROW:
@@ -539,13 +523,14 @@ void worker()
 
                     case SFT_ARROW: {
                         std::shared_ptr<arrow::Table> table;
-                        int ret = processArrow(&table,
-                                               sky_tbl_schema,
-                                               sky_qry_schema,
-                                               sky_qry_preds,
-                                               meta.blob_data,
-                                               meta.blob_size,
-                                               errmsg);
+                        int ret = processArrowCol(
+                                      &table,
+                                      sky_tbl_schema,
+                                      sky_qry_schema,
+                                      sky_qry_preds,
+                                      meta.blob_data,
+                                      meta.blob_size,
+                                      errmsg);
                         if (ret != 0) {
                             int more_processing_failure = true;
                             std::cerr << "ERROR: query.cc: processing arrow: "
