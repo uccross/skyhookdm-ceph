@@ -1421,14 +1421,14 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                     case SFT_ARROW: {
                         std::shared_ptr<arrow::Table> table;
-                        ret = processArrow(&table,
-                                           data_schema,
-                                           query_schema,
-                                           query_preds,
-                                           meta.blob_data,
-                                           meta.blob_size,
-                                           errmsg,
-                                           row_nums);
+                        ret = processArrowCol(&table,
+                                              data_schema,
+                                              query_schema,
+                                              query_preds,
+                                              meta.blob_data,
+                                              meta.blob_size,
+                                              errmsg,
+                                              row_nums);
 
                         if (ret != 0) {
                             CLS_ERR("ERROR: processArrow %s", errmsg.c_str());

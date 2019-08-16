@@ -523,13 +523,14 @@ void worker()
 
                     case SFT_ARROW: {
                         std::shared_ptr<arrow::Table> table;
-                        int ret = processArrow(&table,
-                                               sky_tbl_schema,
-                                               sky_qry_schema,
-                                               sky_qry_preds,
-                                               meta.blob_data,
-                                               meta.blob_size,
-                                               errmsg);
+                        int ret = processArrowCol(
+                                      &table,
+                                      sky_tbl_schema,
+                                      sky_qry_schema,
+                                      sky_qry_preds,
+                                      meta.blob_data,
+                                      meta.blob_size,
+                                      errmsg);
                         if (ret != 0) {
                             int more_processing_failure = true;
                             std::cerr << "ERROR: query.cc: processing arrow: "
