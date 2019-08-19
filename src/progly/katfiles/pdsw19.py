@@ -5,6 +5,10 @@ import numpy as np
 
 def dsgen( outfile_name, arity, numrows ) :
 
+  # python range has upper limit.
+  # need to divide the number of lines in the file
+  # into something smaller and then loop around 
+  # the number of divisions.
   splitter = 100000
 
   os.system( 'rm ' + outfile_name )
