@@ -536,13 +536,13 @@ std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 typedef vector<uint8_t> delete_vector;
 typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
 typedef const flatbuffers::Vector<flatbuffers::Offset<Record_FBU>>* row_offs_fbu_rows;
-typedef const Tables::Cols_FBU* cols_fbu ;
+typedef const Tables::Cols_FBU* cols_fbu;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
 typedef flexbuffers::Reference row_data_ref;
-typedef const flatbuffers::Vector<flatbuffers::Offset<void> >* row_data_ref_fbu_rows ;
-typedef const Tables::Col_FBU* col_fbu ;
+typedef const flatbuffers::Vector<flatbuffers::Offset<void> >* row_data_ref_fbu_rows;
+typedef const Tables::Col_FBU* col_fbu;
 
 // this flatbuf meta wrappers allows read/write transfer of a single,
 // complete, self-contained serialized data format on disk or wire.
@@ -654,9 +654,9 @@ struct rec_table_fbu {
     nullbits_vector nullbits;
     const row_data_ref_fbu_rows data_fbu_rows;
 
-    rec_table_fbu( int64_t _RID, 
+    rec_table_fbu(int64_t _RID, 
                nullbits_vector _nullbits, 
-               row_data_ref_fbu_rows _data_fbu_rows ) :
+               row_data_ref_fbu_rows _data_fbu_rows) :
         RID(_RID),
         nullbits(_nullbits),
         data_fbu_rows(_data_fbu_rows) {
@@ -672,9 +672,9 @@ struct col_table_fbu {
     nullbits_vector nullbits;
     col_fbu data_fbu_col;
 
-    col_table_fbu( int64_t _CID, 
+    col_table_fbu(int64_t _CID, 
                    nullbits_vector _nullbits, 
-                   col_fbu _data_fbu_col ) :
+                   col_fbu _data_fbu_col) :
         CID(_CID),
         nullbits(_nullbits),
         data_fbu_col(_data_fbu_col) {};
@@ -796,9 +796,9 @@ sky_rec getSkyRec(
 *    int format=SFT_CSV);
 */
 
-sky_rec_fbu getSkyRec_fbu( sky_root root, int recid ) ;
+sky_rec_fbu getSkyRec_fbu(sky_root root, int recid);
 sky_col_fbu getSkyCol_fbu(sky_root root, int colid);
-int getSkyCols_fbu_length( sky_root root ) ;
+int getSkyCols_fbu_length(sky_root root);
 
 // print functions
 void printSkyRootHeader(sky_root &r);
@@ -817,7 +817,7 @@ long long int printFlatbufFBUAsCsv(
         bool print_header,
         bool print_verbose,
         long long int max_to_print,
-        SkyFormatType format );
+        SkyFormatType format);
 
 long long int printJSONAsCsv(
         const char* dataptr,
@@ -910,7 +910,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
                           int element_index);
 
 inline
-bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec) ;
+bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec);
 
 inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);
