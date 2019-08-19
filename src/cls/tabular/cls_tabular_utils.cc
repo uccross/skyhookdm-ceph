@@ -323,6 +323,303 @@ int processArrow(
     return errcode;
 }
 
+int processArrowCol(
+    std::shared_ptr<arrow::Table>* table,
+    schema_vec& tbl_schema,
+    schema_vec& query_schema,
+    predicate_vec& preds,
+    const char* dataptr,
+    const size_t datasz,
+    std::string& errmsg,
+    const std::vector<uint32_t>& row_nums)
+{
+    int errcode = 0;
+    int processed_rows = 0;
+    int num_cols = std::distance(tbl_schema.begin(), tbl_schema.end());
+    auto pool = arrow::default_memory_pool();
+    std::vector<arrow::ArrayBuilder *> builder_list;
+    std::vector<std::shared_ptr<arrow::Array>> array_list;
+    std::vector<std::shared_ptr<arrow::Field>> output_tbl_fields_vec;
+    std::shared_ptr<arrow::Buffer> buffer =                             \
+        arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(dataptr)), datasz);
+    std::shared_ptr<arrow::Table> input_table, temp_table;
+    std::vector<uint32_t> result_rows;
+
+    // Get input table from dataptr
+    extract_arrow_from_buffer(&input_table, buffer);
+
+    auto schema = input_table->schema();
+    auto metadata = schema->metadata();
+    uint32_t nrows = atoi(metadata->value(METADATA_NUM_ROWS).c_str());
+
+    // Get number of rows to be processed
+    if (!row_nums.empty()) {
+        result_rows = row_nums;
+    }
+
+    // identify the max col idx, to prevent flexbuf vector oob error
+    int col_idx_max = -1;
+    for (auto it = tbl_schema.begin(); it != tbl_schema.end(); ++it) {
+        if (it->idx > col_idx_max)
+            col_idx_max = it->idx;
+    }
+
+    // Apply predicates
+    if (!preds.empty()) {
+        // Iterate through each column in print the data inside it
+        for (auto it = tbl_schema.begin(); it != tbl_schema.end(); ++it) {
+            col_info col = *it;
+
+            applyPredicatesArrowCol(preds,
+                                    input_table->column(col.idx)->data()->chunk(0),
+                                    col.idx,
+                                    result_rows);
+        }
+        nrows = result_rows.size();
+    }
+
+    // Iterate through query schema vector to get the details of columns i.e name and type.
+    // Also, get the builder arrays required for each data type
+    for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
+        col_info col = *it;
+
+        // Create the array builders for respective datatypes. Use these array
+        // builders to store data to array vectors. These array vectors holds the
+        // actual column values. Also, add the details of column (Name and Datatype)
+        switch(col.type) {
+
+            case SDT_BOOL: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::BooleanBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::boolean()));
+                break;
+            }
+            case SDT_INT8: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int8()));
+                break;
+            }
+            case SDT_INT16: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int16Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int16()));
+                break;
+            }
+            case SDT_INT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int32Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int32()));
+                break;
+            }
+            case SDT_INT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int64Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int64()));
+                break;
+            }
+            case SDT_UINT8: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint8()));
+                break;
+            }
+            case SDT_UINT16: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt16Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint16()));
+                break;
+            }
+            case SDT_UINT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt32Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint32()));
+                break;
+            }
+            case SDT_UINT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt64Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint64()));
+                break;
+            }
+            case SDT_FLOAT: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::FloatBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::float32()));
+                break;
+            }
+            case SDT_DOUBLE: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::DoubleBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::float64()));
+                break;
+            }
+            case SDT_CHAR: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::Int8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::int8()));
+                break;
+            }
+            case SDT_UCHAR: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::UInt8Builder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::uint8()));
+                break;
+            }
+            case SDT_DATE:
+            case SDT_STRING: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::StringBuilder(pool));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::utf8()));
+                break;
+            }
+            default: {
+                errcode = TablesErrCodes::UnsupportedSkyDataType;
+                errmsg.append("ERROR processArrow()");
+                return errcode;
+            }
+        }
+    }
+
+    for (uint32_t i = 0; i < nrows; i++) {
+
+        uint32_t rnum = i;
+        if (!preds.empty())
+            rnum = result_rows[i];
+
+        // skip dead rows.
+        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0);
+        if (std::static_pointer_cast<arrow::BooleanArray>(delvec_chunk)->Value(rnum) == true) continue;
+
+        processed_rows++;
+
+        // iter over the query schema and add the values from input table
+        // to output table
+        for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
+            col_info col = *it;
+            auto builder = builder_list[std::distance(query_schema.begin(), it)];
+
+            auto processing_chunk = input_table->column(col.idx)->data()->chunk(0);
+
+            if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
+                    errcode = TablesErrCodes::RequestedColIndexOOB;
+                    errmsg.append("ERROR processArrow()");
+                    return errcode;
+            } else {
+                if (col.nullable) {  // check nullbit
+                    if (processing_chunk->IsNull(rnum)) {
+                        builder->AppendNull();
+                        continue;
+                    }
+                }
+
+                // Append data from input tbale to the respective data type builders
+                switch(col.type) {
+
+                    case SDT_BOOL:
+                        static_cast<arrow::BooleanBuilder *>(builder)->Append(std::static_pointer_cast<arrow::BooleanArray>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_INT8:
+                        static_cast<arrow::Int8Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int8Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_INT16:
+                        static_cast<arrow::Int16Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int16Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_INT32:
+                        static_cast<arrow::Int32Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int32Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_INT64:
+                        static_cast<arrow::Int64Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int64Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_UINT8:
+                        static_cast<arrow::UInt8Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt8Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_UINT16:
+                        static_cast<arrow::UInt16Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt16Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_UINT32:
+                        static_cast<arrow::UInt32Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt32Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_UINT64:
+                        static_cast<arrow::UInt64Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt64Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_FLOAT:
+                        static_cast<arrow::FloatBuilder *>(builder)->Append(std::static_pointer_cast<arrow::FloatArray>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_DOUBLE:
+                        static_cast<arrow::DoubleBuilder *>(builder)->Append(std::static_pointer_cast<arrow::DoubleArray>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_CHAR:
+                        static_cast<arrow::Int8Builder *>(builder)->Append(std::static_pointer_cast<arrow::Int8Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_UCHAR:
+                        static_cast<arrow::UInt8Builder *>(builder)->Append(std::static_pointer_cast<arrow::UInt8Array>(processing_chunk)->Value(rnum));
+                        break;
+                    case SDT_DATE:
+                    case SDT_STRING:
+                        static_cast<arrow::StringBuilder *>(builder)->Append(std::static_pointer_cast<arrow::StringArray>(processing_chunk)->GetString(rnum));
+                        break;
+                    default: {
+                        errcode = TablesErrCodes::UnsupportedSkyDataType;
+                        errmsg.append("ERROR processArrow()");
+                        return errcode;
+                    }
+                }
+            }
+        }
+    }
+
+    // Finalize the chunks holding the data
+    for (auto it = builder_list.begin(); it != builder_list.end(); ++it) {
+        auto builder = *it;
+        std::shared_ptr<arrow::Array> chunk;
+        builder->Finish(&chunk);
+        array_list.push_back(chunk);
+        delete builder;
+    }
+
+    std::shared_ptr<arrow::KeyValueMetadata> output_tbl_metadata (new arrow::KeyValueMetadata);
+    // Add skyhook metadata to arrow metadata.
+    output_tbl_metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
+                                metadata->value(METADATA_SKYHOOK_VERSION));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),
+                                metadata->value(METADATA_DATA_SCHEMA_VERSION));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_STRUCTURE_VERSION),
+                                metadata->value(METADATA_DATA_STRUCTURE_VERSION));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
+                                metadata->value(METADATA_DATA_FORMAT_TYPE));
+    output_tbl_metadata->Append(ToString(METADATA_DATA_SCHEMA),
+                                schemaToString(query_schema));
+    output_tbl_metadata->Append(ToString(METADATA_DB_SCHEMA),
+                                metadata->value(METADATA_DB_SCHEMA));
+    output_tbl_metadata->Append(ToString(METADATA_TABLE_NAME),
+                                metadata->value(METADATA_TABLE_NAME));
+    output_tbl_metadata->Append(ToString(METADATA_NUM_ROWS),
+                                std::to_string(processed_rows));
+
+    // Generate schema from schema vector and add the metadata
+    schema = std::make_shared<arrow::Schema>(output_tbl_fields_vec, output_tbl_metadata);
+
+    // Finally, create a arrow table from schema and array vector
+    *table = arrow::Table::Make(schema, array_list);
+
+    return errcode;
+}
+
 int processSkyFb(
     flatbuffers::FlatBufferBuilder& flatbldr,
     schema_vec& data_schema,
@@ -3627,6 +3924,259 @@ not yet supported in fbu */
     return rowpass;
 }
 
+void applyPredicatesArrowCol(predicate_vec& pv,
+                             std::shared_ptr<arrow::Array> col_array,
+                             int col_idx, std::vector<uint32_t>& row_nums)
+{
+    std::vector<uint32_t> input_rows = row_nums;
+    std::vector<uint32_t> passed_rows;
+    int nrows = 0;
+    int prev_chain_optype = 0;
+    int row_idx;
+
+    if (row_nums.empty()) {
+        // Considering each columns have same number of rows
+        nrows = col_array->length();
+    }
+    else {
+        nrows = row_nums.size();
+    }
+
+    for (auto it = pv.begin(); it != pv.end(); ++it) {
+
+        if (col_idx != (*it)->colIdx()) {
+            // This will be useful to do union or intersection of rows
+            prev_chain_optype = (*it)->chainOpType();
+            continue;
+        }
+
+        for (int i = 0; i < nrows; i++) {
+
+            if (row_nums.empty())
+                row_idx = i;
+            else
+                row_idx = row_nums[i];
+
+            switch((*it)->colType()) {
+
+                case SDT_BOOL: {
+                    TypedPredicate<bool>* p =                       \
+                        dynamic_cast<TypedPredicate<bool>*>(*it);
+                    bool colval =                                       \
+                        std::static_pointer_cast<arrow::BooleanArray>(col_array)->Value(row_idx);
+                    bool predval = p->Val();
+                    if (compare(colval, predval, p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_INT8: {
+                    TypedPredicate<int8_t>* p =                     \
+                        dynamic_cast<TypedPredicate<int8_t>*>(*it);
+                    int8_t colval =                                     \
+                        std::static_pointer_cast<arrow::Int8Array>(col_array)->Value(row_idx);
+                    int8_t predval = p->Val();
+                    if (compare(colval, static_cast<int64_t>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_INT16: {
+                    TypedPredicate<int16_t>* p =                        \
+                        dynamic_cast<TypedPredicate<int16_t>*>(*it);
+                    int16_t colval =                                    \
+                        std::static_pointer_cast<arrow::Int16Array>(col_array)->Value(row_idx);
+                    int16_t predval = p->Val();
+                    if (compare(colval, static_cast<int64_t>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_INT32: {
+                    TypedPredicate<int32_t>* p =                        \
+                        dynamic_cast<TypedPredicate<int32_t>*>(*it);
+                    int32_t colval =                                    \
+                        std::static_pointer_cast<arrow::Int32Array>(col_array)->Value(row_idx);
+                    int32_t predval = p->Val();
+                    if (compare(colval, static_cast<int64_t>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_INT64: {
+                    TypedPredicate<int64_t>* p =                        \
+                        dynamic_cast<TypedPredicate<int64_t>*>(*it);
+                    int64_t colval =                                    \
+                        std::static_pointer_cast<arrow::Int64Array>(col_array)->Value(row_idx);
+                    int64_t predval = p->Val();
+                    if (compare(colval, predval, p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_UINT8: {
+                    TypedPredicate<uint8_t>* p =                        \
+                        dynamic_cast<TypedPredicate<uint8_t>*>(*it);
+                    uint8_t colval =                                    \
+                        std::static_pointer_cast<arrow::UInt8Array>(col_array)->Value(row_idx);
+                    uint8_t predval = p->Val();
+                    if (compare(colval, static_cast<uint64_t>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_UINT16: {
+                    TypedPredicate<uint16_t>* p =                       \
+                        dynamic_cast<TypedPredicate<uint16_t>*>(*it);
+                    uint16_t colval =                                   \
+                        std::static_pointer_cast<arrow::UInt16Array>(col_array)->Value(row_idx);
+                    uint16_t predval = p->Val();
+                    if (compare(colval, static_cast<uint64_t>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_UINT32: {
+                    TypedPredicate<uint32_t>* p =                   \
+                        dynamic_cast<TypedPredicate<uint32_t>*>(*it);
+                    uint32_t colval =                                   \
+                        std::static_pointer_cast<arrow::UInt32Array>(col_array)->Value(row_idx);
+                    uint32_t predval = p->Val();
+                    if (compare(colval, static_cast<uint64_t>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_UINT64: {
+                    TypedPredicate<uint64_t>* p =                       \
+                        dynamic_cast<TypedPredicate<uint64_t>*>(*it);
+                    uint64_t colval =                                   \
+                        std::static_pointer_cast<arrow::UInt64Array>(col_array)->Value(row_idx);
+                    uint64_t predval = p->Val();
+                    if (compare(colval, predval, p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_FLOAT: {
+                    TypedPredicate<float>* p =                      \
+                        dynamic_cast<TypedPredicate<float>*>(*it);
+                    float colval =                                      \
+                        std::static_pointer_cast<arrow::FloatArray>(col_array)->Value(row_idx);
+                    float predval = p->Val();
+                    if (compare(colval, static_cast<double>(predval), p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_DOUBLE: {
+                    TypedPredicate<double>* p =                     \
+                        dynamic_cast<TypedPredicate<double>*>(*it);
+                    double colval =                                     \
+                        std::static_pointer_cast<arrow::DoubleArray>(col_array)->Value(row_idx);
+                    double predval = p->Val();
+                    if (compare(colval, predval, p->opType()))
+                        passed_rows.push_back(row_idx);
+                    break;
+                }
+
+                case SDT_CHAR: {
+                    TypedPredicate<char>* p=                        \
+                        dynamic_cast<TypedPredicate<char>*>(*it);
+                    if (p->opType() == SOT_like) {
+                        // use strings for regex
+                        std::string colval =                            \
+                            std::to_string((char)std::static_pointer_cast<arrow::Int8Array>(col_array)->Value(row_idx));
+                        std::string predval = std::to_string(p->Val());
+                        if (compare(colval,predval,p->opType(),p->colType()))
+                            passed_rows.push_back(row_idx);
+                    }
+                    else {
+                        // use int val comparision method
+                        int8_t colval =                                 \
+                            std::static_pointer_cast<arrow::Int8Array>(col_array)->Value(row_idx);
+                        int8_t predval = p->Val();
+                        if (compare(colval, static_cast<int64_t>(predval), p->opType()))
+                            passed_rows.push_back(row_idx);
+                    }
+                    break;
+                }
+
+                case SDT_UCHAR: {
+                    TypedPredicate<unsigned char>* p =                  \
+                        dynamic_cast<TypedPredicate<unsigned char>*>(*it);
+                    if (p->opType() == SOT_like) {
+                        // use strings for regex
+                        std::string colval = std::to_string((char)std::static_pointer_cast<arrow::UInt8Array>(col_array)->Value(row_idx));
+                        std::string predval = std::to_string(p->Val());
+                        if (compare(colval, predval, p->opType(), p->colType()))
+                            passed_rows.push_back(row_idx);
+                    }
+                    else {
+                        // use int val comparision method
+                        uint8_t colval = std::static_pointer_cast<arrow::UInt8Array>(col_array)->Value(row_idx);
+                        uint8_t predval = p->Val();
+                        if (compare(colval, static_cast<uint64_t>(predval), p->opType()))
+                            passed_rows.push_back(row_idx);
+                    }
+                    break;
+                }
+
+                case SDT_STRING:
+                case SDT_DATE: {
+                    TypedPredicate<std::string>* p =                    \
+                        dynamic_cast<TypedPredicate<std::string>*>(*it);
+                    string colval = std::static_pointer_cast<arrow::StringArray>(col_array)->GetString(row_idx);
+                    if (compare(colval, p->Val(), p->opType(), p->colType()))
+                            passed_rows.push_back(row_idx);
+                    break;
+                }
+                default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+            }
+        }
+
+        // If input rows are empty then this is the first predicate. In that
+        // case return the passed rows
+        if (input_rows.empty()) {
+            row_nums = passed_rows;
+        }
+        else {
+            switch (prev_chain_optype) {
+                case SOT_logical_or: {
+                    auto set_it = std::set_union(
+                                      input_rows.begin(),
+                                      input_rows.end(),
+                                      passed_rows.begin(),
+                                      passed_rows.end(),
+                                      row_nums.begin());
+                    row_nums.resize(set_it - row_nums.begin());
+                    break;
+                }
+                case SOT_logical_and: {
+                    auto set_it = std::set_intersection(
+                                      input_rows.begin(),
+                                      input_rows.end(),
+                                      passed_rows.begin(),
+                                      passed_rows.end(),
+                                      row_nums.begin());
+                    row_nums.resize(set_it - row_nums.begin());
+                    break;
+                }
+                default: {
+                    auto set_it = std::set_intersection(
+                                      input_rows.begin(),
+                                      input_rows.end(),
+                                      passed_rows.begin(),
+                                      passed_rows.end(),
+                                      row_nums.begin());
+                    row_nums.resize(set_it - row_nums.begin());
+                }
+            }
+        }
+        break;
+    }
+}
+
 bool compare(const int64_t& val1, const int64_t& val2, const int& op) {
     switch (op) {
         case SOT_lt: return val1 < val2;
@@ -3988,7 +4538,7 @@ int read_from_file(const char *filename, std::shared_ptr<arrow::Buffer> *buffer)
 int write_to_file(const char *filename, arrow::Buffer* buffer)
 {
     std::ofstream ofile(filename);
-    ofile.write(reinterpret_cast<const char*>(buffer->data()), buffer->size());
+    ofile.write(reinterpret_cast<const char*>(buffer->mutable_data()), buffer->size());
     return 0;
 }
 
@@ -4012,6 +4562,19 @@ int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::s
     const std::shared_ptr<arrow::io::InputStream> buf_reader = std::make_shared<arrow::io::BufferReader>(buffer);
     std::shared_ptr<arrow::ipc::RecordBatchReader> reader;
     arrow::ipc::RecordBatchStreamReader::Open(buf_reader, &reader);
+
+    auto schema = reader->schema();
+    auto metadata = schema->metadata();
+
+    if (atoi(metadata->value(METADATA_NUM_ROWS).c_str()) == 0) {
+        // Table has no values and current version of Apache Arrow does not allow
+        // converting empty recordbatches to arrow table.
+        // https://www.mail-archive.com/issues@arrow.apache.org/msg30289.html
+        // Therefore, create and return empty arrow table
+
+        std::vector<std::shared_ptr<arrow::Array>> array_list;
+        *table = arrow::Table::Make(schema, array_list);
+    }
 
     // Initilaization related to read to apache arrow
     std::vector<std::shared_ptr<arrow::RecordBatch>> batch_vec;
