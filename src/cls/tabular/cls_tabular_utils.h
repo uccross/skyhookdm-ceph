@@ -896,6 +896,8 @@ int processSkyFb_fbu_cols(
         predicate_vec& preds,
         const char* fb,
         const size_t fb_size,
+        std::string& errmsg,
+        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
 int processArrowCol(
         std::shared_ptr<arrow::Table>* table,
