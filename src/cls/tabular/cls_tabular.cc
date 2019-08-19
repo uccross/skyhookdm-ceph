@@ -1558,6 +1558,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         bl_seq.append(blob_dataptr, blob_sz);
 
                         // bl_seq for ROW format will only contain one bl
+                        // bl_seq for COL format may contain multiple bls
                         ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
 
                         ceph::bufferlist bl;

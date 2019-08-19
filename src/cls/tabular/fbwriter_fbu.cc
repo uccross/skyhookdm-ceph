@@ -37,7 +37,7 @@
 
 namespace po = boost::program_options ;
 
-const uint8_t SKYHOOK_VERSION = 1 ;
+const uint8_t SKYHOOK_VERSION = 2 ;
 const uint8_t SCHEMA_VERSION  = 1 ;
 
 std::vector< std::string > parse_csv_str( std::string, char ) ;
