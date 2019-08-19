@@ -428,6 +428,7 @@ void worker()
                 case SFT_FLATBUF_FLEX_ROW: {
                     sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
                     nrows_processed += root.nrows;
+                    rows_returned += root.nrows;
                     break;
                 }
                 case SFT_ARROW: {
