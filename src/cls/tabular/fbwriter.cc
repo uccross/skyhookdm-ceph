@@ -19,6 +19,37 @@
  * writen to disk, and the bucket is deleted.
 */
 
+
+/*
+USAGE NOTES
+
+# reset vceph
+../src/stop.sh; make -j12 vstart; ../src/stop.sh; ../src/vstart.sh -d -n -x; bin/rados mkpool tpchflatbuf ; bin/ceph osd pool set tpchflatbuf size 1 ;
+
+# write to disk
+# for these, be sure to change num-objs to 2 in queries
+bin/fbwriter --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 2 --flush_rows 9 --read_rows 17 --csv_delim "|" --use_hashing true --rid_start_value 2 --table_name testdata --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;
+
+# for these, be sure to change num-objs to 1 in queries
+bin/fbwriter --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 1 --flush_rows 17 --read_rows 17 --csv_delim "|" --use_hashing false --rid_start_value 2 --table_name testdata --input_oid 111 --obj_type SFT_FLATBUF_FLEX_ROW ;
+
+# setup
+bin/rados mkpool tpchdata;
+yes | PATH=$PATH:bin ../src/progly/rados-store-glob.sh tpchdata fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.testdata.* ;
+
+# queries
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem" ;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet ;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "orderkey,lt,3"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet ;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "comment,like,bold"  --quiet ;
+
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem" --use-cls;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet --use-cls;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "orderkey,lt,3"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet --use-cls;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "comment,like,bold"  --quiet --use-cls;
+
+*/
+
 #include <fcntl.h>     // system call open
 #include <iostream>
 #include <fstream>
@@ -80,13 +111,13 @@ void insertRowIntoBucket(fbb, uint64_t, vector<uint64_t> *, vector<uint8_t>,
                          delete_vector *, rows_vector *);
 
 //------------- Finishing flatbuffer --------------
-void flushFlatBuffer(uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr,
+void flushFlatBuffer(string, uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr,
                      string schema, uint64_t numOfObjs);
 
 void finishFlatBuffer(fbb, uint8_t, uint8_t, string, string, delete_vector *,
                       rows_vector *, uint32_t);
 
-int writeToDisk(uint64_t, uint8_t, bucket_t*, uint64_t);
+int writeToDisk(string, uint64_t, uint8_t, bucket_t*, uint64_t);
 
 void deleteBucket(bucket_t *bucketPtr, fbb fbPtr, delete_vector *deletePtr,
                   rows_vector *rowsPtr);
@@ -116,6 +147,7 @@ int main(int argc, char *argv[])
     uint64_t input_oid       = UINT_MAX;
     char csv_delim           = Tables::CSV_DELIM;
     bool use_hashing         = false;
+    string obj_type          = "";
 
 // -------------- Get Variables ---------------
     po::options_description gen_opts("General options");
@@ -130,7 +162,8 @@ int main(int argc, char *argv[])
       ("csv_delim", po::value<char>(&csv_delim)->required(), "csv_delim")
       ("use_hashing", po::value<bool>(&use_hashing)->required(), "use_hashing")
       ("table_name", po::value<string>(&table_name)->required(), "table_name")
-      ("input_oid", po::value<uint64_t>(&input_oid)->required(), "input_oid");
+      ("input_oid", po::value<uint64_t>(&input_oid)->required(), "input_oid")
+      ("obj_type", po::value<string>(&obj_type)->required(), "obj_type");
   
     po::options_description all_opts("Allowed options");
     all_opts.add(gen_opts);
@@ -197,7 +230,8 @@ int main(int argc, char *argv[])
                        oid, bucketPtr->nrows);
 
                 // Flush FlatBuffer to Ceph (currently writes to a file on disk)
-                flushFlatBuffer(SKYHOOK_VERSION,
+                flushFlatBuffer(obj_type,
+                                SKYHOOK_VERSION,
                                 SCHEMA_VERSION,
                                 bucketPtr,
                                 SCHEMA,
@@ -222,7 +256,7 @@ int main(int argc, char *argv[])
             printf("\tFlushing bucket %ld to Ceph with %ld rows\n",
                    b->oid, b->nrows);
 
-            flushFlatBuffer(SKYHOOK_VERSION, SCHEMA_VERSION, b, SCHEMA, num_objs);
+            flushFlatBuffer(obj_type, SKYHOOK_VERSION, SCHEMA_VERSION, b, SCHEMA, num_objs);
         } // for every FBmap key
     } // if using hashing
 
@@ -607,6 +641,7 @@ uint64_t getNextRID() {
 
 void
 flushFlatBuffer(
+    string obj_type,
     uint8_t skyhook_v,
     uint8_t schema_v,
     bucket_t *bucketPtr,
@@ -655,7 +690,7 @@ flushFlatBuffer(
     uint64_t oid = bucketPtr->oid;
 
     // Flush to Ceph Here TO OID bucket with n Rows or Crash if Failed
-    if(writeToDisk(oid, schema_v, bucketPtr, numOfObjs) < 0)
+    if(writeToDisk(obj_type, oid, schema_v, bucketPtr, numOfObjs) < 0)
         exit(EXIT_FAILURE);
 
     // Deallocate pointers
@@ -706,6 +741,7 @@ void finishFlatBuffer(
 /* TODO: instead of writing objects to disk, write directly to ceph. */
 int
 writeToDisk(
+    string obj_type,
     uint64_t oid,
     uint8_t schema_v,
     bucket_t *bucket,
@@ -717,11 +753,16 @@ writeToDisk(
     // CREATE An FB_META, using an empty builder first.
     flatbuffers::FlatBufferBuilder *meta_builder = \
             new flatbuffers::FlatBufferBuilder();
-    createFbMeta(
-            meta_builder,
-            SFT_FLATBUF_FLEX_ROW,
-            reinterpret_cast<unsigned char*>(bucket->fb->GetBufferPointer()),
-            bucket->fb->GetSize());
+    if(obj_type== "SFT_FLATBUF_FLEX_ROW")
+        createFbMeta(
+                meta_builder,
+                SFT_FLATBUF_FLEX_ROW,
+                reinterpret_cast<unsigned char*>(bucket->fb->GetBufferPointer()),
+                bucket->fb->GetSize());
+    else {
+        std::cout << "obj_type '" << obj_type << "' not supported. aborting." << std::endl;
+        exit(1);
+    }
 
     // add meta_builder's data into a bufferlist as char*
     bufferlist meta_bl;
@@ -735,7 +776,8 @@ writeToDisk(
     bufferlist bl_wrapper;
     ::encode(meta_bl, bl_wrapper);
 
-    string fname = "fbmeta.Skyhook.v2." + bucket->table_name
+    string fname = "fbmeta.Skyhook.v2." + obj_type
+                                        + "." + bucket->table_name
                                         + "." + std::to_string(oid)
                                         + ".1-" + std::to_string(nobjs);
 
