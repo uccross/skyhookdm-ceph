@@ -26,11 +26,13 @@
 #include <map>
 #include <unistd.h>    // for getOpt
 #include <limits.h>
+#include <boost/program_options.hpp>
 
 #include "cls_tabular_utils.h"
 
 using namespace std;
 using namespace Tables;
+namespace po = boost::program_options ;
 
 const uint8_t SKYHOOK_VERSION = 1;
 const uint8_t SCHEMA_VERSION = 1;
@@ -55,6 +57,7 @@ typedef struct {
 std::vector<std::string> line_split(const std::string &s, char delim);
 void promptDataFile(ifstream&, string&);
 uint32_t promptIntVariable(string, string);
+bool promptBoolVariable(string, string);
 void helpMenu();
 
 //-------------------------------------------------
@@ -62,7 +65,7 @@ Tables::schema_vec getSchema(vector<int>&, string&);
 
 uint64_t getNextRID();
 
-vector<string> getNextRow(ifstream& inFile, char csv_delim);
+vector<string> parseRow(string row, char csv_delim);
 
 void getFlxBuffer(flexbuffers::Builder *, vector<string>,
                   Tables::schema_vec, vector<uint64_t> *);
@@ -71,7 +74,7 @@ uint64_t hashCompositeKey(vector<int>, vector<string>);
 
 uint64_t jumpConsistentHash(uint64_t, uint64_t);
 
-bucket_t *retrieveBucketFromOID(map<uint64_t, bucket_t *> &, uint64_t);
+bucket_t *retrieveBucketFromOID(map<uint64_t, bucket_t *> &, uint64_t, string);
 
 void insertRowIntoBucket(fbb, uint64_t, vector<uint64_t> *, vector<uint8_t>,
                          delete_vector *, rows_vector *);
@@ -98,74 +101,66 @@ vector<uint8_t> initializeFlexBuffer(vector<string> parsedRow,
 bucket_t *GetAndInitializeBucket(map<uint64_t, bucket_t *> &FBmap,
                                  uint64_t oid,
                                  vector<uint64_t> *nullbits,
-                                 vector<uint8_t> flxPtr);
+                                 vector<uint8_t> flxPtr,
+                                 string tablename);
 
 int main(int argc, char *argv[])
 {
-    ifstream inFile;
-    string file_name = "";
-    string schema_file_name = "";
-    vector<int> composite_key_indexes;
-    Tables::schema_vec schema;
-    uint64_t num_objs = UINT_MAX;
-    uint32_t flush_rows = UINT_MAX;
-    uint32_t read_rows = UINT_MAX;
-    char csv_delim = Tables::CSV_DELIM;
+    string file_name         = "";
+    string schema_file_name  = "";
+    string table_name        = "";
+    uint64_t num_objs        = UINT_MAX;
+    uint64_t rid_start_value = UINT_MAX;
+    uint64_t flush_rows      = UINT_MAX;
+    uint64_t read_rows       = UINT_MAX;
+    char csv_delim           = Tables::CSV_DELIM;
+    bool use_hashing         = false;
 
-// -------------- Verify Configurable Variables or Prompt For Them ---------------
-    int opt;
-    while( (opt = getopt(argc, argv, "hf:s:o:r:n:i:d:")) != -1) {
-        switch(opt) {
-            case 'f':
-                // Open .csv file
-                file_name = optarg;
-                promptDataFile(inFile, file_name);
-                break;
-            case 's':
-                // Get Schema (vector of enum types), schema file name, and
-                // composite key
-                schema_file_name = optarg;
-
-                // returns schema vector and composite keys
-                schema = getSchema(composite_key_indexes, schema_file_name);
-                SCHEMA = Tables::schemaToString(schema);
-                break;
-            case 'o':
-                // Set # of Objects
-                num_objs = promptIntVariable("objects", optarg);
-                break;
-            case 'i':
-                RID = promptIntVariable("RID start value", optarg);
-                   break;
-            case 'r':
-                // Set # of Rows to Read Until Flushed
-                flush_rows = promptIntVariable("rows until flush", optarg);
-                break;
-            case 'n':
-                // Set # of Total Rows to Read
-                read_rows = promptIntVariable("rows to read", optarg);
-                break;
-            case 'd':
-                // Set csv delimiter
-                csv_delim = promptIntVariable("csv delimiter", optarg);
-                break;
-            case 'h':
-                helpMenu();
-                exit(0);
-                break;
-            default:
-                std::cout<<"Opt "<<opt<<" not valid"<<endl;
-        }
+// -------------- Get Variables ---------------
+    po::options_description gen_opts("General options");
+    gen_opts.add_options()
+      ("help,h", "show help message")
+      ("file_name", po::value<string>(&file_name)->required(), "file_name")
+      ("schema_file_name", po::value<string>(&schema_file_name)->required(), "schema_file_name")
+      ("num_objs", po::value<uint64_t>(&num_objs)->required(), "num_objs")
+      ("rid_start_value", po::value<uint64_t>(&rid_start_value)->required(), "rid_start_value")
+      ("flush_rows", po::value<uint64_t>(&flush_rows)->required(), "flush_rows")
+      ("read_rows", po::value<uint64_t>(&read_rows)->required(), "read_rows")
+      ("csv_delim", po::value<char>(&csv_delim)->required(), "csv_delim")
+      ("use_hashing", po::value<bool>(&use_hashing)->required(), "use_hashing")
+      ("table_name", po::value<string>(&table_name)->required(), "table_name");
+  
+    po::options_description all_opts("Allowed options");
+    all_opts.add(gen_opts);
+    po::variables_map vm;
+    po::store( po::parse_command_line(argc, argv, all_opts ), vm);
+    if(vm.count("help")) {
+      std::cout << all_opts << std::endl;
+      return 1;
     }
+    po::notify(vm);
+  
+    // returns schema vector and composite keys
+    Tables::schema_vec schema;
+    vector<int> composite_key_indexes;
+    schema = getSchema(composite_key_indexes, schema_file_name);
+    SCHEMA = Tables::schemaToString(schema);
 
 // ----------- Read Rows and Load into Corresponding FlatBuffer -----------
     map<uint64_t, bucket_t *> FBmap;
     bucket_t *bucketPtr;
 
-    uint32_t rows_loaded_into_fb = 0;
-    vector<string> parsedRow = getNextRow(inFile, csv_delim);
+    std::ifstream inFile(file_name);
+    std::string line;
+    uint64_t line_counter = 1;
+    uint64_t rows_loaded_into_fb = 0;
+    while(getline(inFile, line) && inFile.good()) {
 
-    while( (rows_loaded_into_fb < read_rows) && (!inFile.eof()) ) {
+        if((line_counter < rid_start_value) ||
+           (line_counter > (rid_start_value+read_rows)))
+          break;
+
+        auto parsedRow = parseRow(line, csv_delim);
 
         vector<uint64_t> *nullbits = new vector<uint64_t>(2,0);
 
@@ -181,9 +176,9 @@ int main(int argc, char *argv[])
          uint64_t oid = jumpConsistentHash(hashKey, num_objs);
 
         // --------- Get FB and insert ----------
-        printf("Inserting Row %d into Bucket %ld\n", rows_loaded_into_fb, oid);
+        printf("Inserting Row %ld into Bucket %ld\n", rows_loaded_into_fb, oid);
 
-        bucketPtr = GetAndInitializeBucket(FBmap,oid,nullbits,flxPtr);
+        bucketPtr = GetAndInitializeBucket(FBmap, oid, nullbits, flxPtr, table_name);
 
         rows_loaded_into_fb++;
         delete nullbits;
@@ -200,10 +195,10 @@ int main(int argc, char *argv[])
                             SCHEMA,
                             num_objs);
             FBmap.erase(oid);
-        }
-        // Get next row
-        parsedRow = getNextRow(inFile, csv_delim);
-    }
+        } // if need to flush
+
+        line_counter++;
+    } // while get a row
 
 // ------------- Iterate over map and flush each bucket --------------
     printf("\nFlush the remaining buckets in map\n");
@@ -278,9 +273,23 @@ uint32_t promptIntVariable(string variable, string num_string) {
     return n;
 }
 
-vector<string> getNextRow(ifstream& inFile, char delim=Tables::CSV_DELIM) {
-    string row;
-    getline(inFile, row);
+bool promptBoolVariable(string variable, string bool_string) {
+    stringstream myStream(bool_string);
+    bool i = false ;
+
+    while( !(myStream >> i) ) {
+        std::cout << "Use hashing strategy? (true || false) " << variable << "?: ";
+        getline(cin, bool_string);
+        stringstream newStream(bool_string);
+        if(newStream >> i)
+            break;
+        std::cout << "Invalid number, please try again\n";
+    }
+    std::cout << "Use hashing strategy " << variable << ": " << i << endl << endl;
+    return i;
+}
+
+vector<string> parseRow(string row, char delim=Tables::CSV_DELIM) {
     return line_split(row, delim);
 }
 
@@ -516,10 +525,11 @@ uint64_t jumpConsistentHash(uint64_t key, uint64_t num_buckets) {
 bucket_t* GetAndInitializeBucket(
     map<uint64_t, bucket_t *> &FBmap,
     uint64_t oid,vector<uint64_t> *nullbits,
-    vector<uint8_t> flxPtr) {
+    vector<uint8_t> flxPtr,
+    string tablename) {
 
     bucket_t *bucketPtr;
-    bucketPtr = retrieveBucketFromOID(FBmap, oid);
+    bucketPtr = retrieveBucketFromOID(FBmap, oid, tablename);
 
     fbb fbPtr = bucketPtr->fb;
     delete_vector *deletePtr;
@@ -535,7 +545,7 @@ bucket_t* GetAndInitializeBucket(
 }
 
 bucket_t*
-retrieveBucketFromOID(map<uint64_t, bucket_t *> &FBmap, uint64_t oid) {
+retrieveBucketFromOID(map<uint64_t, bucket_t *> &FBmap, uint64_t oid, string tablename) {
 
     bucket_t *bucketPtr;
     // Get FB from map or use new FB
@@ -549,7 +559,7 @@ retrieveBucketFromOID(map<uint64_t, bucket_t *> &FBmap, uint64_t oid) {
         bucketPtr = new bucket_t();
         bucketPtr->oid = oid;
         bucketPtr->nrows = 0;
-        bucketPtr->table_name = "LINEITEM";  // TODO: get this from arg
+        bucketPtr->table_name = tablename;
         bucketPtr->fb = new fbBuilder();
         bucketPtr->deletev = new delete_vector();
         bucketPtr->rowsv = new rows_vector();
