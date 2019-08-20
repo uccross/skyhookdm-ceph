@@ -1,4 +1,13 @@
 # --------------------------------- #
+# driver for fbu integration deving.
+# delete before pr.
+# can delete later.
+add_executable(kat-tests kat-tests.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc )
+target_link_libraries(kat-tests librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2 arrow)
+install(TARGETS kat-tests DESTINATION bin)
+
+# --------------------------------- #
 # driver for baseline experiments for paper.
 # can delete later.
 add_executable(run-papertests run-papertests.cc )

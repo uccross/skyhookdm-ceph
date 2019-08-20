@@ -200,7 +200,17 @@ static void print_data(const char *dataptr,
                 row_limit - row_counter);
             break;
         case SFT_FLATBUF_UNION_ROW:
-        case SFT_FLATBUF_UNION_COL:
+        case SFT_FLATBUF_UNION_COL: {
+            row_counter += Tables::printFlatbufFBUAsCsv(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter,
+                (SkyFormatType)ds_format ) ;
+            break ;
+        }
+        
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
         case SFT_CSV:
@@ -444,7 +454,30 @@ void worker()
                     break;
                 }
                 case SFT_FLATBUF_UNION_ROW:
-                case SFT_FLATBUF_UNION_COL:
+                case SFT_FLATBUF_UNION_COL: {
+
+                    // extract ptr to meta data blob
+                    const char* blob_dataptr = reinterpret_cast<const char*>( meta.blob_data ) ;
+                    size_t blob_sz           = meta.blob_size ;
+                    //std::cout << "blob_sz = " << blob_sz << std::endl ;
+
+                    // extract bl_seq bufferlist
+                    ceph::bufferlist bl_seq ;
+                    bl_seq.append( blob_dataptr, blob_sz ) ;
+
+                    // just need to grab the first bufferlist in the bl_seq
+                    ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+                    ceph::bufferlist bl ;
+                    ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+                    const char* dataptr = bl.c_str() ;
+                    size_t datasz       = bl.length() ;
+                    //std::cout << "datasz = " << datasz << std::endl ;
+
+                    // get the number of rows returned for accounting purposes
+                    sky_root root = getSkyRoot( dataptr, datasz, SFT_FLATBUF_UNION_ROW ) ;
+                    rows_returned += root.nrows;
+                    break ;
+                }
                 case SFT_FLATBUF_CSV_ROW:
                 case SFT_PG_TUPLE:
                 case SFT_CSV:
@@ -481,7 +514,50 @@ void worker()
                         break;
                     }
                     case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_COL: {
+
+                        // extract ptr to meta data blob
+                        const char* blob_dataptr = reinterpret_cast<const char*>( meta.blob_data ) ;
+                        size_t blob_sz           = meta.blob_size ;
+
+                        // extract bl_seq bufferlist
+                        ceph::bufferlist bl_seq ;
+                        bl_seq.append( blob_dataptr, blob_sz ) ;
+
+                        // bl_seq for ROW format will only contain one bl
+                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+
+                        bool first_iteration = true ;
+                        while( it_bl_seq.get_remaining() > 0 ) {
+
+                            ceph::bufferlist bl ;
+                            ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+                            const char* dataptr = bl.c_str() ;
+                            size_t datasz       = bl.length() ;
+
+                            // get the number of rows returned for accounting purposes
+                            if( first_iteration ) {
+                                sky_root root = getSkyRoot( dataptr, datasz, SFT_FLATBUF_UNION_ROW ) ;
+                                result_count += root.nrows;
+                                first_iteration = false ;
+                            }
+
+                            // do the print
+                            if( meta.blob_format == SFT_FLATBUF_UNION_ROW )
+                                print_data( dataptr,
+                                            datasz,
+                                            SFT_FLATBUF_UNION_ROW );
+                            else if( meta.blob_format == SFT_FLATBUF_UNION_COL )
+                                print_data( dataptr,
+                                            datasz,
+                                            SFT_FLATBUF_UNION_COL );
+                            else
+                                assert( Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0 ) ;
+
+                        } // while
+                        break ;
+                    }
+
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -554,7 +630,66 @@ void worker()
                         break;
 
                     case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL:
+                    case SFT_FLATBUF_UNION_COL: {
+                        flatbuffers::FlatBufferBuilder flatbldr( 1024 ) ; // pre-alloc
+                        int ret ;
+
+                        // extract ptr to meta data blob
+                        const char* blob_dataptr = reinterpret_cast<const char*>( meta.blob_data ) ;
+                        size_t blob_sz           = meta.blob_size ;
+                        //std::cout << "blob_sz = " << blob_sz << std::endl ;
+
+                        // extract bl_seq bufferlist
+                        ceph::bufferlist bl_seq ;
+                        bl_seq.append( blob_dataptr, blob_sz ) ;
+
+                        // bl_seq for ROW format will only contain one bl
+                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
+
+                        ceph::bufferlist bl ;
+                        ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
+                        const char* dataptr = bl.c_str() ;
+                        size_t datasz       = bl.length() ;
+                        //std::cout << "datasz = " << datasz << std::endl ;
+
+                        if( meta.blob_format == SFT_FLATBUF_UNION_ROW )
+                            ret = processSkyFb_fbu_rows(
+                                   flatbldr,
+                                   sky_tbl_schema,
+                                   sky_qry_schema,
+                                   sky_qry_preds,
+                                   dataptr,
+                                   datasz,
+                                   errmsg ) ;
+                        else if( meta.blob_format == SFT_FLATBUF_UNION_COL )
+                            ret = processSkyFb_fbu_cols(
+                                    bl_seq,
+                                    flatbldr,
+                                    sky_tbl_schema,
+                                    sky_qry_schema,
+                                    sky_qry_preds,
+                                    dataptr,
+                                    datasz,
+                                    errmsg ) ;
+                        else
+                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+
+                        if (ret != 0) {
+                            int more_processing_failure = true;
+                            std::cerr << "ERROR: query.cc: processing flatbuf: "
+                                      << errmsg << "\n Tables::ErrCodes=" << ret
+                                      << endl;
+                            assert(more_processing_failure);
+                        }
+
+                        // TODO: we should be using uint8_t here
+                        const char* processed_data = \
+                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
+                        sky_root root = getSkyRoot(processed_data, 0);
+                        result_count += root.nrows;
+                        print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
+                        break ;
+                    }
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
