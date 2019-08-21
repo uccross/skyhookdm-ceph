@@ -19,6 +19,37 @@
  * writen to disk, and the bucket is deleted.
 */
 
+
+/*
+USAGE NOTES
+
+# reset vceph
+../src/stop.sh; make -j12 vstart; ../src/stop.sh; ../src/vstart.sh -d -n -x; bin/rados mkpool tpchflatbuf ; bin/ceph osd pool set tpchflatbuf size 1 ;
+
+# write to disk
+# for these, be sure to change num-objs to 2 in queries
+bin/fbwriter --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 2 --flush_rows 9 --read_rows 17 --csv_delim "|" --use_hashing true --rid_start_value 2 --table_name testdata --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;
+
+# for these, be sure to change num-objs to 1 in queries
+bin/fbwriter --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 1 --flush_rows 17 --read_rows 17 --csv_delim "|" --use_hashing false --rid_start_value 2 --table_name testdata --input_oid 111 --obj_type SFT_FLATBUF_FLEX_ROW ;
+
+# setup
+bin/rados mkpool tpchdata;
+yes | PATH=$PATH:bin ../src/progly/rados-store-glob.sh tpchdata fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.testdata.* ;
+
+# queries
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem" ;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet ;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "orderkey,lt,3"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet ;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "comment,like,bold"  --quiet ;
+
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem" --use-cls;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet --use-cls;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "orderkey,lt,3"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet --use-cls;
+bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "comment,like,bold"  --quiet --use-cls;
+
+*/
+
 #include <fcntl.h>     // system call open
 #include <iostream>
 #include <fstream>
@@ -26,11 +57,13 @@
 #include <map>
 #include <unistd.h>    // for getOpt
 #include <limits.h>
+#include <boost/program_options.hpp>
 
 #include "cls_tabular_utils.h"
 
 using namespace std;
 using namespace Tables;
+namespace po = boost::program_options ;
 
 const uint8_t SKYHOOK_VERSION = 1;
 const uint8_t SCHEMA_VERSION = 1;
@@ -44,7 +77,7 @@ typedef vector<flatbuffers::Offset<Record>> rows_vector;
 
 typedef struct {
     uint64_t oid;
-    uint32_t nrows;
+    uint64_t nrows;
     string table_name;
     fbb fb;
     delete_vector *deletev;
@@ -55,6 +88,7 @@ typedef struct {
 std::vector<std::string> line_split(const std::string &s, char delim);
 void promptDataFile(ifstream&, string&);
 uint32_t promptIntVariable(string, string);
+bool promptBoolVariable(string, string);
 void helpMenu();
 
 //-------------------------------------------------
@@ -62,7 +96,7 @@ Tables::schema_vec getSchema(vector<int>&, string&);
 
 uint64_t getNextRID();
 
-vector<string> getNextRow(ifstream& inFile, char csv_delim);
+vector<string> parseRow(string row, char csv_delim);
 
 void getFlxBuffer(flexbuffers::Builder *, vector<string>,
                   Tables::schema_vec, vector<uint64_t> *);
@@ -71,19 +105,19 @@ uint64_t hashCompositeKey(vector<int>, vector<string>);
 
 uint64_t jumpConsistentHash(uint64_t, uint64_t);
 
-bucket_t *retrieveBucketFromOID(map<uint64_t, bucket_t *> &, uint64_t);
+bucket_t *retrieveBucketFromOID(map<uint64_t, bucket_t *> &, uint64_t, string);
 
 void insertRowIntoBucket(fbb, uint64_t, vector<uint64_t> *, vector<uint8_t>,
                          delete_vector *, rows_vector *);
 
 //------------- Finishing flatbuffer --------------
-void flushFlatBuffer(uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr,
+void flushFlatBuffer(string, uint8_t skyhook_v, uint8_t schema_v, bucket_t *bucketPtr,
                      string schema, uint64_t numOfObjs);
 
 void finishFlatBuffer(fbb, uint8_t, uint8_t, string, string, delete_vector *,
                       rows_vector *, uint32_t);
 
-int writeToDisk(uint64_t, uint8_t, bucket_t*, uint64_t);
+int writeToDisk(string, uint64_t, uint8_t, bucket_t*, uint64_t);
 
 void deleteBucket(bucket_t *bucketPtr, fbb fbPtr, delete_vector *deletePtr,
                   rows_vector *rowsPtr);
@@ -98,123 +132,133 @@ vector<uint8_t> initializeFlexBuffer(vector<string> parsedRow,
 bucket_t *GetAndInitializeBucket(map<uint64_t, bucket_t *> &FBmap,
                                  uint64_t oid,
                                  vector<uint64_t> *nullbits,
-                                 vector<uint8_t> flxPtr);
+                                 vector<uint8_t> flxPtr,
+                                 string tablename);
 
 int main(int argc, char *argv[])
 {
-    ifstream inFile;
-    string file_name = "";
-    string schema_file_name = "";
-    vector<int> composite_key_indexes;
-    Tables::schema_vec schema;
-    uint64_t num_objs = UINT_MAX;
-    uint32_t flush_rows = UINT_MAX;
-    uint32_t read_rows = UINT_MAX;
-    char csv_delim = Tables::CSV_DELIM;
+    string file_name         = "";
+    string schema_file_name  = "";
+    string table_name        = "";
+    uint64_t num_objs        = UINT_MAX;
+    uint64_t rid_start_value = UINT_MAX;
+    uint64_t flush_rows      = UINT_MAX;
+    uint64_t read_rows       = UINT_MAX;
+    uint64_t input_oid       = UINT_MAX;
+    char csv_delim           = Tables::CSV_DELIM;
+    bool use_hashing         = false;
+    string obj_type          = "";
 
-// -------------- Verify Configurable Variables or Prompt For Them ---------------
-    int opt;
-    while( (opt = getopt(argc, argv, "hf:s:o:r:n:i:d:")) != -1) {
-        switch(opt) {
-            case 'f':
-                // Open .csv file
-                file_name = optarg;
-                promptDataFile(inFile, file_name);
-                break;
-            case 's':
-                // Get Schema (vector of enum types), schema file name, and
-                // composite key
-                schema_file_name = optarg;
-
-                // returns schema vector and composite keys
-                schema = getSchema(composite_key_indexes, schema_file_name);
-                SCHEMA = Tables::schemaToString(schema);
-                break;
-            case 'o':
-                // Set # of Objects
-                num_objs = promptIntVariable("objects", optarg);
-                break;
-            case 'i':
-                RID = promptIntVariable("RID start value", optarg);
-                   break;
-            case 'r':
-                // Set # of Rows to Read Until Flushed
-                flush_rows = promptIntVariable("rows until flush", optarg);
-                break;
-            case 'n':
-                // Set # of Total Rows to Read
-                read_rows = promptIntVariable("rows to read", optarg);
-                break;
-            case 'd':
-                // Set csv delimiter
-                csv_delim = promptIntVariable("csv delimiter", optarg);
-                break;
-            case 'h':
-                helpMenu();
-                exit(0);
-                break;
-            default:
-                std::cout<<"Opt "<<opt<<" not valid"<<endl;
-        }
+// -------------- Get Variables ---------------
+    po::options_description gen_opts("General options");
+    gen_opts.add_options()
+      ("help,h", "show help message")
+      ("file_name", po::value<string>(&file_name)->required(), "file_name")
+      ("schema_file_name", po::value<string>(&schema_file_name)->required(), "schema_file_name")
+      ("num_objs", po::value<uint64_t>(&num_objs)->required(), "num_objs")
+      ("rid_start_value", po::value<uint64_t>(&rid_start_value)->required(), "rid_start_value")
+      ("flush_rows", po::value<uint64_t>(&flush_rows)->required(), "flush_rows")
+      ("read_rows", po::value<uint64_t>(&read_rows)->required(), "read_rows")
+      ("csv_delim", po::value<char>(&csv_delim)->required(), "csv_delim")
+      ("use_hashing", po::value<bool>(&use_hashing)->required(), "use_hashing")
+      ("table_name", po::value<string>(&table_name)->required(), "table_name")
+      ("input_oid", po::value<uint64_t>(&input_oid)->required(), "input_oid")
+      ("obj_type", po::value<string>(&obj_type)->required(), "obj_type");
+  
+    po::options_description all_opts("Allowed options");
+    all_opts.add(gen_opts);
+    po::variables_map vm;
+    po::store( po::parse_command_line(argc, argv, all_opts ), vm);
+    if(vm.count("help")) {
+      std::cout << all_opts << std::endl;
+      return 1;
     }
+    po::notify(vm);
+  
+    // returns schema vector and composite keys
+    Tables::schema_vec schema;
+    vector<int> composite_key_indexes;
+    schema = getSchema(composite_key_indexes, schema_file_name);
+    SCHEMA = Tables::schemaToString(schema);
 
 // ----------- Read Rows and Load into Corresponding FlatBuffer -----------
     map<uint64_t, bucket_t *> FBmap;
     bucket_t *bucketPtr;
 
-    uint32_t rows_loaded_into_fb = 0;
-    vector<string> parsedRow = getNextRow(inFile, csv_delim);
+    std::ifstream inFile(file_name);
+    std::string line;
+    uint64_t line_counter = 1;
+    while(getline(inFile, line) && inFile.good()) {
+        if((line_counter >= rid_start_value) &&
+             (line_counter <= (rid_start_value+read_rows))) {
+            auto parsedRow = parseRow(line, csv_delim);
 
-    while( (rows_loaded_into_fb < read_rows) && (!inFile.eof()) ) {
+            vector<uint64_t> *nullbits = new vector<uint64_t>(2,0);
 
-        vector<uint64_t> *nullbits = new vector<uint64_t>(2,0);
+            // --------- Get Row and Load into FlexBuffer ---------
+            vector<uint8_t> flxPtr = initializeFlexBuffer(parsedRow,
+                                                          schema,
+                                                          nullbits);
 
-        // --------- Get Row and Load into FlexBuffer ---------
-        vector<uint8_t> flxPtr = initializeFlexBuffer(parsedRow,
-                                                      schema,
-                                                      nullbits);
+            uint64_t oid     = -1 ;
+            if(use_hashing) {
+              // --------- Hash Composite Key ----------
+              uint64_t hashKey = hashCompositeKey(composite_key_indexes, parsedRow);
 
-        // --------- Hash Composite Key ----------
-        uint64_t hashKey = hashCompositeKey(composite_key_indexes, parsedRow);
+              // --------- Get Oid Using HashKey ----------
+              oid = jumpConsistentHash(hashKey, num_objs);
+            }
+            else {
+              // write all rows between rid_start_row and (rid_start_row+read_rows)
+              // to a single bucket/file.
+              // define default oid
+              oid  = input_oid ;
+            }
 
-        // --------- Get Oid Using HashKey ----------
-         uint64_t oid = jumpConsistentHash(hashKey, num_objs);
+            // --------- Get FB and insert ----------
+            printf("Inserting Row %ld into Bucket %ld\n", line_counter, oid);
+            bucketPtr = GetAndInitializeBucket(FBmap, oid, nullbits, flxPtr, table_name);
 
-        // --------- Get FB and insert ----------
-        printf("Inserting Row %d into Bucket %ld\n", rows_loaded_into_fb, oid);
+            // ----------- Flush if rows_flush was met -----------
+            // TODO: either disable flushing when not using hashing 
+            //       or increment the oid.
+            //       otherwise, when flush_rows < read_rows,
+            //       this will flush everything to the same object,
+            //       which overwrites previously written data.
+            if( bucketPtr->rowsv->size() >= flush_rows) {
+                printf("\tFlushing bucket %ld to Ceph with %ld rows\n",
+                       oid, bucketPtr->nrows);
 
-        bucketPtr = GetAndInitializeBucket(FBmap,oid,nullbits,flxPtr);
+                // Flush FlatBuffer to Ceph (currently writes to a file on disk)
+                flushFlatBuffer(obj_type,
+                                SKYHOOK_VERSION,
+                                SCHEMA_VERSION,
+                                bucketPtr,
+                                SCHEMA,
+                                num_objs);
+                FBmap.erase(oid);
+            } // if need to flush
+            delete nullbits;
+        } // if in rid range
+        else if(line_counter >= (rid_start_value+read_rows))
+             break ;
+        else
+            std::cout << "skipping row " << line_counter << std::endl ;
 
-        rows_loaded_into_fb++;
-        delete nullbits;
-
-        // ----------- Flush if rows_flush was met -----------
-        if( bucketPtr->rowsv->size() >= flush_rows) {
-            printf("\tFlushing bucket %ld to Ceph with %d rows\n",
-                   oid, bucketPtr->nrows);
-
-            // Flush FlatBuffer to Ceph (currently writes to a file on disk)
-            flushFlatBuffer(SKYHOOK_VERSION,
-                            SCHEMA_VERSION,
-                            bucketPtr,
-                            SCHEMA,
-                            num_objs);
-            FBmap.erase(oid);
-        }
-        // Get next row
-        parsedRow = getNextRow(inFile, csv_delim);
-    }
+        line_counter++;
+    } // while get a row
 
 // ------------- Iterate over map and flush each bucket --------------
-    printf("\nFlush the remaining buckets in map\n");
+   if(use_hashing) {
+        printf("\nFlush the remaining buckets in map\n");
+        for (auto& x: FBmap) {
+            bucket_t *b = x.second;
+            printf("\tFlushing bucket %ld to Ceph with %ld rows\n",
+                   b->oid, b->nrows);
 
-    for (auto& x: FBmap) {
-        bucket_t *b = x.second;
-        printf("\tFlushing bucket %ld to Ceph with %d rows\n",
-               b->oid, b->nrows);
-
-        flushFlatBuffer(SKYHOOK_VERSION, SCHEMA_VERSION, b, SCHEMA, num_objs);
-    }
+            flushFlatBuffer(obj_type, SKYHOOK_VERSION, SCHEMA_VERSION, b, SCHEMA, num_objs);
+        } // for every FBmap key
+    } // if using hashing
 
     FBmap.clear();
     printf("Done flushing all the objects\n");
@@ -278,9 +322,23 @@ uint32_t promptIntVariable(string variable, string num_string) {
     return n;
 }
 
-vector<string> getNextRow(ifstream& inFile, char delim=Tables::CSV_DELIM) {
-    string row;
-    getline(inFile, row);
+bool promptBoolVariable(string variable, string bool_string) {
+    stringstream myStream(bool_string);
+    bool i = false ;
+
+    while( !(myStream >> i) ) {
+        std::cout << "Use hashing strategy? (true || false) " << variable << "?: ";
+        getline(cin, bool_string);
+        stringstream newStream(bool_string);
+        if(newStream >> i)
+            break;
+        std::cout << "Invalid number, please try again\n";
+    }
+    std::cout << "Use hashing strategy " << variable << ": " << i << endl << endl;
+    return i;
+}
+
+vector<string> parseRow(string row, char delim=Tables::CSV_DELIM) {
     return line_split(row, delim);
 }
 
@@ -516,10 +574,11 @@ uint64_t jumpConsistentHash(uint64_t key, uint64_t num_buckets) {
 bucket_t* GetAndInitializeBucket(
     map<uint64_t, bucket_t *> &FBmap,
     uint64_t oid,vector<uint64_t> *nullbits,
-    vector<uint8_t> flxPtr) {
+    vector<uint8_t> flxPtr,
+    string tablename) {
 
     bucket_t *bucketPtr;
-    bucketPtr = retrieveBucketFromOID(FBmap, oid);
+    bucketPtr = retrieveBucketFromOID(FBmap, oid, tablename);
 
     fbb fbPtr = bucketPtr->fb;
     delete_vector *deletePtr;
@@ -535,7 +594,7 @@ bucket_t* GetAndInitializeBucket(
 }
 
 bucket_t*
-retrieveBucketFromOID(map<uint64_t, bucket_t *> &FBmap, uint64_t oid) {
+retrieveBucketFromOID(map<uint64_t, bucket_t *> &FBmap, uint64_t oid, string tablename) {
 
     bucket_t *bucketPtr;
     // Get FB from map or use new FB
@@ -549,7 +608,7 @@ retrieveBucketFromOID(map<uint64_t, bucket_t *> &FBmap, uint64_t oid) {
         bucketPtr = new bucket_t();
         bucketPtr->oid = oid;
         bucketPtr->nrows = 0;
-        bucketPtr->table_name = "LINEITEM";  // TODO: get this from arg
+        bucketPtr->table_name = tablename;
         bucketPtr->fb = new fbBuilder();
         bucketPtr->deletev = new delete_vector();
         bucketPtr->rowsv = new rows_vector();
@@ -582,25 +641,56 @@ uint64_t getNextRID() {
 
 void
 flushFlatBuffer(
+    string obj_type,
     uint8_t skyhook_v,
     uint8_t schema_v,
     bucket_t *bucketPtr,
     string schema,
     uint64_t numOfObjs) {
 
-    fbb fbPtr = bucketPtr->fb;
     delete_vector *deletePtr;
     rows_vector *rowsPtr;
-    deletePtr = bucketPtr->deletev;
-    rowsPtr = bucketPtr->rowsv;
 
+    fbb fbPtr  = bucketPtr->fb;
+    deletePtr  = bucketPtr->deletev;
+    rowsPtr    = bucketPtr->rowsv;
+    string table_name = bucketPtr->table_name;
+
+    // -----------------------------------
     // Finish FlatBuffer
-    finishFlatBuffer(fbPtr, skyhook_v, schema_v, bucketPtr->table_name,
-                     schema, deletePtr, rowsPtr, bucketPtr->nrows);
+    // had to pull this out of a method bc it wouldn't compile???
+
+    auto data_format_type = skyhook_v;
+    auto skyhook_version = 2; //skyhook_v2
+    auto data_structure_version = schema_v;
+    auto data_schema_version = schema_v;
+    auto data_schema = fbPtr->CreateString(schema);
+    auto db_schema = fbPtr->CreateString("*");
+    auto table_n = fbPtr->CreateString(table_name);
+    auto delete_vector = fbPtr->CreateVector(*deletePtr);
+    auto rows = fbPtr->CreateVector(*rowsPtr);
+
+    auto tableOffset = \
+        CreateTable(*fbPtr,
+                    data_format_type,
+                    skyhook_version,
+                    data_structure_version,
+                    data_schema_version,
+                    data_schema,
+                    db_schema,
+                    table_n,
+                    delete_vector,
+                    rows,
+                    bucketPtr->nrows);
+
+    fbPtr->Finish(tableOffset);
+
+    // -----------------------------------
+
     uint64_t oid = bucketPtr->oid;
 
     // Flush to Ceph Here TO OID bucket with n Rows or Crash if Failed
-    if(writeToDisk(oid, schema_v, bucketPtr, numOfObjs) < 0)
+    if(writeToDisk(obj_type, oid, schema_v, bucketPtr, numOfObjs) < 0)
         exit(EXIT_FAILURE);
 
     // Deallocate pointers
@@ -618,7 +708,7 @@ void finishFlatBuffer(
         string schema,
         delete_vector *deletePtr,
         rows_vector *rowsPtr,
-        uint32_t nrows)
+        uint64_t nrows)
 {
 
     auto data_format_type = skyhook_v;
@@ -651,6 +741,7 @@ void finishFlatBuffer(
 /* TODO: instead of writing objects to disk, write directly to ceph. */
 int
 writeToDisk(
+    string obj_type,
     uint64_t oid,
     uint8_t schema_v,
     bucket_t *bucket,
@@ -662,11 +753,16 @@ writeToDisk(
     // CREATE An FB_META, using an empty builder first.
     flatbuffers::FlatBufferBuilder *meta_builder = \
             new flatbuffers::FlatBufferBuilder();
-    createFbMeta(
-            meta_builder,
-            SFT_FLATBUF_FLEX_ROW,
-            reinterpret_cast<unsigned char*>(bucket->fb->GetBufferPointer()),
-            bucket->fb->GetSize());
+    if(obj_type== "SFT_FLATBUF_FLEX_ROW")
+        createFbMeta(
+                meta_builder,
+                SFT_FLATBUF_FLEX_ROW,
+                reinterpret_cast<unsigned char*>(bucket->fb->GetBufferPointer()),
+                bucket->fb->GetSize());
+    else {
+        std::cout << "obj_type '" << obj_type << "' not supported. aborting." << std::endl;
+        exit(1);
+    }
 
     // add meta_builder's data into a bufferlist as char*
     bufferlist meta_bl;
@@ -680,7 +776,8 @@ writeToDisk(
     bufferlist bl_wrapper;
     ::encode(meta_bl, bl_wrapper);
 
-    string fname = "fbmeta.Skyhook.v2." + bucket->table_name
+    string fname = "fbmeta.Skyhook.v2." + obj_type
+                                        + "." + bucket->table_name
                                         + "." + std::to_string(oid)
                                         + ".1-" + std::to_string(nobjs);
 
