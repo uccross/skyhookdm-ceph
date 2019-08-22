@@ -16,7 +16,7 @@ namespace Tables {
 
 /*
  * Function: processArrow
- * Description: Process the input arrow table for the corresponding input
+ * Description: Process the input arrow table rowwise for the corresponding input
  *              query and encapsulate the output in an output arrow table.
  * @param[out] table       : Ouput arrow table
  * @param[in] tbl_schema   : Schema of an input table
@@ -323,6 +323,21 @@ int processArrow(
     return errcode;
 }
 
+/*
+ * Function: processArrowCol
+ * Description: Process the input arrow table columnwise for the corresponding input
+ *              query and encapsulate the output in an output arrow table.
+ * @param[out] table       : Ouput arrow table
+ * @param[in] tbl_schema   : Schema of an input table
+ * @param[in] query_schema : Schema of an query
+ * @param[in] preds        : Predicates for the query
+ * @param[in] dataptr      : Input table in the form of char array
+ * @param[in] datasz       : Size of char array
+ * @param[out] errmsg      : Error message
+ * @param[out] row_nums    : Specified rows to be processed
+ *
+ * Return Value: error code
+ */
 int processArrowCol(
     std::shared_ptr<arrow::Table>* table,
     schema_vec& tbl_schema,
@@ -364,7 +379,8 @@ int processArrowCol(
             col_idx_max = it->idx;
     }
 
-    // Apply predicates
+    // Apply predicates to all the columns and get the rows which
+    // satifies the condition
     if (!preds.empty()) {
         // Iterate through each column in print the data inside it
         for (auto it = tbl_schema.begin(); it != tbl_schema.end(); ++it) {
@@ -377,6 +393,9 @@ int processArrowCol(
         }
         nrows = result_rows.size();
     }
+
+    // At this point we have rows which satisfied the required predicates.
+    // Now create the output arrow table from input table.
 
     // Iterate through query schema vector to get the details of columns i.e name and type.
     // Also, get the builder arrays required for each data type
@@ -495,6 +514,7 @@ int processArrowCol(
         }
     }
 
+    // Copy values from input table rows to the output table rows
     for (uint32_t i = 0; i < nrows; i++) {
 
         uint32_t rnum = i;
@@ -516,9 +536,9 @@ int processArrowCol(
             auto processing_chunk = input_table->column(col.idx)->data()->chunk(0);
 
             if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
-                    errcode = TablesErrCodes::RequestedColIndexOOB;
-                    errmsg.append("ERROR processArrow()");
-                    return errcode;
+                errcode = TablesErrCodes::RequestedColIndexOOB;
+                errmsg.append("ERROR processArrowCol()");
+                return errcode;
             } else {
                 if (col.nullable) {  // check nullbit
                     if (processing_chunk->IsNull(rnum)) {
@@ -592,8 +612,8 @@ int processArrowCol(
         delete builder;
     }
 
-    std::shared_ptr<arrow::KeyValueMetadata> output_tbl_metadata (new arrow::KeyValueMetadata);
     // Add skyhook metadata to arrow metadata.
+    std::shared_ptr<arrow::KeyValueMetadata> output_tbl_metadata (new arrow::KeyValueMetadata);
     output_tbl_metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
                                 metadata->value(METADATA_SKYHOOK_VERSION));
     output_tbl_metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),

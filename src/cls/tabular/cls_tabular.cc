@@ -1894,7 +1894,6 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    int format_type = SFT_FLATBUF_FLEX_ROW; // TODO: get from fb_meta
     transform_op op;
     int offset = 0;
 
@@ -1908,19 +1907,12 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     }
 
     CLS_LOG(20, "transform_db_op: table_name=%s", op.table_name.c_str());
-    CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
     CLS_LOG(20, "transform_db_op: transform_format_type=%d", op.required_type);
-
-    // Check if transformation is required or not
-    if (format_type == op.required_type) {
-        // Source and destination object types are same, therefore no tranformation
-        // is required.
-        CLS_LOG(20, "No Transforming required");
-        return 0;
-    }
 
     // Object is sequence of actual data along with encoded metadata
     bufferlist encoded_meta_bls;
+
+    // TODO: get individual off/len of fbmeta's inside obj and read one at a time.
     int ret = cls_cxx_read(hctx, 0, 0, &encoded_meta_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
@@ -1996,9 +1988,10 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         ::encode(meta_bl, transformed_encoded_meta_bl);
         delete meta_builder;
 
-        // Write the object back to Ceph
-        ret = cls_cxx_write(hctx, offset, transformed_encoded_meta_bl.length(),
-                            &transformed_encoded_meta_bl);
+        // Write the object back to Ceph. cls_cxx_replace truncates the original
+        // object and writes full object.
+        ret = cls_cxx_replace(hctx, offset, transformed_encoded_meta_bl.length(),
+                              &transformed_encoded_meta_bl);
         if (ret < 0) {
             CLS_ERR("ERROR: writing obj full %d", ret);
             return ret;

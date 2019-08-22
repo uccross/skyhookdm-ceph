@@ -304,7 +304,6 @@ void worker_transform_db_op(librados::IoCtx *ioctx, transform_op op)
     }
     std::string oid = target_objects.back();
     target_objects.pop_back();
-    std::cout << "transforming object...oid:" << oid << std::endl;
     work_lock.unlock();
 
     ceph::bufferlist inbl, outbl;
