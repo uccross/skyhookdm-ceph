@@ -514,7 +514,8 @@ void do_write( cmdline_inputs_t inputs,
                bool debug,
                std::string SAVE_DIR ) {
 
-  if( inputs.debug ) {
+  //if( inputs.debug ) {
+  if( true ) {
     std::cout << "inputs.debug             : " << inputs.debug                   << std::endl ;
     std::cout << "inputs.write_type        : " << inputs.write_type              << std::endl ;
     std::cout << "inputs.filename          : " << inputs.filename                << std::endl ;
@@ -557,7 +558,7 @@ void do_write( cmdline_inputs_t inputs,
 
       if( ( line_counter >= rid_start_value ) && 
           ( line_counter <= rid_end_value ) ) {
-        if( debug ) std::cout << "row num : " << (line_counter-rid_start_value) << std::endl ;
+        if( true ) std::cout << "row num : " << (line_counter-rid_start_value) << std::endl ;
         std::pair< std::string, int > lineinfo ;
         lineinfo.first  = line ;
         lineinfo.second = line_counter ;
@@ -689,7 +690,7 @@ void do_write( cmdline_inputs_t inputs,
                                   schema_attnames, 
                                   schema_datatypes_sdt ) ;
     auto schema_string_fb = builder.CreateString( schema_string ) ;
-    if( debug ) std::cout << "schema_string = " << schema_string << std::endl ;
+    if( true ) std::cout << "schema_string = " << schema_string << std::endl ;
 
     auto db_schema_name = builder.CreateString( "kats_test" ) ;
     std::vector< uint8_t > delete_vector ( str_line_collection.size(), 0 ) ; //initialize with one 0 per row.
@@ -720,8 +721,8 @@ void do_write( cmdline_inputs_t inputs,
     librados::bufferlist wrapper_bl ;
     ::encode( bl, wrapper_bl ) ;
 
-    if( debug ) std::cout << "datasz = " << datasz << std::endl ;
-    if( debug ) std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
+    if( true ) std::cout << "datasz = " << datasz << std::endl ;
+    if( true ) std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
 
     // --------------------------------------------- //
     // build out FB_Meta
@@ -736,13 +737,13 @@ void do_write( cmdline_inputs_t inputs,
     ceph::bufferlist meta_bl ;
     char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
     int meta_builder_size  = meta_builder->GetSize() ;
-    if( debug ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
+    if( true ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
     meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
     delete meta_builder;
     librados::bufferlist meta_wrapper_bl ;
     ::encode( meta_bl, meta_wrapper_bl ) ;
     size_t meta_wrapper_bl_sz = meta_wrapper_bl.length() ;
-    if( debug ) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
+    if( true) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
 
     // --------------------------------------------- //
     // do the write
@@ -791,7 +792,7 @@ void do_write( cmdline_inputs_t inputs,
 
       if( ( line_counter >= rid_start_value ) && 
           ( line_counter <= rid_end_value ) ) {
-        if( debug ) std::cout << "row num : " << (line_counter-rid_start_value) << std::endl ;
+        if( true ) std::cout << "row num : " << (line_counter-rid_start_value) << std::endl ;
         std::pair< std::string, int > lineinfo ;
         lineinfo.first  = line ;
         lineinfo.second = line_counter ;
@@ -890,7 +891,7 @@ void do_write( cmdline_inputs_t inputs,
       auto key   = lc.indexer[i][0] ;
       auto index = lc.indexer[i][1] ;
 
-      if( debug ) std::cout << "processing col " << std::to_string( i ) << std::endl ;
+      if( true ) std::cout << "processing col " << std::to_string( i ) << std::endl ;
 
       if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT64 ) ) ) {
         std::vector< uint64_t > int_vect = lc.listof_int_vect_raw[ std::stoi(index) ] ;
@@ -945,7 +946,7 @@ void do_write( cmdline_inputs_t inputs,
           ( (i+1) % inputs.cols_per_fb == 0 ) ||
           ( (i+1) == ncols ) ) {
 
-        if( debug ) std::cout << "saving bl to bl_seq" << std::endl ;
+        if( true ) std::cout << "saving bl to bl_seq" << std::endl ;
 
         auto cols_data = builder.CreateVector( cols_vect ) ;
         std::vector< flatbuffers::Offset< Tables::Col_FBU > > empty_cols_vect ;
@@ -986,7 +987,7 @@ void do_write( cmdline_inputs_t inputs,
       }//if save on cols_per_fb
     } //for ncols
 
-    if( debug ) std::cout << "buffer_size = " << buffer_size << std::endl ;
+    if( true ) std::cout << "buffer_size = " << buffer_size << std::endl ;
 
     // --------------------------------------------- //
     // build out FB_Meta
@@ -1001,13 +1002,13 @@ void do_write( cmdline_inputs_t inputs,
     ceph::bufferlist meta_bl ;
     char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
     int meta_builder_size  = meta_builder->GetSize() ;
-    if( debug ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
+    if( true ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
     meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
     delete meta_builder;
     librados::bufferlist meta_wrapper_bl ;
     ::encode( meta_bl, meta_wrapper_bl ) ;
     size_t meta_wrapper_bl_sz = meta_wrapper_bl.length() ;
-    if( debug ) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
+    if( true ) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
 
     // --------------------------------------------- //
     // do the write
@@ -1032,7 +1033,7 @@ void do_write( cmdline_inputs_t inputs,
     str_line_collection.clear() ;
     // --------------------------------------------- //
     // --------------------------------------------- //
-    if( debug ) std::cout << "-----------------> line_collection saved." << std::endl ;
+    if( true ) std::cout << "-----------------> line_collection saved." << std::endl ;
 
   } //cols
 
