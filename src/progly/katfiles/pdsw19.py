@@ -1,15 +1,10 @@
 import random
 import string
+import sys
 import os
 import numpy as np
 
-def dsgen( outfile_name, arity, numrows ) :
-
-  # python range has upper limit.
-  # need to divide the number of lines in the file
-  # into something smaller and then loop around 
-  # the number of divisions.
-  splitter = 100000
+def dsgen( outfile_name, arity, numrows, splitter ) :
 
   os.system( 'rm ' + outfile_name )
   outfile = open( outfile_name, 'a' )
@@ -20,16 +15,21 @@ def dsgen( outfile_name, arity, numrows ) :
     counter = 0
     for k in range( 0, numrows / splitter ) :
       for i in range( 0, splitter ) :
+        random.seed( counter+0 )
         anint   = np.uint32( random.randint( 0, 100 ) )
+        random.seed( counter+1 )
         afloat  = np.float32( random.random() )
+        random.seed( counter+2 )
         basestr = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( 10 ) ] )
-  
+
+        random.seed( counter+3 )
         extra_digits = random.randint( 0, 4 )
+        random.seed( counter+4 )
         astr1  = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( extra_digits ) ] )
         astr   = basestr+astr1
-  
+
         arow = str( anint ) + "|" + str( afloat ) + "|" + astr
-  
+
         counter += 1
         outfile.write( arow + "\n" )
         if( counter % 1000 == 0 ) :
@@ -41,17 +41,23 @@ def dsgen( outfile_name, arity, numrows ) :
     counter = 0
     for k in range( 0, numrows / splitter ) :
       for i in range( 0, splitter ) :
+        random.seed( counter+0 )
         anint0  = np.uint32( random.randint( 0, 100 ) )
+        random.seed( counter+1 )
         anint1  = np.uint32( random.randint( 0, 100 ) )
+        random.seed( counter+2 )
         afloat  = np.float32( random.random() )
+        random.seed( counter+3 )
         basestr = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( 10 ) ] )
-  
+
+        random.seed( counter+4 )
         extra_digits = random.randint( 0, 4 )
+        random.seed( counter+5 )
         astr1  = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( extra_digits ) ] )
         astr   = basestr+astr1
-  
+
         arow = str( anint0 ) + "|" + str( anint1 ) + "|" + str( afloat ) + "|" + astr
-  
+
         counter += 1
         outfile.write( arow + "\n" )
         if( counter % 1000 == 0 ) :
@@ -70,6 +76,7 @@ def dsgen( outfile_name, arity, numrows ) :
             first = False
           else :
             arow = arow + "|"
+          random.seed( counter+1 )
           arow = arow + str( np.uint32( random.randint( 10000000, 99999999 ) ) )
 
         counter += 1
@@ -84,23 +91,15 @@ def dsgen( outfile_name, arity, numrows ) :
   outfile.close()
 
 def main() :
-  #numrows_arity3 = 50000   # 1mb
-  #numrows_arity3 = 500000  # 10mb
-  #numrows_arity3 = 5000000 # 100mb
-  numrows_arity3 = 5000000000 # 100gb
-  outfile_name = 'dataset_arity3_' + str( numrows_arity3 ) + '_rows.txt'
-  dsgen( outfile_name, 3, numrows_arity3 ) # arity 3
 
-  #numrows_arity4 = 42000   # 1mb
-  #numrows_arity4 = 420000  # 10mb
-  #numrows_arity4 = 4200000 # 100mb
-  numrows_arity4 = 4200000000 # 100gb
-  outfile_name = 'dataset_arity4_' + str( numrows_arity4 ) + '_rows.txt'
-  dsgen( outfile_name, 4, numrows_arity4 ) # arity 4
+  numrows      = sys.argv[1]
+  arity        = sys.argv[2]
+  obj_id       = sys.argv[3]
+  splitter     = sys.argv[4]
+  outfile_name = 'dataset_arity' + arity + '_' + str( numrows ) + '_rows-' + obj_id + '.txt'
+  print "obj_id = " + obj_id
 
-  numrows_arity100 = 250000000 # 100gb
-  outfile_name = 'dataset_arity100_' + str( numrows_arity100 ) + '_rows.txt'
-  dsgen( outfile_name, 100, numrows_arity100 ) # arity100 
+  dsgen( outfile_name, int( arity ), int( numrows ), int( splitter ) )
 
 if __name__ == "__main__" :
   main()
