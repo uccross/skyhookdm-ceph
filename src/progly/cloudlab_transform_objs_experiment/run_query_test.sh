@@ -4,8 +4,7 @@ set -e
 usage() { echo "Usage: $0 [-n <num_objs>] [-p <pool>] [-r <runs>] [-o <osds>]" 1>&2; exit 1; }
 
 nosds=1
-queue_depth=1
-worker_threads=10
+worker_threads=12
 
 while getopts ":n:p:o:r:" opt; do
     case "${opt}" in
@@ -27,6 +26,8 @@ while getopts ":n:p:o:r:" opt; do
     esac
 done
 shift $((OPTIND-1))
+
+queue_depth=$((${nosds}*12))
 
 if [ -z "${nobjs}" ] || [ -z "${pool}" ] || [ -z "${runs}" ]; then
     usage

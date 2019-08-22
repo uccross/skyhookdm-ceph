@@ -1911,6 +1911,8 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
     // Object is sequence of actual data along with encoded metadata
     bufferlist encoded_meta_bls;
+
+    // TODO: get individual off/len of fbmeta's inside obj and read one at a time.
     int ret = cls_cxx_read(hctx, 0, 0, &encoded_meta_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
@@ -1986,7 +1988,8 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         ::encode(meta_bl, transformed_encoded_meta_bl);
         delete meta_builder;
 
-        // Write the object back to Ceph
+        // Write the object back to Ceph. cls_cxx_replace truncates the original
+        // object and writes full object.
         ret = cls_cxx_replace(hctx, offset, transformed_encoded_meta_bl.length(),
                               &transformed_encoded_meta_bl);
         if (ret < 0) {
