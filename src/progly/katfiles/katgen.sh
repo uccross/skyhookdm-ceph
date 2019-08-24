@@ -1,7 +1,7 @@
 #!/bin/bash
 # katgen.sh
 
-set -x
+#set -x
 
 numobjs=$1
 nrows=$2

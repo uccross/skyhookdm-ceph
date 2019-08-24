@@ -16,7 +16,7 @@ def dsgen( outfile_name, arity, numrows, splitter ) :
     for k in range( 0, numrows / splitter ) :
       for i in range( 0, splitter ) :
         random.seed( counter+0 )
-        anint   = np.uint32( random.randint( 0, 100 ) )
+        anint   = np.uint32( random.randint( 0, 1000 ) )
         random.seed( counter+1 )
         afloat  = np.float32( random.random() )
         random.seed( counter+2 )
@@ -42,9 +42,9 @@ def dsgen( outfile_name, arity, numrows, splitter ) :
     for k in range( 0, numrows / splitter ) :
       for i in range( 0, splitter ) :
         random.seed( counter+0 )
-        anint0  = np.uint32( random.randint( 0, 100 ) )
+        anint0  = np.uint32( random.randint( 0, 1000 ) )
         random.seed( counter+1 )
-        anint1  = np.uint32( random.randint( 0, 100 ) )
+        anint1  = np.uint32( random.randint( 0, 1000 ) )
         random.seed( counter+2 )
         afloat  = np.float32( random.random() )
         random.seed( counter+3 )
@@ -76,8 +76,8 @@ def dsgen( outfile_name, arity, numrows, splitter ) :
             first = False
           else :
             arow = arow + "|"
-          random.seed( counter+1 )
-          arow = arow + str( np.uint32( random.randint( 10000000, 99999999 ) ) )
+          random.seed( counter+i+j+1 )
+          arow = arow + str( np.uint32( random.randint( 0, 10000 ) ) )
 
         counter += 1
         outfile.write( arow + "\n" )
