@@ -540,6 +540,7 @@ typedef const Tables::Cols_FBU* cols_fbu;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
+typedef vector<uint64_t> cols_rids_vector;
 typedef flexbuffers::Reference row_data_ref;
 typedef const flatbuffers::Vector<flatbuffers::Offset<void> >* row_data_ref_fbu_rows;
 typedef const Tables::Col_FBU* col_fbu;
@@ -670,13 +671,16 @@ typedef struct rec_table_fbu sky_rec_fbu;
 struct col_table_fbu {
     const int64_t CID;
     nullbits_vector nullbits;
+    std::vector< uint64_t > cols_rids ;
     col_fbu data_fbu_col;
 
     col_table_fbu(int64_t _CID, 
                    nullbits_vector _nullbits, 
+                   std::vector< uint64_t > _cols_rids, 
                    col_fbu _data_fbu_col) :
         CID(_CID),
         nullbits(_nullbits),
+        cols_rids(_cols_rids),
         data_fbu_col(_data_fbu_col) {};
 };
 typedef struct col_table_fbu sky_col_fbu;

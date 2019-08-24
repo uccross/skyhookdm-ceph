@@ -1453,8 +1453,10 @@ int processSkyFb_fbu_cols(
                     sky_col_fbu skycol = getSkyCol_fbu(root, j);
                     auto this_col       = skycol.data_fbu_col;
                     auto curr_col_data  = this_col->data();
-                    auto curr_col_data_rids = this_col->RIDs();
-                    this_rid = curr_col_data_rids->Get(i);
+                    //auto curr_col_data_rids = this_col->RIDs();
+                    auto curr_col_data_rids = skycol.cols_rids;
+                    //this_rid = curr_col_data_rids->Get(i);
+                    this_rid = curr_col_data_rids[i];
                     auto curr_col_data_type  = this_col->data_type();
                     auto curr_col_data_type_sky = FBU_TO_SDT.at(curr_col_data_type);
 
@@ -2848,6 +2850,7 @@ sky_col_fbu getSkyCol_fbu(sky_root root, int colid) {
         case SFT_FLATBUF_UNION_COL : {
           auto cols = static_cast< const Tables::Cols_FBU* >(root.data_vec);
           auto cols_data = cols->data();
+          auto cols_rids_fb = cols->RIDs();
           //std::cout << "cols_data->Length() = " << cols_data->Length() << std::endl; 
           const Tables::Col_FBU* col_at_index;
           col_at_index = cols_data->Get(colid);
@@ -2857,9 +2860,13 @@ sky_col_fbu getSkyCol_fbu(sky_root root, int colid) {
           auto a = col_nullbits->begin();
           auto b = col_nullbits->end();
           auto null_vec = nullbits_vector(a, b);
+          auto a1 = cols_rids_fb->begin();
+          auto b1 = cols_rids_fb->end();
+          auto cols_rids = cols_rids_vector(a1, b1);
           return sky_col_fbu(
             colid,
             null_vec,
+            cols_rids,
             col_at_index
           );
           break;

@@ -899,7 +899,7 @@ void do_write( cmdline_inputs_t inputs,
         auto data = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
-          rids_vect_fb,                         //rids
+          //rids_vect_fb,                         //rids
           nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
@@ -913,7 +913,7 @@ void do_write( cmdline_inputs_t inputs,
         auto data = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
-          rids_vect_fb,                         //rids
+          //rids_vect_fb,                         //rids
           nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
@@ -928,7 +928,7 @@ void do_write( cmdline_inputs_t inputs,
         auto data = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
-          rids_vect_fb,                         //rids
+          //rids_vect_fb,                         //rids
           nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
@@ -954,6 +954,7 @@ void do_write( cmdline_inputs_t inputs,
 
         auto cols = CreateCols_FBU(
           builder,
+          rids_vect_fb,
           cols_data ) ;
 
         std::vector< uint8_t > delete_vector ( line_collection.size(), 0 ) ; //initialize with one 0 per row.

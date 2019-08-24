@@ -253,6 +253,7 @@ long long int printFlatbufFBUAsCSV(
 
     auto cols = static_cast< const Tables::Cols_FBU* >( data ) ;
     auto cols_data = cols->data() ;
+    auto cols_rids = cols->RIDs() ;
 
     // collect data for stdout printing
     std::vector< std::vector< std::string > > out_data ;
@@ -265,7 +266,8 @@ long long int printFlatbufFBUAsCSV(
     for( unsigned int i = 0; i < cols_data->Length(); i++ ) {
 
       auto col = static_cast< const Tables::Col_FBU* >( cols_data->Get(i) ) ;
-      auto col_rids      = col->RIDs() ;
+      //auto col_rids      = col->RIDs() ;
+      auto col_rids      = cols_rids ;
       auto col_data      = col->data() ;
       auto col_data_type = col->data_type() ;
 
