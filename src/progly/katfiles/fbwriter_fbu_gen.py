@@ -188,7 +188,7 @@ def main( orientation,
     else :
       print "not supported orientation = '" + orientation + "'"
 
-    if obj_counter == 1 :
+    if obj_counter == 0 :
       break
     obj_counter += 1
 
@@ -401,7 +401,7 @@ if __name__ == "__main__" :
           "fbucols4-arity100-1mb-100objs", 
           "dataset_arity100_2500_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
-          4 )
+          100 )
 
   # COLS 4 : arity4-10mb-100objs
   elif test == "fbucols4-arity100-10mb-100objs" :
@@ -411,7 +411,7 @@ if __name__ == "__main__" :
           "fbucols4-arity100-10mb-100objs", 
           "dataset_arity100_25000_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
-          4 )
+          100 )
 
   # COLS 4 : arity100-100mb-100objs
   elif test == "fbucols4-arity100-100mb-100objs" :
@@ -421,6 +421,6 @@ if __name__ == "__main__" :
           "fbucols4-arity100-100mb-100objs", 
           "dataset_arity100_250000_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
-          2 )
+          100 )
 
 #eof
