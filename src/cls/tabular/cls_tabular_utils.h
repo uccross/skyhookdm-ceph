@@ -209,6 +209,7 @@ const std::unordered_map<std::string, bool> IDX_STOPWORDS= {
 };
 
 const std::map<int, int> FBU_TO_SDT = {
+    { Tables::DataTypes_FBU_SDT_UINT32_FBU, SDT_UINT32 },
     { Tables::DataTypes_FBU_SDT_UINT64_FBU, SDT_UINT64 },
     { Tables::DataTypes_FBU_SDT_FLOAT_FBU, SDT_FLOAT },
     { Tables::DataTypes_FBU_SDT_STRING_FBU, SDT_STRING }
@@ -932,6 +933,9 @@ bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec);
 
 inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);
+
+inline
+bool compare(const uint32_t& val1, const uint32_t& val2, const int& op);
 
 inline
 bool compare(const uint64_t& val1, const uint64_t& val2, const int& op);

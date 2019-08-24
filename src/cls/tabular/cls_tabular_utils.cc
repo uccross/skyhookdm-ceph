@@ -816,6 +816,13 @@ int processSkyFb(
                         flexbldr->Add(agg_val);
                         break;
                     }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
                     case SDT_UINT64: {
                         TypedPredicate<uint64_t>* p = \
                                 dynamic_cast<TypedPredicate<uint64_t>*>(pb);
@@ -1011,9 +1018,14 @@ int processSkyFb_fbu_rows(
                         //case SDT_UINT16:
                         //    flexbldr->Add(row[col.idx].AsUInt16());
                         //    break;
-                        //case SDT_UINT32:
-                        //    flexbldr->Add(row[col.idx].AsUInt32());
-                        //    break;
+                        case SDT_UINT32: {
+                            auto int_col_data =
+                              static_cast< const Tables::SDT_UINT32_FBU* >(row->Get(col.idx));
+                            auto data = int_col_data->data()->Get(0);
+                            //std::cout << std::to_string(data);
+                            flexbldr->Add(data);
+                            break;
+                        }
                         case SDT_UINT64: {
                             auto int_col_data =
                               static_cast< const Tables::SDT_UINT64_FBU* >(row->Get(col.idx));
@@ -1100,6 +1112,13 @@ int processSkyFb_fbu_rows(
                         TypedPredicate<int64_t>* p = \
                                 dynamic_cast<TypedPredicate<int64_t>*>(pb);
                         int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
@@ -1293,9 +1312,14 @@ int processSkyFb_fbu_cols(
                             //case SDT_UINT16:
                             //    flexbldr->Add(row[col.idx].AsUInt16());
                             //    break;
-                            //case SDT_UINT32:
-                            //    flexbldr->Add(row[col.idx].AsUInt32());
-                            //    break;
+                            case SDT_UINT32: {
+                                auto column_of_data = 
+                                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
+                                auto data_at_row = column_of_data->data()->Get(i);
+                                //std::cout << std::to_string(data_at_row) << std::endl;
+                                flexbldr->Add(data_at_row);
+                                break;
+                            }
                             case SDT_UINT64: {
                                 auto column_of_data = 
                                     static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
@@ -1486,9 +1510,14 @@ int processSkyFb_fbu_cols(
                             //case SDT_UINT16:
                             //    flexbldr->Add(row[col.idx].AsUInt16());
                             //    break;
-                            //case SDT_UINT32:
-                            //    flexbldr->Add(row[col.idx].AsUInt32());
-                            //    break;
+                            case SDT_UINT32: {
+                                auto column_of_data = 
+                                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
+                                auto data_at_row = column_of_data->data()->Get(i);
+                                //std::cout << std::to_string(data_at_row) << std::endl;
+                                flexbldr->Add(data_at_row);
+                                break;
+                            }
                             case SDT_UINT64: {
                                 auto column_of_data = 
                                     static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
@@ -1598,6 +1627,13 @@ int processSkyFb_fbu_cols(
                         TypedPredicate<int64_t>* p = \
                                 dynamic_cast<TypedPredicate<int64_t>*>(pb);
                         int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
@@ -2417,6 +2453,12 @@ long long int printFlatbufFBUAsCsv(
                         }
                     }
                     switch(col.type) {
+                      case SDT_UINT32 : {
+                        auto int_col_data = 
+                            static_cast< const Tables::SDT_UINT32_FBU* >(curr_rec_data->Get(j));
+                        std::cout << int_col_data->data()->Get(0);
+                        break;
+                      }
                       case SDT_UINT64 : {
                         auto int_col_data = 
                             static_cast< const Tables::SDT_UINT64_FBU* >(curr_rec_data->Get(j));
@@ -2493,6 +2535,13 @@ long long int printFlatbufFBUAsCsv(
                     }
 
                     switch(curr_col_data_type_sky) {
+                      case SDT_UINT32 : {
+                          auto column_of_data = \
+                              static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
+                          auto data_at_row = column_of_data->data()->Get(j);
+                          std::cout << std::to_string(data_at_row);
+                          break;
+                      }
                       case SDT_UINT64 : {
                           auto column_of_data = \
                               static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
@@ -3016,7 +3065,7 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
                 else
                     colpass = compare(colval,
-                                      static_cast<uint64_t>(predval),
+                                      static_cast<uint32_t>(predval),
                                       p->opType());
                 break;
             }
@@ -3278,7 +3327,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
                 else
                     colpass = compare(colval,
-                                      static_cast<uint64_t>(predval),
+                                      static_cast<uint32_t>(predval),
                                       p->opType());
                 break;
             }
@@ -3547,7 +3596,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
                 else
                     colpass = compare(colval,
-                                      static_cast<uint64_t>(predval),
+                                      static_cast<uint32_t>(predval),
                                       p->opType());
                 break;
             }
@@ -3795,20 +3844,26 @@ bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec) {
                                       p->opType());
                 break;
             }
-            se SDT_UINT32: {
+not yet supported in fbu */
+
+            case SDT_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
-                uint32_t colval = row[p->colIdx()].AsUInt32();
+                uint32_t colval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX) // RID val not in the row
+                    colval = rec.RID;
+                else {
+                    auto col_data =
+                        static_cast< const Tables::SDT_UINT32_FBU* >(row->Get(p->colIdx()));
+                    colval = col_data->data()->Get(0);
+                }
                 uint32_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
                 else
-                    colpass = compare(colval,
-                                      static_cast<uint64_t>(predval),
-                                      p->opType());
+                    colpass = compare(colval,predval,p->opType());
                 break;
             }
-not yet supported in fbu */
 
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
@@ -4049,7 +4104,7 @@ void applyPredicatesArrowCol(predicate_vec& pv,
                     uint32_t colval =                                   \
                         std::static_pointer_cast<arrow::UInt32Array>(col_array)->Value(row_idx);
                     uint32_t predval = p->Val();
-                    if (compare(colval, static_cast<uint64_t>(predval), p->opType()))
+                    if (compare(colval, static_cast<uint32_t>(predval), p->opType()))
                         passed_rows.push_back(row_idx);
                     break;
                 }
@@ -4198,6 +4253,27 @@ bool compare(const int64_t& val1, const int64_t& val2, const int& op) {
         case SOT_logical_nor: return !(val1 || val2);
         case SOT_logical_nand: return !(val1 && val2);
         case SOT_logical_xor: return (val1 || val2) && (val1 != val2);
+        default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
+    }
+    return false;  // should be unreachable
+}
+
+bool compare(const uint32_t& val1, const uint32_t& val2, const int& op) {
+    switch (op) {
+        case SOT_lt: return val1 < val2;
+        case SOT_gt: return val1 > val2;
+        case SOT_eq: return val1 == val2;
+        case SOT_ne: return val1 != val2;
+        case SOT_leq: return val1 <= val2;
+        case SOT_geq: return val1 >= val2;
+        case SOT_logical_or: return val1 || val2;  // for predicate chaining
+        case SOT_logical_and: return val1 && val2;
+        case SOT_logical_not: return !val1 && !val2;  // not either, i.e., nor
+        case SOT_logical_nor: return !(val1 || val2);
+        case SOT_logical_nand: return !(val1 && val2);
+        case SOT_logical_xor: return (val1 || val2) && (val1 != val2);
+        case SOT_bitwise_and: return val1 & val2;
+        case SOT_bitwise_or: return val1 | val2;
         default: assert (TablesErrCodes::PredicateComparisonNotDefined==0);
     }
     return false;  // should be unreachable

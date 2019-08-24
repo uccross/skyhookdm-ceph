@@ -9,6 +9,7 @@ union Relation_FBU {
 }
 
 union DataTypes_FBU { 
+  SDT_UINT32_FBU,
   SDT_UINT64_FBU,
   SDT_FLOAT_FBU,
   SDT_STRING_FBU
@@ -51,6 +52,9 @@ table Col_FBU {
   data      : DataTypes_FBU ;
 }
 
+table SDT_UINT32_FBU {
+  data : [ uint32 ] ;
+}
 table SDT_UINT64_FBU {
   data : [ uint64 ] ;
 }
