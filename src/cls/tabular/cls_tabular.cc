@@ -938,7 +938,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     std::string msg = op.toString();
     std::replace(msg.begin(), msg.end(), '\n', ' ');
 
-    if (op.query == "flatbuf") {
+    if (op.query == "flatbuf" || op.query == "arrow") {
 
         using namespace Tables;
 
