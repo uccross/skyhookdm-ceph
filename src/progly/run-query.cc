@@ -54,8 +54,13 @@ int main(int argc, char **argv)
   int index2_type = Tables::SIT_IDX_UNK;
   bool fastpath = false;
   bool idx_unique = false;
-  bool header;  // print csv header
-  int resformat;  // format type of result set
+  bool header = false;  // print csv header
+
+  // format type of result set returned to query.cc driver
+  int resformat = SkyFormatType::SFT_FLATBUF_FLEX_ROW;
+
+  // program final output format type
+  std::string output_format;
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -96,7 +101,7 @@ int main(int argc, char **argv)
     ("start-obj", po::value<unsigned>(&start_obj)->default_value(0), "start object (for transform operation")
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
-    ("query", po::value<std::string>(&query)->required(), "query name")
+    ("query", po::value<std::string>(&query)->default_value("flatbuf"), "query name")
     ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
     ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
@@ -136,11 +141,11 @@ int main(int argc, char **argv)
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
     ("transform-format-type", po::value<std::string>(&trans_format_str)->default_value("flatbuffer"), "Destination format type ")
     ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record metadata.")
-    ("header", po::bool_switch(&header)->default_value(true), "Print csv row header.")
+    ("header", po::bool_switch(&header)->default_value(false), "Print row header (i.e., row schema")
     ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
-    ("result-format", po::value<int>(&resformat)->default_value((int)SkyFormatType::SFT_FLATBUF_FLEX_ROW), "desired SkyFormatType (enum) of results")
-
-  ;
+    ("result-format", po::value<int>(&resformat)->default_value((int)SkyFormatType::SFT_FLATBUF_FLEX_ROW), "SkyFormatType (enum) of processed results (def=SFT_FLATBUF_FLEX_ROW")
+    ("output-format", po::value<std::string>(&output_format)->default_value("SFT_CSV"), "Final output format type enum SkyFormatType (def=csv)")
+ ;
 
   po::options_description all_opts("Allowed options");
   all_opts.add(gen_opts);
@@ -330,11 +335,15 @@ int main(int argc, char **argv)
         case SFT_ARROW:
         case SFT_FLATBUF_FLEX_ROW:
             break;
-        case SFT_FLATBUF_UNION_ROW:
-        case SFT_FLATBUF_UNION_COL:
-        case SFT_FLATBUF_CSV_ROW:
-        case SFT_PG_TUPLE:
+        default:
+            assert (SkyFormatTypeNotImplemented==0);
+    }
+
+    // verify desired program output format is supported
+    switch (sky_format_type_from_string(output_format)) {
         case SFT_CSV:
+        case SFT_PG_BINARY:
+            break;
         default:
             assert (SkyFormatTypeNotImplemented==0);
     }
@@ -558,6 +567,13 @@ int main(int argc, char **argv)
     idx_op_text_delims = text_index_delims;
     trans_op_format_type = trans_format_type;
 
+    // other processing info
+    skyhook_output_format = sky_format_type_from_string(output_format);
+    if (skyhook_output_format == SFT_PG_BINARY)
+        print_header = true;  // binary fstream always requires binary header
+    else
+        print_header = header;
+
   } else {  // query type unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
@@ -638,9 +654,6 @@ int main(int argc, char **argv)
   result_count = 0;
   rows_returned = 0;
   nrows_processed = 0;
-  fastpath |= false;
-  print_header = header;  // used for csv printing
-
   outstanding_ios = 0;
   stop = false;
 
@@ -746,8 +759,28 @@ int main(int argc, char **argv)
   for (auto& thread : threads) {
     thread.join();
   }
-
   ioctx.close();
+
+  // for postgres binary fstream, add final trailer
+  if (stop) {
+
+    if ((skyhook_output_format ==
+         SkyFormatType::SFT_PG_BINARY) and !quiet) {
+
+      stringstream ss(std::stringstream::in  |
+                      std::stringstream::out |
+                      std::stringstream::binary);
+
+      // 16 bit int trailer
+      int16_t trailer = -1;
+      ss.write(reinterpret_cast<const char*>(&trailer), sizeof(trailer));
+
+      // rewind and output the stream
+      ss.seekg (0, ios::beg);
+      std::cout << ss.rdbuf();
+      ss.flush();
+    }
+  }
 
   // only report status messages during quiet operation
   // since otherwise we are printing as csv data to std out

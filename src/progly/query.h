@@ -105,7 +105,12 @@ extern int trans_op_format_type;
 
 // other exec flags
 extern bool runstats;
+
+// for debugging, prints full record header and metadata
 extern bool print_verbose;
+
+// final output format
+extern int skyhook_output_format;  // SkyFormatType enum
 
 // to convert strings <=> skyhook data structs
 extern Tables::schema_vec sky_tbl_schema;

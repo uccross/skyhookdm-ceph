@@ -90,7 +90,7 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
     bufferlist fb_bl;
     ::encode(fb_seq_num, fb_bl);
     int ret = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl);
-    if(ret < 0) {
+    if (ret < 0) {
         return ret;
     }
     return 0;
@@ -1321,10 +1321,10 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 while (it2.get_remaining() > 0) {
 
                     // unpack the next data stucture (ds) in sequence
-                    // seq within an object on disk should be:
-                    //  int format, bl ds
-                    //  int format, bl ds
-                    //  int format, bl ds
+                    // obj contains a sequence of fbmeta's, each encoded as bl
+                    // object layout: bl1,bl2,bl3,....bln
+                    // where bl1=fbmeta
+                    // where bl2=fbmeta
                     // ...
 
                     bufferlist bl;
@@ -1362,45 +1362,42 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     // this code block is only used for accounting (rows processed)
                     int root_rows = 0;
                     switch (meta.blob_format) {
-                        case SFT_FLATBUF_FLEX_ROW: {
-                            sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
-                            root_rows = root.nrows;
-                            break;
-                        }
-                        case SFT_ARROW: {
+
+                        case SFT_FLATBUF_FLEX_ROW:
+                        case SFT_ARROW:
+                        case SFT_JSON: {
                             sky_root root = Tables::getSkyRoot(meta.blob_data,
                                                                meta.blob_size,
-                                                               SFT_ARROW);
-                            root_rows = root.nrows;
-                            break;
-                        }
-                        case SFT_JSON: {
-                            sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                                                               meta.blob_format);
                             root_rows += root.nrows;
                             break;
                         }
+
                         case SFT_FLATBUF_UNION_ROW:
                         case SFT_FLATBUF_UNION_COL: {
 
                             // extract ptr to meta data blob
-                            const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                            size_t blob_sz           = meta.blob_size;
-                            //std::cout << "blob_sz = " << blob_sz << std::endl;
+                            const char* blob_dataptr = \
+                                reinterpret_cast<const char*>(meta.blob_data);
+                            size_t blob_sz = meta.blob_size;
 
                             // extract bl_seq bufferlist
                             ceph::bufferlist bl_seq;
                             bl_seq.append(blob_dataptr, blob_sz);
 
-                            // just need to grab the first bufferlist in the bl_seq
+                            // just need to grab the first bufferlist in bl_seq
                             ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-                            ceph::bufferlist bl;
-                            ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
-                            const char* dataptr = bl.c_str();
-                            size_t datasz       = bl.length();
-                            //std::cout << "datasz = " << datasz << std::endl;
 
-                            // get the number of rows returned for accounting purposes
-                            sky_root root = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
+                            // decode decrements get_remaining by moving iterator
+                            ceph::bufferlist bl;
+                            ::decode(bl, it_bl_seq);
+                            const char* dataptr = bl.c_str();
+                            size_t datasz = bl.length();
+
+                            // get the number of rows returned for accounting
+                            sky_root root = getSkyRoot(dataptr,
+                                                       datasz,
+                                                       SFT_FLATBUF_UNION_ROW);
                             root_rows = root.nrows;
                             break;
                         }
