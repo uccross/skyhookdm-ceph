@@ -1986,6 +1986,19 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                          reinterpret_cast<unsigned char*>(
                                  flatbldr.GetBufferPointer()),
                          flatbldr.GetSize());
+        } else if (op.required_type == SFT_FLATBUF_UNION_ROW) {
+            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+
+            ret = transform_fbxrows_to_fbucols(meta.blob_data, meta.blob_size, errmsg, flatbldr);
+            if (ret != 0) {
+                CLS_ERR("ERROR: transforming object from fbxrows to fbucols");
+                return ret;
+            }
+            createFbMeta(meta_builder,
+                         SFT_FLATBUF_UNION_COL,
+                         reinterpret_cast<unsigned char*>(
+                                 flatbldr.GetBufferPointer()),
+                         flatbldr.GetSize());
         }
 
         // Add meta_builder's data into a bufferlist as char*

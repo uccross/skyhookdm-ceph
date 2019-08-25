@@ -5708,4 +5708,26 @@ int transform_arrow_to_fb(const char* data,
     return 0;
 }
 
+/*
+ * Function: transform_fbxrows_to_fbucols
+ * @param[in] fb      : Flatbuffer to be converted
+ * @param[in] size    : Size of the flatbuffer
+ * @param[out] errmsg : errmsg buffer
+ * @param[out] buffer : arrow table
+ * Return Value: error code
+ */
+int transform_fbxrows_to_fbucols(const char* fb,
+                                 const size_t fb_size,
+                                 std::string& errmsg,
+                                 flatbuffers::FlatBufferBuilder& flatbldr) {
+    int errcode = 0;
+    sky_root root = getSkyRoot(fb, fb_size);
+    schema_vec sc = schemaFromString(root.data_schema);
+    delete_vector del_vec = root.delete_vec;
+    uint32_t nrows = root.nrows;
+
+    return errcode;
+} // transform_fbxrows_to_fbucols
+
+
 } // end namespace Tables

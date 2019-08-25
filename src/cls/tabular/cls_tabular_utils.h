@@ -856,6 +856,12 @@ int transform_arrow_to_fb(
         std::string& errmsg,
         flatbuffers::FlatBufferBuilder& flatbldr);
 
+int transform_fbxrows_to_fbucols(
+        const char* data,
+        const size_t data_size,
+        std::string& errmsg,
+        flatbuffers::FlatBufferBuilder& flatbldr);
+
 bool hasAggPreds(predicate_vec &preds);
 
 // convert provided ops to/from internal skyhook representation (simple enums)
