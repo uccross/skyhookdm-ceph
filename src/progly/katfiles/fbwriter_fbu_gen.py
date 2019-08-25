@@ -393,32 +393,32 @@ if __name__ == "__main__" :
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
           0 )
 
-  # COLS 4 : arity100-1mb-100objs
-  elif test == "fbucols4-arity100-1mb-100objs" :
+  # COLS 100 : arity100-1mb-100objs
+  elif test == "fbucols100-arity100-1mb-100objs" :
     main( "cols", 
           2500, 
           100, 
-          "fbucols4-arity100-1mb-100objs", 
+          "fbucols100-arity100-1mb-100objs", 
           "dataset_arity100_2500_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
           100 )
 
-  # COLS 4 : arity4-10mb-100objs
-  elif test == "fbucols4-arity100-10mb-100objs" :
+  # COLS 100 : arity100-10mb-100objs
+  elif test == "fbucols100-arity100-10mb-100objs" :
     main( "cols", 
           25000, 
           100, 
-          "fbucols4-arity100-10mb-100objs", 
+          "fbucols100-arity100-10mb-100objs", 
           "dataset_arity100_25000_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
           100 )
 
-  # COLS 4 : arity100-100mb-100objs
-  elif test == "fbucols4-arity100-100mb-100objs" :
+  # COLS 100 : arity100-100mb-100objs
+  elif test == "fbucols100-arity100-100mb-100objs" :
     main( "cols", 
           250000, 
           100, 
-          "fbucols4-arity100-100mb-100objs", 
+          "fbucols100-arity100-100mb-100objs", 
           "dataset_arity100_250000_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
           100 )
