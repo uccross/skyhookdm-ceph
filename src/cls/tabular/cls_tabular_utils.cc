@@ -2474,12 +2474,11 @@ long long int printFlatbufFBURowAsCsv(
                 std::cout << int_col_data->data()->Get(0);
                 break;
               }
-              switch(col.type) {
-                case SDT_UINT32 : {
-                  auto int_col_data = 
-                      static_cast< const Tables::SDT_UINT32_FBU* >(curr_rec_data->Get(j));
-                  std::cout << int_col_data->data()->Get(0);
-                  break;
+              case SDT_UINT32 : {
+                auto int_col_data = 
+                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_rec_data->Get(j));
+                std::cout << int_col_data->data()->Get(0);
+                break;
               }
               case SDT_FLOAT : {
                 auto float_col_data =
