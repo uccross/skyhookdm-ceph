@@ -198,6 +198,11 @@ static void print_data(const char *dataptr,
             break;
 
         case SFT_ARROW:
+            if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
+                std::cerr << "Print SFT_ARROW: "
+                          << "SFT_PG_BINARY not implemented" << std::endl;
+                assert (Tables::SkyOutputBinaryNotImplemented==0);
+            }
             row_counter += Tables::printArrowbufRowAsCsv(
                 dataptr,
                 datasz,
@@ -207,6 +212,11 @@ static void print_data(const char *dataptr,
             break;
 
         case SFT_JSON:
+            if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
+                std::cerr << "Print SFT_JSON: "
+                          << "SFT_PG_BINARY not implemented" << std::endl;
+                assert (Tables::SkyOutputBinaryNotImplemented==0);
+            }
             row_counter += Tables::printJSONAsCsv(
                 dataptr,
                 datasz,
@@ -216,16 +226,32 @@ static void print_data(const char *dataptr,
             break;
 
         case SFT_FLATBUF_UNION_ROW:
-        case SFT_FLATBUF_UNION_COL: {
-            row_counter += Tables::printFlatbufFBUAsCsv(
+            if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
+                std::cerr << "Print SFT_FLATBUF_UNION_ROW: "
+                          << "SFT_PG_BINARY not implemented" << std::endl;
+                assert (Tables::SkyOutputBinaryNotImplemented==0);
+            }
+            row_counter += Tables::printFlatbufFBURowAsCsv(
                 dataptr,
                 datasz,
                 print_header,
                 print_verbose,
-                row_limit - row_counter,
-                (SkyFormatType)ds_format);
+                row_limit - row_counter);
             break;
-        }
+
+        case SFT_FLATBUF_UNION_COL:
+            if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
+                std::cerr << "Print SFT_FLATBUF_UNION_COL: "
+                          << "SFT_PG_BINARY not implemented" << std::endl;
+                assert (Tables::SkyOutputBinaryNotImplemented==0);
+            }
+            row_counter += Tables::printFlatbufFBUColAsCsv(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter);
+            break;
 
         case SFT_FLATBUF_CSV_ROW:
         case SFT_PG_TUPLE:
@@ -392,7 +418,7 @@ void worker()
     uint64_t nrows_server_processed = 0;
     uint64_t eval2_start = getns();
 
-    if (query == "flatbuf" || query == "arrow") {
+    if (query == "flatbuf") {
 
         using namespace Tables;
 

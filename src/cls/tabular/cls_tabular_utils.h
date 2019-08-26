@@ -70,6 +70,7 @@ enum TablesErrCodes {
     RowIndexOOB,
     SkyFormatTypeNotImplemented,
     SkyFormatTypeNotRecognized,
+    SkyOutputBinaryNotImplemented,
     ArrowStatusErr,
     UnsupportedNumKeyCols
 };
@@ -819,14 +820,19 @@ long long int printFlatbufFlexRowAsCsv(
         bool print_verbose,
         long long int max_to_print);
 
-// TODO: probably break these into 2 functions: printfbu_row and printfbu_col
-long long int printFlatbufFBUAsCsv(
+long long int printFlatbufFBURowAsCsv(
         const char* dataptr,
         const size_t datasz,
         bool print_header,
         bool print_verbose,
-        long long int max_to_print,
-        SkyFormatType format);
+        long long int max_to_print);
+
+long long int printFlatbufFBUColAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
 
 long long int printJSONAsCsv(
         const char* dataptr,

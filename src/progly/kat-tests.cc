@@ -79,43 +79,54 @@ int main(int argc, char **argv) {
 
   if( (std::string)argv[1] == "PRINT" ) {
     ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
-  
+
     while( it_bl_seq.get_remaining() > 0 ) {
-  
+
       if( debug )
         std::cout << "it_bl_seq.get_remaining() = " << it_bl_seq.get_remaining() << std::endl ;
-  
+
       ceph::bufferlist bl ;
       ::decode( bl, it_bl_seq ) ; // this decrements get_remaining by moving iterator
       const char* dataptr = bl.c_str() ;
       size_t datasz       = bl.length() ;
       std::cout << "datasz = " << datasz << std::endl ;
-  
+
       bool print_header   = true ;
       bool print_verbose  = false ;
       if( debug )
         print_verbose  = true ;
       long long int max_to_print = 1000 ;
-  
+
       SkyFormatType format ;
       if( (std::string)argv[2] == "ROW" )
         format = SFT_FLATBUF_UNION_ROW ;
-      else if ( (std::string)argv[2] == "COL" ) 
+      else if ( (std::string)argv[2] == "COL" )
         format = SFT_FLATBUF_UNION_COL ;
       else {
         std::cout << "2argument not recognized : '" << argv[2] << "'" << std::endl ;
         exit(1) ;
       }
       std::cout << "kat-tests running with format == " << format << std::endl ;
-      auto ret1 = Tables::printFlatbufFBUAsCsv( 
-                    dataptr, 
-                    datasz, 
-                    print_header, 
-                    print_verbose, 
-                    max_to_print, 
-                    format ) ;
-      std::cout << ret1 << std::endl ;
-  
+      if (format == SFT_FLATBUF_UNION_ROW) {
+          auto ret1 = Tables::printFlatbufFBURowAsCsv(
+                        dataptr,
+                        datasz,
+                        print_header,
+                        print_verbose,
+                        max_to_print);
+          std::cout << ret1 << std::endl ;
+      }
+
+      if (format == SFT_FLATBUF_UNION_COL) {
+          auto ret1 = Tables::printFlatbufFBUColAsCsv(
+                        dataptr,
+                        datasz,
+                        print_header,
+                        print_verbose,
+                        max_to_print);
+          std::cout << ret1 << std::endl ;
+      }
+
       if( debug )
         std::cout << "loop while" << std::endl ;
     } // while

@@ -938,7 +938,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     std::string msg = op.toString();
     std::replace(msg.begin(), msg.end(), '\n', ' ');
 
-    if (op.query == "flatbuf" || op.query == "arrow") {
+    if (op.query == "flatbuf") {
 
         using namespace Tables;
 
@@ -1298,7 +1298,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // NOTE: 1 bl contains exactly 1 flatbuf.
             // weak ordering in map will iterate over fb nums in sequence
             for (auto it = reads.begin(); it != reads.end(); ++it) {
-                ///int format_type = 0;
                 bufferlist b;
                 size_t off = it->second.off;
                 size_t len = it->second.len;

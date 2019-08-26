@@ -292,7 +292,7 @@ int main(int argc, char **argv)
     assert(!projection); // not supported
     std::cout << "select * from lineitem" << std::endl;
 
-  } else if (query == "flatbuf" || query == "arrow") {
+  } else if (query == "flatbuf") {
 
     // verify and prep client input
     using namespace Tables;
@@ -786,11 +786,14 @@ int main(int argc, char **argv)
   // since otherwise we are printing as csv data to std out
   if (quiet) {
       if (query == "a" && use_cls) {
-        std::cout << "total result row count: " << result_count << " / -1"
-                  << "; nrows_processed=" << nrows_processed << std::endl;
+        std::cout << "total result row count: "
+                  << result_count << " / -1"
+                  //<< "; nrows_processed=" << nrows_processed << std::endl;
+                  << std::endl;
       } else {
-        std::cout << "total result row count: " << result_count << " / "
-                  << rows_returned  << "; nrows_processed=" << nrows_processed
+        std::cout << "total result row count: "
+                  << result_count << " / "
+                  << rows_returned // << "; nrows_processed=" << nrows_processed << std::endl;
                   << std::endl;
       }
   }
