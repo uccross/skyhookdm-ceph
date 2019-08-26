@@ -15,6 +15,7 @@
 #include <string>
 #include <sstream>
 #include <type_traits>
+#include <bitset>
 
 #include "include/types.h"
 #include <errno.h>
@@ -69,6 +70,7 @@ enum TablesErrCodes {
     RowIndexOOB,
     SkyFormatTypeNotImplemented,
     SkyFormatTypeNotRecognized,
+    SkyOutputBinaryNotImplemented,
     ArrowStatusErr,
     UnsupportedNumKeyCols
 };
@@ -246,6 +248,13 @@ const std::string RID_INDEX = "_RID_INDEX_";
 const int RID_COL_INDEX = -99; // magic number...
 const long long int ROW_LIMIT_DEFAULT = LLONG_MAX;
 const int NULLBITS64T_SIZE = 2;  // len of nullbits vector
+
+// value used for null in postgres binary
+const int32_t PGNULLBINARY = -1;
+
+// postgres epoch offset from julian date
+// https://docs.huihoo.com/doxygen/postgresql/datatype_2timestamp_8h.html
+const long POSTGRES_EPOCH_JDATE = 2451545;
 
 /*
  * Convert integer to string for index/omap of primary key
@@ -656,9 +665,9 @@ struct rec_table_fbu {
     nullbits_vector nullbits;
     const row_data_ref_fbu_rows data_fbu_rows;
 
-    rec_table_fbu(int64_t _RID, 
-               nullbits_vector _nullbits, 
-               row_data_ref_fbu_rows _data_fbu_rows) :
+    rec_table_fbu(int64_t _RID,
+                  nullbits_vector _nullbits,
+                  row_data_ref_fbu_rows _data_fbu_rows) :
         RID(_RID),
         nullbits(_nullbits),
         data_fbu_rows(_data_fbu_rows) {
@@ -816,13 +825,19 @@ long long int printFlatbufFlexRowAsCsv(
         bool print_verbose,
         long long int max_to_print);
 
-long long int printFlatbufFBUAsCsv(
+long long int printFlatbufFBURowAsCsv(
         const char* dataptr,
         const size_t datasz,
         bool print_header,
         bool print_verbose,
-        long long int max_to_print,
-        SkyFormatType format);
+        long long int max_to_print);
+
+long long int printFlatbufFBUColAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
 
 long long int printJSONAsCsv(
         const char* dataptr,
@@ -838,6 +853,13 @@ long long int printArrowbufRowAsCsv(
         bool print_verbose,
         long long int max_to_print);
 
+// postgres binary fstream format
+long long int printFlatbufFlexRowAsBinary(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
 
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
 
@@ -1006,6 +1028,17 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
                       std::vector<std::shared_ptr<arrow::Table>>* table_vec);
 
 } // end namespace Tables
+
+// Postgres binary fstream requires big endian encoding
+inline bool is_big_endian(void)
+{
+    union {
+        uint32_t i;
+        char pos[4];
+    }
+    testval = {0x01020304};
+    return testval.pos[0] == 1;
+}
 
 #define checkret(r,v) do { \
   if (r != v) { \

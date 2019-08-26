@@ -90,7 +90,7 @@ int set_fb_seq_num(cls_method_context_t hctx, unsigned int fb_seq_num) {
     bufferlist fb_bl;
     ::encode(fb_seq_num, fb_bl);
     int ret = cls_cxx_setxattr(hctx, "fb_seq_num", &fb_bl);
-    if(ret < 0) {
+    if (ret < 0) {
         return ret;
     }
     return 0;
@@ -1298,7 +1298,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // NOTE: 1 bl contains exactly 1 flatbuf.
             // weak ordering in map will iterate over fb nums in sequence
             for (auto it = reads.begin(); it != reads.end(); ++it) {
-                ///int format_type = 0;
                 bufferlist b;
                 size_t off = it->second.off;
                 size_t len = it->second.len;
@@ -1321,10 +1320,10 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 while (it2.get_remaining() > 0) {
 
                     // unpack the next data stucture (ds) in sequence
-                    // seq within an object on disk should be:
-                    //  int format, bl ds
-                    //  int format, bl ds
-                    //  int format, bl ds
+                    // obj contains a sequence of fbmeta's, each encoded as bl
+                    // object layout: bl1,bl2,bl3,....bln
+                    // where bl1=fbmeta
+                    // where bl2=fbmeta
                     // ...
 
                     bufferlist bl;
@@ -1362,45 +1361,42 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     // this code block is only used for accounting (rows processed)
                     int root_rows = 0;
                     switch (meta.blob_format) {
-                        case SFT_FLATBUF_FLEX_ROW: {
-                            sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
-                            root_rows = root.nrows;
-                            break;
-                        }
-                        case SFT_ARROW: {
+
+                        case SFT_FLATBUF_FLEX_ROW:
+                        case SFT_ARROW:
+                        case SFT_JSON: {
                             sky_root root = Tables::getSkyRoot(meta.blob_data,
                                                                meta.blob_size,
-                                                               SFT_ARROW);
-                            root_rows = root.nrows;
-                            break;
-                        }
-                        case SFT_JSON: {
-                            sky_root root = Tables::getSkyRoot(meta.blob_data, 0);
+                                                               meta.blob_format);
                             root_rows += root.nrows;
                             break;
                         }
+
                         case SFT_FLATBUF_UNION_ROW:
                         case SFT_FLATBUF_UNION_COL: {
 
                             // extract ptr to meta data blob
-                            const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                            size_t blob_sz           = meta.blob_size;
-                            //std::cout << "blob_sz = " << blob_sz << std::endl;
+                            const char* blob_dataptr = \
+                                reinterpret_cast<const char*>(meta.blob_data);
+                            size_t blob_sz = meta.blob_size;
 
                             // extract bl_seq bufferlist
                             ceph::bufferlist bl_seq;
                             bl_seq.append(blob_dataptr, blob_sz);
 
-                            // just need to grab the first bufferlist in the bl_seq
+                            // just need to grab the first bufferlist in bl_seq
                             ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-                            ceph::bufferlist bl;
-                            ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
-                            const char* dataptr = bl.c_str();
-                            size_t datasz       = bl.length();
-                            //std::cout << "datasz = " << datasz << std::endl;
 
-                            // get the number of rows returned for accounting purposes
-                            sky_root root = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
+                            // decode decrements get_remaining by moving iterator
+                            ceph::bufferlist bl;
+                            ::decode(bl, it_bl_seq);
+                            const char* dataptr = bl.c_str();
+                            size_t datasz = bl.length();
+
+                            // get the number of rows returned for accounting
+                            sky_root root = getSkyRoot(dataptr,
+                                                       datasz,
+                                                       SFT_FLATBUF_UNION_ROW);
                             root_rows = root.nrows;
                             break;
                         }
@@ -1894,7 +1890,6 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    int format_type = SFT_FLATBUF_FLEX_ROW; // TODO: get from fb_meta
     transform_op op;
     int offset = 0;
 
@@ -1908,19 +1903,12 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     }
 
     CLS_LOG(20, "transform_db_op: table_name=%s", op.table_name.c_str());
-    CLS_LOG(20, "transform_db_op: data_schema=%s", op.data_schema.c_str());
     CLS_LOG(20, "transform_db_op: transform_format_type=%d", op.required_type);
-
-    // Check if transformation is required or not
-    if (format_type == op.required_type) {
-        // Source and destination object types are same, therefore no tranformation
-        // is required.
-        CLS_LOG(20, "No Transforming required");
-        return 0;
-    }
 
     // Object is sequence of actual data along with encoded metadata
     bufferlist encoded_meta_bls;
+
+    // TODO: get individual off/len of fbmeta's inside obj and read one at a time.
     int ret = cls_cxx_read(hctx, 0, 0, &encoded_meta_bls);
     if (ret < 0) {
         CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
@@ -2009,9 +1997,10 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         ::encode(meta_bl, transformed_encoded_meta_bl);
         delete meta_builder;
 
-        // Write the object back to Ceph
-        ret = cls_cxx_write(hctx, offset, transformed_encoded_meta_bl.length(),
-                            &transformed_encoded_meta_bl);
+        // Write the object back to Ceph. cls_cxx_replace truncates the original
+        // object and writes full object.
+        ret = cls_cxx_replace(hctx, offset, transformed_encoded_meta_bl.length(),
+                              &transformed_encoded_meta_bl);
         if (ret < 0) {
             CLS_ERR("ERROR: writing obj full %d", ret);
             return ret;
