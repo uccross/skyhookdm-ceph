@@ -941,9 +941,6 @@ inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);
 
 inline
-bool compare(const uint32_t& val1, const uint32_t& val2, const int& op);
-
-inline
 bool compare(const uint64_t& val1, const uint64_t& val2, const int& op);
 
 inline
