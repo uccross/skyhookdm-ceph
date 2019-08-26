@@ -44,10 +44,12 @@ std::vector< std::string > parse_csv_str( std::string, char ) ;
 
 struct linedata_t {
 
-  std::vector< uint64_t  >   uint64s ;
-  std::vector< float >       floats ;
+  std::vector< uint32_t > uint32s ;
+  std::vector< uint64_t > uint64s ;
+  std::vector< float >    floats ;
   std::vector< std::string > strs ;
 
+  int uint32_idx ;
   int uint64_idx ;
   int float_idx ;
   int str_idx ;
@@ -64,6 +66,9 @@ struct linedata_t {
       std::string datum           = line_vect[i] ;
 
       switch( atttype ) {
+        case Tables::SDT_UINT32 :
+          uint32s.push_back( std::stoi( datum ) ) ;
+          break ;
         case Tables::SDT_UINT64 :
           uint64s.push_back( std::stoi( datum ) ) ;
           break ;
@@ -84,6 +89,14 @@ struct linedata_t {
   void toString() {
     std::cout << "=============================================" << std::endl ;
     bool first = true ;
+    for( unsigned int i = 0; i < uint32s.size(); i++ ) {
+      if( !first ) std::cout << "|" ;
+      else first = false ;
+      std::cout << uint32s[i] ;
+    }
+    std::cout << std::endl ;
+    std::cout << "=============================================" << std::endl ;
+    first = true ;
     for( unsigned int i = 0; i < uint64s.size(); i++ ) {
       if( !first ) std::cout << "|" ;
       else first = false ;
@@ -113,6 +126,7 @@ struct linedata_t {
                            std::string line,
                            int i ) {
 
+    uint32_idx = 0 ;
     uint64_idx = 0 ;
     float_idx  = 0 ;
     str_idx    = 0 ;
@@ -124,6 +138,12 @@ struct linedata_t {
     // to string
     //toString() ;
   } ;
+
+  uint32_t get_uint32() {
+    uint32_t curr_uint32 = uint32s[ uint32_idx ] ;
+    uint32_idx++ ;
+    return curr_uint32 ;
+  }
 
   uint64_t get_uint64() {
     uint64_t curr_uint64 = uint64s[ uint64_idx ] ;
@@ -145,12 +165,14 @@ struct linedata_t {
 } ; //linedata_t
 
 struct linecollection_t {
-  std::vector< std::vector< uint64_t  > > listof_int_vect_raw ;
+  std::vector< std::vector< uint32_t > > listof_int_vect_raw ;
+  std::vector< std::vector< uint64_t > > listof_uint64_vect_raw ;
   std::vector< std::vector< float > > listof_float_vect_raw ;
   std::vector< std::vector< std::string > > listof_string_vect_raw_strs ;
   std::vector< std::vector< flatbuffers::Offset<flatbuffers::String> > > listof_string_vect_raw ;
   std::vector< std::vector< std::string > > indexer ;
   uint64_t int_vect_cnt ;
+  uint64_t uint64_vect_cnt ;
   uint64_t float_vect_cnt ;
   uint64_t string_vect_cnt ;
 
@@ -158,6 +180,7 @@ struct linecollection_t {
     // collect and store linecollection
     // initialize struct with empty vects
     int_vect_cnt = 0 ;
+    uint64_vect_cnt = 0 ;
     float_vect_cnt = 0 ;
     string_vect_cnt = 0 ;
   } ;
@@ -173,6 +196,20 @@ struct linecollection_t {
       for( unsigned int j = 0; j < listof_int_vect_raw[i].size(); j++ ) {
         std::cout << listof_int_vect_raw[i][j] ;
         if( j < listof_int_vect_raw[i].size()-1 )
+          std::cout << "," ;
+      }
+      std::cout << std::endl ;
+    }
+    std::cout << "=============================================" << std::endl ;
+    std::cout << "listof_uint64_vect_raw.size() = " << listof_uint64_vect_raw.size() << std::endl ;
+    std::cout << "listof_uint64_vect_raw :" << std::endl ;
+    std::cout << "----------------------" << std::endl ;
+    for( unsigned int i = 0; i < listof_uint64_vect_raw.size(); i++ ) {
+      std::cout << "listof_uint64_vect_raw[" << std::to_string( i ) << "].size() = " 
+                << listof_uint64_vect_raw[i].size() << std::endl ;
+      for( unsigned int j = 0; j < listof_uint64_vect_raw[i].size(); j++ ) {
+        std::cout << listof_uint64_vect_raw[i][j] ;
+        if( j < listof_uint64_vect_raw[i].size()-1 )
           std::cout << "," ;
       }
       std::cout << std::endl ;
@@ -311,6 +348,9 @@ std::string get_schema_string(
     auto att_type = schema_datatypes_sdt[ i ] ;
     std::string this_entry = " " + std::to_string( i ) + " " ;
     switch( att_type ) {
+      case Tables::SDT_UINT32 :
+        this_entry = this_entry + std::to_string( Tables::SDT_UINT32 ) ;
+        break ;
       case Tables::SDT_UINT64 :
         this_entry = this_entry + std::to_string( Tables::SDT_UINT64 ) ;
         break ;
@@ -351,12 +391,20 @@ linecollection_t process_line_collection(
     std::vector< std::string > an_index_pair ;
     an_index_pair.push_back( key ) ;
     switch( this_dt ) {
-      case Tables::SDT_UINT64 : {
+      case Tables::SDT_UINT32 : {
         an_index_pair.push_back( std::to_string( processed_lc.int_vect_cnt ) ) ;
         processed_lc.indexer.push_back( an_index_pair ) ;
-        std::vector< uint64_t > an_empty_vect ;
+        std::vector< uint32_t > an_empty_vect ;
         processed_lc.listof_int_vect_raw.push_back( an_empty_vect ) ;
         processed_lc.int_vect_cnt++ ;
+        break ;
+      }
+      case Tables::SDT_UINT64 : {
+        an_index_pair.push_back( std::to_string( processed_lc.uint64_vect_cnt ) ) ;
+        processed_lc.indexer.push_back( an_index_pair ) ;
+        std::vector< uint64_t > an_empty_vect ;
+        processed_lc.listof_uint64_vect_raw.push_back( an_empty_vect ) ;
+        processed_lc.uint64_vect_cnt++ ;
         break ;
       }
       case Tables::SDT_FLOAT : {
@@ -392,9 +440,14 @@ linecollection_t process_line_collection(
       std::string attkey  = "att" + std::to_string( attnum ) + "-" + std::to_string( atttype ) ;
       uint64_t att_vect_id = processed_lc.get_index( attkey ) ;
       switch( atttype ) {
+        case Tables::SDT_UINT32 : {
+          uint32_t this_data = curr_line.get_uint32() ;
+          processed_lc.listof_int_vect_raw[ att_vect_id ].push_back( this_data ) ;
+          break ;
+        }
         case Tables::SDT_UINT64 : {
           uint64_t this_data = curr_line.get_uint64() ;
-          processed_lc.listof_int_vect_raw[ att_vect_id ].push_back( this_data ) ;
+          processed_lc.listof_uint64_vect_raw[ att_vect_id ].push_back( this_data ) ;
           break ;
         }
         case Tables::SDT_FLOAT : {
@@ -514,7 +567,8 @@ void do_write( cmdline_inputs_t inputs,
                bool debug,
                std::string SAVE_DIR ) {
 
-  if( inputs.debug ) {
+  //if( inputs.debug ) {
+  if( true ) {
     std::cout << "inputs.debug             : " << inputs.debug                   << std::endl ;
     std::cout << "inputs.write_type        : " << inputs.write_type              << std::endl ;
     std::cout << "inputs.filename          : " << inputs.filename                << std::endl ;
@@ -557,11 +611,14 @@ void do_write( cmdline_inputs_t inputs,
 
       if( ( line_counter >= rid_start_value ) && 
           ( line_counter <= rid_end_value ) ) {
+        if( true ) std::cout << "row num : " << (line_counter-rid_start_value) << std::endl ;
         std::pair< std::string, int > lineinfo ;
         lineinfo.first  = line ;
         lineinfo.second = line_counter ;
         str_line_collection.push_back( lineinfo ) ;
       }
+      else if ( line_counter > rid_end_value )
+        break ;
       line_counter++ ;
 
     } // for nrows
@@ -585,6 +642,10 @@ void do_write( cmdline_inputs_t inputs,
     for( unsigned int i = 0; i < schema_datatypes.size(); i++ ) {
       auto this_dt = schema_datatypes[i] ;
       if( this_dt == "int" ) {
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT32_FBU ) ;
+        schema_datatypes_sdt.push_back( Tables::SDT_UINT32 ) ;
+      }
+      else if( this_dt == "uint64" ) {
         record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT64_FBU ) ;
         schema_datatypes_sdt.push_back( Tables::SDT_UINT64 ) ;
       }
@@ -616,6 +677,8 @@ void do_write( cmdline_inputs_t inputs,
       auto lid = str_line_collection[j].second ;
       linedata_t this_line( schema_datatypes_sdt, l, lid ) ;
 
+      std::cout << "obj_counter = " << inputs.obj_counter << ", lid = " << lid << std::endl ;
+
       // record data
       std::vector< flatbuffers::Offset< void > > data_vect ;
 
@@ -624,7 +687,16 @@ void do_write( cmdline_inputs_t inputs,
         //if( !first ) std::cout << "," ;
         //else first = false ;
 
-        if( schema_datatypes_sdt[k] == Tables::SDT_UINT64 ) {
+        if( schema_datatypes_sdt[k] == Tables::SDT_UINT32 ) {
+          uint32_t this_data = this_line.get_uint32() ;
+          std::vector< uint32_t > single_iv ;
+          single_iv.push_back( this_data ) ;
+          //std::cout << this_data ;
+          auto int_vect_fb = builder.CreateVector( single_iv ) ;
+          auto iv = Tables::CreateSDT_UINT32_FBU( builder, int_vect_fb ) ;
+          data_vect.push_back( iv.Union() ) ;
+        }
+        else if( schema_datatypes_sdt[k] == Tables::SDT_UINT64 ) {
           uint64_t this_data = this_line.get_uint64() ;
           std::vector< uint64_t > single_iv ;
           single_iv.push_back( this_data ) ;
@@ -684,7 +756,7 @@ void do_write( cmdline_inputs_t inputs,
                                   schema_attnames, 
                                   schema_datatypes_sdt ) ;
     auto schema_string_fb = builder.CreateString( schema_string ) ;
-    if( debug ) std::cout << "schema_string = " << schema_string << std::endl ;
+    if( true ) std::cout << "schema_string = " << schema_string << std::endl ;
 
     auto db_schema_name = builder.CreateString( "kats_test" ) ;
     std::vector< uint8_t > delete_vector ( str_line_collection.size(), 0 ) ; //initialize with one 0 per row.
@@ -715,8 +787,8 @@ void do_write( cmdline_inputs_t inputs,
     librados::bufferlist wrapper_bl ;
     ::encode( bl, wrapper_bl ) ;
 
-    if( debug ) std::cout << "datasz = " << datasz << std::endl ;
-    if( debug ) std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
+    if( true ) std::cout << "datasz = " << datasz << std::endl ;
+    if( true ) std::cout << "wrapper_bl.length() = " << wrapper_bl.length() << std::endl ;
 
     // --------------------------------------------- //
     // build out FB_Meta
@@ -731,13 +803,13 @@ void do_write( cmdline_inputs_t inputs,
     ceph::bufferlist meta_bl ;
     char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
     int meta_builder_size  = meta_builder->GetSize() ;
-    if( debug ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
+    if( true ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
     meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
     delete meta_builder;
     librados::bufferlist meta_wrapper_bl ;
     ::encode( meta_bl, meta_wrapper_bl ) ;
     size_t meta_wrapper_bl_sz = meta_wrapper_bl.length() ;
-    if( debug ) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
+    if( true) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
 
     // --------------------------------------------- //
     // do the write
@@ -786,11 +858,14 @@ void do_write( cmdline_inputs_t inputs,
 
       if( ( line_counter >= rid_start_value ) && 
           ( line_counter <= rid_end_value ) ) {
+        if( true ) std::cout << "row num : " << (line_counter-rid_start_value) << std::endl ;
         std::pair< std::string, int > lineinfo ;
         lineinfo.first  = line ;
         lineinfo.second = line_counter ;
         str_line_collection.push_back( lineinfo ) ;
       }
+      else if ( line_counter > rid_end_value )
+        break ;
       line_counter++ ;
 
     } // for nrows
@@ -817,6 +892,10 @@ void do_write( cmdline_inputs_t inputs,
     for( unsigned int i = 0; i < schema_datatypes.size(); i++ ) {
       std::string this_dt = schema_datatypes[i] ;
       if( this_dt == "int" ) {
+        record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT32_FBU ) ;
+        schema_datatypes_sdt.push_back( Tables::SDT_UINT32 ) ;
+      }
+      else if( this_dt == "uint64" ) {
         record_data_type_vect.push_back( Tables::DataTypes_FBU_SDT_UINT64_FBU ) ;
         schema_datatypes_sdt.push_back( Tables::SDT_UINT64 ) ;
       }
@@ -882,15 +961,29 @@ void do_write( cmdline_inputs_t inputs,
       auto key   = lc.indexer[i][0] ;
       auto index = lc.indexer[i][1] ;
 
-      if( debug ) std::cout << "processing col " << std::to_string( i ) << std::endl ;
+      if( true ) std::cout << "processing col " << std::to_string( i ) << std::endl ;
 
-      if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT64 ) ) ) {
-        std::vector< uint64_t > int_vect = lc.listof_int_vect_raw[ std::stoi(index) ] ;
+      if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT32 ) ) ) {
+        std::vector< uint32_t > int_vect = lc.listof_int_vect_raw[ std::stoi(index) ] ;
+        auto int_vect_fb = builder.CreateVector( int_vect ) ;
+        auto data = Tables::CreateSDT_UINT32_FBU( builder, int_vect_fb ) ;
+        auto col = Tables::CreateCol_FBU(
+          builder,                              //builder
+          //rids_vect_fb,                         //rids
+          nullbits_vector_fb,                   //nullbits
+          col_name,                             //col_name
+          col_index,                            //col_index
+          Tables::DataTypes_FBU_SDT_UINT32_FBU, //data_type
+          data.Union() ) ;                      //data
+        cols_vect.push_back( col ) ;
+      }
+      else if( boost::algorithm::ends_with( key, std::to_string( Tables::SDT_UINT64 ) ) ) {
+        std::vector< uint64_t > int_vect = lc.listof_uint64_vect_raw[ std::stoi(index) ] ;
         auto int_vect_fb = builder.CreateVector( int_vect ) ;
         auto data = Tables::CreateSDT_UINT64_FBU( builder, int_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
-          rids_vect_fb,                         //rids
+          //rids_vect_fb,                         //rids
           nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
@@ -904,7 +997,7 @@ void do_write( cmdline_inputs_t inputs,
         auto data = Tables::CreateSDT_FLOAT_FBU( builder, float_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
-          rids_vect_fb,                         //rids
+          //rids_vect_fb,                         //rids
           nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
@@ -919,7 +1012,7 @@ void do_write( cmdline_inputs_t inputs,
         auto data = Tables::CreateSDT_STRING_FBU( builder, string_vect_fb ) ;
         auto col = Tables::CreateCol_FBU(
           builder,                              //builder
-          rids_vect_fb,                         //rids
+          //rids_vect_fb,                         //rids
           nullbits_vector_fb,                   //nullbits
           col_name,                             //col_name
           col_index,                            //col_index
@@ -937,7 +1030,7 @@ void do_write( cmdline_inputs_t inputs,
           ( (i+1) % inputs.cols_per_fb == 0 ) ||
           ( (i+1) == ncols ) ) {
 
-        if( debug ) std::cout << "saving bl to bl_seq" << std::endl ;
+        if( true ) std::cout << "saving bl to bl_seq" << std::endl ;
 
         auto cols_data = builder.CreateVector( cols_vect ) ;
         std::vector< flatbuffers::Offset< Tables::Col_FBU > > empty_cols_vect ;
@@ -945,6 +1038,7 @@ void do_write( cmdline_inputs_t inputs,
 
         auto cols = CreateCols_FBU(
           builder,
+          rids_vect_fb,
           cols_data ) ;
 
         std::vector< uint8_t > delete_vector ( line_collection.size(), 0 ) ; //initialize with one 0 per row.
@@ -978,7 +1072,7 @@ void do_write( cmdline_inputs_t inputs,
       }//if save on cols_per_fb
     } //for ncols
 
-    if( debug ) std::cout << "buffer_size = " << buffer_size << std::endl ;
+    if( true ) std::cout << "buffer_size = " << buffer_size << std::endl ;
 
     // --------------------------------------------- //
     // build out FB_Meta
@@ -993,13 +1087,13 @@ void do_write( cmdline_inputs_t inputs,
     ceph::bufferlist meta_bl ;
     char* meta_builder_ptr = reinterpret_cast<char*>( meta_builder->GetBufferPointer() ) ;
     int meta_builder_size  = meta_builder->GetSize() ;
-    if( debug ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
+    if( true ) std::cout << "meta_builder_size = " << meta_builder_size << std::endl ;
     meta_bl.append( meta_builder_ptr, meta_builder_size ) ;
     delete meta_builder;
     librados::bufferlist meta_wrapper_bl ;
     ::encode( meta_bl, meta_wrapper_bl ) ;
     size_t meta_wrapper_bl_sz = meta_wrapper_bl.length() ;
-    if( debug ) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
+    if( true ) std::cout << "meta_wrapper_bl_sz = " << meta_wrapper_bl_sz << std::endl ;
 
     // --------------------------------------------- //
     // do the write
@@ -1024,7 +1118,7 @@ void do_write( cmdline_inputs_t inputs,
     str_line_collection.clear() ;
     // --------------------------------------------- //
     // --------------------------------------------- //
-    if( debug ) std::cout << "-----------------> line_collection saved." << std::endl ;
+    if( true ) std::cout << "-----------------> line_collection saved." << std::endl ;
 
   } //cols
 

@@ -836,6 +836,13 @@ int processSkyFb(
                         flexbldr->Add(agg_val);
                         break;
                     }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
                     case SDT_UINT64: {
                         TypedPredicate<uint64_t>* p = \
                                 dynamic_cast<TypedPredicate<uint64_t>*>(pb);
@@ -1031,9 +1038,14 @@ int processSkyFb_fbu_rows(
                         //case SDT_UINT16:
                         //    flexbldr->Add(row[col.idx].AsUInt16());
                         //    break;
-                        //case SDT_UINT32:
-                        //    flexbldr->Add(row[col.idx].AsUInt32());
-                        //    break;
+                        case SDT_UINT32: {
+                            auto int_col_data =
+                              static_cast< const Tables::SDT_UINT32_FBU* >(row->Get(col.idx));
+                            auto data = int_col_data->data()->Get(0);
+                            //std::cout << std::to_string(data);
+                            flexbldr->Add(data);
+                            break;
+                        }
                         case SDT_UINT64: {
                             auto int_col_data =
                               static_cast< const Tables::SDT_UINT64_FBU* >(row->Get(col.idx));
@@ -1120,6 +1132,13 @@ int processSkyFb_fbu_rows(
                         TypedPredicate<int64_t>* p = \
                                 dynamic_cast<TypedPredicate<int64_t>*>(pb);
                         int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
@@ -1313,9 +1332,14 @@ int processSkyFb_fbu_cols(
                             //case SDT_UINT16:
                             //    flexbldr->Add(row[col.idx].AsUInt16());
                             //    break;
-                            //case SDT_UINT32:
-                            //    flexbldr->Add(row[col.idx].AsUInt32());
-                            //    break;
+                            case SDT_UINT32: {
+                                auto column_of_data = 
+                                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
+                                auto data_at_row = column_of_data->data()->Get(i);
+                                //std::cout << std::to_string(data_at_row) << std::endl;
+                                flexbldr->Add(data_at_row);
+                                break;
+                            }
                             case SDT_UINT64: {
                                 auto column_of_data =
                                     static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
@@ -1473,8 +1497,10 @@ int processSkyFb_fbu_cols(
                     sky_col_fbu skycol = getSkyCol_fbu(root, j);
                     auto this_col       = skycol.data_fbu_col;
                     auto curr_col_data  = this_col->data();
-                    auto curr_col_data_rids = this_col->RIDs();
-                    this_rid = curr_col_data_rids->Get(i);
+                    //auto curr_col_data_rids = this_col->RIDs();
+                    auto curr_col_data_rids = skycol.cols_rids;
+                    //this_rid = curr_col_data_rids->Get(i);
+                    this_rid = curr_col_data_rids[i];
                     auto curr_col_data_type  = this_col->data_type();
                     auto curr_col_data_type_sky = FBU_TO_SDT.at(curr_col_data_type);
 
@@ -1504,9 +1530,14 @@ int processSkyFb_fbu_cols(
                             //case SDT_UINT16:
                             //    flexbldr->Add(row[col.idx].AsUInt16());
                             //    break;
-                            //case SDT_UINT32:
-                            //    flexbldr->Add(row[col.idx].AsUInt32());
-                            //    break;
+                            case SDT_UINT32: {
+                                auto column_of_data = 
+                                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
+                                auto data_at_row = column_of_data->data()->Get(i);
+                                //std::cout << std::to_string(data_at_row) << std::endl;
+                                flexbldr->Add(data_at_row);
+                                break;
+                            }
                             case SDT_UINT64: {
                                 auto column_of_data =
                                     static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
@@ -1616,6 +1647,13 @@ int processSkyFb_fbu_cols(
                         TypedPredicate<int64_t>* p = \
                                 dynamic_cast<TypedPredicate<int64_t>*>(pb);
                         int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        break;
+                    }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
                         break;
                     }
@@ -2436,6 +2474,12 @@ long long int printFlatbufFBURowAsCsv(
                 std::cout << int_col_data->data()->Get(0);
                 break;
               }
+              case SDT_UINT32 : {
+                auto int_col_data = 
+                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_rec_data->Get(j));
+                std::cout << int_col_data->data()->Get(0);
+                break;
+              }
               case SDT_FLOAT : {
                 auto float_col_data =
                     static_cast< const Tables::SDT_FLOAT_FBU* >(curr_rec_data->Get(j));
@@ -2535,6 +2579,13 @@ long long int printFlatbufFBUColAsCsv(
               case SDT_UINT64 : {
                   auto column_of_data = \
                       static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
+                  auto data_at_row = column_of_data->data()->Get(j);
+                  std::cout << std::to_string(data_at_row);
+                  break;
+              }
+              case SDT_UINT32 : {
+                  auto column_of_data = \
+                      static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
                   auto data_at_row = column_of_data->data()->Get(j);
                   std::cout << std::to_string(data_at_row);
                   break;
@@ -3159,6 +3210,7 @@ sky_col_fbu getSkyCol_fbu(sky_root root, int colid) {
         case SFT_FLATBUF_UNION_COL : {
           auto cols = static_cast< const Tables::Cols_FBU* >(root.data_vec);
           auto cols_data = cols->data();
+          auto cols_rids_fb = cols->RIDs();
           //std::cout << "cols_data->Length() = " << cols_data->Length() << std::endl;
           const Tables::Col_FBU* col_at_index;
           col_at_index = cols_data->Get(colid);
@@ -3168,9 +3220,13 @@ sky_col_fbu getSkyCol_fbu(sky_root root, int colid) {
           auto a = col_nullbits->begin();
           auto b = col_nullbits->end();
           auto null_vec = nullbits_vector(a, b);
+          auto a1 = cols_rids_fb->begin();
+          auto b1 = cols_rids_fb->end();
+          auto cols_rids = cols_rids_vector(a1, b1);
           return sky_col_fbu(
             colid,
             null_vec,
+            cols_rids,
             col_at_index
           );
           break;
@@ -4099,20 +4155,26 @@ bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec) {
                                       p->opType());
                 break;
             }
-            se SDT_UINT32: {
+not yet supported in fbu */
+
+            case SDT_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
-                uint32_t colval = row[p->colIdx()].AsUInt32();
+                uint32_t colval = 0;
+                if ((*it)->colIdx() == RID_COL_INDEX) // RID val not in the row
+                    colval = rec.RID;
+                else {
+                    auto col_data =
+                        static_cast< const Tables::SDT_UINT32_FBU* >(row->Get(p->colIdx()));
+                    colval = col_data->data()->Get(0);
+                }
                 uint32_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
                 else
-                    colpass = compare(colval,
-                                      static_cast<uint64_t>(predval),
-                                      p->opType());
+                    colpass = compare(static_cast<uint64_t>(colval),static_cast<uint64_t>(predval),p->opType());
                 break;
             }
-not yet supported in fbu */
 
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
@@ -5937,5 +5999,27 @@ int transform_arrow_to_fb(const char* data,
     }
     return 0;
 }
+
+/*
+ * Function: transform_fbxrows_to_fbucols
+ * @param[in] fb      : Flatbuffer to be converted
+ * @param[in] size    : Size of the flatbuffer
+ * @param[out] errmsg : errmsg buffer
+ * @param[out] buffer : arrow table
+ * Return Value: error code
+ */
+int transform_fbxrows_to_fbucols(const char* fb,
+                                 const size_t fb_size,
+                                 std::string& errmsg,
+                                 flatbuffers::FlatBufferBuilder& flatbldr) {
+    int errcode = 0;
+    sky_root root = getSkyRoot(fb, fb_size);
+    schema_vec sc = schemaFromString(root.data_schema);
+    delete_vector del_vec = root.delete_vec;
+    //uint32_t nrows = root.nrows;
+
+    return errcode;
+} // transform_fbxrows_to_fbucols
+
 
 } // end namespace Tables

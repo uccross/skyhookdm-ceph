@@ -217,6 +217,11 @@ long long int printFlatbufFBUAsCSV(
 
       for( unsigned int j = 0; j < curr_rec_data->Length(); j++ ) {
         switch( (unsigned)curr_rec_data_type->Get(j) ) {
+          case Tables::DataTypes_FBU_SDT_UINT32_FBU : {
+            auto int_col_data = static_cast< const Tables::SDT_UINT32_FBU* >( curr_rec_data->Get(j) ) ;
+            std::cout << int_col_data->data()->Get(0) ;
+            break ;
+          }
           case Tables::DataTypes_FBU_SDT_UINT64_FBU : {
             auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( curr_rec_data->Get(j) ) ;
             std::cout << int_col_data->data()->Get(0) ;
@@ -253,6 +258,7 @@ long long int printFlatbufFBUAsCSV(
 
     auto cols = static_cast< const Tables::Cols_FBU* >( data ) ;
     auto cols_data = cols->data() ;
+    auto cols_rids = cols->RIDs() ;
 
     // collect data for stdout printing
     std::vector< std::vector< std::string > > out_data ;
@@ -265,7 +271,8 @@ long long int printFlatbufFBUAsCSV(
     for( unsigned int i = 0; i < cols_data->Length(); i++ ) {
 
       auto col = static_cast< const Tables::Col_FBU* >( cols_data->Get(i) ) ;
-      auto col_rids      = col->RIDs() ;
+      //auto col_rids      = col->RIDs() ;
+      auto col_rids      = cols_rids ;
       auto col_data      = col->data() ;
       auto col_data_type = col->data_type() ;
 
@@ -276,6 +283,11 @@ long long int printFlatbufFBUAsCSV(
 
       for( unsigned int j = 0; j < nrows; j++ ) {
         switch( (unsigned)col_data_type ) {
+          case Tables::DataTypes_FBU_SDT_UINT32_FBU : {
+            auto int_col_data = static_cast< const Tables::SDT_UINT32_FBU* >( col_data ) ;
+            out_data[i].push_back( std::to_string( int_col_data->data()->Get(j) ) ) ;
+            break ;
+          }
           case Tables::DataTypes_FBU_SDT_UINT64_FBU : {
             auto int_col_data = static_cast< const Tables::SDT_UINT64_FBU* >( col_data ) ;
             out_data[i].push_back( std::to_string( int_col_data->data()->Get(j) ) ) ;

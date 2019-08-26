@@ -9,6 +9,7 @@ union Relation_FBU {
 }
 
 union DataTypes_FBU { 
+  SDT_UINT32_FBU,
   SDT_UINT64_FBU,
   SDT_FLOAT_FBU,
   SDT_STRING_FBU
@@ -40,17 +41,20 @@ table Record_FBU {
 }
 
 table Cols_FBU {
+  RIDs : [ uint64 ] ;
   data : [ Col_FBU ] ;
 }
 
 table Col_FBU {
-  RIDs      : [ uint64 ] ;
   nullbits  : [ uint64 ] ;    
   col_name  : string ;
   col_index : ubyte  ;
   data      : DataTypes_FBU ;
 }
 
+table SDT_UINT32_FBU {
+  data : [ uint32 ] ;
+}
 table SDT_UINT64_FBU {
   data : [ uint64 ] ;
 }
@@ -92,4 +96,3 @@ table ColString_FBU {
 }
 
 root_type Root_FBU ;
-
