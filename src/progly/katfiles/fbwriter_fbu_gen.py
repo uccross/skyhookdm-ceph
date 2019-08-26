@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import sys
 
@@ -154,16 +155,17 @@ def get_files( path, prefix ) :
   return files
 
 
-############
-#   MAIN   #
-############
-def main( orientation,
-          nrows,
-          arity,
-          testid,
-          prefix,
-          path,
-          cols_per_fb ) :
+##############
+#   DRIVER   #
+##############
+def driver( 
+  orientation,
+  nrows,
+  arity,
+  testid,
+  prefix,
+  path,
+  cols_per_fb ) :
 
   print "orientation = " + orientation
   print "nrows       = " + str( nrows )
@@ -176,6 +178,8 @@ def main( orientation,
   files = get_files( path, prefix )  
   #savedir = "/mnt/storage4/pdsw19/" + testid + "/"
   savedir = "."
+
+  print "savedir     = " + str( savedir )
 
   obj_counter = 0
   for f in files:
@@ -192,22 +196,129 @@ def main( orientation,
       break
     obj_counter += 1
 
+############
+#   MAIN   #
+############
+def main() :
+#  try :
+#    test = sys.argv[1]
+#  except IndexError as e :
+#    print str(e) + "\n   please supply test name e.g. python fbwriter_fbu_gen.py arity3-1mb-100objs"
+#    sys.exit(1) ;
 
-####################################
-#     MAIN THREAD OF EXECUTION     #
-####################################
-if __name__ == "__main__" :
-  
-  try :
-    test = sys.argv[1]
-  except IndexError as e :
-    print str(e) + "\n   please supply test name e.g. python fbwriter_fbu_gen.py arity3-1mb-100objs"
-    sys.exit(1) ;
 
+  job_args_list = [
+
+    # ------------------------------------------ #
+    # 100objs
+
+    # ROWS : arity3-1mb-100objs
+    ( "rows", 50000, 3, "fburows-arity3-1mb-100objs", \
+      "dataset_arity3_50000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 0 ),
+    # ROWS : arity3-10mb-100objs
+    ( "rows", 500000, 3, "fburows-arity3-10mb-100objs", \
+      "dataset_arity3_500000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 0 ),
+    # ROWS : arity3-100mb-100objs
+    ( "rows", 5000000, 3, "fburows-arity3-100mb-100objs", \
+      "dataset_arity3_5000000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 0 ),
+
+    # COLS 4 : arity3-1mb-100objs
+    ( "cols", 50000, 3, "fbucols4-arity3-1mb-100objs", 
+      "dataset_arity3_50000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 4 ),
+    # COLS 4 : arity3-10mb-100objs
+    ( "cols", 500000, 3, "fbucols4-arity3-10mb-100objs", 
+      "dataset_arity3_500000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 4 ),
+    # COLS 4 : arity3-100mb-100objs
+    ( "cols", 5000000, 3, "fbucols4-arity3-100mb-100objs", 
+      "dataset_arity3_5000000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 4 ),
+
+    # ROWS : arity100-1mb-100objs
+    ( "rows", 2500, 100, "fburows-arity100-1mb-100objs", 
+      "dataset_arity100_2500_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 0 ),
+    # ROWS : arity100-10mb-100objs
+    ( "rows", 25000, 100, "fburows-arity100-10mb-100objs", 
+      "dataset_arity100_25000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 0 ),
+    # ROWS : arity100-100mb-100objs
+    ( "rows", 250000, 100, "fburows-arity100-100mb-100objs", 
+      "dataset_arity100_250000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 0 ),
+
+    # COLS 100 : arity100-1mb-100objs
+    ( "cols", 2500, 100, "fbucols100-arity100-1mb-100objs", 
+      "dataset_arity100_2500_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 100 ),
+    # COLS 100 : arity100-10mb-100objs
+    ( "cols", 25000, 100, "fbucols100-arity100-10mb-100objs", 
+      "dataset_arity100_25000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 100 ),
+    # COLS 100 : arity100-100mb-100objs
+    ( "cols", 250000, 100, "fbucols100-arity100-100mb-100objs", 
+      "dataset_arity100_250000_rows-", "/mnt/storage1/pdsw19/raw_csv_100objs/", 100 ),
+
+    # ------------------------------------------ #
+    # 1000objs
+
+    # ROWS : arity3-1mb-1000objs
+    ( "rows", 50000, 3, "fburows-arity3-1mb-1000objs", \
+      "dataset_arity3_50000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 0 ),
+    # ROWS : arity3-10mb-1000objs
+    ( "rows", 500000, 3, "fburows-arity3-10mb-1000objs", \
+      "dataset_arity3_500000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 0 ),
+    # ROWS : arity3-100mb-1000objs
+    ( "rows", 5000000, 3, "fburows-arity3-100mb-1000objs", \
+      "dataset_arity3_5000000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 0 ),
+
+    # COLS 4 : arity3-1mb-1000objs
+    ( "cols", 50000, 3, "fbucols4-arity3-1mb-1000objs", 
+      "dataset_arity3_50000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 4 ),
+    # COLS 4 : arity3-10mb-1000objs
+    ( "cols", 500000, 3, "fbucols4-arity3-10mb-1000objs", 
+      "dataset_arity3_500000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 4 ),
+    # COLS 4 : arity3-100mb-1000objs
+    ( "cols", 5000000, 3, "fbucols4-arity3-100mb-1000objs", 
+      "dataset_arity3_5000000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 4 ),
+
+    # ROWS : arity100-1mb-1000objs
+    ( "rows", 2500, 100, "fburows-arity100-1mb-1000objs", 
+      "dataset_arity100_2500_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 0 ),
+    # ROWS : arity100-10mb-1000objs
+    ( "rows", 25000, 100, "fburows-arity100-10mb-1000objs", 
+      "dataset_arity100_25000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 0 ),
+    # ROWS : arity100-100mb-1000objs
+    ( "rows", 250000, 100, "fburows-arity100-100mb-1000objs", 
+      "dataset_arity100_250000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 0 ),
+
+    # COLS 100 : arity100-1mb-1000objs
+    ( "cols", 2500, 100, "fbucols100-arity100-1mb-1000objs", 
+      "dataset_arity100_2500_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 100 ),
+    # COLS 100 : arity100-10mb-1000objs
+    ( "cols", 25000, 100, "fbucols100-arity100-10mb-1000objs", 
+      "dataset_arity100_25000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 100 ),
+    # COLS 100 : arity100-100mb-1000objs
+    ( "cols", 250000, 100, "fbucols100-arity100-100mb-1000objs", 
+      "dataset_arity100_250000_rows-", "/mnt/storage1/pdsw19/raw_csv_1000objs/", 100 ),
+  ]
+
+  # printing main program process id
+  print("ID of main process: {}".format(os.getpid()))
+  jobs = []
+  for i in range( 0, len( job_args_list ) ) :
+    job_args = job_args_list[i]
+    job_name = job_args[3]
+    print job_name
+    j = multiprocessing.Process( target=driver, args=job_args )
+    jobs.append( j )
+    j.start()
+    print( "ID of process : {}".format( j.pid ) )
+
+  # wait until processes finish
+  for j in jobs :
+    j.join()
+
+  # all processes finished
+  print("all processes finished execution!")
+
+'''
 # ------------------------------------------ #
 # ARITY 3
 
-  # ROWS : arity3-1mb-100objs
   if test == "fburows-arity3-1mb-100objs" :
     main( "rows", 
           50000, 
@@ -422,5 +533,10 @@ if __name__ == "__main__" :
           "dataset_arity100_250000_rows-", 
           "/mnt/storage1/pdsw19/raw_csv_100objs/", 
           100 )
+'''
 
-#eof
+####################################
+#     MAIN THREAD OF EXECUTION     #
+####################################
+if __name__ == "__main__" :
+  main()
