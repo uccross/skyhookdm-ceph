@@ -1296,10 +1296,6 @@ int processSkyFb_fbu_cols(
 
             // get a skyhook col struct
             sky_col_fbu skycol = getSkyCol_fbu(root, j);
-            auto this_col       = skycol.data_fbu_col;
-            auto curr_col_data  = this_col->data();
-            auto curr_col_data_type  = this_col->data_type();
-            auto curr_col_data_type_sky = FBU_TO_SDT.at(curr_col_data_type);
             for (uint32_t i = 0; i < nrows; i++) {
                 // skip dead rows.
                 if (root.delete_vec[i] == 1) continue;
@@ -1310,118 +1306,17 @@ int processSkyFb_fbu_cols(
                              passed_row_idx_authority.end(),
                              i) != passed_row_idx_authority.end()) {
 
-                    // build one flexbuffer per datum per column
-                    flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
-                    flexbldr->Vector([&]() {
-                        switch(curr_col_data_type_sky) {
-                            //case SDT_INT8:
-                            //    flexbldr->Add(row[col.idx].AsInt8());
-                            //    break;
-                            //case SDT_INT16:
-                            //    flexbldr->Add(row[col.idx].AsInt16());
-                            //    break;
-                            //case SDT_INT32:
-                            //    flexbldr->Add(row[col.idx].AsInt32());
-                            //    break;
-                            //case SDT_INT64:
-                            //    flexbldr->Add(row[col.idx].AsInt64());
-                            //    break;
-                            //case SDT_UINT8:
-                            //    flexbldr->Add(row[col.idx].AsUInt8());
-                            //    break;
-                            //case SDT_UINT16:
-                            //    flexbldr->Add(row[col.idx].AsUInt16());
-                            //    break;
-                            case SDT_UINT32: {
-                                auto column_of_data = 
-                                    static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
-                                auto data_at_row = column_of_data->data()->Get(i);
-                                //std::cout << std::to_string(data_at_row) << std::endl;
-                                flexbldr->Add(data_at_row);
-                                break;
-                            }
-                            case SDT_UINT64: {
-                                auto column_of_data =
-                                    static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
-                                auto data_at_row = column_of_data->data()->Get(i);
-                                //std::cout << std::to_string(data_at_row) << std::endl;
-                                flexbldr->Add(data_at_row);
-                                break;
-                            }
-                            //case SDT_CHAR:
-                            //    flexbldr->Add(row[col.idx].AsInt8());
-                            //    break;
-                            //case SDT_UCHAR:
-                            //    flexbldr->Add(row[col.idx].AsUInt8());
-                            //    break;
-                            //case SDT_BOOL:
-                            //    flexbldr->Add(row[col.idx].AsBool());
-                            //    break;
-                            case SDT_FLOAT: {
-                                auto column_of_data =
-                                    static_cast< const Tables::SDT_FLOAT_FBU* >(curr_col_data);
-                                auto data_at_row = column_of_data->data()->Get(i);
-                                //std::cout << std::to_string(data_at_row) << std::endl;
-                                flexbldr->Add(data_at_row);
-                                break;
-                            }
-                            //case SDT_DOUBLE:
-                            //    flexbldr->Add(row[col.idx].AsDouble());
-                            //    break;
-                            //case SDT_DATE:
-                            //    flexbldr->Add(row[col.idx].AsString().str());
-                            //    break;
-                            case SDT_STRING: {
-                                auto column_of_data =
-                                    static_cast< const Tables::SDT_STRING_FBU* >(curr_col_data);
-                                auto data_at_row = column_of_data->data()->Get(i)->str();
-                                //std::cout << data_at_row << std::endl;
-                                flexbldr->Add(data_at_row);
-                                break;
-                            }
-                            default: {
-                                errcode = TablesErrCodes::UnsupportedSkyDataType;
-                                errmsg.append("ERROR processSkyFb(): table=" +
-                                        root.table_name + "; rid=" +
-                                        std::to_string(i) + " curr_col_data_type_sky=" +
-                                        std::to_string(curr_col_data_type_sky) +
-                                        " UnsupportedSkyDataType.");
-                            } //default
-                        } //switch
-                    }); //flex builder Vector
-
-                    // finalize the datum's projected data within our flexbuf
-                    flexbldr->Finish();
-
-                    // get the sky_rec version of the extracted row
-                    // TODO: there's gotta be a better way.
-                    flatbuffers::FlatBufferBuilder tmp_builder(1024);
-                    std::vector< uint64_t > nv (2, 0);
-                    auto nv_fb          = tmp_builder.CreateVector(nv);
-                    auto extracted_data = tmp_builder.CreateVector(flexbldr->GetBuffer());
-                    flatbuffers::Offset<Tables::Record> extracted_fb =
-                            Tables::CreateRecord(tmp_builder, i, nv_fb, extracted_data);
-                    std::vector< flatbuffers::Offset<Tables::Record> > rows;
-                    rows.push_back(extracted_fb);
-                    auto rows_fb = tmp_builder.CreateVector(rows);
-                    auto t = Tables::CreateTable(tmp_builder, 0, 0, 0, 0, 0, 0, 0, 0, rows_fb, 0);
-                    tmp_builder.Finish(t);
-                    auto buffptr = tmp_builder.GetBufferPointer();
-                    auto root = Tables::GetTable(buffptr);
-                    auto data_rec = root->rows()->Get(0); //there is only one
-                    sky_rec skyrec(i, nv, data_rec->data_flexbuffer_root());
-
                     // apply predicates to this record
                     // don't collect duplicates
                     if (!preds.empty()) {
-                        bool pass = applyPredicates_fbu_cols(preds, skyrec, col_counter);
+                        bool pass = applyPredicates_fbu_cols(preds, skycol, col_counter, i);
                         if (pass &&
                             std::find(passed_row_idx_curr_col.begin(),
                                        passed_row_idx_curr_col.end(),
                                        i) == passed_row_idx_curr_col.end())
                             passed_row_idx_curr_col.push_back(i);
                     }
-                    delete flexbldr;
+                    //delete flexbldr;
                 } // if process this column
             } // for i in nrows
             col_counter++;
@@ -3496,11 +3391,14 @@ bool applyPredicates(predicate_vec& pv, sky_rec& rec) {
     return rowpass;
 }
 
-bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_index) {
+bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t col_index, uint64_t rid) {
 
-    bool rowpass = false;
-    bool init_rowpass = false;
-    auto row = rec.data.AsVector();
+    bool rowpass        = false;
+    bool init_rowpass   = false;
+    auto this_col       = skycol.data_fbu_col;
+    auto curr_col_data  = this_col->data();
+    //auto curr_col_data_type  = this_col->data_type();
+    //auto curr_col_data_type_sky = FBU_TO_SDT.at(curr_col_data_type);
 
     for (auto it = pv.begin(); it != pv.end(); ++it) {
 
@@ -3520,7 +3418,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
 
         bool colpass = false;
         switch((*it)->colType()) {
-
+/*
             // NOTE: predicates have typed ints but our int comparison
             // functions are defined on 64bit ints.
             case SDT_BOOL: {
@@ -3627,12 +3525,15 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
                                       p->opType());
                 break;
             }
+*/
 
             case SDT_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
+                auto column_of_data = 
+                        static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
-                uint32_t colval = row[0].AsUInt32();
+                uint32_t colval = column_of_data->data()->Get(rid);
                 uint32_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
@@ -3646,12 +3547,14 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
                         dynamic_cast<TypedPredicate<uint64_t>*>(*it);
+                auto column_of_data = 
+                        static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
                 uint64_t colval = 0;
                 if ((*it)->colIdx() == RID_COL_INDEX) // RID val not in the row
-                    colval = rec.RID;
+                    colval = rid;
                 else
-                    colval = row[0].AsUInt64();
+                    colval = column_of_data->data()->Get(rid);
                 uint64_t predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
@@ -3663,8 +3566,10 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
             case SDT_FLOAT: {
                 TypedPredicate<float>* p = \
                         dynamic_cast<TypedPredicate<float>*>(*it);
+                auto column_of_data = 
+                        static_cast< const Tables::SDT_FLOAT_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
-                float colval = row[0].AsFloat();
+                float colval = column_of_data->data()->Get(rid);
                 float predval = p->Val();
                 if (p->isGlobalAgg())
                     p->updateAgg(computeAgg(colval,predval,p->opType()));
@@ -3675,6 +3580,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
                 break;
             }
 
+/*
             case SDT_DOUBLE: {
                 TypedPredicate<double>* p = \
                         dynamic_cast<TypedPredicate<double>*>(*it);
@@ -3735,13 +3641,15 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
                 }
                 break;
             }
-
+*/
             case SDT_STRING:
             case SDT_DATE: {
                 TypedPredicate<std::string>* p = \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
+                auto column_of_data = 
+                        static_cast< const Tables::SDT_STRING_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
-                string colval = row[0].AsString().str();
+                string colval = column_of_data->data()->Get(rid)->str();
                 colpass = compare(colval,p->Val(),p->opType(),p->colType());
                 break;
             }
@@ -3761,6 +3669,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_inde
                 rowpass &= colpass;
         }
     }
+
     return rowpass;
 }
 

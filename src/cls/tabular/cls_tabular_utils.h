@@ -946,7 +946,7 @@ inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
 
 inline
-bool applyPredicates_fbu_cols(predicate_vec& pv, sky_rec& rec, uint64_t col_index);
+bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t col_index, uint64_t rid);
 
 inline
 bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& table,
