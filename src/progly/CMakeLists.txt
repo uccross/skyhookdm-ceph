@@ -1,4 +1,16 @@
 # --------------------------------- #
+# driver for client-side fbu transformations
+# can delete later.
+add_executable(run-transforms run-transforms.cc 
+                              ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_transforms_utils.cc
+                              ${CMAKE_SOURCE_DIR}/src/cls/tabular/fbwriter_fbu_utils.cc
+                              ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc)
+target_link_libraries(run-transforms
+    librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2 arrow)
+install(TARGETS run-transforms DESTINATION bin)
+
+# --------------------------------- #
 # driver for fbu integration deving.
 # delete before pr.
 # can delete later.

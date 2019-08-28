@@ -275,14 +275,30 @@ target_link_libraries(cls_tabular re2 arrow parquet Boost::date_time)
 set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_tabular DESTINATION ${cls_dir})
 
+# skyhookdb cls_transforms
+set(cls_transforms_srcs
+    tabular/cls_transforms.cc
+    tabular/cls_transforms_utils.cc
+    tabular/cls_tabular_utils.cc)
+add_library(cls_transforms SHARED ${cls_transforms_srcs})
+set_target_properties(cls_transforms PROPERTIES 
+  VERSION "1.0.0" 
+  SOVERSION "1")
+install(TARGETS cls_transforms DESTINATION ${cls_dir})
+target_link_libraries(cls_transforms 
+  re2 
+  arrow 
+  parquet
+  Boost::date_time)
+
 # skyhook fbwriter
 add_executable(fbwriter tabular/fbwriter.cc  tabular/cls_tabular_utils.cc)
 target_link_libraries(fbwriter librados global re2 arrow parquet)
 install(TARGETS fbwriter DESTINATION bin)
 
 # skyhook fbwriter_fbu
-add_executable(fbwriter_fbu tabular/fbwriter_fbu.cc tabular/cls_tabular_utils.cc)
-target_link_libraries(fbwriter_fbu librados global re2 arrow parquet )
+add_executable(fbwriter_fbu tabular/fbwriter_fbu.cc tabular/fbwriter_fbu_utils.cc tabular/cls_tabular_utils.cc)
+target_link_libraries(fbwriter_fbu librados global re2 arrow parquet)
 install(TARGETS fbwriter_fbu DESTINATION bin)
 
 # skyhook fbreader_fbu2

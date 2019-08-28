@@ -5927,8 +5927,9 @@ int transform_fbxrows_to_fbucols(const char* fb,
     delete_vector del_vec = root.delete_vec;
     //uint32_t nrows = root.nrows;
 
+    std::cout << "blah" << std::endl ; 
+
     return errcode;
 } // transform_fbxrows_to_fbucols
-
 
 } // end namespace Tables
