@@ -13,6 +13,7 @@
 #define CLS_TABULAR_H
 
 #include "include/types.h"
+#include "include/rados/librados.hpp" // for librados
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
 
@@ -304,6 +305,53 @@ struct transform_op {
   }
 };
 WRITE_CLASS_ENCODER(transform_op)
+
+struct merge_args {
+
+  std::string pool;
+  int num_objs;
+  std::string obj_prefix;
+  //librados::IoCtx& src_ioctx;
+
+  //merge_args( librados::IoCtx& _src_ioctx ): src_ioctx(_src_ioctx) {}
+  merge_args() {}
+  merge_args(std::string _pool, 
+             int _num_objs, 
+             std::string _obj_prefix ) :
+             //librados::IoCtx& _src_ioctx ) :
+    pool(_pool), 
+    num_objs(_num_objs), 
+    obj_prefix(_obj_prefix) {}
+    //src_ioctx(_src_ioctx) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(pool, bl);
+    ::encode(num_objs, bl);
+    ::encode(obj_prefix, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(pool, bl);
+    ::decode(num_objs, bl);
+    ::decode(obj_prefix, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("merge_args:");
+    s.append(" .pool=" + pool);
+    s.append(" .num_objs=" + std::to_string(num_objs));
+    s.append(" .obj_prefix=" + obj_prefix);
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(merge_args)
 
 // holds an omap entry containing flatbuffer location
 // this entry type contains physical location info

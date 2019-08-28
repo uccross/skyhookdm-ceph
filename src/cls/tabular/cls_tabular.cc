@@ -29,6 +29,7 @@ cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_exec_build_sky_index_op;
 cls_method_handle_t h_transform_db_op;
+cls_method_handle_t h_merge_op;
 
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
@@ -2010,6 +2011,184 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+/*
+ * Function: merge_op
+ * Description: Method to convert database format.
+ * @param[in] hctx    : CLS method context
+ * @param[out] in     : input bufferlist
+ * @param[out] out    : output bufferlist
+ * Return Value: error code
+*/
+static
+int merge_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    //merge_args args;
+    //int offset = 0;
+
+    //std::string pool = "tpchdata" ;
+    //librados::Rados cluster;
+    //cluster.init(NULL);
+    //cluster.conf_read_file(NULL);
+    //int ret = cluster.connect();
+    //checkret(ret, 0);
+    // open pool
+    librados::IoCtx ioctx ;
+    //ret = cluster.ioctx_create(pool.c_str(), ioctx);
+    //checkret(ret, 0);
+
+    version_t uv = ioctx.get_last_version() ;
+    std::string oid = "obj.0" ;
+    bufferlist t ;
+    librados::ObjectWriteOperation op ;
+    //op.copy_from(oid, ioctx, uv);
+    op.copy_from(oid, ioctx, uv, 0ULL) ;
+
+//    // unpack the requested op from the inbl.
+//    try {
+//        bufferlist::iterator it = in->begin();
+//        ::decode(args, it);
+//    } catch (const buffer::error &err) {
+//        CLS_ERR("ERROR: cls_tabular:merge_op: decoding merge_args");
+//        return -EINVAL;
+//    }
+//
+//    CLS_LOG(20, "merge_args: pool       = %s", args.pool.c_str());
+//    CLS_LOG(20, "merge_args: num_objs   = %d", args.num_objs);
+//    CLS_LOG(20, "merge_args: obj_prefix = %s", args.obj_prefix.c_str());
+
+//    std::vector< std::string > obj_name_list ;
+//    for(unsigned int i = 0; i < num_objs; i++)
+//        obj_name_list.push_back(obj_prefix+std::to_string(i)) ;
+//    std::string a = "obj."+std::to_string(obj_name_list.size()-1)+"00000" ;
+//
+//    // do the merge
+//    bufferlist merged_bl ;
+//    for(unsigned int i=0; i<args.num_objs; i++) {
+//        std::string oid = obj_name_list[i];
+//
+//        // read an object bl by copy_from the context into an intermediate bl
+//        bufferlist obj_bl;
+//        copy_from(oid, hctx);
+//        //int num_bytes_read = ioctx.read(oid.c_str(), obj_bl, (size_t)0, (uint64_t)0);
+//        //std::cout << "num_bytes_read : " << num_bytes_read << std::endl;
+//
+//        // copy data from object bl into the merged bl
+//        //bufferlist::iterator obj_it(&obj_bl);    // you can also declare iterator at a pos:  i(&bl, 2);
+//        //obj_it.copy(num_bytes_read, merged_bl);  // copy all the bytes from the read bl into the merged bl
+//    }
+
+    // write the merged bl
+    //const char* merged_obj_name = a.c_str() ;
+    //bufferlist::iterator p = merged_bl.begin();
+    //size_t num_bytes_written = p.get_remaining() ;
+    //std::cout << "num bytes written : " << num_bytes_written << std::endl ;
+    //ret = ioctx.write( merged_obj_name, merged_bl, num_bytes_written, 0 ) ;
+    //checkret(ret,0);
+
+//    // Object is sequence of actual data along with encoded metadata
+//    bufferlist encoded_meta_bls;
+//
+//    // TODO: get individual off/len of fbmeta's inside obj and read one at a time.
+//    int ret = cls_cxx_read(hctx, 0, 0, &encoded_meta_bls);
+//    if (ret < 0) {
+//        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+//        return ret;
+//    }
+//
+//    using namespace Tables;
+//    ceph::bufferlist::iterator it = encoded_meta_bls.begin();
+//    while (it.get_remaining() > 0) {
+//        bufferlist bl;
+//        bufferlist transformed_encoded_meta_bl;
+//        try {
+//            ::decode(bl, it);  // unpack the next bl
+//        } catch (const buffer::error &err) {
+//            CLS_ERR("ERROR: decoding object format from BL");
+//            return -EINVAL;
+//        }
+//
+//        // default usage here assumes the fbmeta is already in the bl
+//        sky_meta meta = getSkyMeta(&bl);
+//        std::string errmsg;
+//
+//        // Check if transformation is required or not
+//        if (meta.blob_format == op.required_type) {
+//            // Source and destination object types are same, therefore no tranformation
+//            // is required.
+//            CLS_LOG(20, "No Transforming required");
+//            return 0;
+//        }
+//
+//        // CREATE An FB_META, start with an empty builder first
+//        flatbuffers::FlatBufferBuilder *meta_builder =                  \
+//            new flatbuffers::FlatBufferBuilder();
+//
+//        // According to the format type transform the object
+//        if (op.required_type == SFT_ARROW) {
+//            std::shared_ptr<arrow::Table> table;
+//            ret = transform_fb_to_arrow(meta.blob_data, meta.blob_size, errmsg, &table);
+//            if (ret != 0) {
+//                CLS_ERR("ERROR: transforming object from flatbuffer to arrow");
+//                return ret;
+//            }
+//
+//            // Convert arrow to a buffer
+//            std::shared_ptr<arrow::Buffer> buffer;
+//            convert_arrow_to_buffer(table, &buffer);
+//
+//            createFbMeta(meta_builder,
+//                         SFT_ARROW,
+//                         reinterpret_cast<unsigned char*>(buffer->mutable_data()),
+//                         buffer->size());
+//
+//        } else if (op.required_type == SFT_FLATBUF_FLEX_ROW) {
+//            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+//
+//            ret = transform_arrow_to_fb(meta.blob_data, meta.blob_size, errmsg, flatbldr);
+//            if (ret != 0) {
+//                CLS_ERR("ERROR: transforming object from arrow to flatbuffer");
+//                return ret;
+//            }
+//            createFbMeta(meta_builder,
+//                         SFT_FLATBUF_FLEX_ROW,
+//                         reinterpret_cast<unsigned char*>(
+//                                 flatbldr.GetBufferPointer()),
+//                         flatbldr.GetSize());
+//        } else if (op.required_type == SFT_FLATBUF_UNION_ROW) {
+//            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
+//
+//            ret = transform_fbxrows_to_fbucols(meta.blob_data, meta.blob_size, errmsg, flatbldr);
+//            if (ret != 0) {
+//                CLS_ERR("ERROR: transforming object from fbxrows to fbucols");
+//                return ret;
+//            }
+//            createFbMeta(meta_builder,
+//                         SFT_FLATBUF_UNION_COL,
+//                         reinterpret_cast<unsigned char*>(
+//                                 flatbldr.GetBufferPointer()),
+//                         flatbldr.GetSize());
+//        }
+//
+//        // Add meta_builder's data into a bufferlist as char*
+//        bufferlist meta_bl;
+//        meta_bl.append(reinterpret_cast<const char*>(                   \
+//                               meta_builder->GetBufferPointer()),
+//                       meta_builder->GetSize());
+//        ::encode(meta_bl, transformed_encoded_meta_bl);
+//        delete meta_builder;
+//
+//        // Write the object back to Ceph. cls_cxx_replace truncates the original
+//        // object and writes full object.
+//        ret = cls_cxx_replace(hctx, offset, transformed_encoded_meta_bl.length(),
+//                              &transformed_encoded_meta_bl);
+//        if (ret < 0) {
+//            CLS_ERR("ERROR: writing obj full %d", ret);
+//            return ret;
+//        }
+//        offset += transformed_encoded_meta_bl.length();
+//    }
+    return 0;
+}
 
 void __cls_init()
 {
@@ -2031,5 +2210,8 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "transform_db_op",
       CLS_METHOD_RD | CLS_METHOD_WR, transform_db_op, &h_transform_db_op);
+
+  cls_register_cxx_method(h_class, "merge_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, merge_op, &h_merge_op);
 }
 
