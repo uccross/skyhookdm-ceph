@@ -288,6 +288,12 @@ int writeToCeph( librados::bufferlist bl_seq,
                  std::string target_pool );
 
 void do_write( cmdline_inputs_t, uint64_t, uint64_t, bool, std::string ) ;
+void do_write2( cmdline_inputs_t inputs,
+               uint64_t rid_start_value,
+               uint64_t rid_end_value,
+               bool debug,
+               std::string SAVE_DIR,
+               std::vector<std::string> csv_strs ) ;
 
 std::vector< std::string > parse_csv_str( std::string instr, char delim ) ;
 

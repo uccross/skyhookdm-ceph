@@ -216,6 +216,12 @@ const std::map<int, int> FBU_TO_SDT = {
     { Tables::DataTypes_FBU_SDT_FLOAT_FBU, SDT_FLOAT },
     { Tables::DataTypes_FBU_SDT_STRING_FBU, SDT_STRING }
 };
+const std::map<int, std::string> SDT_TO_STR = {
+    {SDT_UINT32, "int"},
+    {SDT_UINT64, "uint64"},
+    {SDT_FLOAT, "float"},
+    {SDT_STRING, "string"}
+};
 
 const int offset_to_skyhook_version = 4;
 const int offset_to_schema_version = 6;
@@ -837,7 +843,8 @@ std::vector<std::string> printFlatbufFBURowAsCsv2(
         const size_t datasz,
         bool print_header,
         bool print_verbose,
-        long long int max_to_print);
+        long long int max_to_print,
+        std::vector<int> project_cols);
 
 long long int printFlatbufFBUColAsCsv(
         const char* dataptr,

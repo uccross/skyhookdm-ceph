@@ -28,7 +28,7 @@ cls_method_handle_t h_transform;
 
 /*
  * Function: transform
- * Description: Method to convert database format.
+ * Description: Apply a transformation on some physical design dimension on some subset of data.
  * @param[in] hctx    : CLS method context
  * @param[out] in     : input bufferlist
  * @param[out] out    : output bufferlist

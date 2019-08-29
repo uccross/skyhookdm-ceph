@@ -15,6 +15,7 @@
 
 namespace Tables {
 
+/*
 std::vector<std::string> printFlatbufFBURowAsCsv2(
         const char* dataptr,
         const size_t datasz,
@@ -112,76 +113,86 @@ std::vector<std::string> printFlatbufFBURowAsCsv2(
 //    } //for
     return csv_strs;
 }
+*/
 
-std::string get_schema_data_types_fbu(std::string data_schema) {
+std::string get_schema_data_types_fbu(std::string data_schema, std::vector<int> project_cols) {
     std::string result = "" ;
     std::vector<std::string> result_split_on_newlines;
     boost::split(result_split_on_newlines, data_schema, boost::is_any_of("\n"));
     bool first = true ;
     for(unsigned int i=0; i<result_split_on_newlines.size(); i++) {
-        if(result_split_on_newlines[i] == "") break;
-        std::vector<std::string> result_split_on_spaces;
-        boost::split(result_split_on_spaces,
-                     result_split_on_newlines[i],
-                     boost::is_any_of(" "));
-        auto curr_data_type = result_split_on_spaces[2]; //this index is FRAGILE!!!
-        if(!first) result += ",";
-        else first = false;
-        result += curr_data_type;
+        if(std::binary_search(project_cols.begin(), project_cols.end(), i)) {
+            if(result_split_on_newlines[i] == "") break;
+            std::vector<std::string> result_split_on_spaces;
+            boost::split(result_split_on_spaces,
+                         result_split_on_newlines[i],
+                         boost::is_any_of(" "));
+            auto curr_data_type = result_split_on_spaces[2]; //this index is FRAGILE!!!
+            if(!first) result += ",";
+            else first = false;
+            auto str_curr_data_type = SDT_TO_STR.at(std::stoi(curr_data_type));
+            result += str_curr_data_type;
+        }
     }
     return result ;
 }
-std::string get_schema_attnames_fbu(std::string data_schema) {
+std::string get_schema_attnames_fbu(std::string data_schema, std::vector<int> project_cols) {
     std::string result = "" ;
     std::vector<std::string> result_split_on_newlines;
     boost::split(result_split_on_newlines, data_schema, boost::is_any_of("\n"));
     bool first = true ;
     for(unsigned int i=0; i<result_split_on_newlines.size(); i++) {
-        if(result_split_on_newlines[i] == "") break;
-        std::vector<std::string> result_split_on_spaces;
-        boost::split(result_split_on_spaces,
-                     result_split_on_newlines[i],
-                     boost::is_any_of(" "));
-        auto curr_attname = result_split_on_spaces[5]; //this index is FRAGILE!!!
-        if(!first) result += ",";
-        else first = false;
-        result += curr_attname;
+        if(std::binary_search(project_cols.begin(), project_cols.end(), i)) {
+            if(result_split_on_newlines[i] == "") break;
+            std::vector<std::string> result_split_on_spaces;
+            boost::split(result_split_on_spaces,
+                         result_split_on_newlines[i],
+                         boost::is_any_of(" "));
+            auto curr_attname = result_split_on_spaces[5]; //this index is FRAGILE!!!
+            if(!first) result += ",";
+            else first = false;
+            result += curr_attname;
+        }
     }
     return result;
 }
-std::string get_schema_iskey_fbu(std::string data_schema) {
+std::string get_schema_iskey_fbu(std::string data_schema, std::vector<int> project_cols) {
     std::string result = "" ;
     std::vector<std::string> result_split_on_newlines;
     boost::split(result_split_on_newlines, data_schema, boost::is_any_of("\n"));
     bool first = true ;
     for(unsigned int i=0; i<result_split_on_newlines.size(); i++) {
-        if(result_split_on_newlines[i] == "") break;
-        std::vector<std::string> result_split_on_spaces;
-        boost::split(result_split_on_spaces,
-                     result_split_on_newlines[i],
-                     boost::is_any_of(" "));
-        auto curr_iskey = result_split_on_spaces[3]; //this index is FRAGILE!!!
-        if(!first) result += ",";
-        else first = false;
-        result += curr_iskey;
+        if(std::binary_search(project_cols.begin(), project_cols.end(), i)) {
+            if(result_split_on_newlines[i] == "") break;
+            std::vector<std::string> result_split_on_spaces;
+            boost::split(result_split_on_spaces,
+                         result_split_on_newlines[i],
+                         boost::is_any_of(" "));
+            auto curr_iskey = result_split_on_spaces[3]; //this index is FRAGILE!!!
+            if(!first) result += ",";
+            else first = false;
+            result += curr_iskey;
+        }
     }
     return result;
 }
-std::string get_schema_isnullable_fbu(std::string data_schema) {
+std::string get_schema_isnullable_fbu(std::string data_schema, std::vector<int> project_cols) {
     std::string result = "" ;
     std::vector<std::string> result_split_on_newlines;
     boost::split(result_split_on_newlines, data_schema, boost::is_any_of("\n"));
     bool first = true ;
     for(unsigned int i=0; i<result_split_on_newlines.size(); i++) {
-        if(result_split_on_newlines[i] == "") break;
-        std::vector<std::string> result_split_on_spaces;
-        boost::split(result_split_on_spaces,
-                     result_split_on_newlines[i],
-                     boost::is_any_of(" "));
-        auto curr_isnullable= result_split_on_spaces[4]; //this index is FRAGILE!!!
-        if(!first) result += ",";
-        else first = false;
-        result += curr_isnullable;
+        if(std::binary_search(project_cols.begin(), project_cols.end(), i)) {
+          if(result_split_on_newlines[i] == "") break;
+          std::vector<std::string> result_split_on_spaces;
+          boost::split(result_split_on_spaces,
+                       result_split_on_newlines[i],
+                       boost::is_any_of(" "));
+          auto curr_isnullable= result_split_on_spaces[4]; //this index is FRAGILE!!!
+          if(!first) result += ",";
+          else first = false;
+          result += curr_isnullable;
+        }
     }
     return result;
 }
@@ -189,7 +200,8 @@ std::string get_schema_isnullable_fbu(std::string data_schema) {
 int transform_fburows_to_fbucols(const char* fb,
                                  const size_t fb_size,
                                  std::string& errmsg,
-                                 flatbuffers::FlatBufferBuilder& flatbldr) {
+                                 flatbuffers::FlatBufferBuilder& flatbldr,
+                                 std::vector<int> project_cols) {
 
     int errcode = 0;
 
@@ -206,7 +218,8 @@ int transform_fburows_to_fbucols(const char* fb,
         fb_size,
         false,
         false,
-        10000000);
+        10000000,
+        project_cols );
 
     for(unsigned int i=0; i<csv_strs.size();i++)
         std::cout << csv_strs[i] << std::endl;
@@ -215,24 +228,30 @@ int transform_fburows_to_fbucols(const char* fb,
     // and write the result to ceph
     cmdline_inputs_t inputs;
     inputs.debug             = true;
-    inputs.write_type        = "ceph";
+    inputs.write_type        = "cols";
     inputs.filename          = "NONE";
-    inputs.schema_datatypes  = get_schema_data_types_fbu(data_schema);
-    inputs.schema_attnames   = get_schema_attnames_fbu(data_schema);
-    inputs.schema_iskey      = get_schema_iskey_fbu(data_schema);
-    inputs.schema_isnullable = get_schema_isnullable_fbu(data_schema);
+
+    inputs.schema_datatypes  = get_schema_data_types_fbu(data_schema, project_cols);
+    inputs.schema_attnames   = get_schema_attnames_fbu(data_schema, project_cols);
+    inputs.schema_iskey      = get_schema_iskey_fbu(data_schema, project_cols);
+    inputs.schema_isnullable = get_schema_isnullable_fbu(data_schema, project_cols);
+
+    if( project_cols.size() > 0 )
+        ncols = project_cols.size() ;
 
     inputs.table_name        = table_name->str();
     inputs.nrows             = nrows;
     inputs.ncols             = ncols;
-    inputs.writeto           = "ceph";
+    inputs.writeto           = "disk"; //"ceph";
     inputs.targetformat      = "SFT_FLATBUF_UNION_COL";
     inputs.targetoid         = "obj.11111111";
     inputs.targetpool        = "tpchdata";
     inputs.cols_per_fb       = ncols;
     inputs.obj_counter       = 11111111;
 
-    do_write(inputs, 1, nrows, inputs.debug, ".");
+    // writing transform results directly to ceph atm.
+    // TODO: build the results in a flatbuffer and return.
+    do_write2(inputs, 1, nrows, inputs.debug, ".", csv_strs);
 
     return errcode;
 } // transform_fburows_to_fbucols

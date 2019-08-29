@@ -41,46 +41,23 @@
 #include "fbu_generated.h"
 
 #include "fbwriter_fbu_utils.h"
+#include "cls_transforms.h"
 
 namespace Tables {
 
 // Transform functions
-//int transform_fb_to_arrow(
-//        const char* fb,
-//        const size_t fb_size,
-//        std::string& errmsg,
-//        std::shared_ptr<arrow::Table>* table);
-//
-//int transform_arrow_to_fb(
-//        const char* data,
-//        const size_t data_size,
-//        std::string& errmsg,
-//        flatbuffers::FlatBufferBuilder& flatbldr);
-//
-//int transform_fbxrows_to_fbucols(
-//        const char* data,
-//        const size_t data_size,
-//        std::string& errmsg,
-//        flatbuffers::FlatBufferBuilder& flatbldr);
-
-std::vector<std::string> printFlatbufFBURowAsCsv2(
-        const char* dataptr,
-        const size_t datasz,
-        bool print_header,
-        bool print_verbose,
-        long long int max_to_print);
-
 int transform_fburows_to_fbucols(
         const char* fb,
         const size_t fb_size,
         std::string& errmsg,
-        flatbuffers::FlatBufferBuilder& flatbldr);
+        flatbuffers::FlatBufferBuilder& flatbldr,
+        std::vector<int> project_cols);
 
 // tools for fburows to fbucols transforms
-std::string get_schema_data_types_fbu(std::string data_schema);
-std::string get_schema_attnames_fbu(std::string data_schema);
-std::string get_schema_iskey_fbu(std::string data_schema);
-std::string get_schema_isnullable_fbu(std::string data_schema);
+std::string get_schema_data_types_fbu(std::string data_schema, std::vector<int> project_cols);
+std::string get_schema_attnames_fbu(std::string data_schema, std::vector<int> project_cols);
+std::string get_schema_iskey_fbu(std::string data_schema, std::vector<int> project_cols);
+std::string get_schema_isnullable_fbu(std::string data_schema, std::vector<int> project_cols);
 
 } // end of namespace
 

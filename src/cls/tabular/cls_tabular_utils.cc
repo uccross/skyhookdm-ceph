@@ -2396,6 +2396,108 @@ long long int printFlatbufFBURowAsCsv(
     return counter;
 }
 
+std::vector<std::string> printFlatbufFBURowAsCsv2(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print,
+        std::vector<int> project_cols) {
+
+    std::vector<std::string> csv_strs;
+    sky_root skyroot = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
+    schema_vec sc    = schemaFromString(skyroot.data_schema);
+    assert(!sc.empty());
+
+    if (print_verbose)
+        printSkyRootHeader(skyroot);
+
+    // print header row showing schema
+    if (print_header) {
+        bool first = true;
+        for (schema_vec::iterator it = sc.begin(); it != sc.end(); ++it) {
+            if (!first) std::cout << CSV_DELIM;
+            first = false;
+            std::cout << it->name;
+            if (it->is_key) std::cout << "(key)";
+            if (!it->nullable) std::cout << "(NOT NULL)";
+        }
+        std::cout << std::endl; // newline to start first row.
+    }
+
+    // row printing counter, used with --limit flag
+    long long int counter = 0; //counts rows printed
+
+    for (uint32_t i = 0; i < skyroot.nrows; i++, counter++) {
+        if (counter >= max_to_print) break;
+        if (skyroot.delete_vec.at(i) == 1) continue;  // skip dead rows.
+
+        // get the record struct, then the row data
+        sky_rec_fbu skyrec = getSkyRec_fbu(skyroot, i);
+
+        if (print_verbose)
+            printSkyRecHeader_fbu(skyrec);
+
+        auto curr_rec_data = skyrec.data_fbu_rows;
+
+        // for each col in the row, print a NULL or the col's value/
+        std::string a_csv_str = "";
+        bool first = true;
+        for(unsigned int j = 0; j < sc.size(); j++) {
+            // only process cols in project_cols
+            if(std::binary_search(project_cols.begin(), project_cols.end(), j)) {
+                if (!first) a_csv_str += CSV_DELIM;
+                first = false;
+                col_info col = sc.at(j);
+
+                if (col.nullable) {  // check nullbit
+                    bool is_null = false;
+                    int pos = col.idx / (8*sizeof(skyrec.nullbits.at(0)));
+                    int col_bitmask = 1 << col.idx;
+                    if ((col_bitmask & skyrec.nullbits.at(pos)) != 0)  {
+                        is_null =true;
+                    }
+                    if (is_null) {
+                        std::cout << "NULL";
+                        continue;
+                    }
+                }
+                switch(col.type) {
+                  case SDT_UINT32 : {
+                    auto int_col_data =
+                        static_cast< const Tables::SDT_UINT32_FBU* >(curr_rec_data->Get(j));
+                    a_csv_str += std::to_string(int_col_data->data()->Get(0));
+                    break;
+                  }
+                  case SDT_UINT64 : {
+                    auto int_col_data =
+                        static_cast< const Tables::SDT_UINT64_FBU* >(curr_rec_data->Get(j));
+                    a_csv_str += std::to_string(int_col_data->data()->Get(0));
+                    break;
+                  }
+                  case SDT_FLOAT : {
+                    auto float_col_data =
+                        static_cast< const Tables::SDT_FLOAT_FBU* >(curr_rec_data->Get(j));
+                    a_csv_str += std::to_string(float_col_data->data()->Get(0));
+                    break;
+                  }
+                  case SDT_STRING : {
+                    auto string_col_data =
+                        static_cast< const Tables::SDT_STRING_FBU* >(curr_rec_data->Get(j));
+                    a_csv_str += string_col_data->data()->Get(0)->str();
+                    break;
+                  }
+                  default :
+                    assert (TablesErrCodes::UnknownSkyDataType==0);
+                } //switch
+            } //if col in project_cols
+        } //for loop
+        csv_strs.push_back(a_csv_str);
+        a_csv_str = "";
+    } //for
+    return csv_strs;
+}
+
 long long int printFlatbufFBUColAsCsv(
         const char* dataptr,
         const size_t datasz,

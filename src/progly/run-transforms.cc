@@ -11,13 +11,40 @@
 
 #include "include/rados/librados.hpp" // for librados
 #include <boost/algorithm/string.hpp> // for boost::trim
+#include <boost/algorithm/string/join.hpp>
 #include "cls/tabular/cls_transforms_utils.h"
 
+#include <boost/program_options.hpp>
+
+namespace po = boost::program_options;
 
 int main(int argc, char **argv) {
 
-  std::string pool = "tpchflatbuf" ;
-  std::string oid  = "obj.0" ;
+  std::string pool ;
+  std::string src_oid ;
+  bool use_cls ;
+
+  po::options_description gen_opts("General options");
+  gen_opts.add_options()
+    ("help,h", "show help message")
+    ("pool", po::value<std::string>(&pool)->required(), "pool")
+    ("src-oid", po::value<std::string>(&src_oid)->required(), "name of source object to transform")
+    ("use-cls", po::value<bool>(&use_cls)->required(), "use cls?")
+  ;
+
+  po::options_description all_opts( "Allowed options" ) ;
+  all_opts.add( gen_opts ) ;
+  po::variables_map vm ;
+  po::store( po::parse_command_line( argc, argv, all_opts ), vm ) ;
+  if( vm.count( "help" ) ) {
+    std::cout << all_opts << std::endl ;
+    return 1;
+  }
+  po::notify( vm ) ;
+
+  std::cout << "pool    = " << pool << std::endl ;
+  std::cout << "src-oid = " << src_oid << std::endl ;
+  std::cout << "use-cls = " << use_cls << std::endl ;
 
   // --------------------------------- //
   // connect to rados
@@ -32,7 +59,7 @@ int main(int argc, char **argv) {
   checkret( ret, 0 ) ;
   // read bl_seq
   librados::bufferlist wrapped_bl_seq ;
-  int num_bytes_read = ioctx.read( oid.c_str(), wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
+  int num_bytes_read = ioctx.read( src_oid.c_str(), wrapped_bl_seq, (size_t)0, (uint64_t)0 ) ;
   std::cout << "num_bytes_read : " << num_bytes_read << std::endl ;
   // --------------------------------- //
 
@@ -92,16 +119,29 @@ int main(int argc, char **argv) {
 
     std::string errmsg = "" ;
     flatbuffers::FlatBufferBuilder transform_builder(1024);
-    auto ret = Tables::transform_fburows_to_fbucols(
-                         dataptr,
-                         datasz,
-                         errmsg,
-                         transform_builder);
-    std::cout << ret << std::endl ;
+    std::vector<int> project_cols{2} ;
+    std::vector<std::string> project_cols_str{"2"} ;
+
+    transform_args targs ;
+    targs.project_cols = boost::algorithm::join(project_cols_str, ",");
+
+    if(!use_cls) {
+      auto ret = Tables::transform_fburows_to_fbucols(
+                           dataptr,
+                           datasz,
+                           errmsg,
+                           transform_builder,
+                           project_cols);
+      std::cout << ret << std::endl ;
+    }
+    else {
+        //int ret = ioctx.aio_exec(oid, s->c,
+        //    "tabular", "exec_query_op", inbl, &s->bl);
+        //checkret(ret, 0);
+    }
 
     std::cout << "loop while" << std::endl ;
   } // while
 
   return 0 ;
 }
-
