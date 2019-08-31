@@ -5617,6 +5617,7 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
  */
 int transform_fb_to_arrow(const char* fb,
                           const size_t fb_size,
+                          schema_vec& query_schema,
                           std::string& errmsg,
                           std::shared_ptr<arrow::Table>* table)
 {
@@ -5634,6 +5635,8 @@ int transform_fb_to_arrow(const char* fb,
     std::shared_ptr<arrow::KeyValueMetadata> metadata (new arrow::KeyValueMetadata);
 
     // Add skyhook metadata to arrow metadata.
+    // NOTE: Preserve the order of appending, as later they will be referenced using
+    // enums.
     metadata->Append(ToString(METADATA_SKYHOOK_VERSION),
                      std::to_string(root.skyhook_version));
     metadata->Append(ToString(METADATA_DATA_SCHEMA_VERSION),
@@ -5642,13 +5645,31 @@ int transform_fb_to_arrow(const char* fb,
                      std::to_string(root.data_structure_version));
     metadata->Append(ToString(METADATA_DATA_FORMAT_TYPE),
                      std::to_string(SFT_ARROW));
-    metadata->Append(ToString(METADATA_DATA_SCHEMA), root.data_schema);
+
+    // If query_schema is actaully different than data_schema, then we need to
+    // change the idx inside the new_data_schema.
+    if (!std::equal(sc.begin(), sc.end(), query_schema.begin(), compareColInfo)) {
+        schema_vec new_data_schema;
+        for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
+            col_info col = *it;
+            new_data_schema.push_back(col_info(std::distance(query_schema.begin(), it),
+                                            col.type, col.is_key, col.nullable,
+                                            col.name));
+        }
+        metadata->Append(ToString(METADATA_DATA_SCHEMA),
+                         schemaToString(new_data_schema));
+    }
+    else {
+        metadata->Append(ToString(METADATA_DATA_SCHEMA),
+                         schemaToString(query_schema));
+    }
+
     metadata->Append(ToString(METADATA_DB_SCHEMA), root.db_schema_name);
     metadata->Append(ToString(METADATA_TABLE_NAME), root.table_name);
     metadata->Append(ToString(METADATA_NUM_ROWS), std::to_string(root.nrows));
 
     // Iterate through schema vector to get the details of columns i.e name and type.
-    for (auto it = sc.begin(); it != sc.end() && !errcode; ++it) {
+    for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
         col_info col = *it;
 
         // Create the array builders for respective datatypes. Use these array
@@ -5790,8 +5811,8 @@ int transform_fb_to_arrow(const char* fb,
 
         // For the current row, go from 0 to num_cols and append the data into array
         // builders.
-        for (auto it = sc.begin(); it != sc.end() && !errcode; ++it) {
-            auto builder = builder_list[std::distance(sc.begin(), it)];
+        for (auto it = query_schema.begin(); it != query_schema.end() && !errcode; ++it) {
+            auto builder = builder_list[std::distance(query_schema.begin(), it)];
             col_info col = *it;
 
             if (col.nullable) {  // check nullbit
@@ -5864,7 +5885,7 @@ int transform_fb_to_arrow(const char* fb,
         }
 
         // Add entries for RID and Deleted vector
-        int num_cols = std::distance(sc.begin(), sc.end());
+        int num_cols = std::distance(query_schema.begin(), query_schema.end());
         static_cast<arrow::Int64Builder *>(builder_list[ARROW_RID_INDEX(num_cols)])->Append(rec.RID);
         static_cast<arrow::BooleanBuilder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(del_vec[i]);
 

@@ -418,7 +418,7 @@ void worker()
     uint64_t nrows_server_processed = 0;
     uint64_t eval2_start = getns();
 
-    if (query == "flatbuf") {
+    if (query == "flatbuf" || query == "arrow") {
 
         using namespace Tables;
 

@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+if [ -z "$SKYHOOKBUILD" ];
+then
+    echo "error: Need to set environment variable SKYHOOKBUILD pointing to abosolute path of skyhook build dir"
+    exit 1
+fi
+
 usage() { echo "Usage: $0 [-n <num_objs>] [-p <pool>] [-r <runs>] [-o <osds>]" 1>&2; exit 1; }
 
 nosds=1
@@ -35,7 +41,7 @@ fi
 
 function run_query() {
     local cmdbase=$@
-    cmd="${cmdbase} --query flatbuf --table-name lineitem"
+    cmd="${cmdbase} --conf ${SKYHOOKBUILD}/ceph.conf --query flatbuf --table-name lineitem --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
     echo "Command ran: ${cmd}"
     total_dur=0
     for ((i=0; i<${runs}; i++)); do
@@ -46,9 +52,9 @@ function run_query() {
             ssh osd${j} sync
         done
         start=$(date --utc "+%s.%N")
-        $cmd
+        eval "$cmd"
         end=$(date --utc "+%s.%N")
-        dur=0$(echo "$end - $start" | bc)      
+        dur=0$(echo "$end - $start" | bc)
         echo "run=$i start=$start end=$end duration=$dur"
         total_dur=$(echo "$total_dur + $dur" | bc)
     done
@@ -58,5 +64,38 @@ function run_query() {
 }
 
 
-cmdbase="bin/run-query --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
+cmdbase="${SKYHOOKBUILD}/bin/run-query"
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --use-cls"
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\""
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --use-cls"
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0, att1\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\""
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att1, att1\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --use-cls"
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,10\""
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,10\" --use-cls"
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,99\""
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,99\" --use-cls"
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,999\""
+run_query ${cmdbase}
+
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,999\" --use-cls"
 run_query ${cmdbase}
