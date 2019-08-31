@@ -3,7 +3,7 @@ set -e
 
 if [ -z "$SKYHOOKBUILD" ];
 then
-    echo "error: Need to set environment variable SKYHOOKBUILD pointing to abosolute path of skyhook build dir"
+    echo "error: Need to set environment variable SKYHOOKBUILD pointing to the absolute path of the skyhook build dir"
     exit 1
 fi
 
@@ -41,7 +41,7 @@ fi
 
 function run_query() {
     local cmdbase=$@
-    cmd="${cmdbase} --conf ${SKYHOOKBUILD}/ceph.conf --query flatbuf --table-name lineitem --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
+    cmd="${cmdbase} --conf ${SKYHOOKBUILD}/ceph.conf --table-name lineitem --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
     echo "Command ran: ${cmd}"
     total_dur=0
     for ((i=0; i<${runs}; i++)); do
@@ -59,43 +59,50 @@ function run_query() {
         total_dur=$(echo "$total_dur + $dur" | bc)
     done
     avg_dur=$(echo "scale=9;$total_dur / $runs" | bc)
-    echo "Total dur: ${total_dur}"
+    echo "Total Duration: ${total_dur}"
     echo "Average Runtime: ${avg_dur}"
 }
 
+DATA_SCHEMA="\"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\""
 
+# SELECT * FROM lineitem
 cmdbase="${SKYHOOKBUILD}/bin/run-query"
 run_query ${cmdbase}
 
 cmdbase="${SKYHOOKBUILD}/bin/run-query --use-cls"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\""
+# SELECT att0 FROM lineitem
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0\" --data-schema ${DATA_SCHEMA}"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --use-cls"
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0\" --data-schema ${DATA_SCHEMA} --use-cls"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0, att1\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\""
+# SELECT att0,att1 FROM lineitem
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0, att1\" --data-schema ${DATA_SCHEMA}"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att1, att1\" --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --use-cls"
+cmdbase="${SKYHOOKBUILD}/bin/run-query --project-cols \"att0, att1\" --data-schema ${DATA_SCHEMA} --use-cls"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,10\""
+# SELECT * FROM lineitem WHERE att0 < 10 (1% Selectivity)
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema ${DATA_SCHEMA} --select-preds \"att0,lt,10\""
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,10\" --use-cls"
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema ${DATA_SCHEMA} --select-preds \"att0,lt,10\" --use-cls"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,99\""
+# SELECT * FROM lineitem WHERE att0 < 99 (10% Selectivity)
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema ${DATA_SCHEMA} --select-preds \"att0,lt,99\""
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,99\" --use-cls"
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema ${DATA_SCHEMA} --select-preds \"att0,lt,99\" --use-cls"
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,999\""
+# SELECT * FROM lineitem WHERE att0 < 999 (100% Selectivity)
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema ${DATA_SCHEMA} --select-preds \"att0,lt,999\""
 run_query ${cmdbase}
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\" --select-preds \"att0,lt,999\" --use-cls"
+cmdbase="${SKYHOOKBUILD}/bin/run-query --data-schema ${DATA_SCHEMA} --select-preds \"att0,lt,999\" --use-cls"
 run_query ${cmdbase}

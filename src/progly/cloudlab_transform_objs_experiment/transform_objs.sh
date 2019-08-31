@@ -47,9 +47,9 @@ function transform_objs() {
         ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
         ssh osd${j} sync
     done
-    cmd="${cmdbase} --query arrow --transform-db --transform-format-type ${format}"
+    cmd="${cmdbase} --transform-db --transform-format-type ${format} --data-schema \"0 8 0 0 ATT0 ; 1 12 0 0 ATT1 ; 2 15 0 0 ATT2 ;\""
     start=$(date --utc "+%s.%N")
-    $cmd
+    eval "$cmd"
     end=$(date --utc "+%s.%N")
     dur=0$(echo "$end - $start" | bc)
     echo "Command ran: ${cmd}"

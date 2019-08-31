@@ -5885,7 +5885,7 @@ int transform_fb_to_arrow(const char* fb,
         }
 
         // Add entries for RID and Deleted vector
-        int num_cols = std::distance(query_schema.begin(), query_schema.end());
+        int num_cols = query_schema.size();
         static_cast<arrow::Int64Builder *>(builder_list[ARROW_RID_INDEX(num_cols)])->Append(rec.RID);
         static_cast<arrow::BooleanBuilder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(del_vec[i]);
 
