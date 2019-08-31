@@ -869,6 +869,7 @@ int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);
 int transform_fb_to_arrow(
         const char* fb,
         const size_t fb_size,
+        schema_vec& query_schema,
         std::string& errmsg,
         std::shared_ptr<arrow::Table>* table);
 

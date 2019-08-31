@@ -1905,6 +1905,10 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "transform_db_op: table_name=%s", op.table_name.c_str());
     CLS_LOG(20, "transform_db_op: transform_format_type=%d", op.required_type);
 
+    // Columns specified in the query schmea will transformed and not the whole
+    // object.
+    Tables::schema_vec query_schema = Tables::schemaFromString(op.query_schema);
+
     // Object is sequence of actual data along with encoded metadata
     bufferlist encoded_meta_bls;
 
@@ -1946,7 +1950,8 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // According to the format type transform the object
         if (op.required_type == SFT_ARROW) {
             std::shared_ptr<arrow::Table> table;
-            ret = transform_fb_to_arrow(meta.blob_data, meta.blob_size, errmsg, &table);
+            ret = transform_fb_to_arrow(meta.blob_data, meta.blob_size,
+                                        query_schema, errmsg, &table);
             if (ret != 0) {
                 CLS_ERR("ERROR: transforming object from flatbuffer to arrow");
                 return ret;

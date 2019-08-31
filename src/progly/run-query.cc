@@ -25,6 +25,7 @@ int main(int argc, char **argv)
   std::string logfile;
   int qdepth;
   std::string dir;
+  std::string conf;
 
   // user/client input, trimmed and encoded to skyhook structs for query_op
   // defaults set below via boost::program_options
@@ -111,6 +112,7 @@ int main(int argc, char **argv)
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
     ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
+    ("conf", po::value<std::string>(&conf)->default_value(""), "path to ceph.conf")
     ("transform-db", po::bool_switch(&transform_db)->default_value(false), "transform DB")
     // query parameters (old)
     ("extended-price", po::value<double>(&extended_price)->default_value(0.0), "extended price")
@@ -167,7 +169,12 @@ int main(int argc, char **argv)
   // connect to rados
   librados::Rados cluster;
   cluster.init(NULL);
-  cluster.conf_read_file(NULL);
+  if (conf.empty()) {
+      cluster.conf_read_file(NULL);
+  }
+  else {
+      cluster.conf_read_file(conf.c_str());
+  }
   int ret = cluster.connect();
   checkret(ret, 0);
 
@@ -633,7 +640,7 @@ int main(int argc, char **argv)
   if (transform_db) {
 
     // create idx_op for workers
-    transform_op op(qop_table_name, qop_data_schema, trans_op_format_type);
+    transform_op op(qop_table_name, qop_query_schema, trans_op_format_type);
 
     // kick off the workers
     std::vector<std::thread> threads;
