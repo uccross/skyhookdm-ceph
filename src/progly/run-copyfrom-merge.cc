@@ -19,17 +19,13 @@ namespace po = boost::program_options;
 int main(int argc, char **argv)
 {
   std::string pool;
-  unsigned num_objs;
-  int wthreads;
-  int qdepth;
+  std::string obj_prefix;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
     ("pool", po::value<std::string>(&pool)->required(), "pool")
-    ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
-    ("wthreads", po::value<int>(&wthreads)->default_value(1), "num threads")
-    ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
+    ("obj-prefix", po::value<std::string>(&obj_prefix)->required(), "object prefix")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -44,10 +40,6 @@ int main(int argc, char **argv)
   }
 
   po::notify(vm);
-
-  assert(num_objs > 0);
-  assert(wthreads > 0);
-  assert(qdepth > 0);
 
   // connect to rados
   librados::Rados cluster;

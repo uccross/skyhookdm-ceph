@@ -7858,6 +7858,8 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     (osd->store->has_builtin_csum() && g_conf->osd_skip_data_digest) ||
     g_conf->osd_distrust_data_digest;
 
+  dout(20) << "kat1: blah" << dendl;
+
   try {
     ::decode(cursor, bp);
     ::decode(out_max, bp);
@@ -7866,6 +7868,7 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     result = -EINVAL;
     return result;
   }
+  dout(20) << "kat1: blah1" << dendl;
 
   const MOSDOp *op = reinterpret_cast<const MOSDOp*>(ctx->op->get_req());
   uint64_t features = op->get_features();
@@ -7903,6 +7906,8 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
   reply_obj.truncate_seq = oi.truncate_seq;
   reply_obj.truncate_size = oi.truncate_size;
 
+  dout(20) << "kat1: blah2" << dendl;
+
   // attrs
   map<string,bufferlist>& out_attrs = reply_obj.attrs;
   if (!cursor.attr_complete) {
@@ -7920,6 +7925,7 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
   }
 
   int64_t left = out_max - osd_op.outdata.length();
+  dout(20) << "kat: left = " << left << dendl;
 
   // data
   bufferlist& bl = reply_obj.data;
