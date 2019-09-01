@@ -1,4 +1,12 @@
 # --------------------------------- #
+# driver for merging objects.
+# can delete after integration into run-query.
+add_executable(run-merge run-merge.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc )
+target_link_libraries(run-merge librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2 arrow)
+install(TARGETS run-merge DESTINATION bin)
+
+# --------------------------------- #
 # driver for fbu integration deving.
 # delete before pr.
 # can delete later.
