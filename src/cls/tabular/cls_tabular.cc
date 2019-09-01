@@ -29,6 +29,7 @@ cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_exec_build_sky_index_op;
 cls_method_handle_t h_transform_db_op;
+cls_method_handle_t h_stub_op;
 
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
@@ -2010,6 +2011,55 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+/*
+ * Function: stub_op
+ * Description: Method to convert database format.
+ * @param[in] hctx    : CLS method context
+ * @param[out] in     : input bufferlist
+ * @param[out] out    : output bufferlist
+ * Return Value: error code
+*/
+static
+int stub_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    kat_op op_in;
+    kat_op op_out;
+    int ret;
+
+    // unpack the requested op from the inbl.
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op_in, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:stub_op: decoding kat_op");
+        return -EINVAL;
+    }
+
+    CLS_LOG(20, "kat_op: input_int=%i", op_in.input_int);
+
+    bufferlist this_obj_bl;
+    ret = cls_cxx_read(hctx, 0, 0, &this_obj_bl);
+    if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+        return ret;
+    }
+
+    // overwrite the object bl contents
+    this_obj_bl.append("123");
+    // populate the output bl
+    //op_out.input_int = op_in.input_int+222;
+    //op_out.input_int = this_obj_bl.length();
+    //::encode(op_out, *out);
+
+    ret = cls_cxx_replace(hctx, 0, this_obj_bl.length(),
+                          &this_obj_bl);
+    if (ret < 0) {
+        CLS_ERR("ERROR: transform_db_op: reading obj. %d", ret);
+        return ret;
+    }
+
+    return 0;
+}
 
 void __cls_init()
 {
@@ -2031,5 +2081,8 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "transform_db_op",
       CLS_METHOD_RD | CLS_METHOD_WR, transform_db_op, &h_transform_db_op);
+
+  cls_register_cxx_method(h_class, "stub_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, stub_op, &h_stub_op);
 }
 
