@@ -33,8 +33,23 @@ def dsgen( obj_id, \
   print "start_row = " + str( start_row )
   print "end_row   = " + str( end_row )
 
+  # arity1 (int) ----------------------------- #
+  if arity == 1 :
+    print "writing " + str( numrows ) + " ints to file '" + outfile_n + "'"
+    counter = 0
+    for i in range( start_row, end_row+1 ) :
+      random.seed( counter+0 )
+      anint   = np.uint32( random.randint( 1000, 9999 ) )
+
+      arow = str( anint )
+
+      counter += 1
+      outfile.write( arow + "\n" )
+      if( counter % 1000 == 0 ) :
+        print outfile_name + " : writing row #" + str( counter )
+
   # arity3 (int,float,str) ----------------------------- #
-  if arity == 3 :
+  elif arity == 3 :
     print "writing " + str( numrows ) + " ints to file '" + outfile_n + "'"
     counter = 0
     for i in range( start_row, end_row+1 ) :

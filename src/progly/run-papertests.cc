@@ -9,8 +9,10 @@
 */
 
 /*
-bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/katfiles/dataset_case1_1mb.txt /home/minion/res_test.txt paper_exps 0 test0 sum
-bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/katfiles/dataset_newline_1mb.txt /home/minion/res_test.txt paper_exps 1 test1 randomsearch
+time bin/run-papertests /home/minion/res_test.txt paper_exps 0 concat-data sum ;
+time bin/run-papertests /home/minion/res_test.txt paper_exps 0 concat-data randomsearch ;
+time bin/run-papertests /home/minion/res_test.txt paper_exps 1 separate-data sum ;
+time bin/run-papertests /home/minion/res_test.txt paper_exps 1 separate-data randomsearch ;
 */
 
 #include <iostream>
@@ -33,9 +35,7 @@ bin/run-papertests /home/minion/projects/skyhookdb-ceph/src/progly/katfiles/data
 
 namespace po = boost::program_options ;
 
-void raw_whole_write( std::string, std::string, std::string, bool ) ;
-void raw_iter_write( std::string, std::string, std::string, bool ) ;
-std::string read_obj( std::string, std::string, int, bool ) ;
+std::string read_obj( std::string pool, std::string, std::string, int, bool ) ;
 
 int main( int argc, char **argv ) {
   std::cout << "in run-papertests..." << std::endl ;
@@ -49,17 +49,12 @@ int main( int argc, char **argv ) {
   strftime( buffer, sizeof( buffer ),"%Y%m%d_%H%M%S", timeinfo ) ;
   std::string str( buffer ) ;
 
-  //std::string res_filename = "results_" + str + ".txt" ;
-  //std::string PATH     = "/home/minion/projects/skyhookdb-ceph/src/progly/paper0/" ;
-  //std::string RES_PATH = "/home/minion/projects/skyhookdb-ceph/src/progly/paper0/" + res_filename ;
-
-  std::string DATA_PATH    = argv[1] ;
-  std::string RES_PATH     = argv[2] ;
-  std::string poolname     = argv[3] ;
-  int write_type           = std::atoi( argv[4] ) ;
-  std::string oidname      = argv[5] ;
-  std::string optype       = argv[6] ;
-  bool debug               = true ;
+  std::string RES_PATH = argv[1] ;
+  std::string poolname = argv[2] ;
+  int write_type       = std::atoi( argv[3] ) ;
+  std::string oidname  = argv[4] ;
+  std::string optype   = argv[5] ;
+  bool debug           = true ;
 
   std::ofstream res_file ;
   res_file.open( RES_PATH, std::ios::out | std::ios::app ) ;
@@ -67,103 +62,27 @@ int main( int argc, char **argv ) {
   if( debug ) {
     std::cout << "================================" << std::endl ;
     std::cout << "running with params:" << std::endl ;
-    std::cout << "DATA_PATH    = " << DATA_PATH << std::endl ;
     std::cout << "RES_PATH     = " << RES_PATH << std::endl ;
     std::cout << "poolname     = " << poolname << std::endl ;
     std::cout << "write_type   = " << write_type << std::endl ;
     std::cout << "oidname      = " << oidname << std::endl ;
+    std::cout << "optype       = " << optype << std::endl ;
     std::cout << "timestamp    = " << str << std::endl ;
     std::cout << "--->exp : " << oidname << std::endl ;
   }
 
-  if( write_type == 0 ) {
-    raw_whole_write( oidname, DATA_PATH, poolname, debug ) ;
-  }
-  else if( write_type == 1 ) {
-    raw_iter_write( oidname, DATA_PATH, poolname, debug ) ;
-  }
-  else {
-    std::cout << "unrecognized write_type '" << std::to_string( write_type ) << "'" << std::endl ;
-  }
-  std::string res = read_obj( oidname, optype, write_type, debug ) ;
+  std::string res = read_obj( poolname, oidname, optype, write_type, debug ) ;
   res_file << res << "\n" ;
   res_file.close() ;
 
   return 0 ;
 }
 
-void raw_whole_write( std::string oid, std::string filename, std::string poolname, bool debug ) {
-
-  std::ifstream infile ;
-  infile.open( filename ) ;
-
-  std::string line ;
-  librados::bufferlist bl ;
-  while( std::getline( infile, line ) ) {
-    ::encode( line, bl ) ;
-  }
-
-  // save to ceph object
-  // connect to rados
-  librados::Rados cluster;
-  cluster.init(NULL);
-  cluster.conf_read_file(NULL);
-  int ret = cluster.connect();
-
-  // open pool
-  librados::IoCtx ioctx ;
-  ret = cluster.ioctx_create( poolname.c_str(), ioctx ) ;
-
-  // write bl_seq to ceph object
-  const char *obj_name = oid.c_str() ;
-  bufferlist::iterator p = bl.begin();
-  size_t num_bytes_written = p.get_remaining() ;
-  if( debug )
-    std::cout << "num_bytes_written : " << num_bytes_written << std::endl ;
-  ret = ioctx.write( obj_name, bl, num_bytes_written, 0 ) ;
-
-  ioctx.close() ;
-}
-
-void raw_iter_write( std::string oid, std::string filename, std::string poolname, bool debug ) {
-
-  std::ifstream infile ;
-  infile.open( filename ) ;
-  std::string line ;
-  librados::bufferlist bl ;
-  while( std::getline( infile, line ) ) {
-    line.pop_back() ;
-    uint64_t this_int = std::stoi(line) ;
-    ::encode( this_int, bl ) ;
-  }
-
-  // save to ceph object
-  // connect to rados
-  librados::Rados cluster;
-  cluster.init(NULL);
-  cluster.conf_read_file(NULL);
-  int ret = cluster.connect();
-
-  // open pool
-  librados::IoCtx ioctx ;
-  ret = cluster.ioctx_create( poolname.c_str(), ioctx ) ;
-
-  // write bl_seq to ceph object
-  const char *obj_name = oid.c_str() ;
-  bufferlist::iterator p = bl.begin();
-  size_t num_bytes_written = p.get_remaining() ;
-  if( debug )
-    std::cout << "num_bytes_written : " << num_bytes_written << std::endl ;
-  ret = ioctx.write( obj_name, bl, num_bytes_written, 0 ) ;
-
-  ioctx.close() ;
-}
-
 void do_sum( librados::bufferlist bl_seq, int write_type, bool debug ) {
 
-  std::vector< uint64_t > these_ints ;
+  std::vector< uint32_t > these_ints ;
 
-  // raw
+  // concatenated
   if( write_type == 0 ) {
     ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
     ceph::bufferlist bl ;
@@ -172,26 +91,30 @@ void do_sum( librados::bufferlist bl_seq, int write_type, bool debug ) {
     int count = 0 ;
     std::string tmp = "" ;
 
-    for( int i = 0; i < std::strlen( raw ); i++ ) {
+    for( unsigned int i = 0; i < std::strlen( raw ); i++ ) {
       tmp = tmp + raw[i] ;
       count++ ;
       if( count == 0 ) {
         continue ;
       }
-      else if( count % 6 == 0 ) {
-        if( debug )
-          std::cout << "appending tmp = " << tmp << std::endl ;
+      else if( count % 4 == 0 ) {
         these_ints.push_back( std::stoi( tmp ) ) ;
         count = 0 ;
         tmp = "" ;
       }
+      if( count % 1000 == 0 ) {
+        if( debug )
+          std::cout << "i = " << i 
+                    << ", these_ints.size() = " << these_ints.size() <<  std::endl ;
+      }
     }
   }
-  // raw indiv
+
+  // separated
   else if( write_type == 1 ) {
     ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
     while( it_bl_seq.get_remaining() > 0 ) {
-      uint64_t raw ;
+      uint32_t raw ;
       ::decode( raw, it_bl_seq ) ;
       if( debug )
         std::cout << "appending raw = " << std::to_string( raw ) << std::endl ;
@@ -204,7 +127,7 @@ void do_sum( librados::bufferlist bl_seq, int write_type, bool debug ) {
 
   // perform sum
   uint64_t the_sum = 0 ;
-  for( int i = 0; i < these_ints.size(); i++ ) {
+  for( unsigned int i = 0; i < these_ints.size(); i++ ) {
     the_sum = the_sum + these_ints[i] ;
   }
   std::cout << "sum : " << std::to_string( the_sum ) << std::endl ;
@@ -212,7 +135,7 @@ void do_sum( librados::bufferlist bl_seq, int write_type, bool debug ) {
 }
 
 void do_randomsearch( librados::bufferlist bl_seq, int write_type, bool debug ) {
-  int search_for = 551851 ;
+  uint32_t search_for = 4848 ;
   bool found_it = false ;
   
   // raw
@@ -224,16 +147,16 @@ void do_randomsearch( librados::bufferlist bl_seq, int write_type, bool debug ) 
     int count = 0 ;
     std::string tmp = "" ;
 
-    for( int i = 0; i < std::strlen( raw ); i++ ) {
+    for( unsigned int i = 0; i < std::strlen( raw ); i++ ) {
       tmp = tmp + raw[i] ;
       count++ ;
       if( count == 0 ) {
         continue ;
       }
-      else if( count % 6 == 0 ) {
+      else if( count % 4 == 0 ) {
         if( debug )
           std::cout << "checking tmp = " << tmp << std::endl ;
-        if( std::stoi( tmp ) == search_for )
+        if( static_cast<uint32_t>( std::stoi( tmp ) ) == search_for )
           found_it = true ;
         count = 0 ;
         tmp = "" ;
@@ -244,7 +167,7 @@ void do_randomsearch( librados::bufferlist bl_seq, int write_type, bool debug ) 
   else if( write_type == 1 ) {
     ceph::bufferlist::iterator it_bl_seq = bl_seq.begin() ;
     while( it_bl_seq.get_remaining() > 0 ) {
-      uint64_t raw ;
+      uint32_t raw ;
       ::decode( raw, it_bl_seq ) ;
       if( debug )
         std::cout << "checking raw = " << std::to_string( raw ) << std::endl ;
@@ -256,22 +179,22 @@ void do_randomsearch( librados::bufferlist bl_seq, int write_type, bool debug ) 
     std::cout << ">> unrecognized write_type '" << write_type  << "'" << std::endl ;
   }
 
-  // perform sum
   std::cout << "search_for : " << std::to_string( search_for ) << std::endl ;
   std::cout << "found_it   : " << std::to_string( found_it ) << std::endl ;
 }
 
-std::string read_obj( std::string oid, std::string optype, int write_type, bool debug ) {
+std::string read_obj( std::string pool, std::string oid, std::string optype, int write_type, bool debug ) {
 
   // connect to rados
   librados::Rados cluster;
   cluster.init(NULL);
   cluster.conf_read_file(NULL);
   int ret = cluster.connect();
+  assert( ret == 0 ) ;
 
   // open pool
   librados::IoCtx ioctx ;
-  ret = cluster.ioctx_create( "paper_exps" , ioctx ) ;
+  ret = cluster.ioctx_create( pool.c_str() , ioctx ) ;
 
   // write bl_seq to ceph object
   librados::bufferlist bl_seq ;
