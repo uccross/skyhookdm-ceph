@@ -1426,7 +1426,7 @@ int processSkyFb_fbu_cols(
                             //    flexbldr->Add(row[col.idx].AsUInt16());
                             //    break;
                             case SDT_UINT32: {
-                                auto column_of_data = 
+                                auto column_of_data =
                                     static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
                                 auto data_at_row = column_of_data->data()->Get(i);
                                 //std::cout << std::to_string(data_at_row) << std::endl;
@@ -2370,7 +2370,7 @@ long long int printFlatbufFBURowAsCsv(
                 break;
               }
               case SDT_UINT32 : {
-                auto int_col_data = 
+                auto int_col_data =
                     static_cast< const Tables::SDT_UINT32_FBU* >(curr_rec_data->Get(j));
                 std::cout << int_col_data->data()->Get(0);
                 break;
@@ -3530,7 +3530,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t c
             case SDT_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
-                auto column_of_data = 
+                auto column_of_data =
                         static_cast< const Tables::SDT_UINT32_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
                 uint32_t colval = column_of_data->data()->Get(rid);
@@ -3547,7 +3547,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t c
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
                         dynamic_cast<TypedPredicate<uint64_t>*>(*it);
-                auto column_of_data = 
+                auto column_of_data =
                         static_cast< const Tables::SDT_UINT64_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
                 uint64_t colval = 0;
@@ -3566,7 +3566,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t c
             case SDT_FLOAT: {
                 TypedPredicate<float>* p = \
                         dynamic_cast<TypedPredicate<float>*>(*it);
-                auto column_of_data = 
+                auto column_of_data =
                         static_cast< const Tables::SDT_FLOAT_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
                 float colval = column_of_data->data()->Get(rid);
@@ -3646,7 +3646,7 @@ bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t c
             case SDT_DATE: {
                 TypedPredicate<std::string>* p = \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
-                auto column_of_data = 
+                auto column_of_data =
                         static_cast< const Tables::SDT_STRING_FBU* >(curr_col_data);
                 if((unsigned)p->colIdx() != col_index) continue;
                 string colval = column_of_data->data()->Get(rid)->str();
@@ -5494,7 +5494,7 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     }
 
     if (print_verbose) {
-        num_cols = std::distance(sc.begin(), sc.end());
+        num_cols = sc.size();
 
         if (print_header) {
             std::cout << table->column(ARROW_RID_INDEX(num_cols))->name()
@@ -5563,11 +5563,11 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
                     break;
                 }
                 case SDT_CHAR: {
-                    std::cout << (char)std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(i);
+                    std::cout << static_cast<char>(std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_UCHAR: {
-                    std::cout << (char)std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(i);
+                    std::cout << static_cast<unsigned char>(std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(i));
                     break;
                 }
                 case SDT_FLOAT: {
@@ -5600,6 +5600,282 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
         }
         std::cout << std::endl;  // newline to start next row.
     }
+    return counter;
+}
+
+
+long long int printArrowbufRowAsBinary(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print)
+{
+
+    // Each column in arrow is represented using Chunked Array. A chunked array is
+    // a vector of chunks i.e. arrays which holds actual data.
+
+    // Declare vector for columns (i.e. chunked_arrays)
+    std::vector<std::shared_ptr<arrow::Array>> chunk_vec;
+    std::shared_ptr<arrow::Table> table;
+    std::shared_ptr<arrow::Buffer> buffer;
+
+    std::string str_buff(dataptr, datasz);
+    arrow::Buffer::FromString(str_buff, &buffer);
+
+    extract_arrow_from_buffer(&table, buffer);
+    // From Table get the schema and from schema get the skyhook schema
+    // which is stored as a metadata
+    auto schema = table->schema();
+    auto metadata = schema->metadata();
+    schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
+    int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+
+    // postgres fstreams expect big endianness
+    bool big_endian = is_big_endian();
+    stringstream ss(std::stringstream::in |
+                    std::stringstream::out|
+                    std::stringstream::binary);
+
+    // print binary stream header sequence first time only
+    if (print_header) {
+
+        // 11 byte signature sequence
+        const char* header_signature = "PGCOPY\n\377\r\n\0";
+        ss.write(header_signature, 11);
+
+        // 32 bit flags field, set bit#16=1 only if OIDs included in data
+        int flags_field = 0;
+        ss.write(reinterpret_cast<const char*>(&flags_field),
+                 sizeof(flags_field));
+
+        // 32 bit extra header len
+        int header_extension_len = 0;
+        ss.write(reinterpret_cast<const char*>(&header_extension_len),
+                 sizeof(header_extension_len));
+    }
+
+    // Get the names of each column and get the vector of chunks
+    for (auto it = sc.begin(); it != sc.end(); ++it) {
+        chunk_vec.emplace_back(table->column(std::distance(sc.begin(), it))->data()->chunk(0));
+    }
+
+    // 16 bit int, assumes same num cols for all rows below.
+    int16_t ncols = static_cast<int16_t>(sc.size());
+    if (!big_endian)
+        ncols = __builtin_bswap16(ncols);
+
+    // row printing counter, used with --limit flag
+    long long int counter = 0;
+    for (int i = 0; i < num_rows; i++, counter++) {
+        if (counter >= max_to_print) break;
+        // TODO: if (root.delete_vec.at(i) == 1) continue;
+
+        // 16 bit int num cols in this row (all rows same ncols currently)
+        ss.write(reinterpret_cast<const char*>(&ncols), sizeof(ncols));
+
+        // For this row get the data from each columns
+        for (auto it = sc.begin(); it != sc.end(); ++it) {
+            col_info col = *it;
+            auto print_array = chunk_vec[std::distance(sc.begin(), it)];
+
+            if (print_array->IsNull(i)) {
+                // for null we only write the int representation of null,
+                // followed by no data
+                ss.write(reinterpret_cast<const char*>(&PGNULLBINARY),
+                         sizeof(PGNULLBINARY));
+                continue;
+            }
+
+            switch(col.type) {
+                case SDT_BOOL: {
+                    uint8_t val = std::static_pointer_cast<arrow::BooleanArray>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        // val is single byte, has no endianness
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_INT8: {
+                    int8_t val = std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        // val is single byte, has no endianness
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_INT16: {
+                    int16_t val = std::static_pointer_cast<arrow::Int16Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        val = __builtin_bswap16(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_INT32: {
+                    int32_t val = std::static_pointer_cast<arrow::Int32Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        val = __builtin_bswap32(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_INT64: {
+                    int64_t val = std::static_pointer_cast<arrow::Int64Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        val = __builtin_bswap64(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_UINT8: {
+                    uint8_t val = std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        // val is single byte, has no endianness
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_UINT16: {
+                    uint16_t val = std::static_pointer_cast<arrow::UInt16Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        val = __builtin_bswap16(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_UINT32: {
+                    uint32_t val =std::static_pointer_cast<arrow::UInt32Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        val = __builtin_bswap32(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_UINT64: {
+                    uint64_t val = std::static_pointer_cast<arrow::UInt64Array>(print_array)->Value(i);
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        val = __builtin_bswap64(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_CHAR: {
+                    int8_t val = static_cast<char>(std::static_pointer_cast<arrow::Int8Array>(print_array)->Value(i));
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        // val is single byte, has no endianness
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_UCHAR: {
+                    uint8_t val = static_cast<unsigned char>(std::static_pointer_cast<arrow::UInt8Array>(print_array)->Value(i));
+                    int32_t len = sizeof(val);
+                    if (!big_endian) {
+                        // val is single byte, has no endianness
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_FLOAT:
+                case SDT_DOUBLE: {
+                    // postgres float is alias for double, so we always output a binary double.
+                    double val = 0.0;
+                    if (col.type == SDT_FLOAT)
+                        val = std::static_pointer_cast<arrow::FloatArray>(print_array)->Value(i);
+                    else
+                        val = std::static_pointer_cast<arrow::DoubleArray>(print_array)->Value(i);
+                    int32_t len = 8;
+                    if (!big_endian) {
+                        char val_bigend[len];
+                        char* vptr = (char*)&val;
+                        val_bigend[0]=vptr[7];
+                        val_bigend[1]=vptr[6];
+                        val_bigend[2]=vptr[5];
+                        val_bigend[3]=vptr[4];
+                        val_bigend[4]=vptr[3];
+                        val_bigend[5]=vptr[2];
+                        val_bigend[6]=vptr[1];
+                        val_bigend[7]=vptr[0];
+                        len = __builtin_bswap32(len);
+                        ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                        ss.write(val_bigend, sizeof(val));
+                    }
+                    else {
+                        ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                        ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    }
+                    break;
+                }
+                case SDT_DATE: {
+                    // postgres uses 4 byte int date vals, offset by pg epoch
+                    std::string strdate = std::static_pointer_cast<arrow::StringArray>(print_array)->GetString(i);
+                    int32_t len = sizeof(int32_t);
+                    boost::gregorian::date d = \
+                        boost::gregorian::from_string(strdate);
+                    int32_t val = d.julian_day() - Tables::POSTGRES_EPOCH_JDATE;
+                    if (!big_endian) {
+                        val = __builtin_bswap32(val);
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+                    break;
+                }
+                case SDT_STRING: {
+                    std::string val = std::static_pointer_cast<arrow::StringArray>(print_array)->GetString(i);
+                    int32_t len = val.length();
+                    if (!big_endian) {
+                        // val is byte array, has no endianness
+                        len = __builtin_bswap32(len);
+                    }
+                    ss.write(reinterpret_cast<const char*>(&len), sizeof(len));
+                    ss.write(val.c_str(), static_cast<int>(val.length()));
+                    break;
+                    }
+                default: {
+                    return TablesErrCodes::UnsupportedSkyDataType;
+                }
+            }
+        }
+    }
+
+    // rewind and output all row data for this fb
+    ss.seekg (0, ios::beg);
+    std::cout << ss.rdbuf();
+    ss.flush();
     return counter;
 }
 

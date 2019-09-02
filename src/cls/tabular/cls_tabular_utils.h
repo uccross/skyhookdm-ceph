@@ -684,10 +684,10 @@ struct col_table_fbu {
     std::vector< uint64_t > cols_rids ;
     col_fbu data_fbu_col;
 
-    col_table_fbu(int64_t _CID, 
-                   nullbits_vector _nullbits, 
-                   std::vector< uint64_t > _cols_rids, 
-                   col_fbu _data_fbu_col) :
+    col_table_fbu(int64_t _CID,
+                  nullbits_vector _nullbits,
+                  std::vector< uint64_t > _cols_rids,
+                  col_fbu _data_fbu_col) :
         CID(_CID),
         nullbits(_nullbits),
         cols_rids(_cols_rids),
@@ -855,6 +855,14 @@ long long int printArrowbufRowAsCsv(
 
 // postgres binary fstream format
 long long int printFlatbufFlexRowAsBinary(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
+// postgres binary fstream format
+long long int printArrowbufRowAsBinary(
         const char* dataptr,
         const size_t datasz,
         bool print_header,
