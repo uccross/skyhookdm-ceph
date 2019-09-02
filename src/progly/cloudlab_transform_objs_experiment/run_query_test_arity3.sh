@@ -41,7 +41,7 @@ fi
 
 function run_query() {
     local cmdbase=$@
-    cmd="${cmdbase} --conf ${SKYHOOKBUILD}/ceph.conf --table-name lineitem --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
+    cmd="${cmdbase} --table-name lineitem --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
     echo "Command ran: ${cmd}"
     total_dur=0
     for ((i=0; i<${runs}; i++)); do
