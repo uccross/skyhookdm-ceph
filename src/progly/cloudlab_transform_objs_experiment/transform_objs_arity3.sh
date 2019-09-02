@@ -3,7 +3,7 @@ set -e
 
 if [ -z "$SKYHOOKBUILD" ];
 then
-    echo "error: Need to set environment variable SKYHOOKBUILD pointing to abosolute path of skyhook build dir"
+    echo "error: Need to set environment variable SKYHOOKBUILD pointing to absolute path of skyhook build dir"
     exit 1
 fi
 
@@ -56,5 +56,6 @@ function transform_objs() {
     echo "start=$start end=$end duration=$dur"
 }
 
-cmdbase="${SKYHOOKBUILD}/bin/run-query --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --conf ${SKYHOOKBUILD}/ceph.conf --quiet"
+# Pass this "--conf ${SKYHOOKBUILD}/ceph.conf" if script is run with vstart
+cmdbase="${SKYHOOKBUILD}/bin/run-query --num-objs ${nobjs} --pool ${pool} --wthreads ${worker_threads} --qdepth ${queue_depth} --quiet"
 transform_objs ${cmdbase}
