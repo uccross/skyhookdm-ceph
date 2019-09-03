@@ -368,6 +368,12 @@ int main(int argc, char **argv)
     // verify and set the query predicates
     sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
 
+    /*
+     *  TODO: remove, used for debugging typed preds
+     *  for (auto p:sky_qry_preds) cerr << p->toString();
+     *   cerr << endl;
+     */
+
     // verify and set the index predicates
     sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
     sky_idx2_preds = predsFromString(sky_tbl_schema, index2_preds);

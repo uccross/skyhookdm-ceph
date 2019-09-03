@@ -834,6 +834,7 @@ int processSkyFb(
                                 dynamic_cast<TypedPredicate<int64_t>*>(pb);
                         int64_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
                         break;
                     }
                     case SDT_UINT32: {
@@ -841,6 +842,7 @@ int processSkyFb(
                                 dynamic_cast<TypedPredicate<uint32_t>*>(pb);
                         uint32_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
                         break;
                     }
                     case SDT_UINT64: {
@@ -848,6 +850,7 @@ int processSkyFb(
                                 dynamic_cast<TypedPredicate<uint64_t>*>(pb);
                         uint64_t agg_val = p->Val();
                         flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
                         break;
                     }
                     case SDT_FLOAT: {
@@ -855,6 +858,7 @@ int processSkyFb(
                                 dynamic_cast<TypedPredicate<float>*>(pb);
                         float agg_val = p->Val();
                         flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
                         break;
                     }
                     case SDT_DOUBLE: {
@@ -862,6 +866,7 @@ int processSkyFb(
                                 dynamic_cast<TypedPredicate<double>*>(pb);
                         double agg_val = p->Val();
                         flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
                         break;
                     }
                     default:  assert(UnsupportedAggDataType==0);
@@ -1860,17 +1865,19 @@ predicate_vec predsFromString(schema_vec &schema, std::string preds_string) {
                 break;
             }
             case SDT_CHAR: {
+                assert (val.length() > 0);
                 TypedPredicate<char>* p = \
                         new TypedPredicate<char> \
-                        (ci.idx, ci.type, op_type, std::stol(val));
+                        (ci.idx, ci.type, op_type, val[0]);
                 if (p->isGlobalAgg()) agg_preds.push_back(p);
                 else preds.push_back(p);
                 break;
             }
             case SDT_UCHAR: {
+                assert (val.length() > 0);
                 TypedPredicate<unsigned char>* p = \
                         new TypedPredicate<unsigned char> \
-                        (ci.idx, ci.type, op_type, std::stoul(val));
+                        (ci.idx, ci.type, op_type, val[0]);
                 if (p->isGlobalAgg()) agg_preds.push_back(p);
                 else preds.push_back(p);
                 break;
@@ -2697,7 +2704,7 @@ long long int printFlatbufFlexRowAsBinary(
                     val = row[j].AsFloat();  // flexbuf api requires type
                 else
                     val = row[j].AsDouble();
-                int32_t len = 8;
+                int32_t len = sizeof(val);
                 if (!big_endian) {
                     char val_bigend[len];
                     char* vptr = (char*)&val;
@@ -2744,7 +2751,7 @@ long long int printFlatbufFlexRowAsBinary(
             case SDT_DATE: {
                 // postgres uses 4 byte int date vals, offset by pg epoch
                 std::string strdate = row[j].AsString().str();
-                int32_t len = sizeof(int32_t);
+                int32_t len = 4;  // fixed, postgres date specification
                 boost::gregorian::date d = \
                     boost::gregorian::from_string(strdate);
                 int32_t val = d.julian_day() - Tables::POSTGRES_EPOCH_JDATE;
