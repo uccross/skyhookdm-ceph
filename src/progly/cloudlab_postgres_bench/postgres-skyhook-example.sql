@@ -24,7 +24,7 @@ create foreign table small (
   QUANTITY double precision,
   SHIPDATE date)
 SERVER skyhookcephserver
-OPTIONS (format 'binary',  program 'cd /ceph/path; ./bin/run-query --num-objs 2 --pool tpchdata --wthreads 2 --qdepth 10 --output-format sft_pg_binary --project-cols linenumber,quantity,shipdate --use-cls' );
+OPTIONS (format 'binary',  program 'cd /ceph/path; ./bin/run-query --output-format sft_pg_binary --project "linenumber,quantity,shipdate" --use-cls' );
 select count(*) from small;
 select * from small;
 
@@ -57,7 +57,7 @@ create foreign table lineitem (
   SHIPMODE varchar,
   COMMENT varchar)
   SERVER skyhookcephserver
-OPTIONS (format 'binary',  program 'cd /ceph/path; ./bin/run-query --num-objs 2 --pool tpchdata --wthreads 2 --qdepth 10 --output-format sft_pg_binary --use-cls' );
+OPTIONS (format 'binary',  program 'cd /ceph/path; ./bin/run-query --output-format sft_pg_binary --select "*" --use-cls' );
 select count(*) from lineitem;
 select * from lineitem;
 
@@ -69,4 +69,26 @@ select * from newtable;
 create view lineitemview as select * from lineitem group by orderkey;
 select count(*) from lineitemview;
 select * from lineitemview;
+
+
+-- ###############################################
+-- temporary table example.
+-- ###############################################
+drop foreign table smalltest cascade;
+create foreign table smalltest (
+  LINENUMBER int,
+  COMMENT varchar)
+SERVER fileserver
+OPTIONS (format 'binary',  program 'cd /home/postgres/repos/skyhook-ceph/build; ./bin/run-query  --use-cls --output-format sft_pg_binary --project "linenumber,comment" --select "linenumber,leq,1" ');
+
+select count(*) from smalltest;
+select * from smalltest;
+
+create table t as select * from smalltest;
+select count(*) from t;
+select * from t;
+
+create temporary table tmp as select * from smalltest;
+select count(*) from tmp;
+select * from tmp;
 

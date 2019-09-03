@@ -199,16 +199,21 @@ static void print_data(const char *dataptr,
 
         case SFT_ARROW:
             if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
-                std::cerr << "Print SFT_ARROW: "
-                          << "SFT_PG_BINARY not implemented" << std::endl;
-                assert (Tables::SkyOutputBinaryNotImplemented==0);
+                row_counter += Tables::printArrowbufRowAsBinary(
+                    dataptr,
+                    datasz,
+                    print_header,
+                    print_verbose,
+                    row_limit - row_counter);
             }
-            row_counter += Tables::printArrowbufRowAsCsv(
-                dataptr,
-                datasz,
-                print_header,
-                print_verbose,
-                row_limit - row_counter);
+            else {
+                row_counter += Tables::printArrowbufRowAsCsv(
+                    dataptr,
+                    datasz,
+                    print_header,
+                    print_verbose,
+                    row_limit - row_counter);
+            }
             break;
 
         case SFT_JSON:

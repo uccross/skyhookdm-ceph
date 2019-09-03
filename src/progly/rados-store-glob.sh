@@ -2,12 +2,6 @@
 
 set -e
 
-# @todo Add option for format type
-if [[ $# < 2 ]]; then
-  echo "usage: <pool> <glob>"
-  exit 1
-fi
-
 groupsize=5
 
 pool=$1
