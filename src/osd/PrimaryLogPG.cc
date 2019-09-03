@@ -5069,6 +5069,7 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
   PGTransaction* t = ctx->op_t.get();
 
   dout(10) << "do_osd_op " << soid << " " << ops << dendl;
+  dout(10) << "kat do_osd_op " << soid << " " << ops << dendl;
 
   ctx->current_osd_subop_num = 0;
   for (auto p = ops.begin(); p != ops.end(); ++p, ctx->current_osd_subop_num++, ctx->processed_subop_count++) {
@@ -6741,6 +6742,7 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
       break;
 
     case CEPH_OSD_OP_COPY_GET:
+dout(20) << "kat2 CEPH_OSD_OP_COPY_GET" << dendl;
       ++ctx->num_read;
       tracepoint(osd, do_osd_op_pre_copy_get, soid.oid.name.c_str(),
 		 soid.snap.val);
@@ -6816,6 +6818,14 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 
           // COPY_FROM cannot be executed multiple times -- it must restart
           ctx->op_finishers.erase(ctx->current_osd_subop_num);
+	  //if (op.copy_from.src_fadvise_flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM) {
+	  if (true) {
+	    // When copying object with transformation, 
+	    // update the dest object size insteaf of setting it to the src object size
+dout(20) << "kat before ctx->new_obs.oi.size = " << ctx->new_obs.oi.size << dendl;
+	    ctx->new_obs.oi.size = ctx->obc->obs.oi.size;
+dout(20) << "kat after ctx->new_obs.oi.size = " << ctx->new_obs.oi.size << dendl;
+	  }
 	}
       }
       break;
@@ -7858,8 +7868,6 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     (osd->store->has_builtin_csum() && g_conf->osd_skip_data_digest) ||
     g_conf->osd_distrust_data_digest;
 
-  dout(20) << "kat1: blah" << dendl;
-
   try {
     ::decode(cursor, bp);
     ::decode(out_max, bp);
@@ -7868,7 +7876,6 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     result = -EINVAL;
     return result;
   }
-  dout(20) << "kat1: blah1" << dendl;
 
   const MOSDOp *op = reinterpret_cast<const MOSDOp*>(ctx->op->get_req());
   uint64_t features = op->get_features();
@@ -7895,18 +7902,22 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
   } else {
     reply_obj.snap_seq = obc->ssc->snapset.seq;
   }
-  if (!skip_data_digest && oi.is_data_digest()) {
-    reply_obj.flags |= object_copy_data_t::FLAG_DATA_DIGEST;
-    reply_obj.data_digest = oi.data_digest;
+  // When copying object with transformation,
+  // do not check digests because they change
+  //if (!(osd_op.op.flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM)) {
+  if (false) {
+    if (!skip_data_digest && oi.is_data_digest()) {
+      reply_obj.flags |= object_copy_data_t::FLAG_DATA_DIGEST;
+      reply_obj.data_digest = oi.data_digest;
+    }
+    if (oi.is_omap_digest()) {
+      reply_obj.flags |= object_copy_data_t::FLAG_OMAP_DIGEST;
+      reply_obj.omap_digest = oi.omap_digest;
+    }
   }
-  if (oi.is_omap_digest()) {
-    reply_obj.flags |= object_copy_data_t::FLAG_OMAP_DIGEST;
-    reply_obj.omap_digest = oi.omap_digest;
-  }
+  dout(20) << "kat: here" << dendl; 
   reply_obj.truncate_seq = oi.truncate_seq;
   reply_obj.truncate_size = oi.truncate_size;
-
-  dout(20) << "kat1: blah2" << dendl;
 
   // attrs
   map<string,bufferlist>& out_attrs = reply_obj.attrs;
@@ -7925,78 +7936,152 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
   }
 
   int64_t left = out_max - osd_op.outdata.length();
-  dout(20) << "kat: left = " << left << dendl;
 
   // data
   bufferlist& bl = reply_obj.data;
-  if (left > 0 && !cursor.data_complete) {
-    if (cursor.data_offset < oi.size) {
-      uint64_t max_read = MIN(oi.size - cursor.data_offset, (uint64_t)left);
-      if (cb) {
-	async_read_started = true;
-	ctx->pending_async_reads.push_back(
-	  make_pair(
-	    boost::make_tuple(cursor.data_offset, max_read, osd_op.op.flags),
-	    make_pair(&bl, cb)));
-	cb->len = max_read;
-
-        ctx->op_finishers[ctx->current_osd_subop_num].reset(
-          new ReadFinisher(osd_op));
-	result = -EINPROGRESS;
-
-	dout(10) << __func__ << ": async_read noted for " << soid << dendl;
-      } else {
-	result = pgbackend->objects_read_sync(
-	  oi.soid, cursor.data_offset, max_read, osd_op.op.flags, &bl);
-	if (result < 0)
-	  return result;
-      }
-      left -= max_read;
-      cursor.data_offset += max_read;
-    }
-    if (cursor.data_offset == oi.size) {
-      cursor.data_complete = true;
-      dout(20) << " got data" << dendl;
-    }
-    assert(cursor.data_offset <= oi.size);
-  }
-
-  // omap
   uint32_t omap_keys = 0;
-  if (!pool.info.supports_omap() || !oi.is_omap()) {
+
+  // apply the transformation
+  //if (osd_op.op.flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM) {
+  if (false) {
+
+    // extract coulmn id from flags
+    unsigned char cid = (osd_op.op.flags >> 24) & 0xFF;
+
+    // specify object class and method to use for transformation
+    string cname("converter");
+    string mname("convert");
+    ClassHandler::ClassData *cls;
+    result = osd->class_handler->open_class(cname, &cls);
+    ceph_assert(result == 0);   // init_op_flags() already verified this works.
+
+    ClassHandler::ClassMethod *method = cls->get_method(mname.c_str());
+    if (!method) {
+      dout(10) << "call method " << cname << "." << mname << " does not exist" << dendl;
+      return -EOPNOTSUPP;
+    }
+
+    int flags = method->get_flags();
+    ceph_assert(flags == CLS_METHOD_RD);
+
+    // pass column id to object class
+    bufferlist indata;
+    indata.append(reinterpret_cast<const char*>(&cid), sizeof(cid));
+
+    dout(10) << "call method " << cname << "." << mname << dendl;
+    int prev_rd = ctx->num_read;
+    int prev_wr = ctx->num_write;
+
+    // assuming that the method returns the data length in the buffer
+    // we need this information to separate data and omap that are co-located in a single buffer,
+    int data_length = method->exec((cls_method_context_t)&ctx, indata, bl);
+    if (ctx->num_write > prev_wr) {
+      derr << "method " << cname << "." << mname << " tried to update object but is not marked WR" << dendl;
+      return -EIO;
+    }
+
+    // copy omap from the buffer to reply_obj
+    bufferlist omap_data;
+    uint32_t omap_length = bl.length() - data_length;
+    omap_data.append(bl.c_str() + data_length, omap_length);
+    reply_obj.omap_data.claim_append(omap_data);
     cursor.omap_complete = true;
+
+    // cut omap off the buffer
+    bufferlist data;
+    data.append(bl.c_str(), data_length);
+    bl.clear();
+    bl.claim_append(data);
+
+    cursor.data_offset += bl.length();
+    cursor.data_complete = true;
+
   } else {
-    if (left > 0 && !cursor.omap_complete) {
-      assert(cursor.data_complete);
-      if (cursor.omap_offset.empty()) {
-	osd->store->omap_get_header(ch, ghobject_t(oi.soid),
-				    &reply_obj.omap_header);
+
+dout(20) << "kat: here1" << dendl; 
+    if (left > 0 && !cursor.data_complete) {
+dout(20) << "kat soid = " << soid << dendl;
+dout(20) << "kat cursor.data_offset = " << cursor.data_offset << dendl;
+dout(20) << "kat oi.size = " << oi.size << dendl;
+dout(20) << "kat oi.soid = " << oi.soid << dendl;
+      if (cursor.data_offset < oi.size) {
+	      uint64_t max_read = MIN(oi.size - cursor.data_offset, (uint64_t)left);
+dout(20) << "kat max_read = " << max_read << dendl;
+	      if (cb) {
+	        async_read_started = true;
+	        ctx->pending_async_reads.push_back(
+	      				     make_pair(
+	      					       boost::make_tuple(cursor.data_offset, max_read, osd_op.op.flags),
+	      					       make_pair(&bl, cb)));
+	        cb->len = max_read;
+
+	        ctx->op_finishers[ctx->current_osd_subop_num].reset(
+	      						      new ReadFinisher(osd_op));
+	        result = -EINPROGRESS;
+
+	        dout(10) << __func__ << ": async_read noted for " << soid << dendl;
+dout(20) << "kat bl.length()1 = " << bl.length() << dendl ;
+	      } else {
+	        result = pgbackend->objects_read_sync(
+	      					oi.soid, cursor.data_offset, max_read, osd_op.op.flags, &bl);
+dout(20) << "kat bl.length()2 = " << bl.length() << dendl ;
+dout(20) << "kat bl.c_str()2 = " << bl.c_str() << dendl ;
+	        if (result < 0)
+	          return result;
+	      }
+	      left -= max_read;
+	      cursor.data_offset += max_read;
+dout(20) << "kat cursor.data_offset += maxread = " << cursor.data_offset << dendl;
       }
-      bufferlist omap_data;
-      ObjectMap::ObjectMapIterator iter =
-	osd->store->get_omap_iterator(coll, ghobject_t(oi.soid));
-      assert(iter);
-      iter->upper_bound(cursor.omap_offset);
-      for (; iter->valid(); iter->next(false)) {
-	++omap_keys;
-	::encode(iter->key(), omap_data);
-	::encode(iter->value(), omap_data);
-	left -= iter->key().length() + 4 + iter->value().length() + 4;
-	if (left <= 0)
-	  break;
+      if (cursor.data_offset == oi.size) {
+	      cursor.data_complete = true;
+	      dout(20) << " got data" << dendl;
+dout(20) << "kat got data" << dendl;
       }
-      if (omap_keys) {
-	::encode(omap_keys, reply_obj.omap_data);
-	reply_obj.omap_data.claim_append(omap_data);
-      }
-      if (iter->valid()) {
-	cursor.omap_offset = iter->key();
-      } else {
-	cursor.omap_complete = true;
-	dout(20) << " got omap" << dendl;
+      assert(cursor.data_offset <= oi.size);
+    }
+dout(20) << "kat: here2" << dendl; 
+
+dout(20) << __func__ << " asdf pool.info.supports_omap() = " << pool.info.supports_omap() << dendl;
+dout(20) << __func__ << " asdf oi.is_omap() = " << oi.is_omap() << dendl;
+
+    // omap
+    if (!pool.info.supports_omap() || !oi.is_omap()) {
+      cursor.omap_complete = true;
+    } else {
+      if (left > 0 && !cursor.omap_complete) {
+	      assert(cursor.data_complete);
+	      if (cursor.omap_offset.empty()) {
+	        osd->store->omap_get_header(ch, ghobject_t(oi.soid),
+	      			      &reply_obj.omap_header);
+	      }
+	      bufferlist omap_data;
+	      ObjectMap::ObjectMapIterator iter =
+	        osd->store->get_omap_iterator(coll, ghobject_t(oi.soid));
+	      assert(iter);
+	      iter->upper_bound(cursor.omap_offset);
+	      for (; iter->valid(); iter->next(false)) {
+	        ++omap_keys;
+	        ::encode(iter->key(), omap_data);
+	        ::encode(iter->value(), omap_data);
+	        left -= iter->key().length() + 4 + iter->value().length() + 4;
+	        if (left <= 0)
+	          break;
+	      }
+	      if (omap_keys) {
+	        ::encode(omap_keys, reply_obj.omap_data);
+	        reply_obj.omap_data.claim_append(omap_data);
+	      }
+	      if (iter->valid()) {
+	        cursor.omap_offset = iter->key();
+	      } else {
+	        cursor.omap_complete = true;
+	        dout(20) << " got omap" << dendl;
+	      }
       }
     }
   }
+dout(20) << "kat: here3" << dendl; 
 
   if (cursor.is_complete()) {
     // include reqids only in the final step.  this is a bit fragile
@@ -8081,6 +8166,7 @@ void PrimaryLogPG::start_copy(CopyCallback *cb, ObjectContextRef obc,
   copy_ops[dest] = cop;
   obc->start_block();
 
+dout(20) << "kat2 calling _copy_some" << dendl ;
   _copy_some(obc, cop);
 }
 
@@ -8178,6 +8264,7 @@ void PrimaryLogPG::process_copy_chunk(hobject_t oid, ceph_tid_t tid, int r)
   cop->objecter_tid2 = 0;  // assume this ordered before us (if it happened)
   ObjectContextRef& cobc = cop->obc;
 
+  dout(20) << __func__ << " kat r = " << r << dendl ;
   if (r < 0)
     goto out;
 
@@ -8300,16 +8387,16 @@ void PrimaryLogPG::process_copy_chunk(hobject_t oid, ceph_tid_t tid, int r)
     [this, &cop /* avoid ref cycle */](PGTransaction *t) {
       ObjectState& obs = cop->obc->obs;
       if (cop->temp_cursor.is_initial()) {
-	dout(20) << "fill_in_final_tx: writing "
-		 << "directly to final object" << dendl;
-	// write directly to final object
-	cop->results.temp_oid = obs.oi.soid;
-	_write_copy_chunk(cop, t);
+	      dout(20) << __func__ << "fill_in_final_tx: writing "
+		             << "directly to final object" << dendl;
+	      // write directly to final object
+	      cop->results.temp_oid = obs.oi.soid;
+	      _write_copy_chunk(cop, t);
       } else {
-	// finish writing to temp object, then move into place
-	dout(20) << "fill_in_final_tx: writing to temp object" << dendl;
-	_write_copy_chunk(cop, t);
-	t->rename(obs.oi.soid, cop->results.temp_oid);
+        // finish writing to temp object, then move into place
+        dout(20) << __func__ << "fill_in_final_tx: writing to temp object" << dendl;
+        _write_copy_chunk(cop, t);
+        t->rename(obs.oi.soid, cop->results.temp_oid);
       }
       t->setattrs(obs.oi.soid, cop->results.attrs);
     });
@@ -8318,6 +8405,13 @@ void PrimaryLogPG::process_copy_chunk(hobject_t oid, ceph_tid_t tid, int r)
 
  out:
   dout(20) << __func__ << " complete r = " << cpp_strerror(r) << dendl;
+dout(20) << __func__ << " after cop->results.temp_oid = " << cop->results.temp_oid << dendl ;
+dout(20) << __func__ << " after cop->obc->obs.oi.size = " << cop->obc->obs.oi.size << dendl ;
+dout(20) << __func__ << " after cop->data.length() = " << cop->data.length() << dendl ;
+dout(20) << __func__ << " after cop->data.c_str() = " << cop->data.c_str() << dendl ;
+dout(20) << __func__ << " after cop->data.length() = " << cop->data.length() << dendl ;
+dout(20) << __func__ << " after cop->obc->obs.oi.size = " << cop->obc->obs.oi.size << dendl;
+dout(20) << __func__ << " after cop->temp_cursor.data_offset = " << cop->temp_cursor.data_offset << dendl;
   CopyCallbackResults results(r, &cop->results);
   cop->cb->complete(results);
 
@@ -8389,6 +8483,10 @@ void PrimaryLogPG::_write_copy_chunk(CopyOpRef cop, PGTransaction *t)
 	   << " " << cop->omap_header.length() << " omap header bytes"
 	   << " " << cop->omap_data.length() << " omap data bytes"
 	   << dendl;
+dout(20) << __func__ << " before cop->results.temp_oid = " << cop->results.temp_oid << dendl ;
+dout(20) << __func__ << " before cop->results.object_size = " << cop->results.object_size << dendl ;
+dout(20) << __func__ << " before cop->data.length() = " << cop->data.length() << dendl ;
+dout(20) << __func__ << " before cop->data.c_str() = " << cop->data.c_str() << dendl ;
   if (!cop->temp_cursor.attr_complete) {
     t->create(cop->results.temp_oid);
   }
@@ -8396,7 +8494,7 @@ void PrimaryLogPG::_write_copy_chunk(CopyOpRef cop, PGTransaction *t)
     assert(cop->data.length() + cop->temp_cursor.data_offset ==
 	   cop->cursor.data_offset);
     if (pool.info.requires_aligned_append() &&
-	!cop->cursor.data_complete) {
+	      !cop->cursor.data_complete) {
       /**
        * Trim off the unaligned bit at the end, we'll adjust cursor.data_offset
        * to pick it up on the next pass.
@@ -8404,40 +8502,66 @@ void PrimaryLogPG::_write_copy_chunk(CopyOpRef cop, PGTransaction *t)
       assert(cop->temp_cursor.data_offset %
 	     pool.info.required_alignment() == 0);
       if (cop->data.length() % pool.info.required_alignment() != 0) {
-	uint64_t to_trim =
-	  cop->data.length() % pool.info.required_alignment();
-	bufferlist bl;
-	bl.substr_of(cop->data, 0, cop->data.length() - to_trim);
-	cop->data.swap(bl);
-	cop->cursor.data_offset -= to_trim;
-	assert(cop->data.length() + cop->temp_cursor.data_offset ==
-	       cop->cursor.data_offset);
+	      uint64_t to_trim =
+	        cop->data.length() % pool.info.required_alignment();
+	      bufferlist bl;
+	      bl.substr_of(cop->data, 0, cop->data.length() - to_trim);
+	      cop->data.swap(bl);
+	      cop->cursor.data_offset -= to_trim;
+	      assert(cop->data.length() + cop->temp_cursor.data_offset ==
+	             cop->cursor.data_offset);
       }
     }
     if (cop->data.length()) {
-      t->write(
-	cop->results.temp_oid,
-	cop->temp_cursor.data_offset,
-	cop->data.length(),
-	cop->data,
-	cop->dest_obj_fadvise_flags);
+dout(20) << __func__ << " after cop->results.temp_oid = " << cop->results.temp_oid << dendl ;
+dout(20) << __func__ << " after cop->obc->obs.oi.size = " << cop->obc->obs.oi.size << dendl ;
+dout(20) << __func__ << " after cop->data.length() = " << cop->data.length() << dendl ;
+dout(20) << __func__ << " after cop->data.c_str() = " << cop->data.c_str() << dendl ;
+dout(20) << __func__ << " after cop->data.length() = " << cop->data.length() << dendl ;
+dout(20) << __func__ << " after cop->obc->obs.oi.size = " << cop->obc->obs.oi.size << dendl;
+dout(20) << __func__ << " after cop->temp_cursor.data_offset = " << cop->temp_cursor.data_offset << dendl;
+dout(20) << __func__ << " after cop->src_obj_fadvise_flags = " << cop->src_obj_fadvise_flags << dendl;
+dout(20) << __func__ << " after cop->dest_obj_fadvise_flags = " << cop->dest_obj_fadvise_flags << dendl;
+      //if (cop->src_obj_fadvise_flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM) {
+      if (true) {
+	      // When copying object with transformation,
+	      // append data to the dest object instead of replacing the whole object
+	      t->write(
+	      	 cop->results.temp_oid,
+	      	 cop->obc->obs.oi.size,
+	      	 cop->data.length(),
+	      	 cop->data,
+	      	 cop->dest_obj_fadvise_flags);
+	      cop->obc->obs.oi.size += cop->data.length();
+      } else {
+	      t->write(
+	      	 cop->results.temp_oid,
+	      	 cop->temp_cursor.data_offset,
+	      	 cop->data.length(),
+	      	 cop->data,
+	      	 cop->dest_obj_fadvise_flags);
+      }
     }
     cop->data.clear();
   }
+dout(20) << __func__ << " pool.info.supports_omap() = " << cop->omap_data.length() << dendl;
+dout(20) << __func__ << " cop->omap_data.length() = " << cop->omap_data.length() << dendl;
+dout(20) << __func__ << " cop->omap_header.length() = " << cop->omap_header.length() << dendl;
+dout(20) << __func__ << " cop->temp_cursor.omap_complete = " << cop->temp_cursor.omap_complete << dendl;
   if (pool.info.supports_omap()) {
     if (!cop->temp_cursor.omap_complete) {
       if (cop->omap_header.length()) {
-	t->omap_setheader(
-	  cop->results.temp_oid,
-	  cop->omap_header);
-	cop->omap_header.clear();
+	      t->omap_setheader(
+	        cop->results.temp_oid,
+	        cop->omap_header);
+	      cop->omap_header.clear();
       }
       if (cop->omap_data.length()) {
-	map<string,bufferlist> omap;
-	bufferlist::iterator p = cop->omap_data.begin();
-	::decode(omap, p);
-	t->omap_setkeys(cop->results.temp_oid, omap);
-	cop->omap_data.clear();
+	      map<string,bufferlist> omap;
+	      bufferlist::iterator p = cop->omap_data.begin();
+	      ::decode(omap, p);
+	      t->omap_setkeys(cop->results.temp_oid, omap);
+	      cop->omap_data.clear();
       }
     }
   } else {
@@ -8445,6 +8569,7 @@ void PrimaryLogPG::_write_copy_chunk(CopyOpRef cop, PGTransaction *t)
     assert(cop->omap_data.length() == 0);
   }
   cop->temp_cursor = cop->cursor;
+dout(20) << __func__ << " end cop->obc->obs.oi.size = " << cop->obc->obs.oi.size << dendl ;
 }
 
 void PrimaryLogPG::finish_copyfrom(CopyFromCallback *cb)
@@ -8454,8 +8579,14 @@ void PrimaryLogPG::finish_copyfrom(CopyFromCallback *cb)
 
   ObjectState& obs = ctx->new_obs;
   if (obs.exists) {
-    dout(20) << __func__ << ": exists, removing" << dendl;
-    ctx->op_t->remove(obs.oi.soid);
+    // When copying object with transformation,
+    // do not remove the existing dest object
+    //if (!(cb->osd_op.op.copy_from.src_fadvise_flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM)) {
+    if (false) {
+      dout(20) << __func__ << ": exists, removing" << dendl;
+dout(20) << "kat obs.oi.soid = " << obs.oi.soid << dendl;
+      ctx->op_t->remove(obs.oi.soid);
+    }
   } else {
     ctx->delta_stats.num_objects++;
     obs.exists = true;
@@ -14763,3 +14894,4 @@ void put_with_id(PrimaryLogPG *pg, uint64_t id) { return pg->put_with_id(id); }
 
 void intrusive_ptr_add_ref(PrimaryLogPG::RepGather *repop) { repop->get(); }
 void intrusive_ptr_release(PrimaryLogPG::RepGather *repop) { repop->put(); }
+
