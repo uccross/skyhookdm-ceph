@@ -65,7 +65,8 @@ int main(int argc, char **argv)
   // copy contents of bl0 into bl1
   // this works bc bl1=ABC
   librados::ObjectWriteOperation op;
-  op.copy_from("bl0", ioctx, 0);
+  op.copy_from2("bl0", ioctx, 0, librados::OP_FADVISE_COPYFROMAPPEND);
+  //op.copy_from("bl0", ioctx, 0);
   ret = ioctx.operate("bl1", &op);
   checkret(ret, 0);
 
@@ -90,7 +91,8 @@ int main(int argc, char **argv)
   // this fails bc bl1 is wiped.
   // should be ABC123
   librados::ObjectWriteOperation op2;
-  op2.copy_from("bl2", ioctx, 0);
+  op2.copy_from2("bl2", ioctx, 0, librados::OP_FADVISE_COPYFROMAPPEND);
+  //op2.copy_from("bl2", ioctx, 0) ;
   ret = ioctx.operate("bl1", &op2);
   checkret(ret, 0);
 

@@ -6819,7 +6819,8 @@ dout(20) << "kat2 CEPH_OSD_OP_COPY_GET" << dendl;
           // COPY_FROM cannot be executed multiple times -- it must restart
           ctx->op_finishers.erase(ctx->current_osd_subop_num);
 	  //if (op.copy_from.src_fadvise_flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM) {
-	  if (true) {
+	  //if (true) {
+	  if (LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND) {
 	    // When copying object with transformation, 
 	    // update the dest object size insteaf of setting it to the src object size
 dout(20) << "kat before ctx->new_obs.oi.size = " << ctx->new_obs.oi.size << dendl;
@@ -7905,7 +7906,8 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
   // When copying object with transformation,
   // do not check digests because they change
   //if (!(osd_op.op.flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM)) {
-  if (false) {
+  //if (false) {
+	if (!LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND) {
     if (!skip_data_digest && oi.is_data_digest()) {
       reply_obj.flags |= object_copy_data_t::FLAG_DATA_DIGEST;
       reply_obj.data_digest = oi.data_digest;
@@ -7943,7 +7945,8 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
 
   // apply the transformation
   //if (osd_op.op.flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM) {
-  if (false) {
+  //if (false) {
+	if (!LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND) {
 
     // extract coulmn id from flags
     unsigned char cid = (osd_op.op.flags >> 24) & 0xFF;
@@ -8523,7 +8526,8 @@ dout(20) << __func__ << " after cop->temp_cursor.data_offset = " << cop->temp_cu
 dout(20) << __func__ << " after cop->src_obj_fadvise_flags = " << cop->src_obj_fadvise_flags << dendl;
 dout(20) << __func__ << " after cop->dest_obj_fadvise_flags = " << cop->dest_obj_fadvise_flags << dendl;
       //if (cop->src_obj_fadvise_flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM) {
-      if (true) {
+      //if (true) {
+	    if (LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND) {
 	      // When copying object with transformation,
 	      // append data to the dest object instead of replacing the whole object
 	      t->write(
@@ -8577,12 +8581,16 @@ void PrimaryLogPG::finish_copyfrom(CopyFromCallback *cb)
   OpContext *ctx = cb->ctx;
   dout(20) << "finish_copyfrom on " << ctx->obs->oi.soid << dendl;
 
+dout(20) << __func__ << " LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND = " 
+         << LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND << dendl;
+
   ObjectState& obs = ctx->new_obs;
   if (obs.exists) {
     // When copying object with transformation,
     // do not remove the existing dest object
     //if (!(cb->osd_op.op.copy_from.src_fadvise_flags & LIBRADOS_OP_FLAG_FADVISE_TRANSFORM)) {
-    if (false) {
+    //if (false) {
+    if (!LIBRADOS_OP_FLAG_FADVISE_COPYFROMAPPEND) {
       dout(20) << __func__ << ": exists, removing" << dendl;
 dout(20) << "kat obs.oi.soid = " << obs.oi.soid << dendl;
       ctx->op_t->remove(obs.oi.soid);
