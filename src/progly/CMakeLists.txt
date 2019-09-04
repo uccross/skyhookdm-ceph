@@ -10,6 +10,14 @@ install(TARGETS kat-tests DESTINATION bin)
 # --------------------------------- #
 # driver for baseline experiments for paper.
 # can delete later.
+add_executable(write-papertests write-papertests.cc )
+target_link_libraries(write-papertests librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)
+install(TARGETS write-papertests DESTINATION bin)
+
+# --------------------------------- #
+# driver for baseline experiments for paper.
+# can delete later.
 add_executable(run-papertests run-papertests.cc )
 target_link_libraries(run-papertests librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2)

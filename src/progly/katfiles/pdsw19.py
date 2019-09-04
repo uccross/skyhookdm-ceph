@@ -13,7 +13,8 @@ def dsgen( obj_id, \
            numrows, \
            arity, \
            outfile_path, \
-           outfile_name ) :
+           outfile_name, \
+           use_random_seed ) :
 
   print "--------------------------------------"
   print "obj_id       = " + str( obj_id )
@@ -33,21 +34,42 @@ def dsgen( obj_id, \
   print "start_row = " + str( start_row )
   print "end_row   = " + str( end_row )
 
-  # arity3 (int,float,str) ----------------------------- #
-  if arity == 3 :
+  # arity1 (int) ----------------------------- #
+  if arity == 1 :
     print "writing " + str( numrows ) + " ints to file '" + outfile_n + "'"
     counter = 0
     for i in range( start_row, end_row+1 ) :
-      random.seed( counter+0 )
+      if (use_random_seed) :
+        random.seed( counter+0 )
+      anint   = np.uint32( random.randint( 1000, 9999 ) )
+
+      arow = str( anint )
+
+      counter += 1
+      outfile.write( arow + "\n" )
+      if( counter % 1000 == 0 ) :
+        print outfile_name + " : writing row #" + str( counter )
+
+  # arity3 (int,float,str) ----------------------------- #
+  elif arity == 3 :
+    print "writing " + str( numrows ) + " ints to file '" + outfile_n + "'"
+    counter = 0
+    for i in range( start_row, end_row+1 ) :
+      if (use_random_seed) :
+        random.seed( counter+0 )
       anint   = np.uint32( random.randint( 0, 1000 ) )
-      random.seed( counter+1 )
+      if (use_random_seed) :
+        random.seed( counter+1 )
       afloat  = np.float32( random.random() )
-      random.seed( counter+2 )
+      if (use_random_seed) :
+        random.seed( counter+2 )
       basestr = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( 10 ) ] )
 
-      random.seed( counter+3 )
+      if (use_random_seed) :
+        random.seed( counter+3 )
       extra_digits = random.randint( 0, 4 )
-      random.seed( counter+4 )
+      if (use_random_seed) :
+        random.seed( counter+4 )
       astr1  = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( extra_digits ) ] )
       astr   = basestr+astr1
 
@@ -63,18 +85,24 @@ def dsgen( obj_id, \
     print "writing " + str( numrows ) + " ints to file '" + outfile_n + "'"
     counter = 0
     for i in range( start_row, end_row+1 ) :
-      random.seed( counter+0 )
+      if (use_random_seed) :
+        random.seed( counter+0 )
       anint0  = np.uint32( random.randint( 0, 1000 ) )
-      random.seed( counter+1 )
+      if (use_random_seed) :
+        random.seed( counter+1 )
       anint1  = np.uint32( random.randint( 0, 1000 ) )
-      random.seed( counter+2 )
+      if (use_random_seed) :
+        random.seed( counter+2 )
       afloat  = np.float32( random.random() )
-      random.seed( counter+3 )
+      if (use_random_seed) :
+        random.seed( counter+3 )
       basestr = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( 10 ) ] )
 
-      random.seed( counter+4 )
+      if (use_random_seed) :
+        random.seed( counter+4 )
       extra_digits = random.randint( 0, 4 )
-      random.seed( counter+5 )
+      if (use_random_seed) :
+        random.seed( counter+5 )
       astr1  = ''.join( [ random.choice( string.ascii_letters + string.digits ) for n in xrange( extra_digits ) ] )
       astr   = basestr+astr1
 
@@ -97,7 +125,8 @@ def dsgen( obj_id, \
           first = False
         else :
           arow = arow + "|"
-        random.seed( counter+i+j+1 )
+        if (use_random_seed) :
+          random.seed( counter+i+j+1 )
         arow = arow + str( np.uint32( random.randint( 0, 10000 ) ) )
 
       counter += 1
@@ -122,7 +151,7 @@ def main() :
   numrows      = int( sys.argv[2] ) # number of rows per object
   arity        = int( sys.argv[3] ) # number of columns in tables
   outfile_path = sys.argv[4]        # directory for saving outfiles
-
+  use_random_seed = False
 
   # printing main program process id 
   print("ID of main process: {}".format(os.getpid()))
@@ -141,7 +170,8 @@ def main() :
                  numrows, \
                  arity, \
                  outfile_path, \
-                 outfile_name )
+                 outfile_name, \
+                 use_random_seed )
 
     j = multiprocessing.Process( target=dsgen, \
                                  name=job_name, \
