@@ -13,10 +13,11 @@ else
 fi
 nosds=$1
 sshkeypath=$2
-max_osd=`expr ${nosds} - 1`;
+max_osd=$((nosds-1))
 
 echo "START:"
 echo `date`
+
 
 # hardcoded vars for now.
 pdsw_branch="skyhook-luminous";
@@ -68,9 +69,8 @@ echo "copying cluster_setup_copy_ssh_keys.sh to here."
 cp $scripts_dir/cluster_setup_copy_ssh_keys.sh . ;
 
 # create nodes.txt file for ssh key copy/setup
-echo $max_osd;
 echo "client0" >> nodes.txt;
-for i in  $(seq 0  ${max_osd}); do
+for ((i = 0 ; i < $nosds ; i++)); do
   echo "osd${i}" >> nodes.txt;
 done;
 
@@ -79,63 +79,64 @@ sh cluster_setup_copy_ssh_keys.sh;
 
 echo "copy scripts to all nodes"
 for n in  `cat nodes.txt`; do
-  echo "copy scripts dir to node"$n
-  scp -r $scripts_dir/*  $n:~/
+  echo "copy scripts dir to node ${n}";
+  scp -r ${scripts_dir}/*  ${n}:~/ ;
 done;
 
-echo "setup ansible via script, and install other small stuff locally"
+echo "setup ansible via script, and install other small stuff locally...";
+echo "cancel withing 5 seconds...";
+sleep 6s
 for n in `cat nodes.txt`; do
-  echo "executing bash ./postreqs.sh on node"$n
-  ssh $n  "bash ./postreqs.sh ;"
+  echo "executing bash ./postreqs.sh on node"$n;
+  ssh $n  "bash ./postreqs.sh ;";
 done;
 
-echo "specify correct num osds for this cluster in ansible hosts file"
-for i in  $(seq 1  ${max_osd}); do
+echo "specify correct num osds for this cluster in ansible hosts file";
+for ((i = 0 ; i < $nosds ; i++)); do
   echo "osd${i}" >> $ansible_dir/hosts;
 done;
-cp $ansible_dir/hosts $ansible_dir/lib/ceph-deploy-ansible/ansible/hosts
+cp $ansible_dir/hosts $ansible_dir/lib/ceph-deploy-ansible/ansible/hosts;
 
 echo "VERIFY osds all there"
-cat $ansible_dir/lib/ceph-deploy-ansible/ansible/hosts
+cat $ansible_dir/lib/ceph-deploy-ansible/ansible/hosts;
 
 echo "update the max_osd here /vars/extra_vars.yml  as well."
 head -n 4 $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/extra_vars.yml >>   $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
-echo "num_osds: " `expr ${max_osd} + 1` >>$ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
+echo "num_osds: ${nosds}" >>$ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
 mv $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/extra_vars.yml;
 rm -rf $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
 
-echo "Format and mount all the devs for skyhookdm-ceph cloned repo building on each client+osd nodes.."
+echo "Format and mount all the devs for skyhookdm-ceph cloned repo building on each client+osd nodes..";
 for n in `cat nodes.txt`; do
   scp $scripts_dir/format-sdX.sh $n:~/
   scp $scripts_dir/mount-sdX.sh $n:~/
   echo $n
-  ssh $n "if test -f /mnt/sda4/skyhookdm-ceph/README; then sudo rm -rf /mnt/sda4/skyhookdm-ceph/; fi;";
-  ssh $n "sudo umount /mnt/sda4;"
+  ssh $n "if test -f /mnt/sda4/skyhookdm-ceph/README; then sudo rm -rf /mnt/sda4/skyhookdm-ceph/; sudo umount /mnt/sda4; fi;";
   ssh $n "./format-sdX.sh sda4; ./mount-sdX.sh sda4;" &
 done;
 echo "waiting next.."
 wait;
 echo "done waiting..."
 echo " "
-echo "sleeping 1m next ... just to ensure formating all finished on all nodes"
+echo "sleeping 1m next ... just to ensure formating all finished on all nodes";
 
-echo "visually  verify all sda4 mounted at /mnt/sda4."
+echo "visually  verify all sda4 mounted at /mnt/sda4.";
 for n in `cat nodes.txt`; do
   echo $n
-  ssh $n "df -h | grep sda4;"
+  ssh $n "df -h | grep sda4;";
 done;
 echo "All done";
-sleep 5;
+sleep 3s;
 
 
-echo "Client0: apt-get update, install basic stuff, clone skyhookdm-ceph..."
-cd $repo_dir
+echo "Client0: apt-get update, install basic stuff, clone skyhookdm-ceph...";
+cd $repo_dir;
 sudo apt-get update;
 sudo apt-get install wget cmake git gnupg -y;
 git clone https://github.com/uccross/skyhookdm-ceph.git;
 cd skyhookdm-ceph;
 git checkout $pdsw_branch;
-echo "Client0: submodule update, ./install-deps.sh; ./do_cmake.sh; make -j36 cls_tabular run-query fbwriter .."
+echo "Client0: submodule update, ./install-deps.sh; ./do_cmake.sh; make -j36 cls_tabular run-query fbwriter ..";
 export DEBIAN_FRONTEND="noninteractive";
 git submodule update --init --recursive;
 sudo ./install-deps.sh;
@@ -154,16 +155,16 @@ echo "ansible playbook done.";
 echo `date`;
 echo "On each osd, clone skyhook-ceph since we need to install deps one each node.";
 cd $repo_dir
-for i in  $(seq 0  ${max_osd}); do
+for ((i = 0 ; i < $nosds ; i++)); do
     echo osd$i;
-    ssh osd$i "sudo apt-get update && sudo apt-get install git wget cmake git gnupg -y  > apt-get-install.out 2>&1;"
+    ssh osd$i "sudo apt-get update && sudo apt-get install git wget cmake git gnupg -y  > apt-get-install.out 2>&1;";
 done;
 
 
 # note this typically takes 1 min per node
 echo `date`;
 echo "ssh to each osd, clone skyhook repo...";
-for i in  $(seq 0  ${max_osd}); do
+for ((i = 0 ; i < $nosds ; i++)); do
     echo osd$i;
     ssh osd$i  "cd /mnt/sda4/; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
 done;
@@ -177,7 +178,7 @@ sleep 2s;
 # note this takes about 1 min per node as well.
 echo `date`;
 echo "ssh to each osd, run install deps...";
-for i in  $(seq 0  ${max_osd}); do
+for ((i = 0 ; i < $nosds ; i++)); do
     echo osd$i;
     ssh osd$i  "cd /mnt/sda4/skyhookdm-ceph;  export DEBIAN_FRONTEND=noninteractive; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
 done;
@@ -189,8 +190,8 @@ sleep 2s;
 
 
 echo "Copying our libcls so file to each osd, to the correct dir, and set symlinks";
-sudo chmod a-x   $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0
-for i in  $(seq 0  ${max_osd}); do
+sudo chmod a-x   $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0;
+for ((i = 0 ; i < $nosds ; i++)); do
     echo osd$i;
     scp $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0  osd$i:/tmp/;
     ssh  osd$i "sudo cp /tmp/libcls_tabular.so.1.0.0 /usr/lib/x86_64-linux-gnu/rados-classes/;";
@@ -202,9 +203,9 @@ done;
 
 
 echo "on each osd, verify that libcls_tabular.so is present here: /usr/lib/x86_64-linux-gnu/rados-classes/"
-for i in  $(seq 0  ${max_osd}); do
-echo "checking for libcls_tabular on osd${i}";
-ssh osd$i "ls -alh /usr/lib/x86_64-linux-gnu/rados-classes/ | grep libcls_tabular";
+for ((i = 0 ; i < $nosds ; i++)); do
+    echo "checking for libcls_tabular on osd${i}";
+    ssh osd$i "ls -alh /usr/lib/x86_64-linux-gnu/rados-classes/ | grep libcls_tabular";
 done;
 
 
@@ -248,6 +249,7 @@ mv fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.ncols100.0.1-1 "fbx.${ncols100_100MB_f
 #############################################################
 #####  lineitem: convert fbx obj 10MB to ARROW, retrieve arrow obj.
 #############################################################
+echo "lineitem: convert fbx obj 10MB to ARROW, retrieve arrow obj."
 set -e
 objname="fbx.${lineitem_10MB_fname_base}"
 pool="tpchdata"
@@ -280,6 +282,7 @@ rados -p $pool get obj.0 "arrow.${lineitem_10MB_fname_base}"
 #############################################################
 #####  lineitem: convert fbx obj 100MB to ARROW, retrieve arrow obj.
 #############################################################
+echo "ineitem: convert fbx obj 100MB to ARROW, retrieve arrow obj."
 set -e
 objname="fbx.${lineitem_100MB_fname_base}"
 pool="tpchdata"
@@ -314,6 +317,7 @@ rados -p $pool get obj.0 "arrow.${lineitem_100MB_fname_base}"
 #############################################################
 #####  ncols100: convert fbx obj 10MB to ARROW, retrieve arrow obj.
 #############################################################
+echo " ncols100: convert fbx obj 10MB to ARROW, retrieve arrow obj."
 set -e
 objname="fbx.${ncols100_10MB_fname_base}"
 pool="tpchdata"
@@ -345,6 +349,7 @@ rados -p $pool get obj.0 "arrow.${ncols100_10MB_fname_base}"
 #############################################################
 #####  ncols100: convert fbx obj 100MB to ARROW, retrieve arrow obj.
 #############################################################
+echo "ncols100: convert fbx obj 100MB to ARROW, retrieve arrow obj."
 set -e
 objname="fbx.${ncols100_100MB_fname_base}"
 pool="tpchdata"
