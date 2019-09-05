@@ -6235,4 +6235,10 @@ int transform_fbxrows_to_fbucols(const char* fb,
 } // transform_fbxrows_to_fbucols
 
 
+int stub_method(int& input_int) {
+  input_int = 1234;
+  std::cout << "blah1" << std::endl;
+  return 0;
+}
+
 } // end namespace Tables

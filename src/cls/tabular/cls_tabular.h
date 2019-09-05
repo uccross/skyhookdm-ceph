@@ -583,5 +583,35 @@ struct col_stats {
 };
 WRITE_CLASS_ENCODER(col_stats)
 
+struct kat_op {
+
+  int input_int;
+
+  kat_op() {}
+  kat_op(int _input_int) :
+    input_int(_input_int) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(input_int, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(input_int, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("kat_op:");
+    s.append(" .input_int =" + std::to_string(input_int));
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(kat_op)
 
 #endif

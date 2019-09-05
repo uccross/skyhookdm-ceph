@@ -771,7 +771,7 @@ else
 	debug mgrc = 20
         debug ms = 1'
     COSDDEBUG='
-        debug ms = 1
+        debug ms = 5
         debug osd = 25
         debug objecter = 20
         debug monc = 20

@@ -1050,6 +1050,8 @@ int compress_arrow_tables(std::vector<std::shared_ptr<arrow::Table>> &table_vec,
 int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
                       std::vector<std::shared_ptr<arrow::Table>>* table_vec);
 
+int stub_method(int& input_int);
+
 } // end namespace Tables
 
 // Postgres binary fstream requires big endian encoding
