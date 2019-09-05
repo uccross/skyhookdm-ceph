@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
       ("table_name", po::value<string>(&table_name)->required(), "table_name")
       ("input_oid", po::value<uint64_t>(&input_oid)->required(), "input_oid")
       ("obj_type", po::value<string>(&obj_type)->required(), "obj_type");
-  
+
     po::options_description all_opts("Allowed options");
     all_opts.add(gen_opts);
     po::variables_map vm;
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
       return 1;
     }
     po::notify(vm);
-  
+
     // returns schema vector and composite keys
     Tables::schema_vec schema;
     vector<int> composite_key_indexes;
@@ -216,11 +216,12 @@ int main(int argc, char *argv[])
             }
 
             // --------- Get FB and insert ----------
-            printf("Inserting Row %ld into Bucket %ld\n", line_counter, oid);
+            if ((line_counter % 100000) == 0)
+                printf("Inserting Row %ld into Bucket %ld\n", line_counter, oid);
             bucketPtr = GetAndInitializeBucket(FBmap, oid, nullbits, flxPtr, table_name);
 
             // ----------- Flush if rows_flush was met -----------
-            // TODO: either disable flushing when not using hashing 
+            // TODO: either disable flushing when not using hashing
             //       or increment the oid.
             //       otherwise, when flush_rows < read_rows,
             //       this will flush everything to the same object,
