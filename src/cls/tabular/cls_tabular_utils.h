@@ -306,6 +306,7 @@ public:
     virtual int opType() = 0;
     virtual int chainOpType() = 0;
     virtual bool isGlobalAgg() = 0;
+    virtual std::string toString() = 0;
 };
 typedef std::vector<class PredicateBase*> predicate_vec;
 
@@ -458,6 +459,19 @@ public:
     T Val() {return value.val;}
     const re2::RE2* getRegex() {return regx;}
     void updateAgg(T newval) {value.val = newval;}
+
+    std::string toString() {
+        std::string s("TypedPredicate:");
+        s.append(" col_idx=" + std::to_string(col_idx));
+        s.append(" col_type=" + std::to_string(col_type));
+        s.append(" op_type=" + std::to_string(op_type));
+        s.append(" val=");
+        std::stringstream ss;
+        ss << this->Val();
+        s.append(ss.str());
+        s.append("\n");
+        return s;
+    }
 };
 
 // col metadata used for the schema
@@ -506,11 +520,11 @@ struct col_info {
 
     std::string toString() {
         return ( "   " +
-            std::to_string(idx) + " " +
-            std::to_string(type) + " " +
-            std::to_string(is_key) + " " +
-            std::to_string(nullable) + " " +
-            name + "   ");}
+                std::to_string(idx) + " " +
+                std::to_string(type) + " " +
+                std::to_string(is_key) + " " +
+                std::to_string(nullable) + " " +
+                name + "   ");}
 
     inline bool compareName(std::string colname) {
         return (colname==name) ? true : false;
@@ -684,10 +698,10 @@ struct col_table_fbu {
     std::vector< uint64_t > cols_rids ;
     col_fbu data_fbu_col;
 
-    col_table_fbu(int64_t _CID, 
-                   nullbits_vector _nullbits, 
-                   std::vector< uint64_t > _cols_rids, 
-                   col_fbu _data_fbu_col) :
+    col_table_fbu(int64_t _CID,
+                  nullbits_vector _nullbits,
+                  std::vector< uint64_t > _cols_rids,
+                  col_fbu _data_fbu_col) :
         CID(_CID),
         nullbits(_nullbits),
         cols_rids(_cols_rids),
@@ -861,6 +875,14 @@ long long int printFlatbufFlexRowAsBinary(
         bool print_verbose,
         long long int max_to_print);
 
+// postgres binary fstream format
+long long int printArrowbufRowAsBinary(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
 
 int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);
@@ -869,6 +891,7 @@ int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);
 int transform_fb_to_arrow(
         const char* fb,
         const size_t fb_size,
+        schema_vec& query_schema,
         std::string& errmsg,
         std::shared_ptr<arrow::Table>* table);
 

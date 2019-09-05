@@ -1,6 +1,14 @@
 # --------------------------------- #
 # driver for copyfrom approach to object merging.
 # can delete later.
+add_executable(run-client-merge run-client-merge.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc )
+target_link_libraries(run-client-merge librados global ${CMAKE_DL_LIBS}
+    ${Boost_PROGRAM_OPTIONS_LIBRARY} re2 arrow)
+install(TARGETS run-client-merge DESTINATION bin)
+
+# --------------------------------- #
+# driver for copyfrom approach to object merging.
+# can delete later.
 add_executable(run-copyfrom-merge run-copyfrom-merge.cc ${CMAKE_SOURCE_DIR}/src/cls/tabular/cls_tabular_utils.cc )
 target_link_libraries(run-copyfrom-merge librados global ${CMAKE_DL_LIBS}
     ${Boost_PROGRAM_OPTIONS_LIBRARY} re2 arrow)
