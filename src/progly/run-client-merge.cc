@@ -19,15 +19,19 @@ namespace po = boost::program_options;
 
 int main(int argc, char **argv) {
 
-  std::string pool ;
-  uint64_t num_objs ;
+  std::string pool;
+  int start_oid;
+  int end_oid;
+  int merge_id;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
-    ("pool", po::value<std::string>(&pool)->required(), "pool")
-    ("num-objs", po::value<uint64_t>(&num_objs)->required(), "number of objects to transform")
-  ;
+    ("pool",      po::value<std::string>(&pool)->required(), "pool")
+    ("start-oid", po::value<int>(&start_oid)->required(),    "number for starting oid")
+    ("end-oid",   po::value<int>(&end_oid)->required(),      "number for ending oid")
+    ("merge-id",  po::value<int>(&merge_id)->required(),     "number id for merge object")
+ ;
 
   po::options_description all_opts( "Allowed options" ) ;
   all_opts.add( gen_opts ) ;
@@ -51,34 +55,23 @@ int main(int argc, char **argv) {
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   assert(ret == 0);
 
-  int group_size = 10 ;
-  int obj_count  = 0 ;
-  int group_count  = 0 ;
-  std::cout << num_objs << std::endl ;
-  std::cout << group_size << std::endl ;
-  std::cout << std::to_string(num_objs/group_size) << std::endl ;
-  for( unsigned int i=0; i < (num_objs/group_size); i++ ) {
-    for( int j=0; j < group_size; j++ ) {
-      std::string target_objname = "obj.client.mergetarget."+std::to_string(group_count) ;
-      std::string src_objname = "obj."+std::to_string(obj_count) ;
-      //std::cout << src_objname << std::endl ;
-      //std::cout << target_objname << std::endl ;
+  for( int j=start_oid; j < end_oid; j++ ) {
+    std::string target_objname = "obj.client.mergetarget."+std::to_string(merge_id) ;
+    std::string src_objname = "obj."+std::to_string(j) ;
+    //std::cout << src_objname << std::endl ;
+    //std::cout << target_objname << std::endl ;
 
-      // read src object
-      librados::bufferlist src_bl ;
-      int num_bytes_read = ioctx.read( src_objname.c_str(), src_bl, (size_t)0, (uint64_t)0 ) ;
-      //std::cout << "num_bytes_read src : " << num_bytes_read << std::endl ;
+    // read src object
+    librados::bufferlist src_bl ;
+    int num_bytes_read = ioctx.read( src_objname.c_str(), src_bl, (size_t)0, (uint64_t)0 ) ;
+    //std::cout << "num_bytes_read src : " << num_bytes_read << std::endl ;
 
-      // write target target object 
-      //std::cout << "num bytes written to target : " << src_bl.length() << std::endl ;
-      ret = ioctx.write( target_objname, src_bl, src_bl.length(), 0 ) ;
-      assert(ret == 0);
-      obj_count++ ;
-    }
-    group_count++ ;
+    // write target target object
+    //std::cout << "num bytes written to target : " << src_bl.length() << std::endl ;
+    ret = ioctx.write( target_objname, src_bl, src_bl.length(), 0 ) ;
+    assert(ret == 0);
   }
 
   ioctx.close();
   return 0 ;
 }
-
