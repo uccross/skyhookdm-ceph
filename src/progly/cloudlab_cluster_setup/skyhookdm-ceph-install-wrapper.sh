@@ -254,7 +254,7 @@ mv fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.lineitem.0.1-1 "fbx.${lineitem_100MB_o
 ncols100_10MB_objfilename_base="ncols100.10MB.25Krows.obj.0";
 ncols100_100MB_objfilename_base="ncols100.100MB.250Krows.obj.0";
 ncols100_25Kcsv="ncols100.10MB.objs.25Krows.csv";
-ncols100_25Kcsv="ncols100.100MB.objs.250Krows.csv";
+ncols100_250Kcsv="ncols100.100MB.objs.250Krows.csv";
 touch $ncols100_250Kcsv;
 echo "nocls100: generating 250K rows csv by 10x concat of our 25K row csv..."
 for ((i = 0 ; i < 10 ; i++)); do
