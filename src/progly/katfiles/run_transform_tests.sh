@@ -83,8 +83,8 @@ eval "$cmd3"
 local_xform_time_end=$(date --utc "+%s.%N")
 local_xform_time_dur=0$(echo "$local_xform_time_end - $local_xform_time_start" | bc)
 
-echo "Command ran: ${cmd3}" >> ${HOME}/local_xform_time_results_${test_id}.txt
-echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local_xform_time_end local_xform_time_duration=$local_xform_time_dur" >> ${HOME}/local_xform_time_results_${test_id}.txt
+echo "Command ran: ${cmd3}" >> ${HOME}/local_xform_time_results_$test_id.txt
+echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local_xform_time_end local_xform_time_duration=$local_xform_time_dur" >> ${HOME}/local_xform_time_results_$test_id.txt
 
 # ==================================================================== #
 # prepare for next phase
@@ -132,8 +132,8 @@ for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
 done
 copyfromappend_merge_time_end=$(date --utc "+%s.%N")
 copyfromappend_merge_time_dur=0$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc)
-echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_${test_id}.txt
-echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_${test_id}.txt
+echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt
+echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt
 
 # ==================================================================== #
 # merge using client
@@ -149,8 +149,8 @@ for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
 done
 clientmerge_time_end=$(date --utc "+%s.%N")
 clientmerge_time_dur=0$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc)
-echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_${test_id}.txt
-echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_${test_id}.txt
+echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt
+echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt
 
 # ==================================================================== #
 end=$(date --utc "+%s.%N")
