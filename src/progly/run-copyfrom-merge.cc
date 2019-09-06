@@ -19,23 +19,18 @@ namespace po = boost::program_options;
 int main(int argc, char **argv)
 {
   std::string pool;
-  uint64_t start_oid;
-  uint64_t end_oid;
-  uint64_t merge_id;
+  int start_oid;
+  int end_oid;
+  int merge_id;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
-    ("pool", po::value<std::string>(&pool)->required(), "pool")
-    ("start-oid", po::value<uint64_t>(&start_oid)->required(), "number for starting oid (assumes 'obj.' prefix)")
-    ("end-oid", po::value<uint64_t>(&end_oid)->required(), "number for ending oid (assumes 'obj.' prefix)")
-    ("merge-id", po::value<uint64_t>(&end_oid)->required(), "number id for merge object.")
+    ("pool",      po::value<std::string>(&pool)->required(), "pool")
+    ("start-oid", po::value<int>(&start_oid)->required(),    "number for starting oid")
+    ("end-oid",   po::value<int>(&end_oid)->required(),      "number for ending oid")
+    ("merge-id",  po::value<int>(&merge_id)->required(),     "number id for merge object")
  ;
-
-  std::cout << "pool " << pool << std::endl ;
-  std::cout << "start-oid " << std::to_string(start_oid) << std::endl ;
-  std::cout << "end-oid " << std::to_string(end_oid) << std::endl ;
-  std::cout << "merge-id " << std::to_string(merge_id) << std::endl ;
 
   po::options_description all_opts("Allowed options");
   all_opts.add(gen_opts);
@@ -49,6 +44,11 @@ int main(int argc, char **argv)
   }
 
   po::notify(vm);
+
+  std::cout << "pool " << pool << std::endl ;
+  std::cout << "start-oid " << std::to_string(start_oid) << std::endl ;
+  std::cout << "end-oid " << std::to_string(end_oid) << std::endl ;
+  std::cout << "merge-id " << std::to_string(merge_id) << std::endl ;
 
   // connect to rados
   librados::Rados cluster;
