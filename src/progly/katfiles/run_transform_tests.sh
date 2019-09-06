@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# 2 osds, 100 groups of 100, written in subgroups of 10
+#bash run_transform_tests.sh 2 10000 paper_exps /proj/skyhook-PG0/pdsw19/data/ncols100.10MB.objs.25Krows.csv /proj/skyhook-PG0/pdsw19/data/ncols100.schema.txt True 100 ;
+#
+# 4 osds, 100 groups of 100, written in subgroups of 10
+#bash run_transform_tests.sh 4 10000 paper_exps /proj/skyhook-PG0/pdsw19/data/ncols100.10MB.objs.25Krows.csv /proj/skyhook-PG0/pdsw19/data/ncols100.schema.txt True 100 ;
+#
+# 8 osds, 100 groups of 100, written in subgroups of 10
+#bash run_transform_tests.sh 8 10000 paper_exps /proj/skyhook-PG0/pdsw19/data/ncols100.10MB.objs.25Krows.csv /proj/skyhook-PG0/pdsw19/data/ncols100.schema.txt True 100 ;
+
 nosds=$1
 num_objs=$2
 poolname=$3
@@ -16,6 +25,9 @@ DATA_SCHEMA="\"0 8 1 0 ATT0;\""
 
 # make the pool
 rados mkpool $poolname ;
+
+# remove any existing objects
+for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
 
 # make bins
 sudo make -j36 fbwriter run-query run-copyfrom-merge ;
@@ -52,7 +64,6 @@ for ((group_id=0; group_id<${number_of_groups}; group_id++)); do
   echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local_xform_time_end local_xform_time_duration=$local_xform_time_dur" >> ${HOME}/local_xform_time_results.txt
 
   # merge using copy from append
-  #cmd4="sudo bin/run-copyfrom-merge "
   cmd4="sudo bin/run-copyfrom-merge --pool ${poolname} --num-objs ${num_objs}"
   copyfromappend_merge_time_start=$(date --utc "+%s.%N")
   eval "$cmd4"
@@ -62,7 +73,6 @@ for ((group_id=0; group_id<${number_of_groups}; group_id++)); do
   echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results.txt
 
   # merge using client
-  #cmd5="sudo bin/run-merge"
   cmd5="sudo bin/run-client-merge --pool ${poolname} --num-objs ${num_objs}"
   clientmerge_time_start=$(date --utc "+%s.%N")
   eval "$cmd5"
