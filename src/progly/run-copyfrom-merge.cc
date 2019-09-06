@@ -20,13 +20,17 @@ int main(int argc, char **argv)
 {
   std::string pool;
   std::string obj_prefix;
-  uint64_t num_objs;
+  uint64_t start_oid;
+  uint64_t end_oid;
+  uint64_t merge_id;
 
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
     ("pool", po::value<std::string>(&pool)->required(), "pool")
-    ("num-objs", po::value<uint64_t>(&num_objs)->required(), "number of objects to merge (assumes 'obj.' prefix)")
+    ("start-oid", po::value<uint64_t>(&start_oid)->required(), "number for starting oid (assumes 'obj.' prefix)")
+    ("end-oid", po::value<uint64_t>(&end_oid)->required(), "number for ending oid (assumes 'obj.' prefix)")
+    ("merge-id", po::value<uint64_t>(&end_oid)->required(), "number id for merge object.")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -54,28 +58,16 @@ int main(int argc, char **argv)
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
 
-  int group_size = 10 ;
-  int obj_count  = 0 ;
-  int group_count  = 0 ;
-  std::cout << num_objs << std::endl ;
-  std::cout << group_size << std::endl ;
-  std::cout << std::to_string(num_objs/group_size) << std::endl ;
-  for( unsigned int i=0; i < (num_objs/group_size); i++ ) {
-    for( int j=0; j < group_size; j++ ) {
-      std::string target_objname = "obj.mergetarget."+std::to_string(group_count) ;
-      std::string src_objname = "obj."+std::to_string(obj_count) ;
-      //std::cout << target_objname << std::endl ;
-      //std::cout << src_objname << std::endl ;
-      librados::ObjectWriteOperation op;
-      op.copy_from2(src_objname, ioctx, 0, librados::OP_FADVISE_COPYFROMAPPEND);
-      ret = ioctx.operate(target_objname, &op);
-      checkret(ret, 0);
-      obj_count++ ;
-    }
-    group_count++ ;
+  for( int j=start_oid; j < end_oid; j++ ) {
+    std::string target_objname = "obj.mergetarget."+std::to_string(merge_id) ;
+    std::string src_objname = "obj."+std::to_string(j) ;
+    librados::ObjectWriteOperation op;
+    op.copy_from2(src_objname, ioctx, 0, librados::OP_FADVISE_COPYFROMAPPEND);
+    //op.copy_from(src_objname, ioctx, 0);
+    ret = ioctx.operate(target_objname, &op);
+    checkret(ret, 0);
   }
 
   ioctx.close();
   return 0;
 }
-//op.copy_from(src_objname, ioctx, 0);
