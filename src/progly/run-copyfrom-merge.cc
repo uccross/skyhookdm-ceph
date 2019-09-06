@@ -19,7 +19,6 @@ namespace po = boost::program_options;
 int main(int argc, char **argv)
 {
   std::string pool;
-  std::string obj_prefix;
   uint64_t start_oid;
   uint64_t end_oid;
   uint64_t merge_id;
@@ -32,6 +31,11 @@ int main(int argc, char **argv)
     ("end-oid", po::value<uint64_t>(&end_oid)->required(), "number for ending oid (assumes 'obj.' prefix)")
     ("merge-id", po::value<uint64_t>(&end_oid)->required(), "number id for merge object.")
  ;
+
+  std::cout << "pool " << pool << std::endl ;
+  std::cout << "start-oid " << std::to_string(start_oid) << std::endl ;
+  std::cout << "end-oid " << std::to_string(end_oid) << std::endl ;
+  std::cout << "merge-id " << std::to_string(merge_id) << std::endl ;
 
   po::options_description all_opts("Allowed options");
   all_opts.add(gen_opts);
@@ -61,6 +65,8 @@ int main(int argc, char **argv)
   for( int j=start_oid; j < end_oid; j++ ) {
     std::string target_objname = "obj.mergetarget."+std::to_string(merge_id) ;
     std::string src_objname = "obj."+std::to_string(j) ;
+    std::cout << target_objname << std::endl ;
+    std::cout << src_objname << std::endl ;
     librados::ObjectWriteOperation op;
     op.copy_from2(src_objname, ioctx, 0, librados::OP_FADVISE_COPYFROMAPPEND);
     //op.copy_from(src_objname, ioctx, 0);
