@@ -55,20 +55,22 @@ int main(int argc, char **argv) {
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   assert(ret == 0);
 
+  std::string target_objname = "obj.client.mergetarget."+std::to_string(merge_id) ;
+  int curr_offset = 0 ;
   for( int j=start_oid; j < end_oid; j++ ) {
-    std::string target_objname = "obj.client.mergetarget."+std::to_string(merge_id) ;
     std::string src_objname = "obj."+std::to_string(j) ;
-    //std::cout << src_objname << std::endl ;
-    //std::cout << target_objname << std::endl ;
+    std::cout << src_objname << std::endl ;
+    std::cout << target_objname << std::endl ;
 
     // read src object
     librados::bufferlist src_bl ;
     int num_bytes_read = ioctx.read( src_objname.c_str(), src_bl, (size_t)0, (uint64_t)0 ) ;
-    //std::cout << "num_bytes_read src : " << num_bytes_read << std::endl ;
+    std::cout << "num_bytes_read src : " << num_bytes_read << std::endl ;
 
     // write target target object
-    //std::cout << "num bytes written to target : " << src_bl.length() << std::endl ;
-    ret = ioctx.write( target_objname, src_bl, src_bl.length(), 0 ) ;
+    std::cout << "num bytes written to target : " << src_bl.length() << std::endl ;
+    ret = ioctx.write( target_objname, src_bl, src_bl.length(), (size_t)curr_offset ) ;
+    curr_offset += src_bl.length() ;
     assert(ret == 0);
   }
 
