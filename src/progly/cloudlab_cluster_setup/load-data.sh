@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+#set -e
 pool=$1
 objfile=$2
 nosds=$3
