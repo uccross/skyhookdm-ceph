@@ -32,8 +32,7 @@ num_src_objs_per_merge=`expr $num_objs / $num_merge_objs` #num_objs/num_merge_ob
 
 test_id=$9 # a string to add to the output files.
 
-#num_merge_objs=2
-#num_src_objs_per_merge=10
+total_num_objs=`expr $num_objs * num_write_groups`
 
 # make the pool
 rados mkpool $poolname ;
@@ -76,7 +75,7 @@ eval "$cmd2"
 # ==================================================================== #
 # transform the fbxrows into arrow for entire table
 
-cmd3="sudo bin/run-query --num-objs ${num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --project-cols ${PROJECT_COLS} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA}"
+cmd3="sudo bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --project-cols ${PROJECT_COLS} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA}"
 
 local_xform_time_start=$(date --utc "+%s.%N")
 eval "$cmd3"
@@ -115,7 +114,7 @@ eval "$cmd2"
 
 # ------------------------------------------ #
 # transform the fbxrows into arrow and project one column (do not time)
-cmd4="sudo bin/run-query --num-objs ${num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth}  --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA} --project-cols ${PROJECT_COLS}"
+cmd4="sudo bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth}  --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA} --project-cols ${PROJECT_COLS}"
 eval "$cmd4"
 
 # ==================================================================== #
