@@ -28,20 +28,21 @@ export DATA_SCHEMA="\"0 8 1 0 ATT0; 1 8 0 0 ATT1; 2 8 0 0 ATT2; 3 8 0 0 ATT3; 4 
 # for 100 objects of size 100MB each, use num_merge_objs=50
 # bc 256MB max obj size, so merged objs will be about 200MB each.
 num_merge_objs=$8
-num_src_objs_per_merge=`expr $num_objs / $num_merge_objs` #num_objs/num_merge_objs
+num_src_objs_per_merge=$9
 
-test_id=$9 # a string to add to the output files.
+test_id=${10} # a string to add to the output files.
 
-total_num_objs=`expr $num_objs * num_write_groups`
-
-# make the pool
-rados mkpool $poolname ;
+total_num_objs=$(( num_objs*num_write_groups ))
 
 # make bins
 sudo make -j36 fbwriter run-query run-copyfrom-merge run-client-merge ;
 
 # remove any existing objects
-for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+#for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
+# make the pool
+rados mkpool $poolname ;
+sleep 10;
 
 # clear the caches
 for ((j=0; j<${nosds}; j++)); do
@@ -58,7 +59,8 @@ start=$(date --utc "+%s.%N")
 # ------------------------------------------ #
 # write the csv to fbxrows
 cmd0="sudo bin/fbwriter --file_name $data_path --schema_file_name  $schema_path --num_objs 1 --flush_rows 25000 --read_rows 25000 --csv_delim \"|\" --use_hashing false --rid_start_value 1 --table_name ncols100_paper_exps --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;"
-  eval "$cmd0"
+eval "$cmd0"
+sleep 10;
 
 # ------------------------------------------ #
 # write the fbxrows from disk to ceph
@@ -66,21 +68,24 @@ for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
   cmd1="sudo python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
   eval "$cmd1"
 done
+sleep 10;
 
 # ------------------------------------------ #
 # remove the fbxrows disk file to conserve space
-cmd2="sudo rm $fbwriter_filename"
-eval "$cmd2"
+#cmd2="sudo rm $fbwriter_filename"
+#eval "$cmd2"
 
 # ==================================================================== #
 # transform the fbxrows into arrow for entire table
 
 cmd3="sudo bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --project-cols ${PROJECT_COLS} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA}"
+sleep 10;
 
 local_xform_time_start=$(date --utc "+%s.%N")
 eval "$cmd3"
 local_xform_time_end=$(date --utc "+%s.%N")
-local_xform_time_dur=0$(echo "$local_xform_time_end - $local_xform_time_start" | bc)
+local_xform_time_dur=$(echo "$local_xform_time_end - $local_xform_time_start" | bc)
+sleep 10;
 
 echo "Command ran: ${cmd3}" >> ${HOME}/local_xform_time_results_$test_id.txt
 echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local_xform_time_end local_xform_time_duration=$local_xform_time_dur" >> ${HOME}/local_xform_time_results_$test_id.txt
@@ -90,12 +95,17 @@ echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local
 
 # ------------------------------------------ #
 # remove any existing objects
-for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+#for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
+# make the pool
+rados mkpool $poolname ;
+sleep 10;
 
 # ------------------------------------------ #
 # write the csv to fbxrows
 cmd0="sudo bin/fbwriter --file_name $data_path --schema_file_name  $schema_path --num_objs 1 --flush_rows 25000 --read_rows 25000 --csv_delim \"|\" --use_hashing false --rid_start_value 1 --table_name ncols100_paper_exps --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;"
 eval "$cmd0"
+sleep 10;
 
 # ------------------------------------------ #
 # write the fbxrows from disk to ceph
@@ -103,11 +113,12 @@ for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
   cmd1="sudo python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
   eval "$cmd1"
 done
+sleep 10;
 
 # ------------------------------------------ #
 # remove the fbxrows disk file to conserve space
-cmd2="sudo rm $fbwriter_filename"
-eval "$cmd2"
+#cmd2="sudo rm $fbwriter_filename"
+#eval "$cmd2"
 
 # ==================================================================== #
 # do transforms with column project
@@ -116,6 +127,7 @@ eval "$cmd2"
 # transform the fbxrows into arrow and project one column (do not time)
 cmd4="sudo bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth}  --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA} --project-cols ${PROJECT_COLS}"
 eval "$cmd4"
+sleep 10;
 
 # ==================================================================== #
 # merge using copy from append
@@ -126,13 +138,12 @@ eval "$cmd4"
 # ------------------------------------------ #
 copyfromappend_merge_time_start=$(date --utc "+%s.%N")
 cmd5="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"copyfrom\""
-for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
-  eval "$cmd5"
-done
+eval "$cmd5"
 copyfromappend_merge_time_end=$(date --utc "+%s.%N")
-copyfromappend_merge_time_dur=0$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc)
+copyfromappend_merge_time_dur=$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc)
 echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt
 echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt
+sleep 10;
 
 # ==================================================================== #
 # merge using client
@@ -143,13 +154,12 @@ echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfroma
 # ------------------------------------------ #
 clientmerge_time_start=$(date --utc "+%s.%N")
 cmd6="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"client\""
-for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
-  eval "$cmd6"
-done
+eval "$cmd6"
 clientmerge_time_end=$(date --utc "+%s.%N")
-clientmerge_time_dur=0$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc)
+clientmerge_time_dur=$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc)
 echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt
 echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt
+sleep 10;
 
 # ==================================================================== #
 end=$(date --utc "+%s.%N")
