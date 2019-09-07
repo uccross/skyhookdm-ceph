@@ -1,4 +1,5 @@
-
+#!/bin/bash
+set -e
 pool=$1
 objfile=$2
 nosds=$3
@@ -9,8 +10,6 @@ echo "pool=${pool}";
 echo "objfile=${objfile}";
 echo "nosds=${nosds}";
 echo "nobjs=${nobjs}";
-
-
 
 
 cd $HOME

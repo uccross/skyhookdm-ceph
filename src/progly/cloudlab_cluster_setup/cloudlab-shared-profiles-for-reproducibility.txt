@@ -10,8 +10,13 @@
  scp -i ~/.ssh/cloudlab.id_rsa  ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR:~/;
  ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR "git clone https://github.com/KDahlgren/pdsw19-reprod";
  ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR;
-    $ bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh 2 ~generickey.id_rsa
+    $ bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh <nosds> <generickey-path>
+6. ./create-objs.sh
+7. ./bash load-wrapper-10MB.sh <nosds> <nobjects>
+8. ./runquery-A.sh, run-query-B.sh
 
+
+# OUR CLOUDLAB PROFILES SHARED PUBLICLY for 1,2,4,8,16,32 node clusters.
 1client-1osd: c220g5-01osds
 https://www.cloudlab.us/p/a43a8f27-8331-11e9-8677-e4434b2381fc
 

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+
 cd $HOME
 echo "Assumes data files are available at ${HOME}"
 echo "Usage:  ./this <numosds> <numobjs>"

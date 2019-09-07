@@ -265,5 +265,6 @@ rados -p $pool df
 rados -p $pool rm "obj.0";
 
 # COPY OBJ DATA TO HOME DIR FOR LOAD SCRIPTS
+echo "copying obj files to ${HOME}"
 cp *.obj* $HOME
 
