@@ -5,17 +5,12 @@
 2. create a generic sshkey just for these tests
 3. instantiate one of the below cloudlab profiles.
     via GENILAB SCRIPT??
-4. obtain the name or ipaddr of the node "client0" in your instantiated profile.
-5. copy that generic key to your home dir of the node "client0" node of the booted profile
-    ex:  scp -i ~/.ssh/cloudlab.id_rsa  /path/to/generickey.id_rsa  jlefevre@c220g5-111311.wisc.cloudlab.us:~/
-6. ssh into node "client0"
-7. cd $HOME
-8. clone the paper repo
-    ex:  git clone https://github.com/KDahlgren/pdsw19-reprod
-9. kick off experiments via shell script.
-    Usage: bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh <num_osds_in_profile> </path/to/generickey>;
-    ex: bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh 2 ~generickey.id_rsa
-
+4. IPADDR= ip of the node "client0" in your instantiated profile.
+5. Setup the machine for experiments
+ scp -i ~/.ssh/cloudlab.id_rsa  ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR:~/;
+ ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR "git clone https://github.com/KDahlgren/pdsw19-reprod";
+ ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR;
+    $ bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh 2 ~generickey.id_rsa
 
 1client-1osd: c220g5-01osds
 https://www.cloudlab.us/p/a43a8f27-8331-11e9-8677-e4434b2381fc
