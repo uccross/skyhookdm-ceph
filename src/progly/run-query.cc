@@ -185,17 +185,11 @@ int main(int argc, char **argv)
 
   timings.reserve(num_objs);
 
-  {
-      unsigned oidx = 0;
-      if (transform_db) {
-          oidx = start_obj;
-          num_objs += start_obj;
-      }
-
+  if (transform_db) {
       // generate the names of the objects to process
-      for (; oidx < num_objs; oidx++) {
+      for (unsigned int i = start_obj; i < num_objs; i++) {
           std::stringstream oid_ss;
-          oid_ss << "obj." << oidx;
+          oid_ss << "obj." << i;
           const std::string oid = oid_ss.str();
           target_objects.push_back(oid);
       }
