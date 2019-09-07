@@ -1,0 +1,38 @@
+
+# SHARED CLOUDLAB PROFILES for 1,2,4,8,16,32 nodes cluster.
+# for reproduciblity,
+1. get a cloudlab account
+2. create a generic sshkey just for these tests
+3. instantiate one of the below cloudlab profiles.
+    via GENILAB SCRIPT??
+4. obtain the name or ipaddr of the node "client0" in your instantiated profile.
+5. copy that generic key to your home dir of the node "client0" node of the booted profile
+    ex:  scp -i ~/.ssh/cloudlab.id_rsa  /path/to/generickey.id_rsa  jlefevre@c220g5-111311.wisc.cloudlab.us:~/
+6. ssh into node "client0"
+7. cd $HOME
+8. clone the paper repo
+    ex:  git clone https://github.com/KDahlgren/pdsw19-reprod
+9. kick off experiments via shell script.
+    Usage: bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh <num_osds_in_profile> </path/to/generickey>;
+    ex: bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh 2 ~generickey.id_rsa
+
+
+1client-1osd: c220g5-01osds
+https://www.cloudlab.us/p/a43a8f27-8331-11e9-8677-e4434b2381fc
+
+1client-2osd: c220g5-02osds
+https://www.cloudlab.us/p/01c1aa4a-bc9a-11e9-8677-e4434b2381fc
+
+1client-4osd: c220g5-04osds
+https://www.cloudlab.us/p/c3be272e-bc9a-11e9-8677-e4434b2381fc
+
+1client-8osd: c220g5-08osds
+https://www.cloudlab.us/p/2ff54b83-bc9b-11e9-8677-e4434b2381fc
+
+1client-16osd: c220g5-16osds
+https://www.cloudlab.us/p/f87394b2-bc9b-11e9-8677-e4434b2381fc
+
+1client-32osd: c220g5-32osds
+https://www.cloudlab.us/p/06f2c7a7-bc9d-11e9-8677-e4434b2381fc
+
+
