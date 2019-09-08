@@ -65,14 +65,12 @@ int main(int argc, char **argv)
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
-                                   "in conjunction with -- select  " \
-                                   " and --use-cls flags.");
+        "in conjunction with -- select  and --use-cls flags.");
   std::string project_help_msg("Provide column names as csv list");
 
-  std::string ops_help_msg(" where 'op' is one of: " \
-                       "lt, gt, eq, neq, leq, geq, like, in, between, " \
-                       "logical_and, logical_or, logical_not, logical_nor, " \
-                       "logical_xor, bitwise_and, bitwise_or");
+  std::string ops_help_msg(" where 'op' is one of: lt, gt, eq, neq, leq, " \
+        "geq, like, in, between, logical_and, logical_or, logical_not, " \
+        " logical_nor, logical_xor, bitwise_and, bitwise_or");
 
   std::stringstream ss;
   ss.str(std::string());
@@ -151,15 +149,12 @@ int main(int argc, char **argv)
 
   po::options_description all_opts("Allowed options");
   all_opts.add(gen_opts);
-
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, all_opts), vm);
-
   if (vm.count("help")) {
     std::cout << all_opts << std::endl;
     return 1;
   }
-
   po::notify(vm);
 
   assert(num_objs > 0);
@@ -170,10 +165,10 @@ int main(int argc, char **argv)
   librados::Rados cluster;
   cluster.init(NULL);
   if (conf.empty()) {
-      cluster.conf_read_file(NULL);
+    cluster.conf_read_file(NULL);
   }
   else {
-      cluster.conf_read_file(conf.c_str());
+    cluster.conf_read_file(conf.c_str());
   }
   int ret = cluster.connect();
   checkret(ret, 0);
@@ -182,17 +177,18 @@ int main(int argc, char **argv)
   librados::IoCtx ioctx;
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
-
   timings.reserve(num_objs);
 
-  if (transform_db) {
-      // generate the names of the objects to process
-      for (unsigned int i = start_obj; i < num_objs; i++) {
-          std::stringstream oid_ss;
-          oid_ss << "obj." << i;
-          const std::string oid = oid_ss.str();
-          target_objects.push_back(oid);
-      }
+  // create list of objs to access.
+  // start_obj defaults to zero, but start_obj and num_objs can be used to
+  // operate on subset ranges of all objects for ops like tranforms or
+  // indexing, stats, etc.
+  // TODO: there is no absolute check on obj names here as OOB.
+  for (unsigned int i = start_obj; i < num_objs; i++) {
+    std::stringstream oid_ss;
+    oid_ss << "obj." << i;
+    const std::string oid = oid_ss.str();
+    target_objects.push_back(oid);
   }
 
   if (dir == "fwd") {
@@ -768,15 +764,18 @@ int main(int argc, char **argv)
   }
   ioctx.close();
 
-  // for postgres binary fstream, add final trailer
+
   if (stop) {
 
-    if ((skyhook_output_format ==
-         SkyFormatType::SFT_PG_BINARY) and !quiet) {
+    // after all objs done processing, if postgres binary fstream,
+    // add final trailer to output.
 
-      stringstream ss(std::stringstream::in  |
-                      std::stringstream::out |
-                      std::stringstream::binary);
+    if ((skyhook_output_format == SkyFormatType::SFT_PG_BINARY) and !quiet) {
+
+        // setup binary stream buf to put trailer
+        stringstream ss(std::stringstream::in  |
+                        std::stringstream::out |
+                        std::stringstream::binary);
 
       // 16 bit int trailer
       int16_t trailer = -1;
