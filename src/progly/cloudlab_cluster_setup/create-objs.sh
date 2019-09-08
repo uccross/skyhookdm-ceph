@@ -136,6 +136,7 @@ rados -p $pool df
 #############################################################
 # CLEANUP DATA
 rados -p $pool rm "obj.0";
+rados rmpool $pool $pool --yes-i-really-really-mean-it
 
 
 #############################################################
@@ -263,6 +264,7 @@ rados -p $pool df
 
 # CLEANUP DATA
 rados -p $pool rm "obj.0";
+rados rmpool $pool $pool --yes-i-really-really-mean-it
 
 # COPY OBJ DATA TO HOME DIR FOR LOAD SCRIPTS
 echo "copying obj files to ${HOME}"
