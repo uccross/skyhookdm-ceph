@@ -18,6 +18,7 @@ namespace po = boost::program_options;
 
 int main(int argc, char **argv)
 {
+  bool debug ;
   std::string pool;
   int start_oid;
   int end_oid;
@@ -26,6 +27,7 @@ int main(int argc, char **argv)
   po::options_description gen_opts("General options");
   gen_opts.add_options()
     ("help,h", "show help message")
+    ("debug",      po::value<bool>(&debug)->required(), "debug")
     ("pool",      po::value<std::string>(&pool)->required(), "pool")
     ("start-oid", po::value<int>(&start_oid)->required(),    "number for starting oid")
     ("end-oid",   po::value<int>(&end_oid)->required(),      "number for ending oid")
@@ -60,8 +62,10 @@ int main(int argc, char **argv)
   for( int j=start_oid; j < end_oid; j++ ) {
     std::string target_objname = "obj.mergetarget."+std::to_string(merge_id) ;
     std::string src_objname = "obj."+std::to_string(j) ;
-    //std::cout << target_objname << std::endl ;
-    //std::cout << src_objname << std::endl ;
+    if ( debug ) {
+      std::cout << src_objname << std::endl ;
+      std::cout << target_objname << std::endl ;
+    }
     librados::ObjectWriteOperation op;
     op.copy_from2(src_objname, ioctx, 0, librados::OP_FADVISE_COPYFROMAPPEND);
     //op.copy_from(src_objname, ioctx, 0);
