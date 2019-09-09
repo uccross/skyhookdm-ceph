@@ -40,61 +40,61 @@ sleep 5s;
 total_num_objs=$(( num_objs*num_write_groups ))
 fbwriter_filename="fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.${test_name}_${num_megabytes}MB.0.1-1"
 
-# remove any existing objects
-#for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
-rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
-# make the pool
-rados mkpool $poolname ;
-sleep 5s;
-
-# clear the caches
-for ((j=0; j<${nosds}; j++)); do
-  echo "clearing cache on osd"$j
-  ssh osd${j} sync
-  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
-  ssh osd${j} sync
-done
+## remove any existing objects
+##for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+#rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
+## make the pool
+#rados mkpool $poolname ;
+#sleep 5s;
+#
+## clear the caches
+#for ((j=0; j<${nosds}; j++)); do
+#  echo "clearing cache on osd"$j
+#  ssh osd${j} sync
+#  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+#  ssh osd${j} sync
+#done
 
 start=$(date --utc "+%s.%N")
 # ==================================================================== #
 # write the fbxrows from disk to ceph
 
-#writetoceph1_time_start=$(date --utc "+%s.%N")
-#for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
-#  cmd1="python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
-#  eval "$cmd1"
-#done;
-#writetoceph1_time_end=$(date --utc "+%s.%N")
-#writetoceph1_time_dur=$(echo "$writetoceph1_time_end - $writetoceph1_time_start" | bc)
-#sleep 10;
-#
-#echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph1_time_results_$test_id.txt
-#echo "writetoceph1_time_start=$writetoceph1_time_start writetoceph1_time_end=$writetoceph1_time_end writetoceph1_time_duration=$writetoceph1_time_dur" >> ${HOME}/writetoceph1_time_results_$test_id.txt
-#
-## ==================================================================== #
-## transform the fbxrows into arrow for entire table
-#
-#if [ $test_name == "ncols100" ]; then
-#  cmd3="bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA_NCOLS100}"
-#else
-#  cmd3="bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA_LINEITEM}"
-#fi
-#sleep 5s;
-#echo "cmd3=$cmd3" ;
-#
-#local_xform_time_start=$(date --utc "+%s.%N")
-#echo $cmd3
+writetoceph1_time_start=$(date --utc "+%s.%N")
+for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
+  cmd1="python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
+  eval "$cmd1"
+done;
+writetoceph1_time_end=$(date --utc "+%s.%N")
+writetoceph1_time_dur=$(echo "$writetoceph1_time_end - $writetoceph1_time_start" | bc)
+sleep 10;
+
+echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph1_time_results_$test_id.txt
+echo "writetoceph1_time_start=$writetoceph1_time_start writetoceph1_time_end=$writetoceph1_time_end writetoceph1_time_duration=$writetoceph1_time_dur" >> ${HOME}/writetoceph1_time_results_$test_id.txt
+
+# ==================================================================== #
+# transform the fbxrows into arrow for entire table
+
+if [ $test_name == "ncols100" ]; then
+  cmd3="bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA_NCOLS100}"
+else
+  cmd3="bin/run-query --num-objs ${total_num_objs} --pool ${poolname} --wthreads ${worker_threads} --qdepth ${queue_depth} --transform-db --transform-format-type ${format} --data-schema ${DATA_SCHEMA_LINEITEM}"
+fi
+sleep 5s;
+echo "cmd3=$cmd3" ;
+
+local_xform_time_start=$(date --utc "+%s.%N")
+echo $cmd3
 #eval "$cmd3"
-#local_xform_time_end=$(date --utc "+%s.%N")
-#local_xform_time_dur=$(echo "$local_xform_time_end - $local_xform_time_start" | bc)
-#sleep 10;
-#
-#echo "Command ran: ${cmd3}" >> ${HOME}/local_xform_time_results_$test_id.txt
-#echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local_xform_time_end local_xform_time_duration=$local_xform_time_dur" >> ${HOME}/local_xform_time_results_$test_id.txt
-#
-## !!!!!!!!!!!!!!!!!!
-#exit 1 ;
-## !!!!!!!!!!!!!!!!!!
+local_xform_time_end=$(date --utc "+%s.%N")
+local_xform_time_dur=$(echo "$local_xform_time_end - $local_xform_time_start" | bc)
+sleep 10;
+
+echo "Command ran: ${cmd3}" >> ${HOME}/local_xform_time_results_$test_id.txt
+echo "local_xform_time_start=$local_xform_time_start local_xform_time_end=$local_xform_time_end local_xform_time_duration=$local_xform_time_dur" >> ${HOME}/local_xform_time_results_$test_id.txt
+
+# !!!!!!!!!!!!!!!!!!
+exit 1 ;
+# !!!!!!!!!!!!!!!!!!
 
 # ==================================================================== #
 # prepare for next phase
@@ -152,18 +152,52 @@ sleep 10;
 # num_merge_objs = number of merge objects to create
 # num_src_objs_per_merge = number of source objects per merge object
 
-#copyfromappend_merge_time_start=$(date --utc "+%s.%N") ;
-#cmd5="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"copyfrom\" ${test_name}" ;
-#eval "$cmd5" ;
-#copyfromappend_merge_time_end=$(date --utc "+%s.%N") ;
-#copyfromappend_merge_time_dur=$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc) ;
-#echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt ;
-#echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt ;
-#sleep 10;
-#
-## !!!!!!!!!!!!!!!!!!
-#exit 1 ;
-## !!!!!!!!!!!!!!!!!!
+copyfromappend_merge_time_start=$(date --utc "+%s.%N") ;
+cmd5="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"copyfrom\" ${test_name}" ;
+eval "$cmd5" ;
+copyfromappend_merge_time_end=$(date --utc "+%s.%N") ;
+copyfromappend_merge_time_dur=$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc) ;
+echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt ;
+echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt ;
+sleep 10;
+
+# !!!!!!!!!!!!!!!!!!
+exit 1 ;
+# !!!!!!!!!!!!!!!!!!
+
+# ==================================================================== #
+# prepare for next phase
+
+# ------------------------------------------ #
+# remove any existing objects
+#for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
+# make the pool
+rados mkpool $poolname ;
+sleep 5s;
+
+# clear the caches
+for ((j=0; j<${nosds}; j++)); do
+  echo "clearing cache on osd"$j
+  ssh osd${j} sync
+  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+  ssh osd${j} sync
+done
+sleep 5s;
+
+# ------------------------------------------ #
+# write the fbxrows from disk to ceph
+writetoceph3_time_start=$(date --utc "+%s.%N")
+for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
+  cmd1="python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
+  eval "$cmd1"
+done;
+writetoceph3_time_end=$(date --utc "+%s.%N")
+writetoceph3_time_dur=$(echo "$writetoceph3_time_end - $writetoceph3_time_start" | bc)
+sleep 10;
+
+echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph3_time_results_$test_id.txt
+echo "writetoceph3_time_start=$writetoceph3_time_start writetoceph3_time_end=$writetoceph2_time_end writetoceph3_time_duration=$writetoceph3_time_dur" >> ${HOME}/writetoceph3_time_results_$test_id.txt
 
 # ==================================================================== #
 # client merge
