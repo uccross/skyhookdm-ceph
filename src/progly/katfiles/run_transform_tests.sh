@@ -3,10 +3,8 @@
 nosds=$1
 num_objs=$2
 poolname=$3
-data_path=$4
-schema_path=$5
-actually_do_it=$6
-num_write_groups=$7
+actually_do_it=$4
+num_write_groups=$5
 worker_threads=24
 queue_depth=24
 format="arrow"
@@ -19,18 +17,28 @@ export DATA_SCHEMA_LINEITEM="\"0 3 1 0 ORDERKEY; 1 3 0 1 PARTKEY; 2 3 0 1 SUPPKE
 # bc 256MB max obj size, so merged objs will be about 250MB each.
 # for 100 objects of size 100MB each, use num_merge_objs=50
 # bc 256MB max obj size, so merged objs will be about 200MB each.
-num_merge_objs=$8
-num_src_objs_per_merge=$9
+num_merge_objs=$6
+num_src_objs_per_merge=$7
 
-test_id=${10} # a string to add to the output files.
+test_id=${8} # a string to add to the output files.
+test_name=${9}
+num_megabytes=${10}
 
-num_megabytes=$11
+echo "Running run_transform_tests.sh with parameters:"
+echo "nosds                  is $nosds"
+echo "num_objs               is $num_objs"
+echo "poolname               is $poolname"
+echo "actually_do_it         is $actually_do_it"
+echo "num_write_groups       is $num_write_groups"
+echo "num_merge_objs         is $num_merge_objs"
+echo "num_src_objs_per_merge is $num_src_objs_per_merge"
+echo "test_id                is $test_id"
+echo "test_name              is $test_name"
+echo "num_megabytes          is $num_megabytes"
+sleep 5s;
 
 total_num_objs=$(( num_objs*num_write_groups ))
 fbwriter_filename="fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.${test_name}_${num_megabytes}MB.0.1-1"
-
-# make bins
-sudo make -j36 fbwriter run-query run-copyfrom-merge run-client-merge ;
 
 # remove any existing objects
 #for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
@@ -49,21 +57,19 @@ done
 
 start=$(date --utc "+%s.%N")
 # ==================================================================== #
-# write out data to ceph
-
-# ------------------------------------------ #
-# write the csv to fbxrows
-cmd0="sudo bin/fbwriter --file_name $data_path --schema_file_name  $schema_path --num_objs 1 --flush_rows 25000 --read_rows 25000 --csv_delim \"|\" --use_hashing false --rid_start_value 1 --table_name ${test_name}_${num_megabytes}MB --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;"
-eval "$cmd0"
-sleep 10;
-
-# ------------------------------------------ #
 # write the fbxrows from disk to ceph
+
+writetoceph1_time_start=$(date --utc "+%s.%N")
 for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
   cmd1="sudo python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
   eval "$cmd1"
-done
+done;
+writetoceph1_time_end=$(date --utc "+%s.%N")
+writetoceph1_time_dur=$(echo "$writetoceph1_time_end - $writetoceph1_time_start" | bc)
 sleep 10;
+
+echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph1_time_results_$test_id.txt
+echo "writetoceph1_time_start=$writetoceph1_time_start writetoceph1_time_end=$writetoceph1_time_end writetoceph1_time_duration=$writetoceph1_time_dur" >> ${HOME}/writetoceph1_time_results_$test_id.txt
 
 # ==================================================================== #
 # transform the fbxrows into arrow for entire table
@@ -96,18 +102,18 @@ rados mkpool $poolname ;
 sleep 10;
 
 # ------------------------------------------ #
-# write the csv to fbxrows
-cmd0="sudo bin/fbwriter --file_name $data_path --schema_file_name  $schema_path --num_objs 1 --flush_rows 25000 --read_rows 25000 --csv_delim \"|\" --use_hashing false --rid_start_value 1 --table_name ${test_name}_${num_megabytes} --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;"
-eval "$cmd0"
-sleep 10;
-
-# ------------------------------------------ #
 # write the fbxrows from disk to ceph
+writetoceph2_time_start=$(date --utc "+%s.%N")
 for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
   cmd1="sudo python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
   eval "$cmd1"
-done
+done;
+writetoceph2_time_end=$(date --utc "+%s.%N")
+writetoceph2_time_dur=$(echo "$writetoceph2_time_end - $writetoceph2_time_start" | bc)
 sleep 10;
+
+echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph2_time_results_$test_id.txt
+echo "writetoceph2_time_start=$writetoceph2_time_start writetoceph2_time_end=$writetoceph2_time_end writetoceph2_time_duration=$writetoceph2_time_dur" >> ${HOME}/writetoceph2_time_results_$test_id.txt
 
 # ==================================================================== #
 # do transforms with column project
@@ -128,7 +134,6 @@ sleep 10;
 # num_merge_objs = number of merge objects to create
 # num_src_objs_per_merge = number of source objects per merge object
 
-# ------------------------------------------ #
 copyfromappend_merge_time_start=$(date --utc "+%s.%N")
 cmd5="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"copyfrom\""
 eval "$cmd5"
@@ -144,7 +149,6 @@ sleep 10;
 # num_merge_objs = number of merge objects to create
 # num_src_objs_per_merge = number of source objects per merge object
 
-# ------------------------------------------ #
 clientmerge_time_start=$(date --utc "+%s.%N")
 cmd6="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"client\""
 eval "$cmd6"
@@ -153,6 +157,11 @@ clientmerge_time_dur=$(echo "$clientmerge_time_end - $clientmerge_time_start" | 
 echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt
 echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt
 sleep 10;
+
+# ==================================================================== #
+# self-verification
+
+#
 
 # ==================================================================== #
 end=$(date --utc "+%s.%N")
