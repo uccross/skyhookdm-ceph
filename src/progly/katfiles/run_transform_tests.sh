@@ -40,25 +40,29 @@ sleep 5s;
 total_num_objs=$(( num_objs*num_write_groups ))
 fbwriter_filename="fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.${test_name}_${num_megabytes}MB.0.1-1"
 
-## remove any existing objects
-##for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
-#rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
-## make the pool
-#rados mkpool $poolname ;
-#sleep 5s;
-#
-## clear the caches
-#for ((j=0; j<${nosds}; j++)); do
-#  echo "clearing cache on osd"$j
-#  ssh osd${j} sync
-#  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
-#  ssh osd${j} sync
-#done
-
 start=$(date --utc "+%s.%N")
 # ==================================================================== #
-# write the fbxrows from disk to ceph
+# prepare for next phase
 
+# ------------------------------------------ #
+# remove any existing objects
+#for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
+# make the pool
+rados mkpool $poolname ;
+sleep 5s;
+
+# clear the caches
+for ((j=0; j<${nosds}; j++)); do
+  echo "clearing cache on osd"$j
+  ssh osd${j} sync
+  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+  ssh osd${j} sync
+done
+sleep 5s;
+
+# ------------------------------------------ #
+# write the fbxrows from disk to ceph
 writetoceph1_time_start=$(date --utc "+%s.%N")
 for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
   cmd1="python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
@@ -165,55 +169,59 @@ sleep 10;
 exit 1 ;
 # !!!!!!!!!!!!!!!!!!
 
-# ==================================================================== #
-# prepare for next phase
-
-# ------------------------------------------ #
-# remove any existing objects
-#for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
-rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
-# make the pool
-rados mkpool $poolname ;
-sleep 5s;
-
-# clear the caches
-for ((j=0; j<${nosds}; j++)); do
-  echo "clearing cache on osd"$j
-  ssh osd${j} sync
-  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
-  ssh osd${j} sync
-done
-sleep 5s;
-
-# ------------------------------------------ #
-# write the fbxrows from disk to ceph
-writetoceph3_time_start=$(date --utc "+%s.%N")
-for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
-  cmd1="python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
-  eval "$cmd1"
-done;
-writetoceph3_time_end=$(date --utc "+%s.%N")
-writetoceph3_time_dur=$(echo "$writetoceph3_time_end - $writetoceph3_time_start" | bc)
-sleep 10;
-
-echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph3_time_results_$test_id.txt
-echo "writetoceph3_time_start=$writetoceph3_time_start writetoceph3_time_end=$writetoceph2_time_end writetoceph3_time_duration=$writetoceph3_time_dur" >> ${HOME}/writetoceph3_time_results_$test_id.txt
-
-# ==================================================================== #
-# client merge
+## ==================================================================== #
+## prepare for next phase
 #
-# num_merge_objs = number of merge objects to create
-# num_src_objs_per_merge = number of source objects per merge object
-
-clientmerge_time_start=$(date --utc "+%s.%N") ;
-cmd6="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"client\" ${test_name}" ;
-echo "cmd6=$cmd6"
-eval "$cmd6" ;
-clientmerge_time_end=$(date --utc "+%s.%N") ;
-clientmerge_time_dur=$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc) ;
-echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt ;
-echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt ;
-sleep 10;
+## ------------------------------------------ #
+## remove any existing objects
+##for i in `rados -p $poolname ls`; do echo $i; rados -p $poolname rm $i; done
+#rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
+## make the pool
+#rados mkpool $poolname ;
+#sleep 5s;
+#
+## clear the caches
+#for ((j=0; j<${nosds}; j++)); do
+#  echo "clearing cache on osd"$j
+#  ssh osd${j} sync
+#  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+#  ssh osd${j} sync
+#done
+#sleep 5s;
+#
+## ------------------------------------------ #
+## write the fbxrows from disk to ceph
+#writetoceph3_time_start=$(date --utc "+%s.%N")
+#for ((group_id=0; group_id<${num_write_groups}; group_id++)); do
+#  cmd1="python rados_put_parallel.py $num_objs $poolname ./$fbwriter_filename $actually_do_it $group_id"
+#  eval "$cmd1"
+#done;
+#writetoceph3_time_end=$(date --utc "+%s.%N")
+#writetoceph3_time_dur=$(echo "$writetoceph3_time_end - $writetoceph3_time_start" | bc)
+#sleep 10;
+#
+#echo "Command ran: ${cmd1}" >> ${HOME}/writetoceph3_time_results_$test_id.txt
+#echo "writetoceph3_time_start=$writetoceph3_time_start writetoceph3_time_end=$writetoceph2_time_end writetoceph3_time_duration=$writetoceph3_time_dur" >> ${HOME}/writetoceph3_time_results_$test_id.txt
+#
+## ==================================================================== #
+## client merge
+##
+## num_merge_objs = number of merge objects to create
+## num_src_objs_per_merge = number of source objects per merge object
+#
+#clientmerge_time_start=$(date --utc "+%s.%N") ;
+#cmd6="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"client\" ${test_name}" ;
+#echo "cmd6=$cmd6"
+#eval "$cmd6" ;
+#clientmerge_time_end=$(date --utc "+%s.%N") ;
+#clientmerge_time_dur=$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc) ;
+#echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt ;
+#echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt ;
+#sleep 10;
+#
+## !!!!!!!!!!!!!!!!!!
+#exit 1 ;
+## !!!!!!!!!!!!!!!!!!
 
 # ==================================================================== #
 # self-verification
