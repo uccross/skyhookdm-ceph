@@ -101,6 +101,14 @@ rados rmpool $poolname $poolname --yes-i-really-really-mean-it ;
 rados mkpool $poolname ;
 sleep 10;
 
+# clear the caches
+for ((j=0; j<${nosds}; j++)); do
+  echo "clearing cache on osd"$j
+  ssh osd${j} sync
+  ssh osd${j} "echo 1 | sudo tee /proc/sys/vm/drop_caches"
+  ssh osd${j} sync
+done
+
 # ------------------------------------------ #
 # write the fbxrows from disk to ceph
 writetoceph2_time_start=$(date --utc "+%s.%N")
@@ -134,13 +142,13 @@ sleep 10;
 # num_merge_objs = number of merge objects to create
 # num_src_objs_per_merge = number of source objects per merge object
 
-copyfromappend_merge_time_start=$(date --utc "+%s.%N")
-cmd5="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"copyfrom\""
-eval "$cmd5"
-copyfromappend_merge_time_end=$(date --utc "+%s.%N")
-copyfromappend_merge_time_dur=$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc)
-echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt
-echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt
+copyfromappend_merge_time_start=$(date --utc "+%s.%N") ;
+cmd5="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"copyfrom\"" ;
+eval "$cmd5" ;
+copyfromappend_merge_time_end=$(date --utc "+%s.%N") ;
+copyfromappend_merge_time_dur=$(echo "$copyfromappend_merge_time_end - $copyfromappend_merge_time_start" | bc) ;
+echo "Command ran: ${cmd5}" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt ;
+echo "copyfromappend_merge_time_start=$copyfromappend_merge_time_start copyfromappend_merge_time_end=$copyfromappend_merge_time_end copyfromappend_merge_time_duration=$copyfromappend_merge_time_dur" >> ${HOME}/copyfromappend_merge_time_results_$test_id.txt ;
 sleep 10;
 
 # ==================================================================== #
@@ -149,13 +157,13 @@ sleep 10;
 # num_merge_objs = number of merge objects to create
 # num_src_objs_per_merge = number of source objects per merge object
 
-clientmerge_time_start=$(date --utc "+%s.%N")
-cmd6="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"client\""
-eval "$cmd6"
-clientmerge_time_end=$(date --utc "+%s.%N")
-clientmerge_time_dur=$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc)
-echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt
-echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt
+clientmerge_time_start=$(date --utc "+%s.%N") ;
+cmd6="python parallel_merges.py ${num_merge_objs} ${poolname} ${num_src_objs_per_merge} \"client\"" ;
+eval "$cmd6" ;
+clientmerge_time_end=$(date --utc "+%s.%N") ;
+clientmerge_time_dur=$(echo "$clientmerge_time_end - $clientmerge_time_start" | bc) ;
+echo "Command ran: ${cmd6}" >> ${HOME}/clientmerge_time_results_$test_id.txt ;
+echo "clientmerge_time_start=$clientmerge_time_start clientmerge_time_end=$clientmerge_time_end clientmerge_time_duration=$clientmerge_time_dur" >> ${HOME}/clientmerge_time_results_$test_id.txt ;
 sleep 10;
 
 # ==================================================================== #
@@ -164,7 +172,7 @@ sleep 10;
 #
 
 # ==================================================================== #
-end=$(date --utc "+%s.%N")
-dur=0$(echo "$end - $start" | bc)
-echo "total runtime:"
-echo "start=$start end=$end duration=$dur"
+end=$(date --utc "+%s.%N") ;
+dur=0$(echo "$end - $start" | bc) ;
+echo "total runtime:" ;
+echo "start=$start end=$end duration=$dur" ;
