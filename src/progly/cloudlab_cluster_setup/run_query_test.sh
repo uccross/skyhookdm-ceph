@@ -106,15 +106,15 @@ params="--select \"extendedprice,gt,71000\"";
 cmdbase="${SKYHOOKBUILD}/bin/run-query  ${params} --data-schema ${DATA_SCHEMA} --use-cls";
 run_query ${cmdbase}
 
-#~ # SELECT extendedprice>91350 FROM lineitem 100%
-#~ params="--select \"extendedprice,gt,0\"";
-#~ cmdbase="${SKYHOOKBUILD}/bin/run-query  ${params} --data-schema ${DATA_SCHEMA}";
-#~ run_query ${cmdbase}
+# SELECT extendedprice>91350 FROM lineitem 100%
+params="--select \"extendedprice,gt,0\"";
+cmdbase="${SKYHOOKBUILD}/bin/run-query  ${params} --data-schema ${DATA_SCHEMA}";
+run_query ${cmdbase}
 
-#~ # SELECT extendedprice>91350 FROM lineitem 100%
-#~ params="--select \"extendedprice,gt,0\"";
-#~ cmdbase="${SKYHOOKBUILD}/bin/run-query  ${params} --data-schema ${DATA_SCHEMA} --use-cls";
-#~ run_query ${cmdbase}
+# SELECT extendedprice>91350 FROM lineitem 100%
+params="--select \"extendedprice,gt,0\"";
+cmdbase="${SKYHOOKBUILD}/bin/run-query  ${params} --data-schema ${DATA_SCHEMA} --use-cls";
+run_query ${cmdbase}
 
 
 
