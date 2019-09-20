@@ -6838,16 +6838,25 @@ dout(20) << "kat after ctx->new_obs.oi.size = " << ctx->new_obs.oi.size << dendl
 	      << dendl;
       result = -EOPNOTSUPP;
     }
-
+  dout(20) << "kat : after do_copy_get : here0" << dendl ;
   fail:
+    dout(20) << "kat : after do_copy_get : failed" << dendl ;
     osd_op.rval = result;
-    tracepoint(osd, do_osd_op_post, soid.oid.name.c_str(), soid.snap.val, op.op, ceph_osd_op_name(op.op), op.flags, result);
+    tracepoint(osd, 
+               do_osd_op_post, 
+               soid.oid.name.c_str(), 
+               soid.snap.val, 
+               op.op, 
+               ceph_osd_op_name(op.op), 
+               op.flags, 
+               result);
     if (result < 0 && (op.flags & CEPH_OSD_OP_FLAG_FAILOK))
       result = 0;
 
     if (result < 0)
       break;
   }
+  dout(20) << "kat : after do_copy_get : here1" << dendl ;
   return result;
 }
 
@@ -7972,7 +7981,7 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     indata.append(reinterpret_cast<const char*>(&cid), sizeof(cid));
 
     dout(10) << "call method " << cname << "." << mname << dendl;
-    int prev_rd = ctx->num_read;
+    //int prev_rd = ctx->num_read;
     int prev_wr = ctx->num_write;
 
     // assuming that the method returns the data length in the buffer
@@ -7986,6 +7995,7 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     // copy omap from the buffer to reply_obj
     bufferlist omap_data;
     uint32_t omap_length = bl.length() - data_length;
+    dout(20) << __func__ << "kat: omap_length = " << omap_length << dendl; 
     omap_data.append(bl.c_str() + data_length, omap_length);
     reply_obj.omap_data.claim_append(omap_data);
     cursor.omap_complete = true;
@@ -8001,15 +8011,18 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
 
   } else {
 
-dout(20) << "kat: here1" << dendl; 
+    // --------------------------------------------------------------- //
+    //      READ THE SOURCE DATA
+    // --------------------------------------------------------------- //
+    dout(20) << "kat: here1" << dendl; 
     if (left > 0 && !cursor.data_complete) {
-dout(20) << "kat soid = " << soid << dendl;
-dout(20) << "kat cursor.data_offset = " << cursor.data_offset << dendl;
-dout(20) << "kat oi.size = " << oi.size << dendl;
-dout(20) << "kat oi.soid = " << oi.soid << dendl;
+      dout(20) << "kat soid = " << soid << dendl;
+      dout(20) << "kat cursor.data_offset = " << cursor.data_offset << dendl;
+      dout(20) << "kat oi.size = " << oi.size << dendl;
+      dout(20) << "kat oi.soid = " << oi.soid << dendl;
       if (cursor.data_offset < oi.size) {
 	      uint64_t max_read = MIN(oi.size - cursor.data_offset, (uint64_t)left);
-dout(20) << "kat max_read = " << max_read << dendl;
+        dout(20) << "kat max_read = " << max_read << dendl;
 	      if (cb) {
 	        async_read_started = true;
 	        ctx->pending_async_reads.push_back(
@@ -8023,68 +8036,152 @@ dout(20) << "kat max_read = " << max_read << dendl;
 	        result = -EINPROGRESS;
 
 	        dout(10) << __func__ << ": async_read noted for " << soid << dendl;
-dout(20) << "kat bl.length()1 = " << bl.length() << dendl ;
+          dout(20) << "kat bl.length()1 = " << bl.length() << dendl ;
 	      } else {
 	        result = pgbackend->objects_read_sync(
 	      					oi.soid, cursor.data_offset, max_read, osd_op.op.flags, &bl);
-dout(20) << "kat bl.length()2 = " << bl.length() << dendl ;
-dout(20) << "kat bl.c_str()2 = " << bl.c_str() << dendl ;
+          dout(20) << "kat bl.length()2 = " << bl.length() << dendl ;
+          dout(20) << "kat bl.c_str()2 = " << bl.c_str() << dendl ;
 	        if (result < 0)
 	          return result;
 	      }
 	      left -= max_read;
 	      cursor.data_offset += max_read;
-dout(20) << "kat cursor.data_offset += maxread = " << cursor.data_offset << dendl;
+        dout(20) << "kat cursor.data_offset += maxread = " << cursor.data_offset << dendl;
       }
       if (cursor.data_offset == oi.size) {
 	      cursor.data_complete = true;
 	      dout(20) << " got data" << dendl;
-dout(20) << "kat got data" << dendl;
+        dout(20) << "kat got data" << dendl;
       }
       assert(cursor.data_offset <= oi.size);
     }
-dout(20) << "kat: here2" << dendl; 
+    dout(20) << "kat: here2" << dendl; 
+    
+    dout(20) << __func__ << " asdf pool.info.supports_omap() = " << pool.info.supports_omap() << dendl;
+    dout(20) << __func__ << " asdf oi.is_omap() = " << oi.is_omap() << dendl;
+    // --------------------------------------------------------------- //
+    //      ^^^^^ READ THE SOURCE DATA ^^^^^
+    // --------------------------------------------------------------- //
 
-dout(20) << __func__ << " asdf pool.info.supports_omap() = " << pool.info.supports_omap() << dendl;
-dout(20) << __func__ << " asdf oi.is_omap() = " << oi.is_omap() << dendl;
+    // --------------------------------------------------------------- //
+    //      CALL THE CLS METHOD
+    // --------------------------------------------------------------- //
+    dout(20) << "kat: here0" << dendl; 
+    // specify object class and method to use for transformation
+    string cname("tabular");
+    string mname("stub");
+    ClassHandler::ClassData *cls;
+    result = osd->class_handler->open_class(cname, &cls);
+    ceph_assert(result == 0);   // init_op_flags() already verified this works.
+
+    ClassHandler::ClassMethod *method = cls->get_method(mname.c_str());
+    if (!method) {
+      dout(10) << "kat : call method " << cname << "." << mname << " does not exist" << dendl;
+      return -EOPNOTSUPP;
+    }
+
+    int flags = method->get_flags();
+    ceph_assert(flags == (CLS_METHOD_RD | CLS_METHOD_WR));
+
+    bufferlist inbl ;
+    bufferlist outbl ;
+    ::encode( bl, inbl ) ;
+    dout(20) << __func__ << " kat copyfrom cls call : inbl.length() = " << inbl.length() << dendl ;
+
+    int data_length = method->exec((cls_method_context_t)&ctx, inbl, outbl);
+
+    dout(20) << __func__ << " kat copyfrom cls call : bl.length()    = " << bl.length() << dendl ;
+    dout(20) << __func__ << " kat copyfrom cls call : bl.c_str()     = " << bl.c_str() << dendl ;
+    dout(20) << __func__ << " kat copyfrom cls call : outbl.length() = " << outbl.length() << dendl ;
+    dout(20) << __func__ << " kat copyfrom cls call : outbl.c_str()  = " << outbl.c_str() << dendl ;
+    dout(20) << __func__ << " kat copyfrom cls call : data_length    = " << data_length << dendl ;
+
+    bool cls_overwrite = true ;
+
+    // overwrite contents of returned bl with the outbl derived from the cls method.
+    if( cls_overwrite ) {
+      bl.clear() ;
+      bl.append( outbl.c_str(), outbl.length() ) ;
+      dout(20) << __func__ << " kat copyfrom cls call : new bl.length() = " << bl.length() << dendl ;
+      dout(20) << __func__ << " kat copyfrom cls call : new bl.c_str()  = " << bl.c_str() << dendl ;
+    }
+
+    // REGARDING OMAP :
+    //   Reading and writing directly with objects doesn't seem to generate omap
+    //   data which is carried around with the copy from result. 
+    //   See any basic test that just appends characters to bufferlists. 
+    //   No omap data or keys are generated.
+    //   Therefore, marking omap as complete and not doing anything to the metadata atm.
+
+    // copy omap from the buffer to reply_obj
+    //bufferlist omap_data;
+    //uint32_t omap_length = bl.length() - data_length;
+    //dout(20) << __func__ << " kat : omap_length = " << omap_length << dendl; 
+    //omap_data.append(bl.c_str() + data_length, omap_length);
+    //dout(20) << __func__ << " kat : omap_data.length() = " << omap_data.length() << dendl; 
+    //reply_obj.omap_data.claim_append(omap_data);
+    cursor.omap_complete = true;
+
+    // return the data from the bl of the transformation
+    // possibly partially superfluous given bl is populated by outbl above?
+    if( cls_overwrite ) {
+      bufferlist data;
+      data.append(bl.c_str(), bl.length());
+      bl.clear();
+      bl.claim_append(data);
+      cursor.data_offset = bl.length();
+    }
+
+    cursor.data_complete = true;
+    // --------------------------------------------------------------- //
+    //      ^^^^^ CALL THE CLS METHOD ^^^^^
+    // --------------------------------------------------------------- //
 
     // omap
-    if (!pool.info.supports_omap() || !oi.is_omap()) {
-      cursor.omap_complete = true;
-    } else {
-      if (left > 0 && !cursor.omap_complete) {
-	      assert(cursor.data_complete);
-	      if (cursor.omap_offset.empty()) {
-	        osd->store->omap_get_header(ch, ghobject_t(oi.soid),
-	      			      &reply_obj.omap_header);
-	      }
-	      bufferlist omap_data;
-	      ObjectMap::ObjectMapIterator iter =
-	        osd->store->get_omap_iterator(coll, ghobject_t(oi.soid));
-	      assert(iter);
-	      iter->upper_bound(cursor.omap_offset);
-	      for (; iter->valid(); iter->next(false)) {
-	        ++omap_keys;
-	        ::encode(iter->key(), omap_data);
-	        ::encode(iter->value(), omap_data);
-	        left -= iter->key().length() + 4 + iter->value().length() + 4;
-	        if (left <= 0)
-	          break;
-	      }
-	      if (omap_keys) {
-	        ::encode(omap_keys, reply_obj.omap_data);
-	        reply_obj.omap_data.claim_append(omap_data);
-	      }
-	      if (iter->valid()) {
-	        cursor.omap_offset = iter->key();
-	      } else {
-	        cursor.omap_complete = true;
-	        dout(20) << " got omap" << dendl;
-	      }
-      }
-    }
-  }
-dout(20) << "kat: here3" << dendl; 
+    //if (!pool.info.supports_omap() || !oi.is_omap()) {
+    //  dout(20) << "kat : writing cursor.omap_complete = true" << dendl ;
+    //  cursor.omap_complete = true;
+    //} else {
+    //  dout(20) << "kat : inside omap else" << dendl ;
+    //  dout(20) << "kat : left = " << left << dendl ;
+    //  dout(20) << "kat : cursor.omap_complete = " << cursor.omap_complete << dendl ;
+    //  if (left > 0 && !cursor.omap_complete) {
+    //    dout(20) << "kat : inside omap left > and !cursor.omap_complete" << dendl ;
+	  //    assert(cursor.data_complete);
+	  //    if (cursor.omap_offset.empty()) {
+	  //      osd->store->omap_get_header(ch, ghobject_t(oi.soid),
+	  //    			      &reply_obj.omap_header);
+	  //    }
+	  //    bufferlist omap_data;
+	  //    ObjectMap::ObjectMapIterator iter =
+	  //      osd->store->get_omap_iterator(coll, ghobject_t(oi.soid));
+	  //    assert(iter);
+	  //    iter->upper_bound(cursor.omap_offset);
+	  //    for (; iter->valid(); iter->next(false)) {
+	  //      ++omap_keys;
+	  //      ::encode(iter->key(), omap_data);
+	  //      ::encode(iter->value(), omap_data);
+	  //      left -= iter->key().length() + 4 + iter->value().length() + 4;
+	  //      if (left <= 0)
+	  //        break;
+	  //    }
+	  //    if (omap_keys) {
+	  //      dout(20) << "kat : omap_keys = " << omap_keys << dendl;
+	  //      ::encode(omap_keys, reply_obj.omap_data);
+	  //      reply_obj.omap_data.claim_append(omap_data);
+	  //    }
+	  //    if (iter->valid()) {
+	  //      cursor.omap_offset = iter->key();
+	  //    } else {
+	  //      cursor.omap_complete = true;
+	  //      dout(20) << "kat : got omap" << dendl;
+	  //    }
+    //  }
+    //}
+
+  } // else
+  dout(20) << "kat: here3" << dendl; 
 
   if (cursor.is_complete()) {
     // include reqids only in the final step.  this is a bit fragile
@@ -8093,6 +8190,7 @@ dout(20) << "kat: here3" << dendl;
     dout(20) << " got reqids" << dendl;
   }
 
+  dout(20) << "kat: here4" << dendl; 
   dout(20) << " cursor.is_complete=" << cursor.is_complete()
 	   << " " << out_attrs.size() << " attrs"
 	   << " " << bl.length() << " bytes"
@@ -8101,13 +8199,16 @@ dout(20) << "kat: here3" << dendl;
 	   << omap_keys << " keys"
 	   << " " << reply_obj.reqids.size() << " reqids"
 	   << dendl;
+  dout(20) << "kat: here5" << dendl; 
   reply_obj.cursor = cursor;
+  dout(20) << "kat: here6" << dendl; 
   if (!async_read_started) {
     ::encode(reply_obj, osd_op.outdata, features);
   }
   if (cb && !async_read_started) {
     delete cb;
   }
+  dout(20) << "kat: here7" << dendl; 
 
   if (result > 0) {
     result = 0;
@@ -8490,14 +8591,22 @@ dout(20) << __func__ << " before cop->results.temp_oid = " << cop->results.temp_
 dout(20) << __func__ << " before cop->results.object_size = " << cop->results.object_size << dendl ;
 dout(20) << __func__ << " before cop->data.length() = " << cop->data.length() << dendl ;
 dout(20) << __func__ << " before cop->data.c_str() = " << cop->data.c_str() << dendl ;
+dout(20) << __func__ << " before cop->cursor.data_complete = " << cop->cursor.data_complete << dendl ;
+dout(20) << __func__ << " before pool.info.requires_aligned_append() = " << pool.info.requires_aligned_append() << dendl ;
   if (!cop->temp_cursor.attr_complete) {
     t->create(cop->results.temp_oid);
   }
   if (!cop->temp_cursor.data_complete) {
+dout(20) << __func__ << " before true !cop->temp_cursor.data_complete = " << cop->temp_cursor.data_complete << dendl ;
+auto val = cop->data.length() + cop->temp_cursor.data_offset ;
+dout(20) << __func__ << " qwer: cop->data.length() + cop->temp_cursor.data_offset = " << val << dendl ;
+dout(20) << __func__ << " qwer: cop->cursor.data_offset                           = " << cop->cursor.data_offset << dendl ;
     assert(cop->data.length() + cop->temp_cursor.data_offset ==
 	   cop->cursor.data_offset);
     if (pool.info.requires_aligned_append() &&
 	      !cop->cursor.data_complete) {
+dout(20) << __func__ << " before pool.info.requires_aligned_append() = " << pool.info.requires_aligned_append() << dendl ;
+dout(20) << __func__ << " before !cop->cursor.data_complete = " << cop->cursor.data_complete << dendl ;
       /**
        * Trim off the unaligned bit at the end, we'll adjust cursor.data_offset
        * to pick it up on the next pass.

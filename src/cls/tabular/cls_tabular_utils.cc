@@ -6234,5 +6234,11 @@ int transform_fbxrows_to_fbucols(const char* fb,
     return errcode;
 } // transform_fbxrows_to_fbucols
 
+// stub method
+int tabular_stub_method( int an_int ) {
+  std::cout << "asdfqwer" << std::endl ;
+  return an_int ;
+}
+
 
 } // end namespace Tables

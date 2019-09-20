@@ -29,6 +29,7 @@ cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_exec_build_sky_index_op;
 cls_method_handle_t h_transform_db_op;
+cls_method_handle_t h_stub;
 
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
@@ -2015,6 +2016,41 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+/*
+ * Function: stub
+ * Description: 
+ * @param[in] hctx    : CLS method context
+ * @param[out] in     : input bufferlist
+ * @param[out] out    : output bufferlist
+ * Return Value: error code
+*/
+static
+int stub(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    bufferlist inbl ;
+    // unpack the requested op from the inbl.
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(inbl, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular: stub : decoding in bufferlist");
+        return -EINVAL;
+    }
+
+    auto a = Tables::tabular_stub_method( 500 ) ;
+    auto a_str = std::to_string( a ) ;
+
+    CLS_LOG( 10, "kat stub: blah0" ) ;
+    CLS_LOG( 20, "kat stub: %s", a_str.c_str()) ;
+    CLS_LOG( 20, "kat stub: inbl.length() = %d", inbl.length()) ;
+    CLS_LOG( 20, "kat stub: inbl.c_str()  = %s", inbl.c_str()) ;
+
+    // save a test object
+    out->append( "KAT" );
+    out->append( inbl.c_str(), inbl.length() );
+
+    return 0;
+}
 
 void __cls_init()
 {
@@ -2036,5 +2072,8 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "transform_db_op",
       CLS_METHOD_RD | CLS_METHOD_WR, transform_db_op, &h_transform_db_op);
+
+  cls_register_cxx_method(h_class, "stub",
+      CLS_METHOD_RD | CLS_METHOD_WR, stub, &h_stub);
 }
 
