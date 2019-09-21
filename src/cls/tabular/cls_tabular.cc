@@ -2108,27 +2108,17 @@ int transform_db_op2(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 static
 int stub(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-    bufferlist inbl ;
-    // unpack the requested op from the inbl.
-    try {
-        bufferlist::iterator it = in->begin();
-        ::decode(inbl, it);
-    } catch (const buffer::error &err) {
-        CLS_ERR("ERROR: cls_tabular: stub : decoding in bufferlist");
-        return -EINVAL;
-    }
-
     auto a = Tables::tabular_stub_method( 500 ) ;
     auto a_str = std::to_string( a ) ;
 
     CLS_LOG( 10, "kat stub: blah0" ) ;
     CLS_LOG( 20, "kat stub: %s", a_str.c_str()) ;
-    CLS_LOG( 20, "kat stub: inbl.length() = %d", inbl.length()) ;
-    CLS_LOG( 20, "kat stub: inbl.c_str()  = %s", inbl.c_str()) ;
+    CLS_LOG( 20, "kat stub: in->length() = %d", in->length()) ;
+    CLS_LOG( 20, "kat stub: in->c_str()  = %s", in->c_str()) ;
 
     // save a test object
     out->append( "KAT" );
-    out->append( inbl.c_str(), inbl.length() );
+    out->append( in->c_str(), in->length() );
 
     return 0;
 }
