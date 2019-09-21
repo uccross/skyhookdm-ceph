@@ -74,7 +74,7 @@ int main(int argc, char **argv)
   std::cout << "sys_ret = " << sys_ret << std::endl ;
 
   // write into an fbx object file
-  cmd = "bin/fbwriter --file_name lineitem.10MB.objs.75Krows.csv --schema_file_name lineitem.schema.txt --num_objs 1 --flush_rows 75000 --read_rows 75000 --csv_delim \"|\" --use_hashing false --rid_start_value 1 --table_name lineitem_10MB --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW" ;
+  cmd = "bin/fbwriter --file_name lineitem.10MB.objs.75Krows.csv --schema_file_name lineitem_schema.txt --num_objs 1 --flush_rows 75000 --read_rows 75000 --csv_delim \"|\" --use_hashing false --rid_start_value 1 --table_name lineitem_10MB --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW" ;
   std::cout << cmd << std::endl ;
   sys_ret = system( cmd.c_str() ) ;
   std::cout << "sys_ret = " << sys_ret << std::endl ;
