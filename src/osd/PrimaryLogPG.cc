@@ -7947,6 +7947,9 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
   }
 
   int64_t left = out_max - osd_op.outdata.length();
+  dout(20) << "kat left : out_max = " << out_max << dendl ; 
+  dout(20) << "kat left :  osd_op.outdata.length() = " <<  osd_op.outdata.length() << dendl ; 
+  dout(20) << "kat left : left = " << left << dendl ; 
 
   // data
   bufferlist& bl = reply_obj.data;
@@ -8016,10 +8019,10 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     // --------------------------------------------------------------- //
     dout(20) << "kat: here1" << dendl; 
     if (left > 0 && !cursor.data_complete) {
-      dout(20) << "kat soid = " << soid << dendl;
-      dout(20) << "kat cursor.data_offset = " << cursor.data_offset << dendl;
-      dout(20) << "kat oi.size = " << oi.size << dendl;
-      dout(20) << "kat oi.soid = " << oi.soid << dendl;
+      dout(20) << "kat read src data soid = " << soid << dendl;
+      dout(20) << "kat read src data cursor.data_offset = " << cursor.data_offset << dendl;
+      dout(20) << "kat read src data oi.size = " << oi.size << dendl;
+      dout(20) << "kat read src data oi.soid = " << oi.soid << dendl;
       if (cursor.data_offset < oi.size) {
 	      uint64_t max_read = MIN(oi.size - cursor.data_offset, (uint64_t)left);
         dout(20) << "kat max_read = " << max_read << dendl;
@@ -8070,7 +8073,11 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     dout(20) << "kat: here0" << dendl; 
     // specify object class and method to use for transformation
     string cname("tabular");
-    string mname("stub");
+
+    // HARD CODE THE CLS METHOD CALL
+    string mname("transform_db_op2"); // use this for transform-copyfrom-merge.cc
+    //string mname("stub"); // use this for basic-copyfrom-merge.cc
+
     ClassHandler::ClassData *cls;
     result = osd->class_handler->open_class(cname, &cls);
     ceph_assert(result == 0);   // init_op_flags() already verified this works.
@@ -8082,14 +8089,13 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     }
 
     int flags = method->get_flags();
+    //make sure these match the registered function spec
     ceph_assert(flags == (CLS_METHOD_RD | CLS_METHOD_WR));
 
-    bufferlist inbl ;
-    bufferlist outbl ;
-    ::encode( bl, inbl ) ;
-    dout(20) << __func__ << " kat copyfrom cls call : inbl.length() = " << inbl.length() << dendl ;
-
-    int data_length = method->exec((cls_method_context_t)&ctx, inbl, outbl);
+    bufferlist outbl ; //this will be populated by the cls method.
+    // data_length equals ret in this context bc not hijacking the return value like ken did.
+    dout(20) << __func__ << " kat copyfrom cls call : bl.length() = " << bl.length() << dendl ;
+    int data_length = method->exec((cls_method_context_t)&ctx, bl, outbl);
 
     dout(20) << __func__ << " kat copyfrom cls call : bl.length()    = " << bl.length() << dendl ;
     dout(20) << __func__ << " kat copyfrom cls call : bl.c_str()     = " << bl.c_str() << dendl ;
@@ -8097,6 +8103,8 @@ int PrimaryLogPG::do_copy_get(OpContext *ctx, bufferlist::iterator& bp,
     dout(20) << __func__ << " kat copyfrom cls call : outbl.c_str()  = " << outbl.c_str() << dendl ;
     dout(20) << __func__ << " kat copyfrom cls call : data_length    = " << data_length << dendl ;
 
+    // toggle using the outbl results as the stuff to copy into the target.
+    // true means "yes use the outbl results in the target"
     bool cls_overwrite = true ;
 
     // overwrite contents of returned bl with the outbl derived from the cls method.
