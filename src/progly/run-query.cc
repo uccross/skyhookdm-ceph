@@ -220,15 +220,6 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  // Get the destination object type for the transform operation
-  if (trans_format_str == "flatbuffer") {
-    trans_format_type = SFT_FLATBUF_FLEX_ROW;
-  } else if (trans_format_str == "arrow") {
-    trans_format_type = SFT_ARROW;
-  } else {
-    assert(0);
-  }
-
   /*
    * sanity check queries against provided parameters
    */
@@ -305,6 +296,7 @@ int main(int argc, char **argv)
     boost::trim(index_preds);
     boost::trim(index2_preds);
     boost::trim(text_index_delims);
+    boost::trim(trans_format_str);
 
     // standardize naming as uppercase
     boost::to_upper(db_schema_name);
@@ -312,6 +304,7 @@ int main(int argc, char **argv)
     boost::to_upper(index_cols);
     boost::to_upper(index2_cols);
     boost::to_upper(project_cols);
+    boost::to_upper(trans_format_str);
 
     // current minimum required info for formulating IO requests.
     assert (!db_schema_name.empty());
@@ -325,6 +318,15 @@ int main(int argc, char **argv)
     }
     if (runstats) {
         assert (use_cls);
+    }
+
+    // Get the destination object type for the transform operation
+    if (trans_format_str == "FLATBUFFER") {
+        trans_format_type = SFT_FLATBUF_FLEX_ROW;
+    } else if (trans_format_str == "ARROW") {
+        trans_format_type = SFT_ARROW;
+    } else {
+        assert(0);
     }
 
      // verify desired result format is supported
@@ -381,7 +383,6 @@ int main(int argc, char **argv)
             sky_idx2_preds.size() == 0) {
                 fastpath = true;
         }
-
     } else {
         projection = true;
         if (hasAggPreds(sky_qry_preds)) {
@@ -633,7 +634,7 @@ int main(int argc, char **argv)
   }
 
   // launch transform operation here.
-  if (transform_db) {
+  if (query == "flatbuf" && transform_db) {
 
     // create idx_op for workers
     transform_op op(qop_table_name, qop_query_schema, trans_op_format_type);

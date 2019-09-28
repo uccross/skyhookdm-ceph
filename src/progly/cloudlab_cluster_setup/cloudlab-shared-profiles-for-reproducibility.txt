@@ -4,16 +4,27 @@
 1. get a cloudlab account
 2. create a generic sshkey just for these tests
 3. instantiate one of the below cloudlab profiles.
-    via GENILAB SCRIPT??
 4. IPADDR= ip of the node "client0" in your instantiated profile.
 5. Setup the machine for experiments
  scp -i ~/.ssh/cloudlab.id_rsa  ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR:~/;
  ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR "git clone https://github.com/KDahlgren/pdsw19-reprod";
  ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR;
     $ bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh <nosds> <generickey-path>
-6. ./create-objs.sh
-7. ./bash load-wrapper-10MB.sh <nosds> <nobjects>
-8. ./runquery-A.sh, run-query-B.sh
+6. # from csv files, creates objs in arrow and fbx format
+./create-objs.sh
+7 # creates all 4 data pools, lineitem, ncols100 for fbx and arrow, and loads the sample objects.
+./load-wrapper-10MB.sh <nosds> <nobjects>
+8. cd /mnt/sda4/skyhookdm-ceph/build
+9. # run a query on an 8 node cluster for the specified pool
+# run_query_test_lineitem.sh  -n <numobjs> -p <poolname> -r <numruns-to-average> -o <numosds>  -s <schemaname, i.e. "lineitem" or ncols100">
+
+# LINEITEM DATASET QUERIES
+./run_query_test_lineitem.sh  -n 10000 -p lineitem.10MB.fbx   -r 3 -o 8  -s "lineitem" | tee  runquery.8osds.lineitem.10MB.fbxclient0.log
+./run_query_test_lineitem.sh  -n 10000 -p lineitem.10MB.arrow -r 3 -o 8  -s "lineitem" | tee  runquery.8osds.lineitem.10MB.arrow.client0.log
+
+#NCOLS100 DATASET QUERIES
+./run_query_test_ncols100.sh  -n 10000 -p lineitem.10MB.fbx   -r 3 -o 8  -s "ncols100" | tee  runquery.8osds.ncols100.10MB.fbxclient0.log
+./run_query_test_ncols100.sh  -n 10000 -p lineitem.10MB.arrow -r 3 -o 8  -s "ncols100" | tee  runquery.8osds.ncols100.10MB.arrow.client0.log
 
 
 # OUR CLOUDLAB PROFILES SHARED PUBLICLY for 1,2,4,8,16,32 node clusters.

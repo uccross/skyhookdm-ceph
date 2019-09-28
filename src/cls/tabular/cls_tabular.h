@@ -56,6 +56,7 @@ enum SkyFormatType {
     SFT_FLATBUF_UNION_COL,
     SFT_FLATBUF_CSV_ROW,
     SFT_ARROW,
+    SFT_PARQUET,
     SFT_PG_TUPLE,
     SFT_CSV,
     SFT_PG_BINARY,
@@ -71,6 +72,7 @@ inline int sky_format_type_from_string (std::string type) {
     if (type == "SFT_FLATBUF_UNION_COL") return SFT_FLATBUF_UNION_COL;
     if (type == "SFT_FLATBUF_CSV_ROW")   return SFT_FLATBUF_CSV_ROW;
     if (type == "SFT_ARROW")             return SFT_ARROW;
+    if (type == "SFT_PARQUET")           return SFT_PARQUET;
     if (type == "SFT_PG_TUPLE")          return SFT_PG_TUPLE;
     if (type == "SFT_CSV")               return SFT_CSV;
     if (type == "SFT_PG_BINARY")         return SFT_PG_BINARY;
