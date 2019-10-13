@@ -201,7 +201,7 @@ int processArrow(
         }
 
         // skip dead rows.
-        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0);
+        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->chunk(0);
         if (std::static_pointer_cast<arrow::BooleanArray>(delvec_chunk)->Value(i) == true) continue;
 
         // Apply predicates
@@ -217,7 +217,7 @@ int processArrow(
             col_info col = *it;
             auto builder = builder_list[std::distance(query_schema.begin(), it)];
 
-            auto processing_chunk = input_table->column(col.idx)->data()->chunk(0);
+            auto processing_chunk = input_table->column(col.idx)->chunk(0);
 
             if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
                 errcode = TablesErrCodes::RequestedColIndexOOB;
@@ -387,7 +387,7 @@ int processArrowCol(
             col_info col = *it;
 
             applyPredicatesArrowCol(preds,
-                                    input_table->column(col.idx)->data()->chunk(0),
+                                    input_table->column(col.idx)->chunk(0),
                                     col.idx,
                                     result_rows);
         }
@@ -522,7 +522,7 @@ int processArrowCol(
             rnum = result_rows[i];
 
         // skip dead rows.
-        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0);
+        auto delvec_chunk = input_table->column(ARROW_DELVEC_INDEX(num_cols))->chunk(0);
         if (std::static_pointer_cast<arrow::BooleanArray>(delvec_chunk)->Value(rnum) == true) continue;
 
         processed_rows++;
@@ -533,7 +533,7 @@ int processArrowCol(
             col_info col = *it;
             auto builder = builder_list[std::distance(query_schema.begin(), it)];
 
-            auto processing_chunk = input_table->column(col.idx)->data()->chunk(0);
+            auto processing_chunk = input_table->column(col.idx)->chunk(0);
 
             if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
                 errcode = TablesErrCodes::RequestedColIndexOOB;
@@ -3712,7 +3712,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_BOOL: {
                 TypedPredicate<bool>* p = \
                         dynamic_cast<TypedPredicate<bool>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 bool colval = std::static_pointer_cast<arrow::BooleanArray>(array)->Value(element_index);
                 bool predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3725,7 +3725,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_INT8: {
                 TypedPredicate<int8_t>* p = \
                         dynamic_cast<TypedPredicate<int8_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 int8_t colval = std::static_pointer_cast<arrow::Int8Array>(array)->Value(element_index);
                 int8_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3740,7 +3740,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_INT16: {
                 TypedPredicate<int16_t>* p = \
                         dynamic_cast<TypedPredicate<int16_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 int16_t colval = std::static_pointer_cast<arrow::Int16Array>(array)->Value(element_index);
                 int16_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3755,7 +3755,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_INT32: {
                 TypedPredicate<int32_t>* p = \
                         dynamic_cast<TypedPredicate<int32_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 int32_t colval = std::static_pointer_cast<arrow::Int32Array>(array)->Value(element_index);
                 int32_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3770,10 +3770,10 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_INT64: {
                 TypedPredicate<int64_t>* p = \
                         dynamic_cast<TypedPredicate<int64_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 int64_t colval = 0;
                 if ((*it)->colIdx() == RID_COL_INDEX)
-                    array = table->column(ARROW_RID_INDEX(num_cols))->data()->chunk(0);
+                    array = table->column(ARROW_RID_INDEX(num_cols))->chunk(0);
                 colval = std::static_pointer_cast<arrow::Int64Array>(array)->Value(element_index);
                 int64_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3786,7 +3786,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_UINT8: {
                 TypedPredicate<uint8_t>* p = \
                         dynamic_cast<TypedPredicate<uint8_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 uint8_t colval = std::static_pointer_cast<arrow::UInt8Array>(array)->Value(element_index);
                 uint8_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3801,7 +3801,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_UINT16: {
                 TypedPredicate<uint16_t>* p = \
                         dynamic_cast<TypedPredicate<uint16_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 uint16_t colval = std::static_pointer_cast<arrow::UInt16Array>(array)->Value(element_index);
                 uint16_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3816,7 +3816,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_UINT32: {
                 TypedPredicate<uint32_t>* p = \
                         dynamic_cast<TypedPredicate<uint32_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 uint32_t colval = std::static_pointer_cast<arrow::UInt32Array>(array)->Value(element_index);
                 uint32_t predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3831,10 +3831,10 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_UINT64: {
                 TypedPredicate<uint64_t>* p = \
                         dynamic_cast<TypedPredicate<uint64_t>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 uint64_t colval = 0;
                 if ((*it)->colIdx() == RID_COL_INDEX) {
-                    array = table->column(ARROW_RID_INDEX(num_cols))->data()->chunk(0);
+                    array = table->column(ARROW_RID_INDEX(num_cols))->chunk(0);
                     colval = std::static_pointer_cast<arrow::Int64Array>(array)->Value(element_index);
                 }
                 else
@@ -3850,7 +3850,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_FLOAT: {
                 TypedPredicate<float>* p = \
                         dynamic_cast<TypedPredicate<float>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 float colval = std::static_pointer_cast<arrow::FloatArray>(array)->Value(element_index);
                 float predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3865,7 +3865,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_DOUBLE: {
                 TypedPredicate<double>* p = \
                         dynamic_cast<TypedPredicate<double>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 double colval = std::static_pointer_cast<arrow::DoubleArray>(array)->Value(element_index);
                 double predval = p->Val();
                 if (p->isGlobalAgg())
@@ -3878,7 +3878,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_CHAR: {
                 TypedPredicate<char>* p= \
                         dynamic_cast<TypedPredicate<char>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 if (p->opType() == SOT_like) {
                     // use strings for regex
                     std::string colval = std::to_string((char)std::static_pointer_cast<arrow::Int8Array>(array)->Value(element_index));
@@ -3902,7 +3902,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_UCHAR: {
                 TypedPredicate<unsigned char>* p = \
                         dynamic_cast<TypedPredicate<unsigned char>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 if (p->opType() == SOT_like) {
                     // use strings for regex
                     std::string colval = std::to_string((char)std::static_pointer_cast<arrow::UInt8Array>(array)->Value(element_index));
@@ -3927,7 +3927,7 @@ bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& tabl
             case SDT_DATE: {
                 TypedPredicate<std::string>* p = \
                         dynamic_cast<TypedPredicate<std::string>*>(*it);
-                auto array = table->column(p->colIdx())->data()->chunk(0);
+                auto array = table->column(p->colIdx())->chunk(0);
                 string colval = std::static_pointer_cast<arrow::StringArray>(array)->GetString(element_index);
                 colpass = compare(colval,p->Val(),p->opType(),p->colType());
                 break;
@@ -5043,7 +5043,7 @@ int flatten_table(const std::shared_ptr<arrow::Table> &input_table,
      * and number of elements in each chunk.
      */
     int chunk_index = 0;
-    auto chunk_it = input_table->column(0)->data()->chunks();
+    auto chunk_it = input_table->column(0)->chunks();
 
     // Get the number of elements in the first chunk.
     auto chunk = chunk_it[chunk_index];
@@ -5064,7 +5064,7 @@ int flatten_table(const std::shared_ptr<arrow::Table> &input_table,
             col_info col = *it;
             auto builder = builder_list[std::distance(sc.begin(), it)];
 
-            auto processing_chunk_it = input_table->column(col.idx)->data()->chunks();
+            auto processing_chunk_it = input_table->column(col.idx)->chunks();
             auto processing_chunk = processing_chunk_it[chunk_index];
 
             if (processing_chunk->IsNull(element_index)) {
@@ -5126,11 +5126,11 @@ int flatten_table(const std::shared_ptr<arrow::Table> &input_table,
             }
         }
         // Add entries for RID and Deleted vector
-        auto processing_chunk_it = input_table->column(ARROW_RID_INDEX(num_cols))->data()->chunks();
+        auto processing_chunk_it = input_table->column(ARROW_RID_INDEX(num_cols))->chunks();
         auto processing_chunk = processing_chunk_it[chunk_index];
         static_cast<arrow::Int64Builder *>(builder_list[ARROW_RID_INDEX(num_cols)])->Append(std::static_pointer_cast<arrow::Int64Array>(processing_chunk)->Value(element_index));
 
-        processing_chunk_it = input_table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunks();
+        processing_chunk_it = input_table->column(ARROW_DELVEC_INDEX(num_cols))->chunks();
         processing_chunk = processing_chunk_it[chunk_index];
         static_cast<arrow::UInt8Builder *>(builder_list[ARROW_DELVEC_INDEX(num_cols)])->Append(std::static_pointer_cast<arrow::BooleanArray>(processing_chunk)->Value(element_index));
     }
@@ -5258,9 +5258,9 @@ int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
         auto schema = std::make_shared<arrow::Schema>(orig_schema->fields(), metadata);
 
         // Split and create the columns from original table
-        std::vector<std::shared_ptr<arrow::Column>> column_list;
+        std::vector<std::shared_ptr<arrow::ChunkedArray>> column_list;
         for (int i = 0; i < orig_num_cols; i++) {
-            std::shared_ptr<arrow::Column> column;
+            std::shared_ptr<arrow::ChunkedArray> column;
             if (remaining_rows <= max_rows)
                 column = table->column(i)->Slice(offset);
             else
@@ -5291,9 +5291,9 @@ int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table)
     // Iterate through each column in print the data inside it
     for (auto it = sc.begin(); it != sc.end(); ++it) {
         col_info col = *it;
-        std::cout << table->column(col.idx)->name();
+        std::cout << table->field(col.idx)->name();
         std::cout << CSV_DELIM;
-        std::vector<std::shared_ptr<arrow::Array>> array_list = table->column(col.idx)->data()->chunks();
+        std::vector<std::shared_ptr<arrow::Array>> array_list = table->column(col.idx)->chunks();
 
         switch(col.type) {
             case SDT_BOOL: {
@@ -5492,27 +5492,27 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     for (auto it = sc.begin(); it != sc.end(); ++it) {
         col_info col = *it;
         if (print_header) {
-            std::cout << table->column(std::distance(sc.begin(), it))->name();
+            std::cout << table->field(std::distance(sc.begin(), it))->name();
             if (it->is_key) std::cout << "(key)";
             if (!it->nullable) std::cout << "(NOT NULL)";
             std::cout << CSV_DELIM;
         }
-        chunk_vec.emplace_back(table->column(std::distance(sc.begin(), it))->data()->chunk(0));
+        chunk_vec.emplace_back(table->column(std::distance(sc.begin(), it))->chunk(0));
     }
 
     if (print_verbose) {
         num_cols = sc.size();
 
         if (print_header) {
-            std::cout << table->column(ARROW_RID_INDEX(num_cols))->name()
+            std::cout << table->field(ARROW_RID_INDEX(num_cols))->name()
                       << CSV_DELIM;
-            std::cout << table->column(ARROW_DELVEC_INDEX(num_cols))->name()
+            std::cout << table->field(ARROW_DELVEC_INDEX(num_cols))->name()
                       << CSV_DELIM;
         }
 
         // Add RID and delete vector column
-        chunk_vec.emplace_back(table->column(ARROW_RID_INDEX(num_cols))->data()->chunk(0));
-        chunk_vec.emplace_back(table->column(ARROW_DELVEC_INDEX(num_cols))->data()->chunk(0));
+        chunk_vec.emplace_back(table->column(ARROW_RID_INDEX(num_cols))->chunk(0));
+        chunk_vec.emplace_back(table->column(ARROW_DELVEC_INDEX(num_cols))->chunk(0));
     }
 
     if (print_header)
@@ -5664,7 +5664,7 @@ long long int printArrowbufRowAsBinary(
 
     // Get the names of each column and get the vector of chunks
     for (auto it = sc.begin(); it != sc.end(); ++it) {
-        chunk_vec.emplace_back(table->column(std::distance(sc.begin(), it))->data()->chunk(0));
+        chunk_vec.emplace_back(table->column(std::distance(sc.begin(), it))->chunk(0));
     }
 
     // 16 bit int, assumes same num cols for all rows below.
