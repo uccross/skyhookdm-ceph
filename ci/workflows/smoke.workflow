@@ -13,7 +13,7 @@ action "build skyhook cls" {
 
 action "download test data" {
   needs = "build skyhook cls"
-  uses = "actions/bin/curl@master"
+  uses = "popperized/bin/curl@master"
   runs = ["sh", "-c", "ci/scripts/download-test-data.sh"]
 }
 
@@ -21,13 +21,13 @@ action "download test data" {
 # runtime dependencies such as libarrow, libhdf5, etc
 action "build ceph image" {
   needs = "download test data"
-  uses = "actions/docker/cli@master"
+  uses = "popperized/docker/cli@master"
   args = "build -t popperized/ceph:luminous ci/docker"
 }
 
 action "run tests" {
   needs = "build ceph image"
-  uses = "actions/docker/cli@master"
+  uses = "popperized/docker/cli@master"
   runs = [
     "sh", "-c",
     "docker run --rm --volume $GITHUB_WORKSPACE:/ws --workdir=/ws --entrypoint=/ws/ci/scripts/run-skyhook-test.sh popperized/ceph:luminous"
