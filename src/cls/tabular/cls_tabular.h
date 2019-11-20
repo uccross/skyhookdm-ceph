@@ -307,6 +307,65 @@ struct transform_op {
 };
 WRITE_CLASS_ENCODER(transform_op)
 
+
+// query op instructions for High Energy Physics (HEP) domain.
+struct hep_query_op {
+
+  std::string file_type; // e.g., root, nano_aod, etc.
+  std::string query_schema;
+  bool is_compressed;
+  bool is_orig_read;  // i.e., off,len of original file data
+  int orig_off;
+  int orig_len;
+
+  hep_query_op() {}
+  hep_query_op(
+    std::string _query_schema,
+    bool _is_compressed,
+    bool _is_orig_read,
+    int _orig_off,
+    int _orig_len) :
+        query_schema(_query_schema),
+        is_compressed(_is_compressed),
+        is_orig_read(_is_orig_read),
+        orig_off(_orig_off),
+        orig_len(_orig_len)  { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(query_schema, bl);
+    ::encode(is_compressed, bl);
+    ::encode(is_orig_read, bl);
+    ::encode(orig_off, bl);
+    ::encode(orig_len, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(query_schema, bl);
+    ::decode(is_compressed, bl);
+    ::decode(is_orig_read, bl);
+    ::decode(orig_off, bl);
+    ::decode(orig_len, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("hep_query_op:");
+    s.append(" .query_schema=" + query_schema);
+    s.append(" .is_compressed=" + std::to_string(is_compressed));
+    s.append(" .is_orig_read=" + std::to_string(is_orig_read));
+    s.append(" .orig_off=" + std::to_string(orig_off));
+    s.append(" .orig_len=" + std::to_string(orig_len));
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(hep_query_op);
+
 // holds an omap entry containing flatbuffer location
 // this entry type contains physical location info
 // idx_key = idx_prefix + fb sequence number (int)
