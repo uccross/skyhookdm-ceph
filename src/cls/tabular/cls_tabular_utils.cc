@@ -5886,6 +5886,52 @@ long long int printArrowbufRowAsBinary(
     return counter;
 }
 
+
+
+long long int printArrowbufRowAsPyArrowBinary(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print)
+{
+
+    // Each column in arrow is represented using Chunked Array. A chunked array is
+    // a vector of chunks i.e. arrays which holds actual data.
+
+    // Declare vector for columns (i.e. chunked_arrays)
+    std::vector<std::shared_ptr<arrow::Array>> chunk_vec;
+    std::shared_ptr<arrow::Table> table;
+    std::shared_ptr<arrow::Buffer> buffer;
+
+    std::string str_buff(dataptr, datasz);
+    arrow::Buffer::FromString(str_buff, &buffer);
+    extract_arrow_from_buffer(&table, buffer);
+
+    // From Table get the schema and from schema get the skyhook schema
+    // which is stored as a metadata
+    auto schema = table->schema();
+    auto metadata = schema->metadata();
+    schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
+    int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+
+    // output binary buffer as sstream for pyarrow consumption.
+    stringstream ss(std::stringstream::in |
+                    std::stringstream::out|
+                    std::stringstream::binary);
+
+    // rewind and output all row data for this fb
+    ss.seekg (0, ios::beg);
+    std::cout << ss.rdbuf();
+    ss.flush();
+
+    // TODO: ignores deleted rows for now.
+    // max_to_print unused here, we just output the existing arrow table
+    // as binary, and return the num_rows in the original table
+    return num_rows;
+}
+
+
 /*
  * Function: transform_fb_to_arrow
  * Description: Build arrow schema vector using skyhook schema information. Get the

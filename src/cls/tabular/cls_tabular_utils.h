@@ -883,6 +883,14 @@ long long int printArrowbufRowAsBinary(
         bool print_verbose,
         long long int max_to_print);
 
+// pyarrow binary fstream format
+long long int printArrowbufRowAsPyArrowBinary(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
 
 int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);

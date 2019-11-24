@@ -60,6 +60,7 @@ enum SkyFormatType {
     SFT_PG_TUPLE,
     SFT_CSV,
     SFT_PG_BINARY,
+    SFT_PYARROW_BINARY,
     SFT_HDF5,
     SFT_JSON
 };
@@ -76,6 +77,7 @@ inline int sky_format_type_from_string (std::string type) {
     if (type == "SFT_PG_TUPLE")          return SFT_PG_TUPLE;
     if (type == "SFT_CSV")               return SFT_CSV;
     if (type == "SFT_PG_BINARY")         return SFT_PG_BINARY;
+    if (type == "SFT_PYARROW_BINARY")    return SFT_PYARROW_BINARY;
     if (type == "SFT_HDF5")              return SFT_HDF5;
     if (type == "SFT_JSON")              return SFT_JSON;
     return 0;   // format unrecognized
