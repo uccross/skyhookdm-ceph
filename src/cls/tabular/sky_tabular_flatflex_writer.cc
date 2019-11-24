@@ -23,30 +23,17 @@
 /*
 USAGE NOTES
 
-# reset vceph
-../src/stop.sh; make -j12 vstart; ../src/stop.sh; ../src/vstart.sh -d -n -x; bin/rados mkpool tpchflatbuf ; bin/ceph osd pool set tpchflatbuf size 1 ;
-
 # write to disk
+
 # for these, be sure to change num-objs to 2 in queries
-bin/fbwriter --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 2 --flush_rows 9 --read_rows 17 --csv_delim "|" --use_hashing true --rid_start_value 2 --table_name testdata --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;
+bin/sky_tabular_flatflex_writer --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 2 --flush_rows 9 --read_rows 17 --csv_delim "|" --use_hashing true --rid_start_value 2 --table_name testdata --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;
 
 # for these, be sure to change num-objs to 1 in queries
-bin/fbwriter --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 1 --flush_rows 17 --read_rows 17 --csv_delim "|" --use_hashing false --rid_start_value 2 --table_name testdata --input_oid 111 --obj_type SFT_FLATBUF_FLEX_ROW ;
+bin/sky_tabular_flatflex_writer --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 1 --flush_rows 17 --read_rows 17 --csv_delim "|" --use_hashing false --rid_start_value 2 --table_name testdata --input_oid 111 --obj_type SFT_FLATBUF_FLEX_ROW ;
 
 # setup
 bin/rados mkpool tpchdata;
 yes | PATH=$PATH:bin ../src/progly/rados-store-glob.sh tpchdata fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.testdata.* ;
-
-# queries
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem" ;
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet ;
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "orderkey,lt,3"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet ;
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "comment,like,bold"  --quiet ;
-
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem" --use-cls;
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet --use-cls;
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "orderkey,lt,3"  --project-cols "orderkey,tax,comment,linenumber,returnflag" --quiet --use-cls;
-bin/run-query --num-objs 2 --pool tpchdata --wthreads 1 --qdepth 10 --query flatbuf --table-name "lineitem"  --select-preds "comment,like,bold"  --quiet --use-cls;
 
 */
 
