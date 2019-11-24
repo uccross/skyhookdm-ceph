@@ -308,6 +308,59 @@ struct transform_op {
 WRITE_CLASS_ENCODER(transform_op)
 
 
+struct hep_file_metadata {
+
+  // parent information for this file
+  std::string dataset_name;
+
+  // store logical and physical metadata as KV pairs in json strings.
+  // https://root.cern.ch/doc/master/classTFile.html
+  // physical offsets into the file.
+  std::string tfile_header;  // json - physical file info
+
+  // https://root.cern.ch/doc/master/classTTree.html
+  // logical info how many trees in file and branches in each tree
+  std::string file_schema;  // json - logical file info
+
+  hep_file_metadata() {}
+  hep_file_metadata(
+    std::string _dataset_name,
+    std::string _tfile_header,
+    std::string _file_schema) :
+        dataset_name(_dataset_name),
+        tfile_header(_tfile_header),
+        file_schema(_file_schema) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(dataset_name, bl);
+    ::encode(tfile_header, bl);
+    ::encode(file_schema, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(dataset_name, bl);
+    ::decode(tfile_header, bl);
+    ::decode(file_schema, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("hep_metadata_phys:");
+    s.append(" .dataset_name=" + dataset_name);
+    s.append(" .tfile_header=" + tfile_header);
+    s.append(" .file_schema=" + file_schema);
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(hep_file_metadata);
+
+
 // query op instructions for High Energy Physics (HEP) domain.
 struct hep_query_op {
 
