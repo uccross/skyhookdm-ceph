@@ -891,6 +891,14 @@ long long int printArrowbufRowAsPyArrowBinary(
         bool print_verbose,
         long long int max_to_print);
 
+// print format example binary fstream format
+long long int printExampleFormatAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print);
+
 void printArrowHeader(std::shared_ptr<const arrow::KeyValueMetadata> &metadata);
 
 int print_arrowbuf_colwise(std::shared_ptr<arrow::Table>& table);
@@ -1057,6 +1065,8 @@ int compress_arrow_tables(std::vector<std::shared_ptr<arrow::Table>> &table_vec,
                           std::shared_ptr<arrow::Table> *table);
 int split_arrow_table(std::shared_ptr<arrow::Table> &table, int max_rows,
                       std::vector<std::shared_ptr<arrow::Table>>* table_vec);
+
+int example_func(int counter);
 
 } // end namespace Tables
 

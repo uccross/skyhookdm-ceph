@@ -72,6 +72,10 @@ std::string idx_op_text_delims;
 // transform op params
 int trans_op_format_type;
 
+// Example op params
+int expl_func_counter;
+int expl_func_id;
+
 // for runstats op on a given table name
 bool runstats;
 
@@ -259,6 +263,15 @@ static void print_data(const char *dataptr,
                 assert (Tables::SkyOutputBinaryNotImplemented==0);
             }
             row_counter += Tables::printFlatbufFBUColAsCsv(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter);
+            break;
+
+        case SFT_EXAMPLE_FORMAT:
+            row_counter += Tables::printExampleFormatAsCsv(
                 dataptr,
                 datasz,
                 print_header,
@@ -756,9 +769,48 @@ void worker()
             }
         } // endloop of processing sequence of encoded bls
 
+    } else if (query == "example") {
+
+        using namespace Tables;
+
+        // to store the result from an object
+        bufferlist bl;
+
+        if (use_cls) {
+
+            // result came from cls read, so we unpack our outbl info
+            // added by the example cls method
+            outbl_sample_info info;
+
+            // decode the outbl from cls_tabular.cc example method to extract
+            // results and metadata.
+            // this worker has an AioState *s struct, declared above.
+            try {
+                ceph::bufferlist::iterator it = s->bl.begin();
+                ::decode(info, it);
+                ::decode(bl, it);
+            } catch (ceph::buffer::error&) {
+                int decode_examplequery_cls = 0;
+                assert(decode_examplequery_cls);
+            }
+            times.read_ns = info.read_time_ns;
+            times.eval_ns = info.eval_time_ns;
+            rows_returned += info.rows_processed;
+            result_count += info.rows_processed;
+            cout << "count thus far... " <<rows_returned << std::endl;
+        } else {
+
+            // result came from standard read, no extra info to unpack
+            // the outbl is just the actual data, and is stored in s.
+            bl = s->bl;
+        }
+
+        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+
     } else {   // older processing code below
 
         ceph::bufferlist bl;
+
         // if it was a cls read, first unpack some of the cls processing info
         if (use_cls) {
             try {
@@ -932,7 +984,8 @@ void worker()
               print_row(row);
               result_count++;
             }
-        } else {
+        }
+        else {
           assert(0);
         }
     }

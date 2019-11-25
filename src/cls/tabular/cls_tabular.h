@@ -62,7 +62,8 @@ enum SkyFormatType {
     SFT_PG_BINARY,
     SFT_PYARROW_BINARY,
     SFT_HDF5,
-    SFT_JSON
+    SFT_JSON,
+    SFT_EXAMPLE_FORMAT
 };
 
 
@@ -80,6 +81,7 @@ inline int sky_format_type_from_string (std::string type) {
     if (type == "SFT_PYARROW_BINARY")    return SFT_PYARROW_BINARY;
     if (type == "SFT_HDF5")              return SFT_HDF5;
     if (type == "SFT_JSON")              return SFT_JSON;
+    if (type == "SFT_EXAMPLE_FORMAT")    return SFT_EXAMPLE_FORMAT;
     return 0;   // format unrecognized
 }
 
@@ -353,7 +355,7 @@ struct hep_file_metadata {
 
   std::string toString() {
     std::string s;
-    s.append("hep_metadata_phys:");
+    s.append("hep_file_metadata:");
     s.append(" .dataset_name=" + dataset_name);
     s.append(" .tfile_header=" + tfile_header);
     s.append(" .file_schema=" + file_schema);
@@ -698,6 +700,112 @@ struct col_stats {
     }
 };
 WRITE_CLASS_ENCODER(col_stats)
+
+// Example struct to store and serialize read/write info 
+// for custom cls class methods
+struct inbl_sample_op {
+
+  std::string message;
+  std::string instructions;
+  int counter;
+  int func_id;
+
+  inbl_sample_op() {}
+  inbl_sample_op(
+    std::string _message,
+    std::string _instructions,
+    int _counter,
+    int _func_id)
+    :
+    message(_message),
+    instructions(_instructions),
+    counter(_counter),
+    func_id(_func_id) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(message, bl);
+    ::encode(instructions, bl);
+    ::encode(counter, bl);
+    ::encode(func_id, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(message, bl);
+    ::decode(instructions, bl);
+    ::decode(counter, bl);
+    ::decode(func_id, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("inbl_sample_op:");
+    s.append(" .message=" + message);
+    s.append(" .instructions=" + instructions);
+    s.append(" .counter=" + std::to_string(counter));
+    s.append(" .func_id=" + std::to_string(func_id));
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(inbl_sample_op)
+
+// Example struct to store and serialize output info that
+// can be returned from custom cls class read/write methods.
+struct outbl_sample_info {
+
+  std::string message;
+  int rows_processed;
+  uint64_t read_time_ns;
+  uint64_t eval_time_ns;
+
+  outbl_sample_info() {}
+  outbl_sample_info(
+    std::string _message,
+    int _rows_processed,
+    uint64_t _read_time_ns,
+    uint64_t _eval_time_ns)
+    :
+    message(_message),
+    rows_processed(_rows_processed),
+    read_time_ns(_read_time_ns),
+    eval_time_ns(_eval_time_ns) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(message, bl);
+    ::encode(rows_processed, bl);
+    ::encode(read_time_ns, bl);
+    ::encode(eval_time_ns, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(message, bl);
+    ::decode(rows_processed, bl);
+    ::decode(read_time_ns, bl);
+    ::decode(eval_time_ns, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("outbl_sample_info:");
+    s.append(" .message=" + message);
+    s.append(" .rows_processed=" + rows_processed);
+    s.append(" .read_time_ns=" + std::to_string(read_time_ns));
+    s.append(" .eval_time_ns=" + std::to_string(eval_time_ns));
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(outbl_sample_info)
 
 
 #endif

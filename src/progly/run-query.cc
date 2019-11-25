@@ -57,6 +57,10 @@ int main(int argc, char **argv)
   bool idx_unique = false;
   bool header = false;  // print csv header
 
+  // example options
+  int example_counter;
+  int example_function_id;
+
   // format type of result set returned to query.cc driver
   int resformat = SkyFormatType::SFT_FLATBUF_FLEX_ROW;
 
@@ -145,6 +149,8 @@ int main(int argc, char **argv)
     ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
     ("result-format", po::value<int>(&resformat)->default_value((int)SkyFormatType::SFT_FLATBUF_FLEX_ROW), "SkyFormatType (enum) of processed results (def=SFT_FLATBUF_FLEX_ROW")
     ("output-format", po::value<std::string>(&output_format)->default_value("SFT_CSV"), "Final output format type enum SkyFormatType (def=csv)")
+    ("example-counter", po::value<int>(&example_counter)->default_value(100), "Loop counter for example function")
+    ("example-function-id", po::value<int>(&example_function_id)->default_value(1), "CLS function identifier for example function")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -578,9 +584,35 @@ int main(int argc, char **argv)
     else
         print_header = header;
 
-  } else {  // query type unknown.
+  } else if (query == "example") {
+
+    /*
+      add input error checking here as needed, and
+      convert user input to query.h defined values,
+      and any other setup needed before encoding the function params
+    */
+
+    assert (example_counter >= 0);
+    assert (example_function_id >= 0);
+
+    // set client-local output value from user provided boost options
+    print_header = header;
+
+    // total result counter from all objs that count using our cls function.
+    result_count = example_counter * num_objs;
+    cout << "Expect total count " << result_count
+         << " from all objects executing example cls method." << std::endl;
+
+    // set example op params from user provided boost options
+    expl_func_counter = example_counter;
+    expl_func_id = example_function_id;
+
+  } else {
+
+    // specified query type is unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
+
   }  // end verify query params
 
   // launch index creation on given table and cols here.
@@ -685,7 +717,8 @@ int main(int argc, char **argv)
       memset(&s->times, 0, sizeof(s->times));
       s->times.dispatch = getns();
 
-      if (use_cls) {
+      if (query == "flatbuf" ) {
+        if (use_cls) {
         query_op op;
         op.query = query;
         op.extended_price = extended_price;
@@ -727,10 +760,37 @@ int main(int argc, char **argv)
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
         checkret(ret, 0);
       }
+  }
+
+    if (query == "example") {
+
+        if (use_cls) {  // execute a cls read method
+
+            // setup and encode our op params here.
+            inbl_sample_op op;
+            op.message = "This is an example op";
+            op.instructions = "Example instructions";
+            op.counter = example_counter;
+            op.func_id = example_function_id;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // execute our example method on the object, passing in our op.
+            int ret = ioctx.aio_exec(oid, s->c,
+                "tabular", "example_query_op", inbl, &s->bl);
+            checkret(ret, 0);
+        }
+        else {  // execute standard read
+            // read entire object by specifying off=0 len=0.
+            int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+            checkret(ret, 0);
+        }
+      }
 
       lock.lock();
       outstanding_ios++;
     }
+
     if (target_objects.empty())
       break;
     dispatch_cond.wait(lock);

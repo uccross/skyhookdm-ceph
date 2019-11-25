@@ -103,6 +103,10 @@ extern std::string idx_op_text_delims;
 // Transform op params
 extern int trans_op_format_type;
 
+// Example op params
+extern int expl_func_counter;
+extern int expl_func_id;
+
 // other exec flags
 extern bool runstats;
 

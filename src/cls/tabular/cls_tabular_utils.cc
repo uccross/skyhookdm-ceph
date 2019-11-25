@@ -2857,6 +2857,41 @@ long long int printJSONAsCsv(
     return counter;
 }
 
+
+long long int printExampleFormatAsCsv(
+        const char* dataptr,
+        const size_t datasz,
+        bool print_header,
+        bool print_verbose,
+        long long int max_to_print) {
+
+    // convert dataptr to desired format, here just a char string.
+    std::string formatted_data(dataptr);
+
+    // print extra info from result data.
+    if (print_verbose)
+        std::cout << "EXAMPLE VERBOSE METADATA";
+
+    // print header row showing data schema
+    if (print_header) {
+        std::cout << "EXAMPLE SCHEMA HEADER";
+        std::cout << std::endl; // newline to start first data row.
+    }
+
+    std::vector<std::string> data_rows;
+    boost::split(data_rows, formatted_data, boost::is_any_of(" "),
+                                                boost::token_compress_on);
+
+    long long int counter = 0;
+    for (uint32_t i = 0; i < data_rows.size(); i++, counter++) {
+        if (counter >= max_to_print)
+            break;
+        std::cout << data_rows[i] <<std::endl;  // newline to start next row.
+    }
+    return counter;
+}
+
+
 // creates an fb meta data structure to wrap the underlying data
 // format (SkyFormatType)
 void
@@ -6280,5 +6315,15 @@ int transform_fbxrows_to_fbucols(const char* fb,
     return errcode;
 } // transform_fbxrows_to_fbucols
 
+
+// a simple func called from a registered cls class method in cls_tabular.cc
+int example_func(int counter) {
+
+    int rows_processed = 0;
+    for (int i = 0; i < counter; i++) {
+        rows_processed += 1;
+    }
+    return rows_processed;
+}
 
 } // end namespace Tables
