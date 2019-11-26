@@ -26,6 +26,7 @@ CLS_NAME(tabular)
 cls_handle_t h_class;
 cls_method_handle_t h_exec_query_op;
 cls_method_handle_t h_example_query_op;
+cls_method_handle_t h_wasm_query_op;
 cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_exec_build_sky_index_op;
@@ -2079,6 +2080,69 @@ int example_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+static
+int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    // unpack the requested op from the inbl.
+    inbl_sample_op op;
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:example_query_op: decoding inbl_sample_op");
+        return -EINVAL;
+    }
+
+    std::string message = op.message;
+    std::string instructions = op.instructions;
+    int counter = op.counter;
+    int func_id = op.func_id;
+
+    CLS_LOG(20, "wasm_query_op: op.message = %s", message.c_str());
+    CLS_LOG(20, "wasm_query_op: op.instructions = %s", instructions.c_str());
+    CLS_LOG(20, "wasm_query_op: op.counter=%s", (std::to_string(counter)).c_str());
+    CLS_LOG(20, "wasm_query_op: op.func_id=%s", (std::to_string(func_id)).c_str());
+
+    using namespace Tables;
+    //schema_vec data_schema = schemaFromString(op.data_schema);
+
+    int64_t read_timer = getns();
+    int64_t func_timer = 0;
+    int rows_processed = 0;
+
+    switch (func_id) {
+        case 0:
+            CLS_ERR("ERROR: cls_tabular:wasm_query_op: unknown func_id=%d", func_id);
+            return -1;
+            break;
+        case 1: {
+            uint64_t start = getns();
+            rows_processed = example_func(counter);
+            uint64_t end = getns();
+            func_timer = end - start;
+            CLS_LOG(20, "wasm_query_op: function result=%d", rows_processed);
+            break;
+        }
+        default:
+            CLS_ERR("ERROR: cls_tabular:wasm_query_op: unknown func_id %d", func_id);
+            return -1;
+    }
+
+    // encode output info for client.
+    outbl_sample_info info;
+    info.message = "All done with example op.";
+    info.rows_processed = rows_processed;
+    info.read_time_ns = read_timer;
+    info.eval_time_ns = func_timer;
+    ::encode(info, *out);
+
+    // encode result data for client.
+    bufferlist result_bl;
+    result_bl.append("result data goes into result bl.");
+    ::encode(result_bl, *out);
+
+    return 0;
+}
 
 void __cls_init()
 {
@@ -2091,6 +2155,9 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "example_query_op",
       CLS_METHOD_RD, example_query_op, &h_example_query_op);
+
+  cls_register_cxx_method(h_class, "wasm_query_op",
+      CLS_METHOD_RD, wasm_query_op, &h_wasm_query_op);
 
   cls_register_cxx_method(h_class, "exec_runstats_op",
       CLS_METHOD_RD | CLS_METHOD_WR, exec_runstats_op, &h_exec_runstats_op);

@@ -607,6 +607,29 @@ int main(int argc, char **argv)
     expl_func_counter = example_counter;
     expl_func_id = example_function_id;
 
+  } else if (query == "wasm") {
+
+    /*
+      add input error checking here as needed, and
+      convert user input to query.h defined values,
+      and any other setup needed before encoding the function params
+    */
+
+    assert (example_counter >= 0);
+    assert (example_function_id >= 0);
+
+    // set client-local output value from user provided boost options
+    print_header = header;
+
+    // total result counter from all objs that count using our cls function.
+    result_count = example_counter * num_objs;
+    cout << "Expect total count " << result_count
+         << " from all objects executing example cls method." << std::endl;
+
+    // set example op params from user provided boost options
+    expl_func_counter = example_counter;
+    expl_func_id = example_function_id;
+
   } else {
 
     // specified query type is unknown.
@@ -786,6 +809,32 @@ int main(int argc, char **argv)
             checkret(ret, 0);
         }
       }
+
+    if (query == "wasm") {
+
+        if (use_cls) {  // execute a cls read method
+
+            // setup and encode our op params here.
+            wasm_inbl_sample_op op;
+            op.message = "This is an wasm op";
+            op.instructions = "Wasm instructions";
+            op.counter = example_counter;
+            op.func_id = example_function_id;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // execute our example method on the object, passing in our op.
+            int ret = ioctx.aio_exec(oid, s->c,
+                "tabular", "wasm_query_op", inbl, &s->bl);
+            checkret(ret, 0);
+        }
+        else {  // execute standard read
+            // read entire object by specifying off=0 len=0.
+            int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+            checkret(ret, 0);
+        }
+      }
+
 
       lock.lock();
       outstanding_ios++;

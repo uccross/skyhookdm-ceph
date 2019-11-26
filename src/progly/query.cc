@@ -807,6 +807,44 @@ void worker()
 
         print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
 
+    } else if (query == "wasm") {
+
+        using namespace Tables;
+
+        // to store the result from an object
+        bufferlist bl;
+
+        if (use_cls) {
+
+            // result came from cls read, so we unpack our outbl info
+            // added by the example cls method
+            wasm_outbl_sample_info info;
+
+            // decode the outbl from cls_tabular.cc example method to extract
+            // results and metadata.
+            // this worker has an AioState *s struct, declared above.
+            try {
+                ceph::bufferlist::iterator it = s->bl.begin();
+                ::decode(info, it);
+                ::decode(bl, it);
+            } catch (ceph::buffer::error&) {
+                int decode_examplequery_cls = 0;
+                assert(decode_examplequery_cls);
+            }
+            times.read_ns = info.read_time_ns;
+            times.eval_ns = info.eval_time_ns;
+            rows_returned += info.rows_processed;
+            result_count += info.rows_processed;
+            cout << "count thus far... " <<rows_returned << std::endl;
+        } else {
+
+            // result came from standard read, no extra info to unpack
+            // the outbl is just the actual data, and is stored in s.
+            bl = s->bl;
+        }
+
+        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+
     } else {   // older processing code below
 
         ceph::bufferlist bl;
