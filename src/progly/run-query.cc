@@ -19,6 +19,7 @@ int main(int argc, char **argv)
   std::string pool;
   unsigned num_objs;
   unsigned start_obj;
+  std::string oid_prefix;
   int wthreads;
   bool build_index;
   bool transform_db;
@@ -151,6 +152,7 @@ int main(int argc, char **argv)
     ("output-format", po::value<std::string>(&output_format)->default_value("SFT_CSV"), "Final output format type enum SkyFormatType (def=csv)")
     ("example-counter", po::value<int>(&example_counter)->default_value(100), "Loop counter for example function")
     ("example-function-id", po::value<int>(&example_function_id)->default_value(1), "CLS function identifier for example function")
+    ("oid-prefix", po::value<std::string>(&oid_prefix)->default_value("obj"), "Prefix to enumerated object ids (names) (def=obj)")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -189,10 +191,9 @@ int main(int argc, char **argv)
   // start_obj defaults to zero, but start_obj and num_objs can be used to
   // operate on subset ranges of all objects for ops like tranforms or
   // indexing, stats, etc.
-  // TODO: there is no absolute check on obj names here as OOB.
   for (unsigned int i = start_obj; i < num_objs; i++) {
     std::stringstream oid_ss;
-    oid_ss << "obj." << i;
+    oid_ss << oid_prefix << "." << i;
     const std::string oid = oid_ss.str();
     target_objects.push_back(oid);
   }
