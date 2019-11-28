@@ -631,6 +631,24 @@ int main(int argc, char **argv)
     expl_func_counter = example_counter;
     expl_func_id = example_function_id;
 
+  } else if (query == "hep") {
+
+    // verify and prep client input
+    using namespace Tables;
+
+    boost::trim(data_schema);
+    boost::to_upper(data_schema);
+    assert (!data_schema.empty());
+
+    sky_tbl_schema = schemaFromString(data_schema);
+
+    // set client-local output value from user provided boost options
+    print_header = header;
+
+    // set example op params from user provided boost options
+    expl_func_counter = example_counter;
+    expl_func_id = example_function_id;
+
   } else {
 
     // specified query type is unknown.

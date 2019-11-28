@@ -2144,6 +2144,48 @@ int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+
+static
+int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    // unpack the requested op from the inbl.
+    hep_op op;
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:hep_query_op: decoding inbl");
+        return -EINVAL;
+    }
+
+    bool fastpath = op.fastpath;
+    std::string dataset_name = op.dataset_name;
+    std::string file_name = op.file_name;
+    std::string data_schema = op.data_schema;
+    std::string query_schema = op.query_schema;
+
+    CLS_LOG(20, "hep_query_op: op.fastpath=%s", (std::to_string(fastpath)).c_str());
+    CLS_LOG(20, "hep_query_op: op.dataset_name = %s", dataset_name.c_str());
+    CLS_LOG(20, "hep_query_op: op.file_name = %s", file_name.c_str());
+    CLS_LOG(20, "hep_query_op: op.data_schema = %s", data_schema.c_str());
+    CLS_LOG(20, "hep_query_op: op.query_schema = %s", query_schema.c_str());
+
+
+    using namespace Tables;
+    //schema_vec data_schema = schemaFromString(op.data_schema);
+
+    int64_t read_timer = getns();
+    int64_t func_timer = 0;
+    int rows_processed = 0;
+
+    // encode result data for client.
+    bufferlist result_bl;
+    result_bl.append("result data goes into result bl.");
+    ::encode(result_bl, *out);
+
+    return 0;
+}
+
 void __cls_init()
 {
   CLS_LOG(20, "Loaded tabular class!");
@@ -2158,6 +2200,9 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "wasm_query_op",
       CLS_METHOD_RD, wasm_query_op, &h_wasm_query_op);
+
+  cls_register_cxx_method(h_class, "hep_query_op",
+      CLS_METHOD_RD, hep_query_op, &h_hep_query_opp);
 
   cls_register_cxx_method(h_class, "exec_runstats_op",
       CLS_METHOD_RD | CLS_METHOD_WR, exec_runstats_op, &h_exec_runstats_op);
