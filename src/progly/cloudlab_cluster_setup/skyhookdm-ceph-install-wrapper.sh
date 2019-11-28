@@ -171,14 +171,14 @@ sleep 2s;
 ###MAKE SKYHOOK SPECIFIC BINARIES BEFORE INSTALLING VANILLA CEPH LUMINOUS
 #~ echo "Client0: apt-get update, install basic stuff, clone skyhookdm-ceph...";
 #~ if test -s $repo_dir/skyhookdm-ceph/README; then echo "removing ${repo_dir}/skyhookdm-ceph"; sudo rm -rf $repo_dir/skyhookdm-ceph/; fi
-echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make -j38  ceph-osd librados cls_tabular run-query fbwriter...";
+echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make -j38  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer...";
 echo `date`;
 cd $repo_dir/skyhookdm-ceph;
 git checkout $pdsw_branch;
 export DEBIAN_FRONTEND="noninteractive";
 ./do_cmake.sh;
 cd build;
-make -j36  ceph-osd librados cls_tabular run-query fbwriter;
+make -j36  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
 
 
 # INSTALLING VANILLA CEPH LUMINOUS on all nodes client+osds

@@ -34,11 +34,11 @@ for ((i = 0 ; i < 10 ; i++)); do
 done;
 
 
-./bin/fbwriter --file_name $lineitem_75Kcsv  --schema_file_name lineitem.schema.txt  --num_objs 1 --flush_rows 75000  --read_rows 75000  --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name lineitem --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
+./bin/sky_tabular_flatflex_writer --file_name $lineitem_75Kcsv  --schema_file_name lineitem.schema.txt  --num_objs 1 --flush_rows 75000  --read_rows 75000  --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name lineitem --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
 mv fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.lineitem.0.1-1  "fbx.${lineitem_10MB_objfilename_base}";
 
 
-./bin/fbwriter --file_name $lineitem_750Kcsv --schema_file_name lineitem.schema.txt  --num_objs 1 --flush_rows 750000 --read_rows 750000 --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name lineitem --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
+./bin/sky_tabular_flatflex_writer --file_name $lineitem_750Kcsv --schema_file_name lineitem.schema.txt  --num_objs 1 --flush_rows 750000 --read_rows 750000 --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name lineitem --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
 mv fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.lineitem.0.1-1 "fbx.${lineitem_100MB_objfilename_base}";
 
 
@@ -158,10 +158,10 @@ for ((i = 0 ; i < 10 ; i++)); do
     cat $ncols100_25Kcsv >> $ncols100_250Kcsv;
 done;
 
-./bin/fbwriter --file_name $ncols100_25Kcsv   --schema_file_name ncols100.schema.txt  --num_objs 1 --flush_rows 25000  --read_rows 25000  --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name ncols100 --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
+./bin/sky_tabular_flatflex_writer --file_name $ncols100_25Kcsv   --schema_file_name ncols100.schema.txt  --num_objs 1 --flush_rows 25000  --read_rows 25000  --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name ncols100 --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
 mv fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.ncols100.0.1-1 "fbx.${ncols100_10MB_objfilename_base}";
 
-./bin/fbwriter --file_name $ncols100_250Kcsv   --schema_file_name ncols100.schema.txt  --num_objs 1 --flush_rows 250000  --read_rows 250000  --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name ncols100 --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
+./bin/sky_tabular_flatflex_writer --file_name $ncols100_250Kcsv   --schema_file_name ncols100.schema.txt  --num_objs 1 --flush_rows 250000  --read_rows 250000  --csv_delim "|" --use_hashing true --rid_start_value 1 --table_name ncols100 --input_oid 0  --obj_type SFT_FLATBUF_FLEX_ROW;
 mv fbmeta.Skyhook.v2.SFT_FLATBUF_FLEX_ROW.ncols100.0.1-1 "fbx.${ncols100_100MB_objfilename_base}";
 
 

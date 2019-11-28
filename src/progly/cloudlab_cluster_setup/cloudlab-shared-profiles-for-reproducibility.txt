@@ -6,11 +6,9 @@
 3. instantiate one of the below cloudlab profiles.
 4. IPADDR= ip of the node "client0" in your instantiated profile.
 5. Setup the machine for experiments
-IPADDR=x.y.z.a
- scp -i ~/.ssh/cloudlab.id_rsa  ~/.ssh/cloudlab.id_rsa jlefevre@${IPADDR}:~/;
- ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@${IPADDR} "git clone https://github.com/KDahlgren/pdsw19-reprod";
- ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@${IPADDR};
-
+ scp -i ~/.ssh/cloudlab.id_rsa  ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR:~/;
+ ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR "git clone https://github.com/KDahlgren/pdsw19-reprod";
+ ssh -i ~/.ssh/cloudlab.id_rsa jlefevre@IPADDR;
     $ bash pdsw19-reprod/scripts/skyhookdm-ceph-install-wrapper.sh <nosds> <generickey-path>
 6. # from csv files, creates objs in arrow and fbx format
 ./create-objs.sh
