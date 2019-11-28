@@ -184,7 +184,7 @@ static void print_data(const char *dataptr,
 
         case SFT_FLATBUF_FLEX_ROW:
             if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
-                row_counter += Tables::printFlatbufFlexRowAsBinary(
+                row_counter += Tables::printFlatbufFlexRowAsPGBinary(
                     dataptr,
                     datasz,
                     print_header,
@@ -203,7 +203,7 @@ static void print_data(const char *dataptr,
 
         case SFT_ARROW:
             if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
-                row_counter += Tables::printArrowbufRowAsBinary(
+                row_counter += Tables::printArrowbufRowAsPGBinary(
                     dataptr,
                     datasz,
                     print_header,

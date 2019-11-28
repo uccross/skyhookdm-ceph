@@ -2516,7 +2516,7 @@ long long int printFlatbufFBUColAsCsv(
 }
 
 
-long long int printFlatbufFlexRowAsBinary(
+long long int printFlatbufFlexRowAsPGBinary(
         const char* dataptr,
         const size_t datasz,
         bool print_header,
@@ -5646,7 +5646,7 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
 }
 
 
-long long int printArrowbufRowAsBinary(
+long long int printArrowbufRowAsPGBinary(
         const char* dataptr,
         const size_t datasz,
         bool print_header,
