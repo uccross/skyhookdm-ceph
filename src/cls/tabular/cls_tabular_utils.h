@@ -33,6 +33,7 @@
 
 #include "re2/re2.h"
 #include "objclass/objclass.h"
+#include "rapidjson/document.h"
 
 #include "cls_tabular.h"
 #include "flatbuffers/flexbuffers.h"
@@ -801,6 +802,8 @@ const std::string TPCH_LINEITEM_TEST_SCHEMA_STRING_PROJECT = " \
     4 " +  std::to_string(SDT_FLOAT) + " 0 1 QUANTITY \n\
     5 " +  std::to_string(SDT_DOUBLE) + " 0 1 EXTENDEDPRICE \n\
     ";
+
+const std::string JSON_SAMPLE = "{\"V\":\"veruca\",\"S\":\"salt\"}";
 
 // creates a skymeta st
 void createFbMeta(

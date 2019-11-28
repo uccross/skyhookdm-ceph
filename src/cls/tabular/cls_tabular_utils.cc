@@ -2838,19 +2838,39 @@ long long int printJSONAsCsv(
         // NOTE:
         // rec->RID() and rec->nullbits() are set but not yet used for JSON
 
-        // NOTE: this a vector of strings, but for now JSON data stored as
-        // single string in elem[0], so data vector size here is only 1.
+        // NOTE: this a vector of strings, but for now JSON data will be stored
+        // as single string in elem[0], so data vector size here is only 1.
         const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>* \
             data = rec->data();
 
         // iterate over json data, extracting from flatbuffers vec as a string.
-        std::string json_str;
+        std::string json_str("");
         for (unsigned j = 0; j < data->size(); j++) {
 
-            // TODO: unpack json objects (rows) from json string
-            // and print cols from each row according to schema_vec sc.
+            // TODO: Assuming a flatflex object...
+            // for each row, extract as json string and print cols
+            // from each row according to schema_vec sc.
             json_str = data->Get(j)->str();
-            std::cout << json_str << std::endl;
+            std::cout << "row[" << i << "]=" << json_str << std::endl;
+
+            rapidjson::Document doc;
+            doc.Parse(json_str.c_str());
+
+            // TODO: right now this crashes due to a malformed JSON test obj.
+            //assert(doc.IsObject());
+
+            // static example of using rapidjson lib in ceph
+            rapidjson::Document d;
+            d.Parse(JSON_SAMPLE.c_str());
+            assert(d.IsObject());
+
+            assert(d.HasMember("V"));
+            assert(d["V"].IsString());
+            std::cout << d["V"].GetString() << std::endl;
+
+            assert(d.HasMember("S"));
+            assert(d["S"].IsString());
+            std::cout << d["S"].GetString() << std::endl;
         }
     }
 
