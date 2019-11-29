@@ -26,6 +26,7 @@ CLS_NAME(tabular)
 cls_handle_t h_class;
 cls_method_handle_t h_exec_query_op;
 cls_method_handle_t h_example_query_op;
+cls_method_handle_t h_hep_query_op;
 cls_method_handle_t h_wasm_query_op;
 cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
@@ -2202,7 +2203,7 @@ void __cls_init()
       CLS_METHOD_RD, wasm_query_op, &h_wasm_query_op);
 
   cls_register_cxx_method(h_class, "hep_query_op",
-      CLS_METHOD_RD, hep_query_op, &h_hep_query_opp);
+      CLS_METHOD_RD, hep_query_op, &h_hep_query_op);
 
   cls_register_cxx_method(h_class, "exec_runstats_op",
       CLS_METHOD_RD | CLS_METHOD_WR, exec_runstats_op, &h_exec_runstats_op);
