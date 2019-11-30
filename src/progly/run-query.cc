@@ -62,6 +62,11 @@ int main(int argc, char **argv)
   int example_counter;
   int example_function_id;
 
+  // HEP options
+  std::string dataset_name;
+  std::string file_name;
+  std::string tree_name;
+
   // format type of result set returned to query.cc driver
   int resformat = SkyFormatType::SFT_FLATBUF_FLEX_ROW;
 
@@ -153,6 +158,9 @@ int main(int argc, char **argv)
     ("example-counter", po::value<int>(&example_counter)->default_value(100), "Loop counter for example function")
     ("example-function-id", po::value<int>(&example_function_id)->default_value(1), "CLS function identifier for example function")
     ("oid-prefix", po::value<std::string>(&oid_prefix)->default_value("obj"), "Prefix to enumerated object ids (names) (def=obj)")
+    ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
+    ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
+    ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -636,18 +644,42 @@ int main(int argc, char **argv)
     // verify and prep client input
     using namespace Tables;
 
+    // HEP op params verification
+    boost::trim(dataset_name);
+    boost::trim(file_name);
+    boost::trim(tree_name);
     boost::trim(data_schema);
-    boost::to_upper(data_schema);
-    assert (!data_schema.empty());
+    boost::trim(project_cols);
 
+    boost::to_upper(dataset_name);
+    boost::to_upper(file_name);
+    boost::to_upper(tree_name);
+    boost::to_upper(data_schema);
+    boost::to_upper(project_cols);
+
+    assert (!data_schema.empty());
+    assert (!project_cols.empty());
+
+    // convert to skyhook structs
     sky_tbl_schema = schemaFromString(data_schema);
+    sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
+    sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols);
+
+    // set hep_op params.
+    qop_fastpath = fastpath;
+    qop_dataset_name = dataset_name;
+    qop_file_name = file_name;
+    qop_tree_name = tree_name;
+    qop_data_schema = schemaToString(sky_tbl_schema);
+    qop_query_schema = schemaToString(sky_qry_schema);
+    qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
+
+    // if project all cols and there are no selection preds, set fastpath
+    if (project_cols == PROJECT_DEFAULT and sky_qry_preds.size() == 0)
+        fastpath = true;
 
     // set client-local output value from user provided boost options
     print_header = header;
-
-    // set example op params from user provided boost options
-    expl_func_counter = example_counter;
-    expl_func_id = example_function_id;
 
   } else {
 
@@ -852,8 +884,36 @@ int main(int argc, char **argv)
             int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
             checkret(ret, 0);
         }
-      }
+    }
 
+    if (query == "hep") {
+
+        if (use_cls) {  // execute a cls read method
+
+            // setup and encode our op params here.
+            hep_op op;
+            op.fastpath = qop_fastpath;
+            op.dataset_name = qop_dataset_name;
+            op.file_name = qop_file_name;
+            op.tree_name = qop_tree_name;
+            op.data_schema = qop_data_schema;
+            op.query_schema = qop_query_schema;
+            op.query_preds = qop_query_preds;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // execute our example method on the object, passing in our op.
+            int ret = ioctx.aio_exec(oid, s->c,
+                "tabular", "hep_query_op", inbl, &s->bl);
+            checkret(ret, 0);
+        }
+        else {  // execute standard read
+
+            // read entire object by specifying off=0 len=0.
+            int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+            checkret(ret, 0);
+        }
+    }
 
       lock.lock();
       outstanding_ios++;

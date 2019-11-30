@@ -76,6 +76,11 @@ int trans_op_format_type;
 int expl_func_counter;
 int expl_func_id;
 
+// HEP op params
+std::string qop_dataset_name;
+std::string qop_file_name;
+std::string qop_tree_name;
+
 // for runstats op on a given table name
 bool runstats;
 
@@ -845,8 +850,35 @@ void worker()
 
         print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
 
-    } else {   // older processing code below
+    } else if (query == "hep") {
 
+        using namespace Tables;
+
+        // to store the result from an object
+        bufferlist bl;
+
+        if (use_cls) {
+
+            // result came from cls read,
+            // decode the outbl from cls_tabular.cc example method to extract
+
+            try {
+                ceph::bufferlist::iterator it = s->bl.begin();
+                ::decode(bl, it);
+            } catch (ceph::buffer::error&) {
+                int decode_hepquery_cls = 0;
+                assert(decode_hepquery_cls);
+            }
+        } else {
+
+            // result came from standard read, no extra info to unpack
+            // the outbl is just the actual data, and is stored in s.
+            bl = s->bl;
+        }
+
+        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+
+    } else {   // older processing code below
         ceph::bufferlist bl;
 
         // if it was a cls read, first unpack some of the cls processing info

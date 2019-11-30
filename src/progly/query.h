@@ -107,6 +107,11 @@ extern int trans_op_format_type;
 extern int expl_func_counter;
 extern int expl_func_id;
 
+// HEP op params
+extern std::string qop_dataset_name;
+extern std::string qop_file_name;
+extern std::string qop_tree_name;
+
 // other exec flags
 extern bool runstats;
 

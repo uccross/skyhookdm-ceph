@@ -2159,29 +2159,57 @@ int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return -EINVAL;
     }
 
-    bool fastpath = op.fastpath;
-    std::string dataset_name = op.dataset_name;
-    std::string file_name = op.file_name;
-    std::string data_schema = op.data_schema;
-    std::string query_schema = op.query_schema;
+    CLS_LOG(20, "hep_query_op: op.fastpath=%s", (std::to_string(op.fastpath)).c_str());
+    CLS_LOG(20, "hep_query_op: op.dataset_name = %s", op.dataset_name.c_str());
+    CLS_LOG(20, "hep_query_op: op.file_name = %s", op.file_name.c_str());
+    CLS_LOG(20, "hep_query_op: op.tree_name = %s", op.tree_name.c_str());
+    CLS_LOG(20, "hep_query_op: op.data_schema = %s", op.data_schema.c_str());
+    CLS_LOG(20, "hep_query_op: op.query_schema = %s", op.query_schema.c_str());
+    CLS_LOG(20, "hep_query_op: op.query_preds = %s", op.query_preds.c_str());
 
-    CLS_LOG(20, "hep_query_op: op.fastpath=%s", (std::to_string(fastpath)).c_str());
-    CLS_LOG(20, "hep_query_op: op.dataset_name = %s", dataset_name.c_str());
-    CLS_LOG(20, "hep_query_op: op.file_name = %s", file_name.c_str());
-    CLS_LOG(20, "hep_query_op: op.data_schema = %s", data_schema.c_str());
-    CLS_LOG(20, "hep_query_op: op.query_schema = %s", query_schema.c_str());
-
+    bufferlist bl;
+    int ret = cls_cxx_read(hctx, 0, 0, &bl);
+    if (ret < 0) {
+        CLS_ERR("ERROR: hep_query_op: reading obj.  ret=%d", ret);
+        return ret;
+    }
 
     using namespace Tables;
-    //schema_vec data_schema = schemaFromString(op.data_schema);
+    schema_vec data_schema = schemaFromString(op.data_schema);
+    schema_vec query_schema = schemaFromString(op.query_schema);
+    predicate_vec query_preds = predsFromString(data_schema,
+                                                op.query_preds);
 
-    int64_t read_timer = getns();
-    int64_t func_timer = 0;
-    int rows_processed = 0;
+    // currently we only read and write one format SFT_PYARROW_BINARY
+
+    char *data = bl.c_str();
+    int data_size = bl.length();
+    std::string errmsg;
+    std::vector<unsigned int> row_nums;  // leave empty to process all rows.
+    std::shared_ptr<arrow::Table> table;
+    ret = processArrowCol(&table,
+                          data_schema,
+                          query_schema,
+                          query_preds,
+                          data,
+                          data_size,
+                          errmsg,
+                          row_nums);
+
+    if (ret != 0) {
+        CLS_ERR("ERROR: hep_query_op: processArrow %s", errmsg.c_str());
+        CLS_ERR("ERROR: hep_query_op: TablesErrCodes::%d", ret);
+        return -1;
+    }
 
     // encode result data for client.
     bufferlist result_bl;
-    result_bl.append("result data goes into result bl.");
+    std::shared_ptr<arrow::Buffer> buffer;
+    convert_arrow_to_buffer(table, &buffer);
+    char* result_data =  \
+            reinterpret_cast<char*>(buffer->mutable_data());
+    int result_size = buffer->size();
+    result_bl.append(result_data, result_size);
     ::encode(result_bl, *out);
 
     return 0;

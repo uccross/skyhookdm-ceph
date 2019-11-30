@@ -918,22 +918,28 @@ struct hep_op {
   bool fastpath;
   std::string dataset_name;
   std::string file_name;
+  std::string tree_name;
   std::string data_schema;
   std::string query_schema;
+  std::string query_preds;
 
   hep_op() {}
   hep_op(
     bool _fastpath,
     std::string _dataset_name,
     std::string _file_name,
+    std::string _tree_name,
     std::string _data_schema,
-    std::string _query_schema)
+    std::string _query_schema,
+    std::string _query_preds)
     :
     fastpath(_fastpath),
     dataset_name(_dataset_name),
     file_name(_file_name),
+    tree_name(_tree_name),
     data_schema(_data_schema),
-    query_schema(_query_schema) { }
+    query_schema(_query_schema),
+    query_preds(_query_preds) { }
 
   // serialize the fields into bufferlist to be sent over the wire
   void encode(bufferlist& bl) const {
@@ -941,8 +947,10 @@ struct hep_op {
     ::encode(fastpath, bl);
     ::encode(dataset_name, bl);
     ::encode(file_name, bl);
+    ::encode(tree_name, bl);
     ::encode(data_schema, bl);
     ::encode(query_schema, bl);
+    ::encode(query_preds, bl);
     ENCODE_FINISH(bl);
   }
 
@@ -952,8 +960,10 @@ struct hep_op {
     ::decode(fastpath, bl);
     ::decode(dataset_name, bl);
     ::decode(file_name, bl);
+    ::decode(tree_name, bl);
     ::decode(data_schema, bl);
     ::decode(query_schema, bl);
+    ::decode(query_preds, bl);
     DECODE_FINISH(bl);
   }
 
@@ -963,8 +973,10 @@ struct hep_op {
     s.append(" .fastpath=" + std::to_string(fastpath));
     s.append(" .dataset_name=" + dataset_name);
     s.append(" .file_name=" + file_name);
+    s.append(" .tree_name=" + tree_name);
     s.append(" .data_schema=" + data_schema);
     s.append(" .query_schema=" + query_schema);
+    s.append(" .query_preds=" + query_preds);
     return s;
   }
 };
