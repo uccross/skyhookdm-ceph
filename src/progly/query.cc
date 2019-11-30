@@ -876,7 +876,7 @@ void worker()
             bl = s->bl;
         }
 
-        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+        print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
 
     } else {   // older processing code below
         ceph::bufferlist bl;

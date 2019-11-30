@@ -5942,7 +5942,6 @@ long long int printArrowbufRowAsPGBinary(
 }
 
 
-
 long long int printArrowbufRowAsPyArrowBinary(
         const char* dataptr,
         const size_t datasz,
@@ -5971,11 +5970,14 @@ long long int printArrowbufRowAsPyArrowBinary(
     int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
 
     // output binary buffer as sstream for pyarrow consumption.
-    stringstream ss(std::stringstream::in |
-                    std::stringstream::out|
+    stringstream ss(std::stringstream::in  |
+                    std::stringstream::out |
                     std::stringstream::binary);
 
-    // rewind and output all row data for this fb
+    // add const char* arrow buf
+    ss.write(dataptr, datasz);
+
+    // rewind and output the stream
     ss.seekg (0, ios::beg);
     std::cout << ss.rdbuf();
     ss.flush();

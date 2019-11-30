@@ -966,14 +966,14 @@ int main(int argc, char **argv)
                         std::stringstream::out |
                         std::stringstream::binary);
 
-      // 16 bit int trailer
-      int16_t trailer = -1;
-      ss.write(reinterpret_cast<const char*>(&trailer), sizeof(trailer));
+        // 16 bit int trailer
+        int16_t trailer = -1;
+        ss.write(reinterpret_cast<const char*>(&trailer), sizeof(trailer));
 
-      // rewind and output the stream
-      ss.seekg (0, ios::beg);
-      std::cout << ss.rdbuf();
-      ss.flush();
+        // rewind and output the stream
+        ss.seekg (0, ios::beg);
+        std::cout << ss.rdbuf();
+        ss.flush();
     }
   }
 
