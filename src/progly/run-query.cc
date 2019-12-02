@@ -357,6 +357,7 @@ int main(int argc, char **argv)
     switch (sky_format_type_from_string(output_format)) {
         case SFT_CSV:
         case SFT_PG_BINARY:
+        case SFT_PYARROW_BINARY:
             break;
         default:
             assert (SkyFormatTypeNotImplemented==0);
@@ -641,10 +642,9 @@ int main(int argc, char **argv)
 
   } else if (query == "hep") {
 
-    // verify and prep client input
+    // verify input params and set HEP op vals.
     using namespace Tables;
 
-    // HEP op params verification
     boost::trim(dataset_name);
     boost::trim(file_name);
     boost::trim(tree_name);
@@ -662,8 +662,27 @@ int main(int argc, char **argv)
 
     // convert to skyhook structs
     sky_tbl_schema = schemaFromString(data_schema);
+    if (project_cols == PROJECT_DEFAULT)
+        sky_qry_schema = schemaFromString(data_schema);
+    else
+        sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols);
     sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
-    sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols);
+
+    // if selection preds, and project all cols, then set fastpath
+    fastpath = false;
+    if (sky_qry_preds.size() == 0) {
+        if (project_cols == PROJECT_DEFAULT) {
+            fastpath = true;
+        }
+        else {
+            // also check if all query cols and data cols are same in same order,
+            fastpath = true;
+            if (sky_qry_schema.size() == sky_tbl_schema.size()) {
+                for (unsigned i = 0; i< sky_qry_schema.size(); i++)
+                    fastpath &= compareColInfo(sky_tbl_schema[i], sky_qry_schema[i]);
+            }
+        }
+    }
 
     // set hep_op params.
     qop_fastpath = fastpath;
@@ -674,9 +693,7 @@ int main(int argc, char **argv)
     qop_query_schema = schemaToString(sky_qry_schema);
     qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
 
-    // if project all cols and there are no selection preds, set fastpath
-    if (project_cols == PROJECT_DEFAULT and sky_qry_preds.size() == 0)
-        fastpath = true;
+    skyhook_output_format = sky_format_type_from_string(output_format);
 
     // set client-local output value from user provided boost options
     print_header = header;
@@ -888,31 +905,22 @@ int main(int argc, char **argv)
 
     if (query == "hep") {
 
-        if (use_cls) {  // execute a cls read method
+        // encode our op params here.
+        hep_op op;
+        op.fastpath = qop_fastpath;
+        op.dataset_name = qop_dataset_name;
+        op.file_name = qop_file_name;
+        op.tree_name = qop_tree_name;
+        op.data_schema = qop_data_schema;
+        op.query_schema = qop_query_schema;
+        op.query_preds = qop_query_preds;
+        ceph::bufferlist inbl;
+        ::encode(op, inbl);
 
-            // setup and encode our op params here.
-            hep_op op;
-            op.fastpath = qop_fastpath;
-            op.dataset_name = qop_dataset_name;
-            op.file_name = qop_file_name;
-            op.tree_name = qop_tree_name;
-            op.data_schema = qop_data_schema;
-            op.query_schema = qop_query_schema;
-            op.query_preds = qop_query_preds;
-            ceph::bufferlist inbl;
-            ::encode(op, inbl);
-
-            // execute our example method on the object, passing in our op.
-            int ret = ioctx.aio_exec(oid, s->c,
-                "tabular", "hep_query_op", inbl, &s->bl);
-            checkret(ret, 0);
-        }
-        else {  // execute standard read
-
-            // read entire object by specifying off=0 len=0.
-            int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
-            checkret(ret, 0);
-        }
+        // we only execute read via CLS method
+        int ret = ioctx.aio_exec(oid, s->c,
+            "tabular", "hep_query_op", inbl, &s->bl);
+        checkret(ret, 0);
     }
 
       lock.lock();

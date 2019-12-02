@@ -215,14 +215,6 @@ static void print_data(const char *dataptr,
                     print_verbose,
                     row_limit - row_counter);
             }
-            else if (skyhook_output_format == SkyFormatType::SFT_PYARROW_BINARY) {
-                row_counter += Tables::printArrowbufRowAsPyArrowBinary(
-                    dataptr,
-                    datasz,
-                    print_header,
-                    print_verbose,
-                    row_limit - row_counter);
-            }
             else {
                 row_counter += Tables::printArrowbufRowAsCsv(
                     dataptr,
@@ -231,6 +223,15 @@ static void print_data(const char *dataptr,
                     print_verbose,
                     row_limit - row_counter);
             }
+            break;
+
+        case SFT_PYARROW_BINARY:
+            row_counter += Tables::printArrowbufRowAsPyArrowBinary(
+                dataptr,
+                datasz,
+                print_header,
+                print_verbose,
+                row_limit - row_counter);
             break;
 
         case SFT_JSON:
@@ -774,7 +775,8 @@ void worker()
             }
         } // endloop of processing sequence of encoded bls
 
-    } else if (query == "example") {
+    }
+    else if (query == "example") {
 
         using namespace Tables;
 
@@ -812,7 +814,8 @@ void worker()
 
         print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
 
-    } else if (query == "wasm") {
+    }
+    else if (query == "wasm") {
 
         using namespace Tables;
 
@@ -850,35 +853,32 @@ void worker()
 
         print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
 
-    } else if (query == "hep") {
+    }
+    else if (query == "hep") {
 
         using namespace Tables;
 
-        // to store the result from an object
+        // to store the result from an object.
+        // the out bufferlist contains a cls_return_code and then
+        // the actual result (if any) from the obj.
         bufferlist bl;
-
-        if (use_cls) {
-
-            // result came from cls read,
-            // decode the outbl from cls_tabular.cc example method to extract
-
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_hepquery_cls = 0;
-                assert(decode_hepquery_cls);
-            }
-        } else {
-
-            // result came from standard read, no extra info to unpack
-            // the outbl is just the actual data, and is stored in s.
-            bl = s->bl;
+        int cls_result_code = 0;
+        try {
+            ceph::bufferlist::iterator it = s->bl.begin();
+            ::decode(cls_result_code, it);
+            ::decode(bl, it);
+        } catch (ceph::buffer::error&) {
+            int decode_hepquery_cls = 0;
+            assert(decode_hepquery_cls);
         }
 
-        print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
-
-    } else {   // older processing code below
+        // we do nothing for ClsResultCodeFalse, indicates no matching data
+        // was returned from this object from the query, otherwise we output
+        // result as as pyarrow binary
+        if (cls_result_code == TablesErrCodes::ClsResultCodeTrue)
+            print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
+    }
+    else {   // older processing code below
         ceph::bufferlist bl;
 
         // if it was a cls read, first unpack some of the cls processing info

@@ -2159,12 +2159,16 @@ int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return -EINVAL;
     }
 
+    std::string dschema_str(op.data_schema);
+    std::replace(dschema_str.begin(), dschema_str.end(), '\n', ';');
+    std::string qschema_str(op.query_schema);
+    std::replace(qschema_str.begin(), qschema_str.end(), '\n', ';');
     CLS_LOG(20, "hep_query_op: op.fastpath=%s", (std::to_string(op.fastpath)).c_str());
     CLS_LOG(20, "hep_query_op: op.dataset_name = %s", op.dataset_name.c_str());
     CLS_LOG(20, "hep_query_op: op.file_name = %s", op.file_name.c_str());
     CLS_LOG(20, "hep_query_op: op.tree_name = %s", op.tree_name.c_str());
-    CLS_LOG(20, "hep_query_op: op.data_schema = %s", op.data_schema.c_str());
-    CLS_LOG(20, "hep_query_op: op.query_schema = %s", op.query_schema.c_str());
+    CLS_LOG(20, "hep_query_op: op.data_schema = %s", dschema_str.c_str());
+    CLS_LOG(20, "hep_query_op: op.query_schema = %s", qschema_str.c_str());
     CLS_LOG(20, "hep_query_op: op.query_preds = %s", op.query_preds.c_str());
 
     bufferlist bl;
@@ -2174,42 +2178,49 @@ int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         return ret;
     }
 
-    using namespace Tables;
-    schema_vec data_schema = schemaFromString(op.data_schema);
-    schema_vec query_schema = schemaFromString(op.query_schema);
-    predicate_vec query_preds = predsFromString(data_schema,
-                                                op.query_preds);
-
-    // currently we only read and write one format SFT_PYARROW_BINARY
+    // format op info into skyhook data structs
+    Tables::schema_vec data_schema = \
+        Tables::schemaFromString(op.data_schema);
+    Tables::schema_vec query_schema = \
+        Tables::schemaFromString(op.query_schema);
+    Tables::predicate_vec query_preds = \
+        Tables::predsFromString(data_schema, op.query_preds);
 
     char *data = bl.c_str();
     int data_size = bl.length();
     std::string errmsg;
     std::vector<unsigned int> row_nums;  // leave empty to process all rows.
     std::shared_ptr<arrow::Table> table;
-    ret = processArrowCol(&table,
-                          data_schema,
-                          query_schema,
-                          query_preds,
-                          data,
-                          data_size,
-                          errmsg,
-                          row_nums);
+    ret = Tables::processArrowColHEP(&table,
+                                     data_schema,
+                                     query_schema,
+                                     query_preds,
+                                     data,
+                                     data_size,
+                                     errmsg,
+                                     row_nums);
 
+    int cls_result_code = 0;
+    bufferlist result_bl;
+    CLS_LOG(20, "hep_query_op: processArrowCol errmsg=%s", errmsg.c_str());
     if (ret != 0) {
-        CLS_ERR("ERROR: hep_query_op: processArrow %s", errmsg.c_str());
-        CLS_ERR("ERROR: hep_query_op: TablesErrCodes::%d", ret);
-        return -1;
+        if (ret == Tables::TablesErrCodes::NoInStorageProcessingRequired) {
+            cls_result_code = Tables::TablesErrCodes::ClsResultCodeTrue;
+            result_bl = bl;
+        }
+        else if (ret == Tables::TablesErrCodes::NoMatchingDataFound) {
+            cls_result_code = Tables::TablesErrCodes::ClsResultCodeFalse;
+            result_bl.append(" ");
+        }
+        else {
+            CLS_ERR("ERROR: hep_query_op: processArrow failed: %s", errmsg.c_str());
+            CLS_ERR("ERROR: hep_query_op: TablesErrCodes::%d", ret);
+            return -1;
+        }
     }
 
-    // encode result data for client.
-    bufferlist result_bl;
-    std::shared_ptr<arrow::Buffer> buffer;
-    convert_arrow_to_buffer(table, &buffer);
-    char* result_data =  \
-            reinterpret_cast<char*>(buffer->mutable_data());
-    int result_size = buffer->size();
-    result_bl.append(result_data, result_size);
+    // encode our results and return to client.
+    ::encode(cls_result_code, *out);
     ::encode(result_bl, *out);
 
     return 0;

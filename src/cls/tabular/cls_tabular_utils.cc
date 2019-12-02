@@ -367,6 +367,9 @@ int processArrowCol(
     auto metadata = schema->metadata();
     uint32_t nrows = atoi(metadata->value(METADATA_NUM_ROWS).c_str());
 
+    // TODO: should we verify these are the same as nrows
+    // int64_t nrows_from_api = input_table->num_rows();
+
     // Get number of rows to be processed
     if (!row_nums.empty()) {
         result_rows = row_nums;
@@ -639,6 +642,71 @@ int processArrowCol(
 
     return errcode;
 }
+
+
+int processArrowColHEP(
+    std::shared_ptr<arrow::Table>* table,
+    schema_vec& tbl_schema,
+    schema_vec& query_schema,
+    predicate_vec& preds,
+    const char* dataptr,
+    const size_t datasz,
+    std::string& errmsg,
+    const std::vector<uint32_t>& row_nums)
+{
+    int errcode = 0;
+    //auto pool = arrow::default_memory_pool();
+    std::vector<arrow::ArrayBuilder *> builder_list;
+    std::vector<std::shared_ptr<arrow::Array>> array_list;
+    std::vector<std::shared_ptr<arrow::Field>> output_tbl_fields_vec;
+    std::shared_ptr<arrow::Buffer> buffer = \
+        arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(dataptr)), datasz);
+    std::shared_ptr<arrow::Table> input_table, temp_table;
+    std::vector<uint32_t> result_rows;
+
+    // Get input table from dataptr
+    extract_arrow_from_buffer(&input_table, buffer);
+
+    auto schema = input_table->schema();
+    auto metadata = schema->metadata();
+    int64_t nrows = input_table->num_rows();
+
+    // convert to skyhook structs
+    schema_vec dschema = schemaFromString(metadata->value(PYARROW_METADATA_DATA_SCHEMA));
+    schema_vec qschema = query_schema;
+
+    // only used for logging in cls_tabular
+    std::string dschema_str = schemaToString(dschema);
+    std::string qschema_str = schemaToString(qschema);
+    std::replace(dschema_str.begin(), dschema_str.end(), '\n', ';');
+    std::replace(qschema_str.begin(), qschema_str.end(), '\n', ';');
+    errmsg += ("processArrowColHEP:nrows_from_api=" + std::to_string(nrows) + "; ");
+    errmsg += ("dschema=" + dschema_str + "; ");
+    errmsg += ("qschema=" + qschema_str + "; " );
+
+    // if all query cols and data cols are same in same order, and no
+    // predicates, then no processing required
+    bool fastpath = false;
+    if (preds.empty()) {
+        if (qschema.size() == dschema.size()) {
+            fastpath = true;
+            for (unsigned i = 0; i< qschema.size(); i++)
+                fastpath &= compareColInfo(dschema[i], qschema[i]);
+        }
+    }
+
+    // can we return the original data unprocessed
+    if (fastpath) {
+        errmsg += " fastpath=true; ";
+        errcode = TablesErrCodes::NoInStorageProcessingRequired;
+    }
+    else {
+        errmsg += " fastpath=false; ";
+        errcode = TablesErrCodes::NoMatchingDataFound;
+    }
+    return errcode;
+}
+
 
 int processSkyFb(
     flatbuffers::FlatBufferBuilder& flatbldr,
@@ -1691,7 +1759,8 @@ schema_vec schemaFromString(std::string schema_string) {
                      boost::token_compress_on);
     }
     else {
-        assert (TablesErrCodes::BadDataSchemaFormat==0);
+        // assume only 1 column so no col separators
+        elems.push_back(schema_string);
     }
 
     // assume schema string contains at least one col's info
@@ -4910,15 +4979,8 @@ int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::s
     auto schema = reader->schema();
     auto metadata = schema->metadata();
 
-    if (atoi(metadata->value(METADATA_NUM_ROWS).c_str()) == 0) {
-        // Table has no values and current version of Apache Arrow does not allow
-        // converting empty recordbatches to arrow table.
-        // https://www.mail-archive.com/issues@arrow.apache.org/msg30289.html
-        // Therefore, create and return empty arrow table
-
-        std::vector<std::shared_ptr<arrow::Array>> array_list;
-        *table = arrow::Table::Make(schema, array_list);
-    }
+    // this check crashes if num_rows not in metadata (e.g., HEP array tables)
+    // if (atoi(metadata->value(METADATA_NUM_ROWS).c_str()) == 0)
 
     // Initilaization related to read to apache arrow
     std::vector<std::shared_ptr<arrow::RecordBatch>> batch_vec;
@@ -4929,7 +4991,17 @@ int extract_arrow_from_buffer(std::shared_ptr<arrow::Table>* table, const std::s
         batch_vec.push_back(chunk);
     }
 
-    arrow::Table::FromRecordBatches(batch_vec, table);
+    if (batch_vec.size() == 0) {
+        // Table has no values and current version of Apache Arrow does not allow
+        // converting empty recordbatches to arrow table.
+        // https://www.mail-archive.com/issues@arrow.apache.org/msg30289.html
+        // Therefore, create and return empty arrow table
+        std::vector<std::shared_ptr<arrow::Array>> array_list;
+        *table = arrow::Table::Make(schema, array_list);
+    }
+    else {
+        arrow::Table::FromRecordBatches(batch_vec, table);
+    }
     return 0;
 }
 
@@ -5957,7 +6029,6 @@ long long int printArrowbufRowAsPyArrowBinary(
     std::vector<std::shared_ptr<arrow::Array>> chunk_vec;
     std::shared_ptr<arrow::Table> table;
     std::shared_ptr<arrow::Buffer> buffer;
-
     std::string str_buff(dataptr, datasz);
     arrow::Buffer::FromString(str_buff, &buffer);
     extract_arrow_from_buffer(&table, buffer);
@@ -5966,8 +6037,15 @@ long long int printArrowbufRowAsPyArrowBinary(
     // which is stored as a metadata
     auto schema = table->schema();
     auto metadata = schema->metadata();
-    schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
-    int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+    schema_vec sc = schemaFromString(metadata->value(PYARROW_METADATA_DATA_SCHEMA));
+    int num_rows = table->num_rows();
+
+    if (print_verbose) {
+        std::cout << "\n\n\n[SKYHOOKDM PyArrow HEP HEADER]\n"
+                  << ToString(PYARROW_METADATA_DATA_SCHEMA) << ":"
+                  << metadata->value(PYARROW_METADATA_DATA_SCHEMA)
+                  << std::endl;
+    }
 
     // output binary buffer as sstream for pyarrow consumption.
     stringstream ss(std::stringstream::in  |
@@ -5981,6 +6059,14 @@ long long int printArrowbufRowAsPyArrowBinary(
     ss.seekg (0, ios::beg);
     std::cout << ss.rdbuf();
     ss.flush();
+
+    /* testing
+    * std::string fname="pyarrow_out.bin";
+    * std::ofstream outfile (fname,std::ofstream::binary);
+    * outfile.write(dataptr, datasz);
+    *  outfile.close();
+    * std::cout<< "wrote " << datasz << " bytes to file=" << fname <<endl;
+    */
 
     // TODO: ignores deleted rows for now.
     // max_to_print unused here, we just output the existing arrow table
