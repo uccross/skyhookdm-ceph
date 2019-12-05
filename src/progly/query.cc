@@ -863,20 +863,24 @@ void worker()
         // the actual result (if any) from the obj.
         bufferlist bl;
         int cls_result_code = 0;
-        try {
-            ceph::bufferlist::iterator it = s->bl.begin();
-            ::decode(cls_result_code, it);
-            ::decode(bl, it);
-        } catch (ceph::buffer::error&) {
-            int decode_hepquery_cls = 0;
-            assert(decode_hepquery_cls);
-        }
 
-        // we do nothing for ClsResultCodeFalse, indicates no matching data
-        // was returned from this object from the query, otherwise we output
-        // result as as pyarrow binary
-        if (cls_result_code == TablesErrCodes::ClsResultCodeTrue)
-            print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
+        // check if object did not exist/had empty data partition.
+        if (s->bl.length() > 0) {
+            try {
+                ceph::bufferlist::iterator it = s->bl.begin();
+                ::decode(cls_result_code, it);
+                ::decode(bl, it);
+            } catch (ceph::buffer::error&) {
+                int decode_hepquery_cls = 0;
+                assert(decode_hepquery_cls);
+            }
+
+            // we do nothing for ClsResultCodeFalse, indicates no matching data
+            // was returned from this object from the query, otherwise we output
+            // result as as pyarrow binary
+            if (cls_result_code == TablesErrCodes::ClsResultCodeTrue)
+                print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
+        }
     }
     else {   // older processing code below
         ceph::bufferlist bl;
@@ -1076,7 +1080,17 @@ void handle_cb(librados::completion_t cb, void *arg)
 {
   AioState *s = (AioState*)arg;
   s->times.response = getns();
-  assert(s->c->get_return_value() >= 0);
+
+  // there might have been an error, although we can ignore obj not exists err.
+  if (s->c->get_return_value()  < 0) {
+    if (s->c->get_return_value() != -ENOENT) {
+      // we can ignore ENOENT since skyhook generates reads for potentially
+      // empty partitions due to partition name generator function.
+        cerr << "handle_cb: s->c->get_return_value()="
+             << std::to_string(s->c->get_return_value()) << endl;
+        assert(s->c->get_return_value() >= 0);
+    }
+  }
   s->c->release();
   s->c = NULL;
 

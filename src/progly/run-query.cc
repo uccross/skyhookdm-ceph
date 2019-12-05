@@ -66,6 +66,7 @@ int main(int argc, char **argv)
   std::string dataset_name;
   std::string file_name;
   std::string tree_name;
+  int subpartitions;
 
   // format type of result set returned to query.cc driver
   int resformat = SkyFormatType::SFT_FLATBUF_FLEX_ROW;
@@ -108,6 +109,7 @@ int main(int argc, char **argv)
     ("pool", po::value<std::string>(&pool)->required(), "pool")
     ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
     ("start-obj", po::value<unsigned>(&start_obj)->default_value(0), "start object (for transform operation")
+    ("subpartitions", po::value<int>(&subpartitions)->default_value(0), "maximum num of subpartitions of object names e.g. obj.243.0 and obj.243.1 is one object that has subpartitions=2")
     ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
     ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
     ("query", po::value<std::string>(&query)->default_value("flatbuf"), "query name")
@@ -199,11 +201,21 @@ int main(int argc, char **argv)
   // start_obj defaults to zero, but start_obj and num_objs can be used to
   // operate on subset ranges of all objects for ops like tranforms or
   // indexing, stats, etc.
-  for (unsigned int i = start_obj; i < num_objs; i++) {
+  for (unsigned int i = start_obj; i < start_obj+num_objs; i++) {
     std::stringstream oid_ss;
-    oid_ss << oid_prefix << "." << i;
-    const std::string oid = oid_ss.str();
-    target_objects.push_back(oid);
+    if (subpartitions > 0) {
+        for (int j = 0; j < subpartitions; j++) {
+            oid_ss << oid_prefix << "." << i << "." << j;
+            const std::string oid = oid_ss.str();
+            target_objects.push_back(oid);
+            std::stringstream().swap(oid_ss);
+        }
+    }
+    else {
+        oid_ss << oid_prefix << "." << i;
+        const std::string oid = oid_ss.str();
+        target_objects.push_back(oid);
+    }
   }
 
   if (dir == "fwd") {
@@ -640,7 +652,8 @@ int main(int argc, char **argv)
     expl_func_counter = example_counter;
     expl_func_id = example_function_id;
 
-  } else if (query == "hep") {
+  }
+  else if (query == "hep") {
 
     // verify input params and set HEP op vals.
     using namespace Tables;
@@ -982,6 +995,12 @@ int main(int argc, char **argv)
         ss.seekg (0, ios::beg);
         std::cout << ss.rdbuf();
         ss.flush();
+    }
+
+    if (skyhook_output_format == SkyFormatType::SFT_PYARROW_BINARY) {
+
+        // force any remaining output to the pipe
+        std::cout << std::flush;
     }
   }
 

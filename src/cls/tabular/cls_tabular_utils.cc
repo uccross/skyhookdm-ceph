@@ -6052,6 +6052,11 @@ long long int printArrowbufRowAsPyArrowBinary(
                     std::stringstream::out |
                     std::stringstream::binary);
 
+
+    // add buf len to output
+    int32_t buf_len = static_cast<int32_t>(datasz);
+    ss.write(reinterpret_cast<const char*>(&buf_len), sizeof(buf_len));
+
     // add const char* arrow buf
     ss.write(dataptr, datasz);
 
@@ -6059,14 +6064,6 @@ long long int printArrowbufRowAsPyArrowBinary(
     ss.seekg (0, ios::beg);
     std::cout << ss.rdbuf();
     ss.flush();
-
-    /* testing
-    * std::string fname="pyarrow_out.bin";
-    * std::ofstream outfile (fname,std::ofstream::binary);
-    * outfile.write(dataptr, datasz);
-    *  outfile.close();
-    * std::cout<< "wrote " << datasz << " bytes to file=" << fname <<endl;
-    */
 
     // TODO: ignores deleted rows for now.
     // max_to_print unused here, we just output the existing arrow table
