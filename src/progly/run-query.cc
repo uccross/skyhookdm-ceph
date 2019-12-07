@@ -62,6 +62,10 @@ int main(int argc, char **argv)
   int example_counter;
   int example_function_id;
 
+  // web assembly
+  std::string wasm_binfile;
+  std::string wasm_engine;
+
   // HEP options
   std::string dataset_name;
   std::string file_name;
@@ -163,6 +167,8 @@ int main(int argc, char **argv)
     ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
+    ("wasm-binfile", po::value<std::string>(&wasm_binfile)->default_value(""), "wasm binfile name")
+    ("wasm-engine", po::value<std::string>(&wasm_engine)->default_value(""), "wasm engine name")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -899,6 +905,8 @@ int main(int argc, char **argv)
             wasm_inbl_sample_op op;
             op.message = "This is an wasm op";
             op.instructions = "Wasm instructions";
+	    op.wasm_binfile = wasm_binfile;
+	    op.wasm_engine = wasm_engine;
             op.counter = example_counter;
             op.func_id = example_function_id;
             ceph::bufferlist inbl;
