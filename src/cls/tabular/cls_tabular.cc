@@ -2134,7 +2134,7 @@ static
 int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     // unpack the requested op from the inbl.
-    inbl_sample_op op;
+    wasm_inbl_sample_op op;
     try {
         bufferlist::iterator it = in->begin();
         ::decode(op, it);
@@ -2145,11 +2145,15 @@ int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
     std::string message = op.message;
     std::string instructions = op.instructions;
+    std::string wasm_binfile = op.wasm_binfile;
+    std::string wasm_engine = op.wasm_engine;
     int counter = op.counter;
     int func_id = op.func_id;
 
     CLS_LOG(20, "wasm_query_op: op.message = %s", message.c_str());
     CLS_LOG(20, "wasm_query_op: op.instructions = %s", instructions.c_str());
+    CLS_LOG(20, "wasm_query_op: op.wasm_binfile = %s", wasm_binfile.c_str());
+    CLS_LOG(20, "wasm_query_op: op.wasm_engine = %s", wasm_engine.c_str());
     CLS_LOG(20, "wasm_query_op: op.counter=%s", (std::to_string(counter)).c_str());
     CLS_LOG(20, "wasm_query_op: op.func_id=%s", (std::to_string(func_id)).c_str());
 
@@ -2167,19 +2171,35 @@ int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             break;
         case 1: {
             uint64_t start = getns();
-            rows_processed = example_func(counter);
+            rows_processed = example_func2(wasm_engine);
             uint64_t end = getns();
             func_timer = end - start;
             CLS_LOG(20, "wasm_query_op: function result=%d", rows_processed);
             break;
         }
+	case 2: {
+           uint64_t start = getns();
+            rows_processed = example_func3(wasm_engine);
+            uint64_t end = getns();
+            func_timer = end - start;
+            CLS_LOG(20, "wasm_query_op: function result=%d", rows_processed);
+            break;
+       }
+       case 3: {
+           uint64_t start = getns();
+            rows_processed = 0;
+            uint64_t end = getns();
+            func_timer = end - start;
+            CLS_LOG(20, "wasm_query_op: function result=%d", rows_processed);
+            break;
+       }
         default:
             CLS_ERR("ERROR: cls_tabular:wasm_query_op: unknown func_id %d", func_id);
             return -1;
     }
 
     // encode output info for client.
-    outbl_sample_info info;
+    wasm_outbl_sample_info info;
     info.message = "All done with example op.";
     info.rows_processed = rows_processed;
     info.read_time_ns = read_timer;
@@ -2192,6 +2212,58 @@ int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     ::encode(result_bl, *out);
 
     return 0;
+}
+
+int example_func2(string wasm_engine){
+        CLS_LOG(20, "Executing the binary file on the osd...");
+        std::string command;
+        if(wasm_engine == "wasmer"){
+                command = GetStdoutFromCommand("/usr/local/bin/wasmer-c-api-example /usr/local/bin/doNothing.wasm; echo $?");
+        } else if (wasm_engine == "wavm") {
+                command = GetStdoutFromCommand("/usr/local/bin/wavm run /usr/local/bin/doNothing_wavm.wasm; echo $?");
+        } else {
+                CLS_ERR("ERROR");
+                return -1;
+        }
+
+        CLS_LOG(20, "command = %s",command.c_str());
+        int result = std::stoi(command);
+        return result;
+}
+
+int example_func3(string wasm_engine){
+        CLS_LOG(20, "Executing the binary file on the osd...");
+        std::string command;
+        if(wasm_engine == "wasmer") {
+                command = GetStdoutFromCommand("/usr/local/bin/wasmer-c-api-example /usr/local/bin/doNothing_volatile.wasm; echo $?");
+        } else if (wasm_engine == "wavm") {
+                command = GetStdoutFromCommand("/usr/local/bin/wavm run /usr/local/bin/doNothing_volatile_wavm.wasm; echo $?");
+        } else {
+                CLS_ERR("ERROR");
+                return -1;
+        }
+
+
+        CLS_LOG(20, "command = %s",command.c_str());
+        int result = std::stoi(command);
+        return result;
+}
+
+std::string GetStdoutFromCommand(string cmd) {
+
+        std::string data;
+        FILE * stream;
+        const int max_buffer = 256;
+        char buffer[max_buffer];
+        cmd.append(" 2>&1");
+
+        stream = popen(cmd.c_str(), "r");
+        if (stream) {
+                while (!feof(stream))
+                        if (fgets(buffer, max_buffer, stream) != NULL) data.append(buffer);
+                        pclose(stream);
+                }
+        return data;
 }
 
 

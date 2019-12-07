@@ -837,7 +837,8 @@ void worker()
             times.eval_ns = info.eval_time_ns;
             rows_returned += info.rows_processed;
             result_count += info.rows_processed;
-            cout << "count thus far... " <<rows_returned << std::endl;
+            cout << "Eval time = " << std::to_string(times.eval_ns).c_str() << std::endl;
+	    cout << "count thus far... " <<rows_returned << std::endl;
         } else {
 
             // result came from standard read, no extra info to unpack
