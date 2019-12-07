@@ -16,6 +16,10 @@
 
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
+//functions for WebAssmebly
+int example_func2(string wasm_engine);
+int example_func3(string wasm_engine);
+std::string GetStdoutFromCommand(string cmd);
 
 // used by Arrow format only
 #define STREAM_CAPACITY 1024
@@ -867,6 +871,8 @@ struct wasm_inbl_sample_op {
 
   std::string message;
   std::string instructions;
+  std::string wasm_binfile;
+  std::string wasm_engine;
   int counter;
   int func_id;
 
@@ -874,11 +880,15 @@ struct wasm_inbl_sample_op {
   wasm_inbl_sample_op(
     std::string _message,
     std::string _instructions,
+    std::string _wasm_binfile,
+    std::string _wasm_engine,
     int _counter,
     int _func_id)
     :
     message(_message),
     instructions(_instructions),
+    wasm_binfile(_wasm_binfile),
+    wasm_engine(_wasm_engine),
     counter(_counter),
     func_id(_func_id) { }
 
@@ -887,6 +897,8 @@ struct wasm_inbl_sample_op {
     ENCODE_START(1, 1, bl);
     ::encode(message, bl);
     ::encode(instructions, bl);
+    ::encode(wasm_binfile, bl);
+    ::encode(wasm_engine, bl);
     ::encode(counter, bl);
     ::encode(func_id, bl);
     ENCODE_FINISH(bl);
@@ -897,6 +909,8 @@ struct wasm_inbl_sample_op {
     DECODE_START(1, bl);
     ::decode(message, bl);
     ::decode(instructions, bl);
+    ::decode(wasm_binfile, bl);
+    ::decode(wasm_engine, bl);
     ::decode(counter, bl);
     ::decode(func_id, bl);
     DECODE_FINISH(bl);
@@ -907,6 +921,8 @@ struct wasm_inbl_sample_op {
     s.append("inbl_sample_op:");
     s.append(" .message=" + message);
     s.append(" .instructions=" + instructions);
+    s.append(" .wasm_binfile=" + wasm_binfile);
+    s.append(" .wasm_engine=" + wasm_engine);
     s.append(" .counter=" + std::to_string(counter));
     s.append(" .func_id=" + std::to_string(func_id));
     return s;
