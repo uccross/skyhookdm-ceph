@@ -116,7 +116,8 @@ else
     case $ID in
     debian|ubuntu|devuan)
         echo "Using apt-get to install dependencies"
-        # Depdencies for Apache Arrow
+
+        # Add depdencies for Apache Arrow and Parquet (used by skyhookdm/libcls)
         $SUDO apt-get install -y curl lsb-release apt-transport-https gnupg
         curl https://dist.apache.org/repos/dist/dev/arrow/KEYS | $SUDO apt-key add -
         $SUDO tee /etc/apt/sources.list.d/apache-arrow.list <<APT_LINE
@@ -183,6 +184,20 @@ APT_LINE
                 $SUDO yum install --nogpgcheck -y epel-release
                 $SUDO rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-$MAJOR_VERSION
                 $SUDO rm -f /etc/yum.repos.d/dl.fedoraproject.org*
+
+                # Add dependencies for Apache Arrow and Parquet (used by skyhookdm/libcls)
+                $SUDO tee /etc/yum.repos.d/Apache-Arrow.repo <<REPO
+[apache-arrow]
+name=Apache Arrow
+baseurl=https://dl.bintray.com/apache/arrow/centos/\$releasever/\$basearch/
+gpgcheck=1
+enabled=1
+gpgkey=https://dl.bintray.com/apache/arrow/centos/RPM-GPG-KEY-apache-arrow
+REPO
+                $SUDO yum install -y epel-release
+                $SUDO yum install -y --enablerepo=epel arrow-devel
+                $SUDO yum install -y --enablerepo=epel parquet-devel
+
                 if test $(lsb_release -si) = CentOS -a $MAJOR_VERSION = 7 ; then
                     $SUDO yum-config-manager --enable cr
                 fi
