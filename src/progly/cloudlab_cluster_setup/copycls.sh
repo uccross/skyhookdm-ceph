@@ -3,8 +3,8 @@
 # usage: ./copycls <path-to-new-tabular.so-file> <nosds>
 
 if [[ -z $1 && -z $2 ]]; then
-	echo "Please provide path to your latest libcls_tabular.so.1.0.0 followed by number of Ceph OSDs to copy and link library.  
-	Assumes OSD hostnames are `osd$n` ".
+	echo "Please provide path to your latest libcls_tabular.so.1.0.0 followed by number of Ceph OSDs to copy and link library."
+	echo "Assumes OSD hostnames are of the form `osd$n` ".
 exit
 fi
 
