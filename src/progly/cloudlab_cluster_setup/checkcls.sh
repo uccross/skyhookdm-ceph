@@ -1,6 +1,9 @@
 #!/bin/bash
+
+# usage: ./checkcls <nosds>
+
 if [[ -z $1 ]]; then
-        echo "Please provide the number of Ceph OSDs".
+        echo "Please provide the number of Ceph OSDs. Assumes OSD hostnames are of the form `osd$n` ".
 exit
 fi
 
