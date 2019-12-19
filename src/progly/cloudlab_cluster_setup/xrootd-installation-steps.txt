@@ -1,0 +1,73 @@
+# How to install xrootd lib on centos7
+#
+# To install xrootd from source, boot a CENTOS profile such as this one then follow steps below.
+#
+# https://www.cloudlab.us/show-profile.php?uuid=9c96be68-1bad-11ea-b1eb-e4434b2381fc
+
+sudo yum clean all;
+sudo yum update;
+sudo yum install -y libmacaroons libmacaroons-devel json-c-devel libuuid-devel readline-devel libxml2-devel systemd-devel curl-devel git nano python-pip   openssl-devel;
+
+# find a kerberos5 version
+yum search kerberos;
+sudo yum install -y krb5-devel libkadm5;
+
+# install the gcc and g++ tools
+sudo yum group install "Development Tools";
+sudo yum install gcc;
+sudo yum install gcc-c++;
+
+# remove an older cmake (if you want) and install cmake 3+
+sudo yum remove cmake;
+yum search cmake  --showduplicates;
+sudo yum install -y cmake3 #cmake3-3.14.6-2.el7.x86_64 -y;
+
+# get the latest xrootd repo
+git clone https://github.com/xrootd/xrootd.git
+cd xrootd
+mkdir build
+cd build
+
+# compile without fuse, installing to opt dir.
+cmake3 ../  -DCMAKE_INSTALL_PREFIX=/opt/xrootd  -DENABLE_FUSE=OFF
+make
+sudo make install  # note if this fails (or not) please apply the ln -s links below and retry
+
+# check all library links exists and fix any missing links.
+ldd  /opt/xrootd/bin/xrdfs;
+
+# verify files are actually present in our xrootd dir.
+sudo ls -l /opt/xrootd/lib64/libXrdCl.*;
+
+# create links from primary lib64 dir to your xrootd dir (else update your ldd lib paths)
+sudo ln -s /opt/xrootd/lib64/libXrdCl.so /usr/lib64/libXrdCl.so.2;
+sudo ln -s /opt/xrootd/lib64/libXrdXml.so /usr/lib64/libXrdXml.so.2;
+sudo ln -s /opt/xrootd/lib64/libXrdUtils.so /usr/lib64/libXrdUtils.so.2;
+
+# check no more missing links
+ldd  /opt/xrootd/bin/xrdfs;
+
+# verify that it works.
+/opt/xrootd/bin/xrdfs;
+
+# update your CA per  https://wiki.egi.eu/wiki/EGI_IGTF_Release#Installation
+sudo nano /etc/yum.repos.d/cern.repo
+
+# paste this into cern.repo file and save it.
+[EGI-trustanchors]
+name=EGI-trustanchors
+baseurl=http://repository.egi.eu/sw/production/cas/1/current/
+gpgkey=http://repository.egi.eu/sw/production/cas/1/GPG-KEY-EUGridPMA-RPM-3
+gpgcheck=1
+enabled=1
+
+# update the repo certs
+sudo yum install -y ca-policy-egi-core
+
+# try to get some file info
+ /opt/xrootd/bin/xrdfs root://eospublic.cern.ch/ stat /eos/opendata/cms/derived-data/AOD2NanoAODOutreachTool/W3JetsToLNu.root
+
+
+
+
+
