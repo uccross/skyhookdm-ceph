@@ -4,18 +4,61 @@
 if [ $# -le 1 ]
 then
   echo "Usage:"
-  echo "./this <number-of-osds> <path-to-your-id_rsa>"
+  echo "./this <number-of-osds> <path-to-your-id_rsa> <ubuntu|centos>"
   echo "forcing program exit..."
   exit 1
 else
   echo "using nosds as '${1}'"
   echo "using sshkeypath as '${2}'"
+  if [ -z $3 ]
+        then os="ubuntu"
+    else
+        os=$3
+  fi
 fi
+
+if [ $os != "ubuntu" ]
+    then
+        if [ $os != "centos" ]
+            then
+                echo "invalid OS.  select 'ubuntu' or 'centos' default=ubuntu"
+                exit 1
+        else
+            os="centos"
+        fi
+fi
+echo "using OS as '${os}'"
 nosds=$1
 sshkeypath=$2
 max_osd=$((nosds-1))
 
+# set OS specific vars
+if [ $os = "ubuntu" ]
+    then echo "ubuntu confirmed"
+    pkgmgr="apt-get"
+    INSTALLBUILDTOOLS="${pkgmgr} install build-essential"
+    LIB_CLS_DIR=/usr/lib/x86_64-linux-gnu/rados-classes/
+fi
+if [ $os = "centos" ]
+    then echo "centos confirmed"
+    pkgmgr="yum"
+    INSTALLBUILDTOOLS="${pkgmgr} group install \"Development Tools\""
+    LIB_CLS_DIR=/usr/lib64/rados-classes/
+fi
+
+pkgs="git x11-apps screen curl python nano scite x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 gcc g++"
+ANSIBLE_VER="2.5.1"
+REPO_DISK="sda4"
+
 echo "START:"
+echo "OS=${os}"
+echo "pkgmgr=${pkgmgr}"
+echo "INSTALLBUILDTOOLS=${INSTALLBUILDTOOLS}"
+echo "LIB_CLS_DIR=${LIB_CLS_DIR}"
+echo "pkgs=${pkgs}"
+echo "ANSIBLE_VER=${ANSIBLE_VER}"
+
+
 echo `date`
 
 cd $HOME
@@ -25,7 +68,7 @@ sleep 5s
 
 # hardcoded vars for now.
 pdsw_branch="skyhook-luminous";
-repo_dir="/mnt/sda4/"
+repo_dir="/mnt/${REPO_DISK}/"
 ansible_dir="${HOME}/skyhook-ansible/ansible/"
 echo "clear out prev data dirs and scripts."
 scripts_dir="${HOME}/pdsw19-reprod/scripts/"
@@ -42,7 +85,6 @@ touch format-sdX.sh
 rm format-sdX.sh
 
 
-
 # setup common ssh key for all client/osd nodes.
 # this should be provided by the user,
 # it is the key they use to ssh into their cloudlab profile machines.
@@ -52,19 +94,6 @@ touch  $HOME/.ssh/id_rsa
 cp $HOME/.ssh/id_rsa ~/.ssh/id_rsa.bak
 cp $sshkeypath  ~/.ssh/id_rsa
 chmod 0600 $HOME/.ssh/id_rsa;
-
-
-# TODO:
-# 1. US: put this scripts dir into a public repo: /proj/skyhook-PG0/pdsw19/scripts/
-# 2. US: put this data dir into a public repo: /proj/skyhook-PG0/pdsw19/data/
-
-
-# CHEATING HERE UNTIL ABOVE DONE
-# git clone that public repo with scripts here onto client0
-echo "retrieving scripts and sample datasets"
-cd $HOME
-cp /proj/skyhook-PG0/pdsw19/scripts/* $scripts_dir
-cp /proj/skyhook-PG0/pdsw19/data/*  $data_dir
 
 echo "create nodes.txt file for ssh key copy/setup"
 cd $HOME
@@ -84,9 +113,52 @@ for n in  `cat nodes.txt`; do
   scp -r ${scripts_dir}/*  ${n}:~/ ;
 done;
 
-echo "setup ansible prereqs via script, and install other small stuff locally...";
-bash postreqs.sh;
+echo "on all machines, run yum update and install pkgs -- note: yum update takes 30 min on cloudlab...why?";
 
+cd $HOME
+for n in  `cat nodes.txt`; do
+    echo $n;
+    ssh $n "sudo ${pkgmgr} update && sudo ${INSTALLBUILDTOOLS} -y > ${pkgmgr}-INSTALLBUILDTOOLS.out 2>&1;" &
+done;
+echo "Waiting... ${pkgmgr} update and install pre-reqs";
+wait;
+echo "";
+sleep 2s;
+
+
+cd $HOME
+for n in  `cat nodes.txt`; do
+    echo $n;
+    ssh $n "sudo ${pkgmgr} update && sudo ${pkgmgr} install ${pkgs} -y > ${pkgmgr}-install-pkgs.out 2>&1;" &
+done;
+echo "Waiting... ${pkgmgr} update and install pre-reqs";
+wait;
+echo "";
+sleep 2s;
+
+#~ bash postreqs.sh;
+#~ using pip now instead of managed repo package for ansible.
+#~ echo | sudo apt-add-repository ppa:ansible/ansible ;
+#~ sudo apt-get update ;
+#~ sudo apt-get install ansible=2.5.1+dfsg-1ubuntu0.1 -y ;
+
+echo "install ansible on the controller host/client0 node only.";
+echo "remove previous ansible verisons if needed present ..."
+sudo ${pkgmgr} remove ansible;
+sudo pip uninstall -y ansible;
+sudo -H pip install ansible==${ANSIBLE_VER}
+echo "done sudo pip install ansible==${ANSIBLE_VER} ..."
+
+# pip on ubuntu may install ansible in /usr/local/bin, so link to /usr/bin/
+if test -f /usr/local/bin/ansible;
+    then  sudo ln -s /usr/local/bin/ansible /usr/bin/ansible;
+fi
+
+cd $HOME
+git clone https://github.com/KDahlgren/skyhook-ansible.git ;
+cd skyhook-ansible ;
+git checkout pdsw19 ;
+git submodule update --init ;
 
 echo "specify correct num osds for this cluster in ansible hosts file";
 cd $HOME
@@ -104,41 +176,38 @@ echo "num_osds: ${nosds}" >>$ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tm
 mv $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/extra_vars.yml;
 rm -rf $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
 
-echo "Format and mount all the devs for skyhookdm-ceph cloned repo building on each client+osd nodes..";
+echo "Format all the repo devs for skyhookdm-ceph cloned repo building on each client+osd nodes..";
 cd $HOME
 for n in `cat nodes.txt`; do
   echo $n
   scp $scripts_dir/format-sdX.sh $n:~/
-  scp $scripts_dir/mount-sdX.sh $n:~/
-  #ssh $n "if test -s /mnt/sda4/skyhookdm-ceph/README; then sudo rm -rf  /mnt/sda4/skyhookdm-ceph/; sudo umount /mnt/sda4; fi;";
-  ssh $n "if df -h | grep -q sda4; then echo \"mounted, unmounting\"; sudo umount /mnt/sda4; fi;";
-  ssh $n "./format-sdX.sh sda4; ./mount-sdX.sh sda4;" &
+  ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${REPO_DISK}; fi;";
+  ssh $n "./format-sdX.sh ${REPO_DISK};" &
 done;
-echo "Waiting..../format-sdX.sh sda4; ./mount-sdX.sh sda4";
+echo "Waiting...  ./format-sdX.sh ${REPO_DISK};";
 wait;
 echo "";
 sleep 2s;
 
-echo "visually  verify all sda4 mounted at /mnt/sda4.";
+echo "Mount all the repo devs for skyhookdm-ceph cloned repo building on each client+osd nodes..";
 cd $HOME
 for n in `cat nodes.txt`; do
   echo $n
-  ssh $n "df -h | grep sda4;";
+  scp $scripts_dir/mount-sdX.sh $n:~/
+  ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"already mounted\"; else ./mount-sdX.sh ${REPO_DISK};fi;" &
 done;
-sleep 3s;
-
-############### INSTALL OUR SKYHOOK DEPS ON ALL NODES
-# do not parallelize
-echo "on all machines, run apt-get update and install pre-reqs";
-cd $HOME
-for n in  `cat nodes.txt`; do
-    echo $n;
-    ssh $n "sudo apt-get update && sudo apt-get install git wget cmake git gnupg -y  > apt-get-install.out 2>&1;" &
-done;
-echo "Waiting...apt-get update and install pre-reqs";
+echo "Waiting...  ./mount-sdX.sh sda4";
 wait;
 echo "";
 sleep 2s;
+
+echo "visually  verify all devices ${REPO_DISK} mounted at /mnt/${REPO_DISK}";
+cd $HOME
+for n in `cat nodes.txt`; do
+  echo $n
+  ssh $n "df -h | grep ${REPO_DISK};";
+done;
+sleep 3s;
 
 # note this typically takes 1 min per node
 echo "on all machines, clone skyhook repo...";
@@ -146,7 +215,7 @@ echo `date`;
 cd $HOME
 for n in  `cat nodes.txt`; do
     echo $n;
-    ssh $n "cd /mnt/sda4/; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
+    ssh $n "cd ${repo_dir}; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
 done;
 echo "Waiting... clone-repo.sh";
 wait;
@@ -160,7 +229,7 @@ echo `date`;
 cd $HOME
 for n in  `cat nodes.txt`; do
     echo $n;
-    ssh $n  "cd /mnt/sda4/skyhookdm-ceph;  export DEBIAN_FRONTEND=noninteractive; git checkout $pdsw_branch > git-checkout.out 2>&1; git submodule update --init --recursive  > submodule-init.out 2>&1; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
+    ssh $n  "cd ${repo_dir}/skyhookdm-ceph;  export DEBIAN_FRONTEND=noninteractive; git checkout $pdsw_branch > git-checkout.out 2>&1; git submodule update --init --recursive  > submodule-init.out 2>&1; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
 done;
 echo "Waiting... install-deps.sh on all nodes";
 wait;
@@ -178,8 +247,14 @@ git checkout $pdsw_branch;
 export DEBIAN_FRONTEND="noninteractive";
 ./do_cmake.sh;
 cd build;
-make -j36  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
+make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
 
+# note: occasionally on centos we observer boost or ceph-osd compile error (cc1plus), seems non-deteriminstic
+# and recompiling 1x or 2x will finish successfully.  will investigate later.
+if [ $os = "centos" ]; then
+    make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
+    make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
+fi
 
 # INSTALLING VANILLA CEPH LUMINOUS on all nodes client+osds
 echo `date`;
@@ -189,33 +264,28 @@ time ansible-playbook setup_playbook.yml -vvvv ;
 echo `date`;
 echo "ansible playbook done.";
 
-
 echo "Copying our libcls so file to each osd, to the correct dir, and set symlinks";
 sudo chmod a-x   $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0;
 for ((i = 0 ; i < $nosds ; i++)); do
     echo osd$i;
     scp $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0  osd$i:/tmp/;
-    ssh  osd$i "sudo cp /tmp/libcls_tabular.so.1.0.0 /usr/lib/x86_64-linux-gnu/rados-classes/;";
-    ssh  osd$i "cd /usr/lib/x86_64-linux-gnu/rados-classes/; if test -f libcls_tabular.so.1; then sudo  unlink libcls_tabular.so.1; fi";
-    ssh  osd$i "cd /usr/lib/x86_64-linux-gnu/rados-classes/; if test -f libcls_tabular.so; then sudo unlink libcls_tabular.so; fi";
-    ssh  osd$i "cd /usr/lib/x86_64-linux-gnu/rados-classes/;sudo ln -s libcls_tabular.so.1.0.0 libcls_tabular.so.1;";
-    ssh  osd$i "cd /usr/lib/x86_64-linux-gnu/rados-classes/;sudo ln -s libcls_tabular.so.1 libcls_tabular.so;";
+    ssh  osd$i "sudo cp /tmp/libcls_tabular.so.1.0.0 ${LIB_CLS_DIR};";
+    ssh  osd$i "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so.1; then sudo  unlink libcls_tabular.so.1; fi";
+    ssh  osd$i "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so; then sudo unlink libcls_tabular.so; fi";
+    ssh  osd$i "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1.0.0 libcls_tabular.so.1;";
+    ssh  osd$i "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1 libcls_tabular.so;";
 done;
 
-
-echo "on each osd, verify that libcls_tabular.so is present here: /usr/lib/x86_64-linux-gnu/rados-classes/"
+echo "on each osd, verify that libcls_tabular.so is present at ${LIB_CLS_DIR}"
 for ((i = 0 ; i < $nosds ; i++)); do
     echo "checking for libcls_tabular on osd${i}";
-    ssh osd$i "ls -alh /usr/lib/x86_64-linux-gnu/rados-classes/ | grep libcls_tabular";
+    ssh osd$i "ls -alh ${LIB_CLS_DIR} | grep -i libcls_tabular";
 done;
-
 
 echo "All done skyhook ansible setup.";
 echo `date`;
 
 #~ ### PARALLELIZE Ansible
-#~ # see parallel
-
 #~ for i in  $(seq 0  ${max_osd}); do
   #~ echo "osd${i}: calling->ansible-playbook site.yml --limit osds[$i]"
 #~ done;
