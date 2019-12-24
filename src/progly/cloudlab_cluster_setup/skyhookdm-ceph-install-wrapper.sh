@@ -31,6 +31,12 @@ echo "using OS as '${os}'"
 nosds=$1
 sshkeypath=$2
 max_osd=$((nosds-1))
+pkgs="git x11-apps screen curl python nano scite vim x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 python-virtualenv gcc g++"
+ANSIBLE_VER="2.5.1"
+REPO_DISK="sda4"
+
+# prep for postgres installation later.
+sudo su -c "useradd postgres" ;
 
 # set OS specific vars
 if [ $os = "ubuntu" ]
@@ -38,18 +44,25 @@ if [ $os = "ubuntu" ]
     pkgmgr="apt-get"
     INSTALLBUILDTOOLS="${pkgmgr} install build-essential"
     LIB_CLS_DIR=/usr/lib/x86_64-linux-gnu/rados-classes/
+
+    # postgres OS-specific
+    sudo su -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main" >  /etc/apt/sources.list.d/pgdg.list' ;
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+    pkgs=${pkgs}" postgresql-10 postgresql-client-10 postgresql-server-dev-10 postgresql-contrib "
 fi
 if [ $os = "centos" ]
     then echo "centos confirmed"
     pkgmgr="yum"
     INSTALLBUILDTOOLS="${pkgmgr} group install \"Development Tools\""
     LIB_CLS_DIR=/usr/lib64/rados-classes/
+
+    # postgres OS-specific
+    wget https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+    sudo yum install -y pgdg-redhat-repo-latest.noarch.rpm
+    pkgs=${pkgs}" postgresql10.x86_64 postgresql10-server postgresql10-contrib postgresql10-libs"
 fi
 
-pkgs="git x11-apps screen curl python nano scite x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 gcc g++"
-ANSIBLE_VER="2.5.1"
-REPO_DISK="sda4"
-
+echo `date`
 echo "START:"
 echo "OS=${os}"
 echo "pkgmgr=${pkgmgr}"
@@ -57,9 +70,7 @@ echo "INSTALLBUILDTOOLS=${INSTALLBUILDTOOLS}"
 echo "LIB_CLS_DIR=${LIB_CLS_DIR}"
 echo "pkgs=${pkgs}"
 echo "ANSIBLE_VER=${ANSIBLE_VER}"
-
-
-echo `date`
+echo "ANSIBLE USES ceph-deploy-1.5.38 for ceph-luminous, i.e., env/bin/pip install ceph-deploy==1.5.38 and env/bin/ceph-deploy install --release={{ release_name }} {{ item }}"
 
 cd $HOME
 # get all the scripts and sample data from public repo.
@@ -113,38 +124,37 @@ for n in  `cat nodes.txt`; do
   scp -r ${scripts_dir}/*  ${n}:~/ ;
 done;
 
-echo "on all machines, run yum update and install pkgs -- note: yum update takes 30 min on cloudlab...why?";
+echo "on all machines, run ${pkgmgr} update and install pkgs -- note: yum update takes 30 min on cloudlab...why?";
 
+# INSTALL BUILD TOOLS
 cd $HOME
 for n in  `cat nodes.txt`; do
     echo $n;
-    ssh $n "sudo ${pkgmgr} update && sudo ${INSTALLBUILDTOOLS} -y > ${pkgmgr}-INSTALLBUILDTOOLS.out 2>&1;" &
+    ssh $n "sudo ${pkgmgr} update -y && sudo ${INSTALLBUILDTOOLS} -y > ${pkgmgr}-INSTALLBUILDTOOLS.out 2>&1;" &
 done;
-echo "Waiting... ${pkgmgr} update and install pre-reqs";
+echo "Waiting... ${pkgmgr} update and install INSTALLBUILDTOOLS";
 wait;
 echo "";
 sleep 2s;
 
-
+# INSTALL PKGS
 cd $HOME
 for n in  `cat nodes.txt`; do
     echo $n;
     ssh $n "sudo ${pkgmgr} update && sudo ${pkgmgr} install ${pkgs} -y > ${pkgmgr}-install-pkgs.out 2>&1;" &
 done;
-echo "Waiting... ${pkgmgr} update and install pre-reqs";
+echo "Waiting... ${pkgmgr} update and install pkgs";
 wait;
 echo "";
 sleep 2s;
 
-#~ bash postreqs.sh;
-#~ using pip now instead of managed repo package for ansible.
 #~ echo | sudo apt-add-repository ppa:ansible/ansible ;
 #~ sudo apt-get update ;
 #~ sudo apt-get install ansible=2.5.1+dfsg-1ubuntu0.1 -y ;
 
-echo "install ansible on the controller host/client0 node only.";
+echo "install ansible on the controller host/client0 node only."
 echo "remove previous ansible verisons if needed present ..."
-sudo ${pkgmgr} remove ansible;
+sudo ${pkgmgr} remove ansible -y;
 sudo pip uninstall -y ansible;
 sudo -H pip install ansible==${ANSIBLE_VER}
 echo "done sudo pip install ansible==${ANSIBLE_VER} ..."
@@ -155,12 +165,12 @@ if test -f /usr/local/bin/ansible;
 fi
 
 cd $HOME
-git clone https://github.com/KDahlgren/skyhook-ansible.git ;
-cd skyhook-ansible ;
-git checkout pdsw19 ;
-git submodule update --init ;
+git clone https://github.com/uccross/skyhook-ansible.git
+cd skyhook-ansible
+git checkout pdsw19
+git submodule update --init
 
-echo "specify correct num osds for this cluster in ansible hosts file";
+echo "specify correct num osds for this cluster in ansible hosts file"
 cd $HOME
 for ((i = 0 ; i < $nosds ; i++)); do
   echo "osd${i}" >> $ansible_dir/hosts;
@@ -196,7 +206,7 @@ for n in `cat nodes.txt`; do
   scp $scripts_dir/mount-sdX.sh $n:~/
   ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"already mounted\"; else ./mount-sdX.sh ${REPO_DISK};fi;" &
 done;
-echo "Waiting...  ./mount-sdX.sh sda4";
+echo "Waiting...  ./mount-sdX.sh ${REPO_DISK}";
 wait;
 echo "";
 sleep 2s;
@@ -245,15 +255,15 @@ echo `date`;
 cd $repo_dir/skyhookdm-ceph;
 git checkout $pdsw_branch;
 export DEBIAN_FRONTEND="noninteractive";
+git submodule update --init --recursive;
+sudo ./install-deps.sh;
 ./do_cmake.sh;
 cd build;
 make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
 
-# note: occasionally on centos we observer boost or ceph-osd compile error (cc1plus), seems non-deteriminstic
-# and recompiling 1x or 2x will finish successfully.  will investigate later.
+# note: frequently on centos in cloudlab we observe boost or ceph-osd compile error, remaking all targets seems to get around it.
 if [ $os = "centos" ]; then
-    make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
-    make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
+    make -j40;
 fi
 
 # INSTALLING VANILLA CEPH LUMINOUS on all nodes client+osds
