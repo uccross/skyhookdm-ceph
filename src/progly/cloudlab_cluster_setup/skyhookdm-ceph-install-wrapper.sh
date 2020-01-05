@@ -82,19 +82,33 @@ pdsw_branch="skyhook-luminous";
 repo_dir="/mnt/${REPO_DISK}/"
 ansible_dir="${HOME}/skyhook-ansible/ansible/"
 echo "clear out prev data dirs and scripts."
-scripts_dir="${HOME}/pdsw19-reprod/scripts/"
-data_dir="${HOME}/pdsw19-reprod/data/"
+scripts_dir="${HOME}/"
 touch nodes.txt
 rm nodes.txt
-touch postreqs.sh
-rm postreqs.sh
-touch cluster_setup_copy_ssh_keys.sh
-rm cluster_setup_copy_ssh_keys.sh
-touch mount-sdX.sh
-rm mount-sdX.sh
-touch format-sdX.sh
-rm format-sdX.sh
 
+FILE1="${HOME}/copy_ssh_keys.sh"
+if test -f "$FILE1"; then
+    echo "$FILE1 present, OK."
+else
+    echo "$FILE1 not present but required."
+    exit 1
+fi
+
+FILE2="${HOME}/format-sdx.sh"
+if test -f "$FILE2"; then
+    echo "$FILE2 present, OK."
+else
+    echo "$FILE2 not present but required."
+    exit 1
+fi
+
+FILE3="${HOME}/mount-sdx.sh"
+if test -f "$FILE3"; then
+    echo "$FILE3 present, OK."
+else
+    echo "$FILE3 not present but required."
+    exit 1
+fi
 
 # setup common ssh key for all client/osd nodes.
 # this should be provided by the user,
@@ -114,8 +128,8 @@ for ((i = 0 ; i < $nosds ; i++)); do
 done;
 
 echo "Setting up ssh keyless between all machines..."
-cp $scripts_dir/cluster_setup_copy_ssh_keys.sh . ;
-sh cluster_setup_copy_ssh_keys.sh;
+cp $scripts_dir/copy_ssh_keys.sh . ;
+sh copy_ssh_keys.sh;
 
 echo "copy scripts to all nodes"
 cd $HOME
@@ -190,11 +204,11 @@ echo "Format all the repo devs for skyhookdm-ceph cloned repo building on each c
 cd $HOME
 for n in `cat nodes.txt`; do
   echo $n
-  scp $scripts_dir/format-sdX.sh $n:~/
+  scp $scripts_dir/format-sdx.sh $n:~/
   ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${REPO_DISK}; fi;";
-  ssh $n "./format-sdX.sh ${REPO_DISK};" &
+  ssh $n "./format-sdx.sh ${REPO_DISK};" &
 done;
-echo "Waiting...  ./format-sdX.sh ${REPO_DISK};";
+echo "Waiting...  ./format-sdx.sh ${REPO_DISK};";
 wait;
 echo "";
 sleep 2s;
@@ -203,10 +217,10 @@ echo "Mount all the repo devs for skyhookdm-ceph cloned repo building on each cl
 cd $HOME
 for n in `cat nodes.txt`; do
   echo $n
-  scp $scripts_dir/mount-sdX.sh $n:~/
-  ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"already mounted\"; else ./mount-sdX.sh ${REPO_DISK};fi;" &
+  scp $scripts_dir/mount-sdx.sh $n:~/
+  ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"already mounted\"; else ./mount-sdx.sh ${REPO_DISK};fi;" &
 done;
-echo "Waiting...  ./mount-sdX.sh ${REPO_DISK}";
+echo "Waiting...  ./mount-sdx.sh ${REPO_DISK}";
 wait;
 echo "";
 sleep 2s;
@@ -248,9 +262,7 @@ sleep 2s;
 
 
 ###MAKE SKYHOOK SPECIFIC BINARIES BEFORE INSTALLING VANILLA CEPH LUMINOUS
-#~ echo "Client0: apt-get update, install basic stuff, clone skyhookdm-ceph...";
-#~ if test -s $repo_dir/skyhookdm-ceph/README; then echo "removing ${repo_dir}/skyhookdm-ceph"; sudo rm -rf $repo_dir/skyhookdm-ceph/; fi
-echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make -j38  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer...";
+echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make cls_tabular run-query sky_tabular_flatflex_writer";
 echo `date`;
 cd $repo_dir/skyhookdm-ceph;
 git checkout $pdsw_branch;
@@ -259,12 +271,8 @@ git submodule update --init --recursive;
 sudo ./install-deps.sh;
 ./do_cmake.sh;
 cd build;
-make -j40  ceph-osd librados cls_tabular run-query sky_tabular_flatflex_writer;
-
-# note: frequently on centos in cloudlab we observe boost or ceph-osd compile error, remaking all targets seems to get around it.
-if [ $os = "centos" ]; then
-    make -j40;
-fi
+make -j40 cls_tabular  run-query  sky_tabular_flatflex_writer;
+make -j40 cls_tabular  run-query  sky_tabular_flatflex_writer;
 
 # INSTALLING VANILLA CEPH LUMINOUS on all nodes client+osds
 echo `date`;
