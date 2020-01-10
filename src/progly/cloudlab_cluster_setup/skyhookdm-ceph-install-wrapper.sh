@@ -31,7 +31,8 @@ echo "using OS as '${os}'"
 nosds=$1
 sshkeypath=$2
 max_osd=$((nosds-1))
-pkgs="git x11-apps screen curl python nano scite vim x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 python-virtualenv gcc g++"
+pkgs="git x11-apps screen curl python nano scite vim x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 python-virtualenv gcc g++ bzip2 libzip"
+CEPH_VER="luminous"
 ANSIBLE_VER="2.5.1"
 REPO_DISK="sda4"
 
@@ -70,7 +71,7 @@ echo "INSTALLBUILDTOOLS=${INSTALLBUILDTOOLS}"
 echo "LIB_CLS_DIR=${LIB_CLS_DIR}"
 echo "pkgs=${pkgs}"
 echo "ANSIBLE_VER=${ANSIBLE_VER}"
-echo "ANSIBLE USES ceph-deploy-1.5.38 for ceph-luminous, i.e., env/bin/pip install ceph-deploy==1.5.38 and env/bin/ceph-deploy install --release={{ release_name }} {{ item }}"
+echo "ANSIBLE USES ceph-deploy-1.5.38 for ceph-luminous, i.e., env/bin/pip install ceph-deploy==1.5.38 and env/bin/ceph-deploy install --release={{ ${CEPH_VER} }} {{ hostname }}"
 
 cd $HOME
 # get all the scripts and sample data from public repo.
@@ -86,7 +87,8 @@ scripts_dir="${HOME}/"
 touch nodes.txt
 rm nodes.txt
 
-FILE1="${HOME}/copy_ssh_keys.sh"
+
+FILE1="${scripts_dir}/copy_ssh_keys.sh"
 if test -f "$FILE1"; then
     echo "$FILE1 present, OK."
 else
@@ -94,7 +96,7 @@ else
     exit 1
 fi
 
-FILE2="${HOME}/format-sdx.sh"
+FILE2="${scripts_dir}/format-sdx.sh"
 if test -f "$FILE2"; then
     echo "$FILE2 present, OK."
 else
@@ -102,7 +104,7 @@ else
     exit 1
 fi
 
-FILE3="${HOME}/mount-sdx.sh"
+FILE3="${scripts_dir}/mount-sdx.sh"
 if test -f "$FILE3"; then
     echo "$FILE3 present, OK."
 else
@@ -135,7 +137,7 @@ echo "copy scripts to all nodes"
 cd $HOME
 for n in  `cat nodes.txt`; do
   echo "copy scripts dir to node ${n}";
-  scp -r ${scripts_dir}/*  ${n}:~/ ;
+  scp -r ${scripts_dir}/*.sh  ${n}:~/ ;
 done;
 
 echo "on all machines, run ${pkgmgr} update and install pkgs -- note: yum update takes 30 min on cloudlab...why?";
@@ -180,6 +182,7 @@ fi
 
 cd $HOME
 git clone https://github.com/uccross/skyhook-ansible.git
+#cp ${HOME}/ansible.cfg ${HOME}/skyhook-ansible/ansible/
 cd skyhook-ansible
 git checkout pdsw19
 git submodule update --init
@@ -206,7 +209,7 @@ for n in `cat nodes.txt`; do
   echo $n
   scp $scripts_dir/format-sdx.sh $n:~/
   ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${REPO_DISK}; fi;";
-  ssh $n "./format-sdx.sh ${REPO_DISK};" &
+  ssh $n "yes | ./format-sdx.sh ${REPO_DISK};" &
 done;
 echo "Waiting...  ./format-sdx.sh ${REPO_DISK};";
 wait;
@@ -239,7 +242,7 @@ echo `date`;
 cd $HOME
 for n in  `cat nodes.txt`; do
     echo $n;
-    ssh $n "cd ${repo_dir}; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
+    ssh $n "sudo chown $(whoami) ${repo_dir}; cd ${repo_dir}; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
 done;
 echo "Waiting... clone-repo.sh";
 wait;
@@ -271,14 +274,15 @@ git submodule update --init --recursive;
 sudo ./install-deps.sh;
 ./do_cmake.sh;
 cd build;
-make -j40 cls_tabular  run-query  sky_tabular_flatflex_writer;
-make -j40 cls_tabular  run-query  sky_tabular_flatflex_writer;
+make  cls_tabular  run-query;
 
 # INSTALLING VANILLA CEPH LUMINOUS on all nodes client+osds
 echo `date`;
 echo "run ansible playbook to install vanilla ceph luminous on cluster!";
 cd $ansible_dir;
-time ansible-playbook setup_playbook.yml -vvvv ;
+#export ANSIBLE_DEBUG=True;
+export ANSIBLE_LOG_PATH=~/ansible.log;
+time ansible-playbook setup_playbook.yml -vvvv;
 echo `date`;
 echo "ansible playbook done.";
 
