@@ -1,6 +1,10 @@
 #!/bin/bash
 # set  -e
 
+# This script will install Ceph luminous onto the current node (but no osd storage here)
+# And onto each of the other nodes that will serve as OSDs with disk storage.
+
+
 if [ $# -le 1 ]
 then
   echo "Usage:"
@@ -33,8 +37,8 @@ sshkeypath=$2
 max_osd=$((nosds-1))
 pkgs="git x11-apps screen curl python nano scite vim x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 python-virtualenv gcc g++ bzip2 libzip"
 CEPH_VER="luminous"
-ANSIBLE_VER="2.5.1"
-REPO_DISK="sda4"
+REPO_DIR=${HOME}
+STORAGE_DISK="sdb"
 
 # prep for postgres installation later.
 sudo su -c "useradd postgres" ;
@@ -70,83 +74,62 @@ echo "pkgmgr=${pkgmgr}"
 echo "INSTALLBUILDTOOLS=${INSTALLBUILDTOOLS}"
 echo "LIB_CLS_DIR=${LIB_CLS_DIR}"
 echo "pkgs=${pkgs}"
-echo "ANSIBLE_VER=${ANSIBLE_VER}"
-echo "ANSIBLE USES ceph-deploy-1.5.38 for ceph-luminous, i.e., env/bin/pip install ceph-deploy==1.5.38 and env/bin/ceph-deploy install --release={{ ${CEPH_VER} }} {{ hostname }}"
+echo "Using ceph-deploy-1.5.38 for ceph-luminous, i.e., env/bin/pip install ceph-deploy==1.5.38 and env/bin/ceph-deploy install --release=${CEPH_VER} hostname"
 
-cd $HOME
+cd ${HOME}
 # get all the scripts and sample data from public repo.
-echo "also assumes your cluster ssh generic privkey is avail at absolute path provided as arg (for node to node ssh)."
-sleep 5s
+echo "Requires <4GB of space in your HOME dir to build some Ceph libs locally."
+echo "Installing Ceph ${CEPH_VER}, note assumes your cluster ssh generic privkey is avail in current dir, will replace your .ssh/id.rsa with this key, and move your current id.rsa to id.rsa.bak. "
+echo "NOTE: will clobber this entire device: ${STORAGE_DISK} on each machine.  Please cancel now if needed..."
+sleep 20s
 
 # hardcoded vars for now.
 pdsw_branch="skyhook-luminous";
-repo_dir="/mnt/${REPO_DISK}/"
-ansible_dir="${HOME}/skyhook-ansible/ansible/"
-echo "clear out prev data dirs and scripts."
+echo "clear out prev skyhookdm repo dir and nodes.txt file."
 scripts_dir="${HOME}/"
 touch nodes.txt
 rm nodes.txt
 
-
-FILE1="${scripts_dir}/copy_ssh_keys.sh"
-if test -f "$FILE1"; then
-    echo "$FILE1 present, OK."
-else
-    echo "$FILE1 not present but required."
-    exit 1
-fi
-
-FILE2="${scripts_dir}/format-sdx.sh"
-if test -f "$FILE2"; then
-    echo "$FILE2 present, OK."
-else
-    echo "$FILE2 not present but required."
-    exit 1
-fi
-
-FILE3="${scripts_dir}/mount-sdx.sh"
-if test -f "$FILE3"; then
-    echo "$FILE3 present, OK."
-else
-    echo "$FILE3 not present but required."
-    exit 1
-fi
-
 # setup common ssh key for all client/osd nodes.
 # this should be provided by the user,
-# it is the key they use to ssh into their cloudlab profile machines.
+# it is the key they use to ssh into their other machines.
 echo "setup ssh keys..."
-cd $HOME
-touch  $HOME/.ssh/id_rsa
-cp $HOME/.ssh/id_rsa ~/.ssh/id_rsa.bak
-cp $sshkeypath  ~/.ssh/id_rsa
-chmod 0600 $HOME/.ssh/id_rsa;
+cd ${HOME}
+touch  ${HOME}/.ssh/id_rsa
+cp ${HOME}/.ssh/id_rsa ~/.ssh/id_rsa.bak
+cp ${sshkeypath}  ~/.ssh/id_rsa
+chmod 0600 ${HOME}/.ssh/id_rsa;
 
 echo "create nodes.txt file for ssh key copy/setup"
-cd $HOME
+cd ${HOME}
 echo "client0" > nodes.txt;
-for ((i = 0 ; i < $nosds ; i++)); do
+for ((i = 0 ; i < ${nosds} ; i++)); do
   echo "osd${i}" >> nodes.txt;
 done;
 
 echo "Setting up ssh keyless between all machines..."
-cp $scripts_dir/copy_ssh_keys.sh . ;
-sh copy_ssh_keys.sh;
+echo "assumes there is a local file 'nodes.txt' with the correct node names of all machines:clientX through osdX"
+echo "assumes this node has its ~/.ssh/id_rsa key present and permissions are 0600"
+echo "will copy ssh keys and known host signatures to the following nodes in 10 seconds:"
+cat nodes.txt
+sleep 10
 
-echo "copy scripts to all nodes"
-cd $HOME
-for n in  `cat nodes.txt`; do
-  echo "copy scripts dir to node ${n}";
-  scp -r ${scripts_dir}/*.sh  ${n}:~/ ;
+for node in `cat nodes.txt`; do
+  ssh-keyscan -H ${node} >> ~/.ssh/known_hosts
 done;
 
-echo "on all machines, run ${pkgmgr} update and install pkgs -- note: yum update takes 30 min on cloudlab...why?";
+for node in `cat nodes.txt`; do
+  ssh ${node} 'hostname'
+  scp -p  ~/.ssh/id_rsa ${node}:~/.ssh/
+  scp -p  ~/.ssh/known_hosts ${node}:~/.ssh/
+
+done;
 
 # INSTALL BUILD TOOLS
-cd $HOME
-for n in  `cat nodes.txt`; do
-    echo $n;
-    ssh $n "sudo ${pkgmgr} update -y && sudo ${INSTALLBUILDTOOLS} -y > ${pkgmgr}-INSTALLBUILDTOOLS.out 2>&1;" &
+cd ${HOME}
+for node in  `cat nodes.txt`; do
+    echo ${node};
+    ssh ${node} "sudo ${pkgmgr} update -y && sudo ${INSTALLBUILDTOOLS} -y > ${pkgmgr}-INSTALLBUILDTOOLS.out 2>&1;" &
 done;
 echo "Waiting... ${pkgmgr} update and install INSTALLBUILDTOOLS";
 wait;
@@ -154,164 +137,164 @@ echo "";
 sleep 2s;
 
 # INSTALL PKGS
-cd $HOME
-for n in  `cat nodes.txt`; do
-    echo $n;
-    ssh $n "sudo ${pkgmgr} update && sudo ${pkgmgr} install ${pkgs} -y > ${pkgmgr}-install-pkgs.out 2>&1;" &
+cd ${HOME}
+for node in  `cat nodes.txt`; do
+    echo ${node};
+    ssh ${node} "sudo ${pkgmgr} update && sudo ${pkgmgr} install ${pkgs} -y > ${pkgmgr}-install-pkgs.out 2>&1;" &
 done;
 echo "Waiting... ${pkgmgr} update and install pkgs";
 wait;
 echo "";
 sleep 2s;
 
-#~ echo | sudo apt-add-repository ppa:ansible/ansible ;
-#~ sudo apt-get update ;
-#~ sudo apt-get install ansible=2.5.1+dfsg-1ubuntu0.1 -y ;
-
-echo "install ansible on the controller host/client0 node only."
-echo "remove previous ansible verisons if needed present ..."
-sudo ${pkgmgr} remove ansible -y;
-sudo pip uninstall -y ansible;
-sudo -H pip install ansible==${ANSIBLE_VER}
-echo "done sudo pip install ansible==${ANSIBLE_VER} ..."
-
-# pip on ubuntu may install ansible in /usr/local/bin, so link to /usr/bin/
-if test -f /usr/local/bin/ansible;
-    then  sudo ln -s /usr/local/bin/ansible /usr/bin/ansible;
-fi
-
-cd $HOME
-git clone https://github.com/uccross/skyhook-ansible.git
-#cp ${HOME}/ansible.cfg ${HOME}/skyhook-ansible/ansible/
-cd skyhook-ansible
-git checkout pdsw19
-git submodule update --init
-
-echo "specify correct num osds for this cluster in ansible hosts file"
-cd $HOME
-for ((i = 0 ; i < $nosds ; i++)); do
-  echo "osd${i}" >> $ansible_dir/hosts;
-done;
-cp $ansible_dir/hosts $ansible_dir/lib/ceph-deploy-ansible/ansible/hosts;
-
-echo "VERIFY osds all there"
-cat $ansible_dir/lib/ceph-deploy-ansible/ansible/hosts;
-
-echo "update the max_osd here /vars/extra_vars.yml  as well."
-head -n 4 $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/extra_vars.yml >>   $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
-echo "num_osds: ${nosds}" >>$ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
-mv $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/extra_vars.yml;
-rm -rf $ansible_dir/lib/ceph-deploy-ansible/ansible/vars/tmp.yml;
-
-echo "Format all the repo devs for skyhookdm-ceph cloned repo building on each client+osd nodes..";
-cd $HOME
-for n in `cat nodes.txt`; do
-  echo $n
-  scp $scripts_dir/format-sdx.sh $n:~/
-  ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${REPO_DISK}; fi;";
-  ssh $n "yes | ./format-sdx.sh ${REPO_DISK};" &
-done;
-echo "Waiting...  ./format-sdx.sh ${REPO_DISK};";
-wait;
-echo "";
-sleep 2s;
-
-echo "Mount all the repo devs for skyhookdm-ceph cloned repo building on each client+osd nodes..";
-cd $HOME
-for n in `cat nodes.txt`; do
-  echo $n
-  scp $scripts_dir/mount-sdx.sh $n:~/
-  ssh $n "if df -h | grep -q ${REPO_DISK}; then echo \"already mounted\"; else ./mount-sdx.sh ${REPO_DISK};fi;" &
-done;
-echo "Waiting...  ./mount-sdx.sh ${REPO_DISK}";
-wait;
-echo "";
-sleep 2s;
-
-echo "visually  verify all devices ${REPO_DISK} mounted at /mnt/${REPO_DISK}";
-cd $HOME
-for n in `cat nodes.txt`; do
-  echo $n
-  ssh $n "df -h | grep ${REPO_DISK};";
-done;
-sleep 3s;
-
 # note this typically takes 1 min per node
 echo "on all machines, clone skyhook repo...";
 echo `date`;
-cd $HOME
-for n in  `cat nodes.txt`; do
-    echo $n;
-    ssh $n "sudo chown $(whoami) ${repo_dir}; cd ${repo_dir}; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
+cd ${HOME}
+for node in  `cat nodes.txt`; do
+    echo ${node};
+    ssh ${node} "cd ${REPO_DIR}; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
 done;
 echo "Waiting... clone-repo.sh";
 wait;
 echo "";
 sleep 2s;
 
-
 # note this takes about 1 min per node as well.
 echo "on all machines, , run install deps...";
 echo `date`;
-cd $HOME
-for n in  `cat nodes.txt`; do
-    echo $n;
-    ssh $n  "cd ${repo_dir}/skyhookdm-ceph;  export DEBIAN_FRONTEND=noninteractive; git checkout $pdsw_branch > git-checkout.out 2>&1; git submodule update --init --recursive  > submodule-init.out 2>&1; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
+cd ${HOME}
+for node in  `cat nodes.txt`; do
+    echo ${node};
+    ssh ${node}  "cd ${REPO_DIR}/skyhookdm-ceph; export DEBIAN_FRONTEND=noninteractive; git checkout $pdsw_branch > git-checkout.out 2>&1; git submodule update --init --recursive  > submodule-init.out 2>&1; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
 done;
 echo "Waiting... install-deps.sh on all nodes";
 wait;
 echo "";
 sleep 2s;
 
+echo "INSTALL CEPH LUMINOUS on all nodes VIA CEPH-DEPLOY STEPS"
+mkdir -p ${HOME}/cluster
+cd ${HOME}/cluster
+virtualenv env
+env/bin/pip  install ceph-deploy==1.5.38
+for node in  `cat ${HOME}/nodes.txt`; do
+    echo ${node};
+    env/bin/ceph-deploy install --release=${CEPH_VER} ${node}
+done;
+
+# CREATE A NEW CLUSTER default name=ceph; also this creates ceph.conf locally
+cd ${HOME}/cluster
+env/bin/ceph-deploy new client0
+sudo chmod 0777 ceph.conf
+# append this to /etc/ceph/ceph.conf
+echo "
+osd pool default size = 1
+osd pool default min size = 1
+osd crush chooseleaf type = 0
+osd pool default pg num = 256
+osd pool default pgp num = 256
+mon_allow_pool_delete = true
+osd_class_load_list = *
+osd_class_default_list = *
+objecter_inflight_op_bytes = 2147483648
+enable experimental unrecoverable data corrupting features = *
+
+[osd]
+osd max write size = 128 #The maximum size of a write in megabytes.
+osd max object size = 256000000 #The maximum size of a RADOS object in bytes.
+debug ms = 1
+debug osd = 25
+debug objecter = 20
+debug monc = 20
+debug mgrc = 20
+debug journal = 20
+debug filestore = 20
+debug bluestore = 30
+debug bluefs = 20
+debug rocksdb = 10
+debug bdev = 20
+debug rgw = 20
+debug reserver = 10
+debug objclass = 20
+" >> ceph.conf
+
+cd ${HOME}/cluster
+env/bin/ceph-deploy gatherkeys client0
+sudo chmod 0766 *.keyring
+sudo cp *.keyring /etc/ceph/
+env/bin/ceph-deploy mon create-initial
+env/bin/ceph-deploy mgr create client0
+env/bin/ceph-deploy admin client0
+
+echo "Format all the data storage devs for ceph on osd nodes only..";
+cd ${HOME}
+for ((i = 0 ; i < ${nosds} ; i++)); do
+    echo osd${i};
+    ssh osd${i} "if df -h | grep -q ${STORAGE_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${STORAGE_DISK}; fi;";
+    ssh osd${i} "yes | sudo mkfs -t ext4 /dev/${STORAGE_DISK};" &
+done;
+echo "Waiting...  formatting ${STORAGE_DISK};";
+wait;
+echo "";
+sleep 2s;
+
+# CREATE CEPH OSDS
+cd ${HOME}/cluster
+for ((i = 0 ; i < ${nosds} ; i++)); do
+    echo osd${i};
+    env/bin/ceph-deploy osd create osd${i}:/dev/${STORAGE_DISK}
+done;
+
+# force push any new config changes
+cd ${HOME}/cluster
+for ((i = 0 ; i < ${nosds}; i++)); do
+    echo osd${i};
+    env/bin/ceph-deploy --overwrite-conf  config push osd${i}
+    env/bin/ceph-deploy osd list osd${i}
+done;
+
+# Get keys and set perms to allow other than root to connect to cluster.  Do these gather into the local dir or /etc/ceph?
+# rm *.keyring
+cd ${HOME}/cluster
+#env/bin/ceph-deploy forgetkeys
+env/bin/ceph-deploy gatherkeys client0
+sudo cp *.keyring /etc/ceph/
+sudo chmod 0766 /etc/ceph/*.keyring
 
 ###MAKE SKYHOOK SPECIFIC BINARIES BEFORE INSTALLING VANILLA CEPH LUMINOUS
-echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make cls_tabular run-query sky_tabular_flatflex_writer";
+echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make cls_tabular run-query";
 echo `date`;
-cd $repo_dir/skyhookdm-ceph;
-git checkout $pdsw_branch;
+cd ${REPO_DIR}/skyhookdm-ceph/;
+git checkout ${pdsw_branch};
 export DEBIAN_FRONTEND="noninteractive";
 git submodule update --init --recursive;
 sudo ./install-deps.sh;
 ./do_cmake.sh;
 cd build;
-make  cls_tabular  run-query;
-
-# INSTALLING VANILLA CEPH LUMINOUS on all nodes client+osds
-echo `date`;
-echo "run ansible playbook to install vanilla ceph luminous on cluster!";
-cd $ansible_dir;
-#export ANSIBLE_DEBUG=True;
-export ANSIBLE_LOG_PATH=~/ansible.log;
-time ansible-playbook setup_playbook.yml -vvvv;
-echo `date`;
-echo "ansible playbook done.";
+make -j2 cls_tabular;
+make -j10 run-query;
+make -j10 sky_tabular_flatflex_writer;
+echo `date`
 
 echo "Copying our libcls so file to each osd, to the correct dir, and set symlinks";
-sudo chmod a-x   $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0;
-for ((i = 0 ; i < $nosds ; i++)); do
-    echo osd$i;
-    scp $repo_dir/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0  osd$i:/tmp/;
-    ssh  osd$i "sudo cp /tmp/libcls_tabular.so.1.0.0 ${LIB_CLS_DIR};";
-    ssh  osd$i "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so.1; then sudo  unlink libcls_tabular.so.1; fi";
-    ssh  osd$i "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so; then sudo unlink libcls_tabular.so; fi";
-    ssh  osd$i "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1.0.0 libcls_tabular.so.1;";
-    ssh  osd$i "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1 libcls_tabular.so;";
+for node in  `cat ${HOME}/nodes.txt`; do
+    echo ${node};
+    scp ${REPO_DIR}/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0  ${node}:/tmp/;
+    ssh ${node} "sudo cp /tmp/libcls_tabular.so.1.0.0 ${LIB_CLS_DIR};";
+    ssh ${node} "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so.1; then sudo  unlink libcls_tabular.so.1; fi";
+    ssh ${node} "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so; then sudo unlink libcls_tabular.so; fi";
+    ssh ${node} "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1.0.0 libcls_tabular.so.1;";
+    ssh ${node} "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1 libcls_tabular.so;";
 done;
 
 echo "on each osd, verify that libcls_tabular.so is present at ${LIB_CLS_DIR}"
-for ((i = 0 ; i < $nosds ; i++)); do
-    echo "checking for libcls_tabular on osd${i}";
-    ssh osd$i "ls -alh ${LIB_CLS_DIR} | grep -i libcls_tabular";
+for node in  `cat ${HOME}/nodes.txt`; do
+    echo ${node};
+    echo "checking for libcls_tabular:";
+    ssh ${node} "ls -alh ${LIB_CLS_DIR} | grep -i libcls_tabular";
 done;
 
 echo "All done skyhook ansible setup.";
 echo `date`;
 
-#~ ### PARALLELIZE Ansible
-#~ for i in  $(seq 0  ${max_osd}); do
-  #~ echo "osd${i}: calling->ansible-playbook site.yml --limit osds[$i]"
-#~ done;
-#~ ansible-playbook site.yml --limit client
-#~ ansible-playbook site.yml --limit osds[0]
-#~ ansible-playbook site.yml --limit osds[1-2]
-#~ ansible-playbook site.yml --limit osds[2-3]
