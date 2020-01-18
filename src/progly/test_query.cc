@@ -113,7 +113,7 @@ class SkyhookQuery : public ::testing::Test {
         s->c = librados::Rados::aio_create_completion();
 
         if (use_cls) {
-          query_op op;
+          test_op op;
           op.query = query;
           op.extended_price = extended_price;
           op.order_key = order_key;
@@ -131,7 +131,7 @@ class SkyhookQuery : public ::testing::Test {
           bufferlist inbl;
           ::encode(op, inbl);
           int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "exec_query_op", inbl, &s->bl);
+            "tabular", "test_query_op", inbl, &s->bl);
           ASSERT_GE(ret, 0);
           s->c->wait_for_complete();
           ret = s->c->get_return_value();

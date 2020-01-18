@@ -12,7 +12,8 @@
 #ifndef CLS_TABULAR_H
 #define CLS_TABULAR_H
 
-#include "include/types.h"
+#include <include/types.h>
+
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
 
@@ -111,22 +112,8 @@ enum CompressionType {
  */
 struct query_op {
 
-  // query parameters (old)
-  std::string query;   // query name
-  double extended_price;
-  int order_key;
-  int line_number;
-  int ship_date_low;
-  int ship_date_high;
-  double discount_low;
-  double discount_high;
-  double quantity;
-  std::string comment_regex;
-  bool use_index;
-  bool projection;
-  uint64_t extra_row_cost;
-
-  // query parameters (new) flatbufs
+  // query parameters
+  std::string query;   // query type TODO: remove
   bool fastpath;
   bool index_read;
   bool mem_constrain;
@@ -151,19 +138,6 @@ struct query_op {
   void encode(bufferlist& bl) const {
     ENCODE_START(1, 1, bl);
     ::encode(query, bl);
-    ::encode(extended_price, bl);
-    ::encode(order_key, bl);
-    ::encode(line_number, bl);
-    ::encode(ship_date_low, bl);
-    ::encode(ship_date_high, bl);
-    ::encode(discount_low, bl);
-    ::encode(discount_high, bl);
-    ::encode(quantity, bl);
-    ::encode(comment_regex, bl);
-    ::encode(use_index, bl);
-    ::encode(projection, bl);
-    ::encode(extra_row_cost, bl);
-    // flatbufs
     ::encode(fastpath, bl);
     ::encode(index_read, bl);
     ::encode(mem_constrain, bl);
@@ -188,19 +162,6 @@ struct query_op {
   void decode(bufferlist::iterator& bl) {
     DECODE_START(1, bl);
     ::decode(query, bl);
-    ::decode(extended_price, bl);
-    ::decode(order_key, bl);
-    ::decode(line_number, bl);
-    ::decode(ship_date_low, bl);
-    ::decode(ship_date_high, bl);
-    ::decode(discount_low, bl);
-    ::decode(discount_high, bl);
-    ::decode(quantity, bl);
-    ::decode(comment_regex, bl);
-    ::decode(use_index, bl);
-    ::decode(projection, bl);
-    ::decode(extra_row_cost, bl);
-    // flatbufs
     ::decode(fastpath, bl);
     ::decode(index_read, bl);
     ::decode(mem_constrain, bl);
@@ -244,6 +205,88 @@ struct query_op {
   }
 };
 WRITE_CLASS_ENCODER(query_op)
+
+struct test_op {
+
+  // query parameters (old)
+  std::string query;   // query name
+  double extended_price;
+  int order_key;
+  int line_number;
+  int ship_date_low;
+  int ship_date_high;
+  double discount_low;
+  double discount_high;
+  double quantity;
+  std::string comment_regex;
+  bool use_index;
+  bool projection;
+  uint64_t extra_row_cost;
+  bool fastpath;
+
+  test_op() {}
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(query, bl);
+    ::encode(extended_price, bl);
+    ::encode(order_key, bl);
+    ::encode(line_number, bl);
+    ::encode(ship_date_low, bl);
+    ::encode(ship_date_high, bl);
+    ::encode(discount_low, bl);
+    ::encode(discount_high, bl);
+    ::encode(quantity, bl);
+    ::encode(comment_regex, bl);
+    ::encode(use_index, bl);
+    ::encode(projection, bl);
+    ::encode(extra_row_cost, bl);
+    ::encode(fastpath, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(query, bl);
+    ::decode(extended_price, bl);
+    ::decode(order_key, bl);
+    ::decode(line_number, bl);
+    ::decode(ship_date_low, bl);
+    ::decode(ship_date_high, bl);
+    ::decode(discount_low, bl);
+    ::decode(discount_high, bl);
+    ::decode(quantity, bl);
+    ::decode(comment_regex, bl);
+    ::decode(use_index, bl);
+    ::decode(projection, bl);
+    ::decode(extra_row_cost, bl);
+    ::decode(fastpath, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("test_op:");
+    s.append(" .query=" + query);
+    s.append(" .extended_price=" + std::to_string(extended_price));
+    s.append(" .order_key=" + std::to_string(order_key));
+    s.append(" .line_number=" + std::to_string(line_number));
+    s.append(" .ship_date_low=" + std::to_string(ship_date_low));
+    s.append(" .ship_date_high=" + std::to_string(ship_date_high));
+    s.append(" .discount_low=" + std::to_string(discount_low));
+    s.append(" .discount_high=" + std::to_string(discount_high));
+    s.append(" .quantity=" + std::to_string(quantity));
+    s.append(" .comment_regex=" + comment_regex);
+    s.append(" .use_index=" + std::to_string(use_index));
+    s.append(" .projection=" + std::to_string(projection));
+    s.append(" .extra_row_cost=" + std::to_string(extra_row_cost));
+    s.append(" .fastpath=" + std::to_string(fastpath));
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(test_op)
 
 
 struct stats_op {

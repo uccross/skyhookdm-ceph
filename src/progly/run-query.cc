@@ -821,19 +821,6 @@ int main(int argc, char **argv)
         if (use_cls) {
         query_op op;
         op.query = query;
-        op.extended_price = extended_price;
-        op.order_key = order_key;
-        op.line_number = line_number;
-        op.ship_date_low = ship_date_low;
-        op.ship_date_high = ship_date_high;
-        op.discount_low = discount_low;
-        op.discount_high = discount_high;
-        op.quantity = quantity;
-        op.comment_regex = comment_regex;
-        op.use_index = use_index;
-        op.projection = projection;
-        op.extra_row_cost = extra_row_cost;
-        // flatbufs
         op.fastpath = qop_fastpath;
         op.index_read = qop_index_read;
         op.mem_constrain = qop_mem_constrain;
@@ -861,6 +848,43 @@ int main(int argc, char **argv)
         checkret(ret, 0);
       }
   }
+    // handle older test queries
+    if (query == "a" or
+        query == "b" or
+        query == "c" or
+        query == "d" or
+        query == "e" or
+        query == "f" or
+        query == "g") {
+            if (use_cls) {
+                test_op op;
+                op.query = query;
+                op.fastpath = qop_fastpath;
+                op.extended_price = extended_price;
+                op.order_key = order_key;
+                op.line_number = line_number;
+                op.ship_date_low = ship_date_low;
+                op.ship_date_high = ship_date_high;
+                op.discount_low = discount_low;
+                op.discount_high = discount_high;
+                op.quantity = quantity;
+                op.comment_regex = comment_regex;
+                op.use_index = use_index;
+                op.projection = projection;
+                op.extra_row_cost = extra_row_cost;
+                op.fastpath = fastpath;
+
+                ceph::bufferlist inbl;
+                ::encode(op, inbl);
+                int ret = ioctx.aio_exec(oid, s->c,
+                    "tabular", "test_query_op", inbl, &s->bl);
+                checkret(ret, 0);
+            }
+            else {
+                int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+                checkret(ret, 0);
+            }
+    }
 
     if (query == "example") {
 
