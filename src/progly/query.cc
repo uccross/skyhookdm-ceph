@@ -309,15 +309,6 @@ static void print_data(bufferlist out) {
     std::cout << "Busy:" << info.table_busy << std::endl;
     print_lock.unlock();
 }
-// NOTE: these only used for older fixed size rows test dataset
-static const size_t order_key_field_offset = 0;
-static const size_t line_number_field_offset = 12;
-static const size_t quantity_field_offset = 16;
-static const size_t extended_price_field_offset = 24;
-static const size_t discount_field_offset = 32;
-static const size_t shipdate_field_offset = 50;
-static const size_t comment_field_offset = 97;
-static const size_t comment_field_length = 44;
 
 static void worker_test_par(librados::IoCtx *ioctx, int i, uint64_t iters,
     bool test_par_read)
@@ -986,6 +977,16 @@ void worker()
         }
     }
     else {   // older processing code below
+
+        // NOTE: these only used for older fixed size rows test dataset
+        static const size_t order_key_field_offset = 0;
+        static const size_t line_number_field_offset = 12;
+        static const size_t quantity_field_offset = 16;
+        static const size_t extended_price_field_offset = 24;
+        static const size_t discount_field_offset = 32;
+        static const size_t shipdate_field_offset = 50;
+        static const size_t comment_field_offset = 97;
+        static const size_t comment_field_length = 44;
         ceph::bufferlist bl;
 
         // if it was a cls read, first unpack some of the cls processing info
@@ -1048,7 +1049,8 @@ void worker()
               }
             }
           }
-        } else if (query == "b") {
+        }
+        else if (query == "b") {
           if (projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
@@ -1067,7 +1069,8 @@ void worker()
               }
             }
           }
-        } else if (query == "c") {
+        }
+        else if (query == "c") {
           if (projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
@@ -1086,7 +1089,8 @@ void worker()
               }
             }
           }
-        } else if (query == "d") {
+        }
+        else if (query == "d") {
           if (projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
@@ -1109,7 +1113,8 @@ void worker()
               }
             }
           }
-        } else if (query == "e") {
+        }
+        else if (query == "e") {
           if (projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
@@ -1134,7 +1139,8 @@ void worker()
               }
             }
           }
-        } else if (query == "f") {
+        }
+        else if (query == "f") {
           if (projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
@@ -1155,14 +1161,15 @@ void worker()
               }
             }
           }
-        } else if (query == "fastpath") {
+        }
+        else if (query == "fastpath") {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
               print_row(row);
               result_count++;
             }
         }
-        else {
+        else {  // unrecognized query type
           assert(0);
         }
     }
