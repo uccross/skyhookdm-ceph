@@ -282,8 +282,8 @@ for node in  `cat ${HOME}/nodes.txt`; do
     echo ${node};
     scp ${REPO_DIR}/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0  ${node}:/tmp/;
     ssh ${node} "sudo cp /tmp/libcls_tabular.so.1.0.0 ${LIB_CLS_DIR};";
-    ssh ${node} "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so.1; then sudo  unlink libcls_tabular.so.1; fi";
     ssh ${node} "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so; then sudo unlink libcls_tabular.so; fi";
+    ssh ${node} "cd ${LIB_CLS_DIR}; if test -f libcls_tabular.so.1; then sudo  unlink libcls_tabular.so.1; fi";
     ssh ${node} "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1.0.0 libcls_tabular.so.1;";
     ssh ${node} "cd ${LIB_CLS_DIR}; sudo ln -s libcls_tabular.so.1 libcls_tabular.so;";
 done;
