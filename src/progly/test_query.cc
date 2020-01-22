@@ -85,7 +85,7 @@ class SkyhookQuery : public ::testing::Test {
     }
 
     virtual void SetUp() {
-      projection = false;
+      old_projection = false;
       extended_price = 0.0;
       order_key = 0.0;
       line_number = 0.0;
@@ -97,7 +97,7 @@ class SkyhookQuery : public ::testing::Test {
       comment_regex = "";
       use_index = false;
       use_cls = false;
-      projection = false;
+      old_projection = false;
       extra_row_cost = 0;
       quiet = true;
 
@@ -125,7 +125,7 @@ class SkyhookQuery : public ::testing::Test {
           op.quantity = quantity;
           op.comment_regex = comment_regex;
           op.use_index = use_index;
-          op.projection = projection;
+          op.old_projection = old_projection;
           op.extra_row_cost = extra_row_cost;
 
           bufferlist inbl;

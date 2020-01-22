@@ -1656,7 +1656,7 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     }
     else if (op.query == "b") {  // range query on extended_price col
 
-        if (op.projection) {  // only add (orderkey,linenum) data to result set
+        if (op.old_projection) {  // only add (orderkey,linenum) data to result set
             for (size_t rid = 0; rid < num_rows; rid++) {
                 const char *row = rows + rid * row_size;
                 const char *vptr = row + extended_price_field_offset;
@@ -1682,7 +1682,7 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     }
     else if (op.query == "c") {  // equality query on extended_price col
 
-        if (op.projection) {
+        if (op.old_projection) {
             for (size_t rid = 0; rid < num_rows; rid++) {
                 const char *row = rows + rid * row_size;
                 const char *vptr = row + extended_price_field_offset;
@@ -1760,7 +1760,7 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 const char *row = bl.c_str();
 
                 // add cols to result set.
-                if (op.projection) {
+                if (op.old_projection) {
                     result_bl.append(row + order_key_field_offset, 4);
                     result_bl.append(row + line_number_field_offset, 4);
                 }
@@ -1790,7 +1790,7 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             }
         }
         else {  // no index, look for matching row(s) and extract key cols.
-            if (op.projection) {
+            if (op.old_projection) {
                 for (size_t rid = 0; rid < num_rows; rid++) {
                     const char *row = rows + rid * row_size;
                     const char *vptr = row + order_key_field_offset;
@@ -1824,7 +1824,7 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         }
     }  // end query d
     else if (op.query == "e") {  // range query over multiple cols
-        if (op.projection) {  // look for matching row(s) and extract key cols.
+        if (op.old_projection) {  // look for matching row(s) and extract key cols.
             for (size_t rid = 0; rid < num_rows; rid++) {
                 const char *row = rows + rid * row_size;
                 const int shipdate_val = *((const int *)(row + shipdate_field_offset));
@@ -1859,7 +1859,7 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         }
     }
     else if (op.query == "f") {  // regex query on comment cols
-        if (op.projection) {  // look for matching row(s) and extract key cols.
+        if (op.old_projection) {  // look for matching row(s) and extract key cols.
             RE2 re(op.comment_regex);
             for (size_t rid = 0; rid < num_rows; rid++) {
                 const char *row = rows + rid * row_size;

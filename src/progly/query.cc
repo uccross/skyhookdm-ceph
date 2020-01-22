@@ -25,7 +25,7 @@ bool quiet;
 bool use_cls;
 std::string query;
 bool use_index;
-bool projection;
+bool old_projection;
 uint32_t index_batch_size;
 uint64_t extra_row_cost;
 
@@ -81,8 +81,9 @@ std::string qop_dataset_name;
 std::string qop_file_name;
 std::string qop_tree_name;
 
-// for runstats op on a given table name
+// other exec flags
 bool runstats;
+std::string project_cols;
 
 // for debugging, prints full record header and metadata
 bool print_verbose;
@@ -131,7 +132,7 @@ static void print_row(const char *row)
 
   const size_t order_key_field_offset = 0;
   size_t line_number_field_offset;
-  if (projection && use_cls)
+  if (old_projection && use_cls)
     line_number_field_offset = 4;
   else
     line_number_field_offset = 12;
@@ -151,7 +152,7 @@ static void print_row(const char *row)
   const std::string comment = string_ncopy(row + comment_field_offset,
       comment_field_length);
 
-  if (projection) {
+  if (old_projection) {
     std::cout << order_key <<
       "|" << line_number <<
       std::endl;
@@ -543,11 +544,13 @@ void worker()
                     assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
             }
 
-            // check if we need to do any more processing: project/select/agg
-            // TODO: check for/add global aggs here.
+            // check if cols to be projected or preds remaining to be applied
+            // TODO: add any global aggs here.
             bool more_processing = false;
             if (!use_cls) {
-                if (projection || sky_qry_preds.size() > 0) {
+                // TODO: remove pushed-down preds from sky_qry_preds then we
+                // can remove project flag and just check size of preds here.
+                if ((project_cols != PROJECT_DEFAULT) || (sky_qry_preds.size() > 0)) {
                     more_processing = true;
                 }
             }
@@ -908,7 +911,7 @@ void worker()
         // our older query processing code below...
         // apply the query
         size_t row_size;
-        if (projection && use_cls)
+        if (old_projection && use_cls)
           row_size = 8;
         else
           row_size = 141;
@@ -931,7 +934,7 @@ void worker()
             ::decode(matching_rows, it);
             result_count += matching_rows;
           } else {
-            if (projection && use_cls) {
+            if (old_projection && use_cls) {
               result_count += num_rows;
             } else {
               for (size_t rid = 0; rid < num_rows; rid++) {
@@ -948,7 +951,7 @@ void worker()
           }
         }
         else if (query == "b") {
-          if (projection && use_cls) {
+          if (old_projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
               print_row(row);
@@ -968,7 +971,7 @@ void worker()
           }
         }
         else if (query == "c") {
-          if (projection && use_cls) {
+          if (old_projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
               print_row(row);
@@ -988,7 +991,7 @@ void worker()
           }
         }
         else if (query == "d") {
-          if (projection && use_cls) {
+          if (old_projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
               print_row(row);
@@ -1012,7 +1015,7 @@ void worker()
           }
         }
         else if (query == "e") {
-          if (projection && use_cls) {
+          if (old_projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
               print_row(row);
@@ -1038,7 +1041,7 @@ void worker()
           }
         }
         else if (query == "f") {
-          if (projection && use_cls) {
+          if (old_projection && use_cls) {
             for (size_t rid = 0; rid < num_rows; rid++) {
               const char *row = rows + rid * row_size;
               print_row(row);
