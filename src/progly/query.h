@@ -56,7 +56,7 @@ extern bool quiet;
 extern bool use_cls;
 extern std::string query;
 extern bool use_index;
-extern bool projection;
+extern bool old_projection;
 extern uint32_t index_batch_size;
 extern uint64_t extra_row_cost;
 
@@ -114,6 +114,7 @@ extern std::string qop_tree_name;
 
 // other exec flags
 extern bool runstats;
+extern std::string project_cols;
 
 // for debugging, prints full record header and metadata
 extern bool print_verbose;

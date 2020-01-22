@@ -50,7 +50,6 @@ int main(int argc, char **argv)
   std::string index2_preds;
   std::string index_cols;
   std::string index2_cols;
-  std::string project_cols;
   std::string free_lock_obj;
   std::string init_lock_obj;
   std::string get_lock_obj;
@@ -123,7 +122,7 @@ int main(int argc, char **argv)
     ("qdepth", po::value<int>(&qdepth)->default_value(1), "queue depth")
     ("build-index", po::bool_switch(&build_index)->default_value(false), "build index")
     ("use-index", po::bool_switch(&use_index)->default_value(false), "use index")
-    ("projection", po::bool_switch(&projection)->default_value(false), "projection")
+    ("old-projection", po::bool_switch(&old_projection)->default_value(false), "use older projection method")
     ("index-batch-size", po::value<uint32_t>(&index_batch_size)->default_value(1000), "index (read/write) batch size")
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
@@ -149,10 +148,10 @@ int main(int argc, char **argv)
     ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")
     ("index-cols", po::value<std::string>(&index_cols)->default_value(""), project_help_msg.c_str())
     ("index2-cols", po::value<std::string>(&index2_cols)->default_value(""), project_help_msg.c_str())
-    ("project-cols", po::value<std::string>(&project_cols)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
+    ("project", po::value<std::string>(&project_cols)->default_value(Tables::PROJECT_DEFAULT), project_help_msg.c_str())
     ("index-preds", po::value<std::string>(&index_preds)->default_value(""), select_help_msg.c_str())
     ("index2-preds", po::value<std::string>(&index2_preds)->default_value(""), select_help_msg.c_str())
-    ("select-preds", po::value<std::string>(&query_preds)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
+    ("select", po::value<std::string>(&query_preds)->default_value(Tables::SELECT_DEFAULT), select_help_msg.c_str())
     ("index-delims", po::value<std::string>(&text_index_delims)->default_value(""), "Use delim for text indexes (def=whitespace")
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
@@ -312,7 +311,7 @@ int main(int argc, char **argv)
   } else if (query == "fastpath") {   // no processing required
 
     assert(!use_index); // not supported
-    assert(!projection); // not supported
+    assert(!old_projection); // not supported
     std::cout << "select * from lineitem" << std::endl;
 
   } else if (query == "flatbuf") {
@@ -420,7 +419,6 @@ int main(int argc, char **argv)
                 fastpath = true;
         }
     } else {
-        projection = true;
         if (hasAggPreds(sky_qry_preds)) {
             for (auto it = sky_qry_preds.begin();
                  it != sky_qry_preds.end(); ++it) {
@@ -1034,7 +1032,7 @@ int main(int argc, char **argv)
                 op.quantity = quantity;
                 op.comment_regex = comment_regex;
                 op.use_index = use_index;
-                op.projection = projection;
+                op.old_projection = old_projection;
                 op.extra_row_cost = extra_row_cost;
                 op.fastpath = fastpath;
 

@@ -12,13 +12,13 @@ for nthreads in 1 2 3 4 5; do
     local_cmd=$(cat ${THIS_DIR}/test/q${q}.txt)
     $local_cmd --nthreads $nthreads | sort > $output
     diff $output ${THIS_DIR}/test/q${q}.expected_result.sorted.txt
-    $local_cmd --nthreads $nthreads --projection | sort > $output
+    $local_cmd --nthreads $nthreads --old-projection | sort > $output
     diff $output ${THIS_DIR}/test/q${q}.projection.expected_result.sorted.txt
 
     remote_cmd=$(cat ${THIS_DIR}/test/q${q}.cls.txt)
     $remote_cmd --nthreads $nthreads | sort > $output
     diff $output ${THIS_DIR}/test/q${q}.cls.expected_result.sorted.txt
-    $remote_cmd --nthreads $nthreads --projection | sort > $output
+    $remote_cmd --nthreads $nthreads --old-projection | sort > $output
     diff $output ${THIS_DIR}/test/q${q}.cls.projection.expected_result.sorted.txt
   done
 
@@ -27,6 +27,6 @@ for nthreads in 1 2 3 4 5; do
   qd_cmd=$(cat ${THIS_DIR}/test/qd.cls.txt)
   $qd_cmd --nthreads $nthreads --use-index | sort > $output
   diff $output ${THIS_DIR}/test/qd.cls.expected_result.sorted.txt
-  $qd_cmd --nthreads $nthreads --use-index --projection | sort > $output
+  $qd_cmd --nthreads $nthreads --use-index --old-projection | sort > $output
   diff $output ${THIS_DIR}/test/qd.cls.projection.expected_result.sorted.txt
 done

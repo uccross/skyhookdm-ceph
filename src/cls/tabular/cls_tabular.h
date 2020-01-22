@@ -220,7 +220,7 @@ struct test_op {
   double quantity;
   std::string comment_regex;
   bool use_index;
-  bool projection;
+  bool old_projection;
   uint64_t extra_row_cost;
   bool fastpath;
 
@@ -240,7 +240,7 @@ struct test_op {
     ::encode(quantity, bl);
     ::encode(comment_regex, bl);
     ::encode(use_index, bl);
-    ::encode(projection, bl);
+    ::encode(old_projection, bl);
     ::encode(extra_row_cost, bl);
     ::encode(fastpath, bl);
     ENCODE_FINISH(bl);
@@ -260,7 +260,7 @@ struct test_op {
     ::decode(quantity, bl);
     ::decode(comment_regex, bl);
     ::decode(use_index, bl);
-    ::decode(projection, bl);
+    ::decode(old_projection, bl);
     ::decode(extra_row_cost, bl);
     ::decode(fastpath, bl);
     DECODE_FINISH(bl);
@@ -280,7 +280,7 @@ struct test_op {
     s.append(" .quantity=" + std::to_string(quantity));
     s.append(" .comment_regex=" + comment_regex);
     s.append(" .use_index=" + std::to_string(use_index));
-    s.append(" .projection=" + std::to_string(projection));
+    s.append(" .old_projection=" + std::to_string(old_projection));
     s.append(" .extra_row_cost=" + std::to_string(extra_row_cost));
     s.append(" .fastpath=" + std::to_string(fastpath));
     return s;
