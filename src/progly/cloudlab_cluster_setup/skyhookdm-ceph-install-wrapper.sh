@@ -234,6 +234,10 @@ for ((i = 0 ; i < ${nosds} ; i++)); do
     ssh osd${i} "if df -h | grep -q ${STORAGE_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${STORAGE_DISK}; fi;";
    ## no need to mkfs since we are now zapping ods
    ##  ssh osd${i} "yes | sudo mkfs -t ext4 /dev/${STORAGE_DISK};" &
+   # clear out any residue from first ceph partition (typically first 100MB-2GB)
+   # problem seems unique to 12.2 luminous
+   # https://tracker.ceph.com/issues/22354
+   ssh osd${i} "sudo dd if=/dev/zero of=${STORAGE_DISK} bs=1M count=2048;"
 done;
 echo "";
 sleep 2s;
