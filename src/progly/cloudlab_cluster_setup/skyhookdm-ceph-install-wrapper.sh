@@ -189,11 +189,11 @@ env/bin/ceph-deploy new client0
 sudo chmod 0777 ceph.conf
 # append this to /etc/ceph/ceph.conf
 echo "
-osd pool default size = 1
+osd pool default size = 3
 osd pool default min size = 1
 osd crush chooseleaf type = 0
-osd pool default pg num = 256
-osd pool default pgp num = 256
+osd pool default pg num = 32
+osd pool default pgp num = 32
 mon_allow_pool_delete = true
 osd_class_load_list = *
 osd_class_default_list = *
@@ -201,7 +201,7 @@ objecter_inflight_op_bytes = 2147483648
 enable experimental unrecoverable data corrupting features = *
 
 [osd]
-osd max write size = 128 #The maximum size of a write in megabytes.
+osd max write size = 250 #The maximum size of a write in megabytes.
 osd max object size = 256000000 #The maximum size of a RADOS object in bytes.
 debug ms = 1
 debug osd = 25
@@ -227,15 +227,14 @@ env/bin/ceph-deploy mon create-initial
 env/bin/ceph-deploy mgr create client0
 env/bin/ceph-deploy admin client0
 
-echo "Format all the data storage devs for ceph on osd nodes only..";
+echo "Unmounting the data storage devs for ceph on osd nodes only..";
 cd ${HOME}
 for ((i = 0 ; i < ${nosds} ; i++)); do
     echo osd${i};
     ssh osd${i} "if df -h | grep -q ${STORAGE_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${STORAGE_DISK}; fi;";
-    ssh osd${i} "yes | sudo mkfs -t ext4 /dev/${STORAGE_DISK};" &
+   ## no need to mkfs since we are now zapping ods
+   ##  ssh osd${i} "yes | sudo mkfs -t ext4 /dev/${STORAGE_DISK};" &
 done;
-echo "Waiting...  formatting ${STORAGE_DISK};";
-wait;
 echo "";
 sleep 2s;
 
@@ -243,6 +242,7 @@ sleep 2s;
 cd ${HOME}/cluster
 for ((i = 0 ; i < ${nosds} ; i++)); do
     echo osd${i};
+    env/bin/ceph-deploy disk zap osd${i}:/dev/${STORAGE_DISK}
     env/bin/ceph-deploy osd create osd${i}:/dev/${STORAGE_DISK}
 done;
 
