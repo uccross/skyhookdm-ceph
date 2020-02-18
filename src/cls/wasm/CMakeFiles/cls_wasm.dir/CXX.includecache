@@ -1,0 +1,40 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/cls_wasm.cc
+errno.h
+-
+string
+-
+sstream
+-
+time.h
+-
+include/types.h
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/include/types.h
+objclass/objclass.h
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/objclass/objclass.h
+cls_wasm.h
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/cls_wasm.h
+rust-build/src/wasmer-runtime-c-api/lib/runtime-c-api/wasmer.hh
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/lib/runtime-c-api/wasmer.hh
+
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/cls_wasm.h
+include/types.h
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/include/types.h
+
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/lib/runtime-c-api/wasmer.hh
+cstdarg
+-
+cstdint
+-
+cstdlib
+-
+new
+-
+

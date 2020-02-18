@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api-complete.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-install.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-mkdir.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-download.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-update.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-patch.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-configure.rule"
+		},
+		{
+			"file" : "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-build.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"wasmer-runtime-c-api"
+		],
+		"name" : "wasmer-runtime-c-api"
+	}
+}

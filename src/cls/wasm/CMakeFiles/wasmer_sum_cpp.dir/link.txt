@@ -1,0 +1,1 @@
+/usr/bin/c++    -rdynamic CMakeFiles/wasmer_sum_cpp.dir/wasmer_sum.cc.o  -o wasmer_sum_cpp  -L/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/target/debug -Wl,-rpath,/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/target/debug -lwasmer_runtime_c_api 

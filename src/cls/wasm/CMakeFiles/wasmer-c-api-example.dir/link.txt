@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/wasmer-c-api-example.dir/wasmer-c-api-example.c.o  -o wasmer-c-api-example  -L/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/target/debug -Wl,-rpath,/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/target/debug -lwasmer_runtime_c_api 

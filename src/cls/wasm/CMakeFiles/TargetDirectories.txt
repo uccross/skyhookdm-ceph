@@ -1,0 +1,8 @@
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/rebuild_cache.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/edit_cache.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-cpp-api-example.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-c-api-example.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/cls_wasm.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer_sum_cpp.dir
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer_sum.dir

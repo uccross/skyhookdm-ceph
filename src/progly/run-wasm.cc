@@ -62,8 +62,9 @@ int main(int argc, char **argv)
   int example_function_id;
 
   // web assembly
-  //std::string wasm_binfile;
-  //std::string wasm_engine;
+  std::string wasm_func;
+  std::string wasm_engine;
+  std::string func_params;
 
   // HEP options
   std::string dataset_name;
@@ -166,8 +167,9 @@ int main(int argc, char **argv)
     ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
-    //("wasm-binfile", po::value<std::string>(&wasm_binfile)->default_value(""), "wasm binfile name")
-    //("wasm-engine", po::value<std::string>(&wasm_engine)->default_value(""), "wasm engine name")
+    ("wasm-func", po::value<std::string>(&wasm_func)->default_value(""), "wasm function name")
+    ("wasm-engine", po::value<std::string>(&wasm_engine)->default_value(""), "wasm engine name")
+    ("func-params", po::value<std::string>(&func_params)->default_value(""), "function parameters")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -251,64 +253,7 @@ int main(int argc, char **argv)
   /*
    * sanity check queries against provided parameters
    */
-  if (query == "a") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select count(*) from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  } else if (query == "b") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice > "
-      << extended_price << std::endl;
-
-  } else if (query == "c") {
-
-    assert(!use_index); // not supported
-    assert(extended_price != 0.0);
-    std::cout << "select * from lineitem where l_extendedprice = "
-      << extended_price << std::endl;
-
-  } else if (query == "d") {
-
-    if (use_index)
-      assert(use_cls);
-
-    assert(order_key != 0);
-    assert(line_number != 0);
-    std::cout << "select * from from lineitem where l_orderkey = "
-      << order_key << " and l_linenumber = " << line_number << std::endl;
-
-  } else if (query == "e") {
-
-    assert(!use_index); // not supported
-    assert(ship_date_low != -9999);
-    assert(ship_date_high != -9999);
-    assert(discount_low != -9999.0);
-    assert(discount_high != -9999.0);
-    assert(quantity != 0.0);
-    std::cout << "select * from lineitem where l_shipdate >= "
-      << ship_date_low << " and l_shipdate < " << ship_date_high
-      << " and l_discount > " << discount_low << " and l_discount < "
-      << discount_high << " and l_quantity < " << quantity << std::endl;
-
-  } else if (query == "f") {
-
-    assert(!use_index); // not supported
-    assert(comment_regex != "");
-    std::cout << "select * from lineitem where l_comment ilike '%"
-      << comment_regex << "%'" << std::endl;
-
-  } else if (query == "fastpath") {   // no processing required
-
-    assert(!use_index); // not supported
-    assert(!old_projection); // not supported
-    std::cout << "select * from lineitem" << std::endl;
-
-  } else if (query == "flatbuf") {
+  if (query == "flatbuf") {
 
     // verify and prep client input
     using namespace Tables;
@@ -845,7 +790,7 @@ int main(int argc, char **argv)
         ceph::bufferlist inbl;
         ::encode(op, inbl);
         int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "exec_query_op", inbl, &s->bl);
+            "tabular", "exec_query_op2", inbl, &s->bl);
         checkret(ret, 0);
       } else {
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
@@ -914,25 +859,22 @@ int main(int argc, char **argv)
             checkret(ret, 0);
         }
       }
-/*
+
     if (query == "wasm") {
 
         if (use_cls) {  // execute a cls read method
 
             // setup and encode our op params here.
             wasm_inbl_sample_op op;
-            op.message = "This is an wasm op";
-            op.instructions = "Wasm instructions";
-	    op.wasm_binfile = wasm_binfile;
-	    op.wasm_engine = wasm_engine;
-            op.counter = example_counter;
-            op.func_id = example_function_id;
+            op.wasm_func = wasm_func;
+                  op.wasm_engine = wasm_engine;
+            op.func_params = func_params;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
             // execute our example method on the object, passing in our op.
             int ret = ioctx.aio_exec(oid, s->c,
-                "tabular", "wasm_query_op", inbl, &s->bl);
+                "wasm", "wasm_query_op", inbl, &s->bl);
             checkret(ret, 0);
         }
         else {  // execute standard read
@@ -940,26 +882,6 @@ int main(int argc, char **argv)
             int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
             checkret(ret, 0);
         }
-    }
-*/
-    if (query == "hep") {
-
-        // encode our op params here.
-        hep_op op;
-        op.fastpath = qop_fastpath;
-        op.dataset_name = qop_dataset_name;
-        op.file_name = qop_file_name;
-        op.tree_name = qop_tree_name;
-        op.data_schema = qop_data_schema;
-        op.query_schema = qop_query_schema;
-        op.query_preds = qop_query_preds;
-        ceph::bufferlist inbl;
-        ::encode(op, inbl);
-
-        // we only execute read via CLS method
-        int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "hep_query_op", inbl, &s->bl);
-        checkret(ret, 0);
     }
 
       lock.lock();

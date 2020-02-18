@@ -866,7 +866,7 @@ struct outbl_sample_info {
   }
 };
 WRITE_CLASS_ENCODER(outbl_sample_info)
-
+/*
 struct wasm_inbl_sample_op {
 
   std::string message;
@@ -982,7 +982,7 @@ struct wasm_outbl_sample_info {
   }
 };
 WRITE_CLASS_ENCODER(wasm_outbl_sample_info)
-
+*/
 // Example struct to store and serialize read/write info
 // for custom cls class methods
 struct hep_op {
