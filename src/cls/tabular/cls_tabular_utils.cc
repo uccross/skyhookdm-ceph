@@ -180,6 +180,55 @@ int processArrow(
                 output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::utf8()));
                 break;
             }
+            case SDT_JAGGEDARRAY_BOOL: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::BooleanBuilder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::boolean())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_INT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::Int32Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::int32())));
+                break;
+            }
+             case SDT_JAGGEDARRAY_UINT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::UInt32Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::uint32())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_INT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::Int64Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::int64())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_UINT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::UInt64Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::uint64())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_FLOAT: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::FloatBuilder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::float32())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_DOUBLE: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::DoubleBuilder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::float64())));
+                break;
+            }
             default: {
                 errcode = TablesErrCodes::UnsupportedSkyDataType;
                 errmsg.append("ERROR processArrow()");
@@ -509,6 +558,55 @@ int processArrowCol(
                 output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::utf8()));
                 break;
             }
+            case SDT_JAGGEDARRAY_BOOL: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::BooleanBuilder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::boolean())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_INT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::Int32Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::int32())));
+                break;
+            }
+             case SDT_JAGGEDARRAY_UINT32: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::UInt32Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::uint32())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_INT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::Int64Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::int64())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_UINT64: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::UInt64Builder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::uint64())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_FLOAT: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::FloatBuilder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::float32())));
+                break;
+            }
+            case SDT_JAGGEDARRAY_DOUBLE: {
+                auto ptr = std::unique_ptr<arrow::ArrayBuilder>(new arrow::ListBuilder(pool,std::make_shared<arrow::DoubleBuilder>(pool)));
+                builder_list.emplace_back(ptr.get());
+                ptr.release();
+                output_tbl_fields_vec.push_back(arrow::field(col.name, arrow::list(arrow::float64())));
+                break;
+            }
             default: {
                 errcode = TablesErrCodes::UnsupportedSkyDataType;
                 errmsg.append("ERROR processArrow()");
@@ -596,6 +694,18 @@ int processArrowCol(
                     case SDT_STRING:
                         static_cast<arrow::StringBuilder *>(builder)->Append(std::static_pointer_cast<arrow::StringArray>(processing_chunk)->GetString(rnum));
                         break;
+                    case SDT_JAGGEDARRAY_FLOAT: {
+                        // advance to the start of a new list row
+                        static_cast<arrow::ListBuilder *>(builder)->Append();
+
+                        // extract list builder as int32 builder
+                        arrow::ListBuilder* lb = static_cast<arrow::ListBuilder *>(builder);
+                        arrow::Int32Builder* ib = static_cast<arrow::Int32Builder *>(lb->value_builder());
+
+                        // TODO: extract prev values and append to ib
+                        // ib->AppendValues(vector.data(), vector.size());
+                        break;
+                    }
                     default: {
                         errcode = TablesErrCodes::UnsupportedSkyDataType;
                         errmsg.append("ERROR processArrow()");
