@@ -2984,6 +2984,58 @@ std::string GetStdoutFromCommand(string cmd) {
         return data;
 }
 
+int example_func2(string wasm_engine){
+        CLS_LOG(20, "Executing the binary file on the osd...");
+        std::string command;
+        if(wasm_engine == "wasmer"){
+                command = GetStdoutFromCommand("/usr/local/bin/wasmer-c-api-example /usr/local/bin/doNothing.wasm; echo $?");
+        } else if (wasm_engine == "wavm") {
+                command = GetStdoutFromCommand("/usr/local/bin/wavm run /usr/local/bin/doNothing_wavm.wasm; echo $?");
+        } else {
+                CLS_ERR("ERROR");
+                return -1;
+        }
+
+        CLS_LOG(20, "command = %s",command.c_str());
+        int result = std::stoi(command);
+        return result;
+}
+
+int example_func3(string wasm_engine){
+        CLS_LOG(20, "Executing the binary file on the osd...");
+        std::string command;
+        if(wasm_engine == "wasmer") {
+                command = GetStdoutFromCommand("/usr/local/bin/wasmer-c-api-example /usr/local/bin/doNothing_volatile.wasm; echo $?");
+        } else if (wasm_engine == "wavm") {
+                command = GetStdoutFromCommand("/usr/local/bin/wavm run /usr/local/bin/doNothing_volatile_wavm.wasm; echo $?");
+        } else {
+                CLS_ERR("ERROR");
+                return -1;
+        }
+
+
+        CLS_LOG(20, "command = %s",command.c_str());
+        int result = std::stoi(command);
+        return result;
+}
+
+std::string GetStdoutFromCommand(string cmd) {
+
+        std::string data;
+        FILE * stream;
+        const int max_buffer = 256;
+        char buffer[max_buffer];
+        cmd.append(" 2>&1");
+
+        stream = popen(cmd.c_str(), "r");
+        if (stream) {
+                while (!feof(stream))
+                        if (fgets(buffer, max_buffer, stream) != NULL) data.append(buffer);
+                        pclose(stream);
+                }
+        return data;
+}
+
 
 static
 int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
