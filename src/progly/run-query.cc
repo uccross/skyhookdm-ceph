@@ -62,13 +62,8 @@ int main(int argc, char **argv)
   int example_function_id;
 
   // web assembly
-<<<<<<< HEAD
   //std::string wasm_binfile;
   //std::string wasm_engine;
-=======
-  std::string wasm_binfile;
-  std::string wasm_engine;
->>>>>>> 0f7e69672ef97abbace1086a6ff7108e82b53022
 
   // HEP options
   std::string dataset_name;
@@ -171,13 +166,8 @@ int main(int argc, char **argv)
     ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
-<<<<<<< HEAD
     //("wasm-binfile", po::value<std::string>(&wasm_binfile)->default_value(""), "wasm binfile name")
     //("wasm-engine", po::value<std::string>(&wasm_engine)->default_value(""), "wasm engine name")
-=======
-    ("wasm-binfile", po::value<std::string>(&wasm_binfile)->default_value(""), "wasm binfile name")
-    ("wasm-engine", po::value<std::string>(&wasm_engine)->default_value(""), "wasm engine name")
->>>>>>> 0f7e69672ef97abbace1086a6ff7108e82b53022
  ;
 
   po::options_description all_opts("Allowed options");
