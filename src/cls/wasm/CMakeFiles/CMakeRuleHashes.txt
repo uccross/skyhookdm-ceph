@@ -1,0 +1,10 @@
+# Hashes of file build rules.
+049179bf4ecfb2eb8dd355b1322c7abe CMakeFiles/wasmer-runtime-c-api
+319bc4743685604d18b82587d176104f CMakeFiles/wasmer-runtime-c-api-complete
+c462faa2c344377c199e8b6fb4faa5a0 rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-build
+fc3f8607f755df8a54574de35734c4f2 rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-configure
+2061c564062898b19310527a6de0a9c1 rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-download
+b387a5c87d481900ead521f9750ccedd rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-install
+1da5cf0c06ea50522b8c1bf70a2fdd67 rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-mkdir
+8b5faf83fc6d4f5ef63c2f232f8e6b42 rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-patch
+00ffcc24e637188bee1980e6cca2803e rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-update

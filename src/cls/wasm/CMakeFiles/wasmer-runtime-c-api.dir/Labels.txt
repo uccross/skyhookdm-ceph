@@ -1,0 +1,13 @@
+# Target labels
+ wasmer-runtime-c-api
+# Source files and their labels
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/CMakeFiles/wasmer-runtime-c-api-complete.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-install.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-mkdir.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-download.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-update.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-patch.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-configure.rule
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api-stamp/wasmer-runtime-c-api-build.rule

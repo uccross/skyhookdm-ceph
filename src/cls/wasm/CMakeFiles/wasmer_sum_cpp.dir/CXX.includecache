@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/lib/runtime-c-api/wasmer.hh
+cstdarg
+-
+cstdint
+-
+cstdlib
+-
+new
+-
+
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/wasmer_sum.cc
+rust-build/src/wasmer-runtime-c-api/lib/runtime-c-api/wasmer.hh
+/mnt/sda4/skyhookdm-ceph/src/cls/wasm/rust-build/src/wasmer-runtime-c-api/lib/runtime-c-api/wasmer.hh
+iostream
+-
+
