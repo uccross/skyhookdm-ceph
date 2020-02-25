@@ -34,6 +34,7 @@ int main(int argc, char **argv)
   bool index_create;
   bool mem_constrain;
   bool text_index_ignore_stopwords;
+  bool lock_op;
   int index_plan_type;
   int trans_format_type;
   std::string trans_format_str;
@@ -49,6 +50,10 @@ int main(int argc, char **argv)
   std::string index2_preds;
   std::string index_cols;
   std::string index2_cols;
+  std::string free_lock_obj;
+  std::string init_lock_obj;
+  std::string get_lock_obj;
+  std::string acquire_lock_obj;
 
   // set based upon program_options
   int index_type = Tables::SIT_IDX_UNK;
@@ -162,6 +167,11 @@ int main(int argc, char **argv)
     ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
+    ("free-lock-obj", po::value<std::string>(&free_lock_obj)->default_value("free"), "Initialise lock objects")
+    ("init-lock-obj", po::value<std::string>(&init_lock_obj)->default_value("init"), "Initialise table groups")
+    ("lock-op", po::bool_switch(&lock_op)->default_value(false), "Use lock mechanism")
+    ("get-lock-obj", po::value<std::string>(&get_lock_obj)->default_value("get"), "Get table values")
+    ("acquire-lock-obj", po::value<std::string>(&acquire_lock_obj)->default_value("acquire"), "Get table values")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -705,13 +715,13 @@ int main(int argc, char **argv)
     // set client-local output value from user provided boost options
     print_header = header;
 
-  } else {
+  } /*else {
 
     // specified query type is unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
 
-  }  // end verify query params
+  }  // end verify query params*/
 
   // launch index creation on given table and cols here.
   if (query == "flatbuf" && index_create) {
@@ -785,6 +795,130 @@ int main(int argc, char **argv)
     return 0;
   }
 
+    if ( lock_op) {
+       
+	// check which lock-op flag is set
+	if ( init_lock_obj != "init" ) { 
+            // setup and encode our op params here.
+	    inbl_lockobj_info op;
+	    op.table_name=table_name;
+	    op.num_objs=9;
+	    op.table_busy=false;
+	    op.table_group=init_lock_obj;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // kick off the workers
+            std::vector<std::thread> threads;
+	    // wthreads is hardcoded to 1.
+	
+            for (int i = 0; i < 1; i++) {
+              auto ioctx = new librados::IoCtx;
+              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+              checkret(ret, 0);
+              threads.push_back(std::thread(worker_init_lock_obj_op, ioctx, op));
+            }
+
+            for (auto& thread : threads) {
+                thread.join();
+            }
+
+            return 0;
+	
+	}
+        else if ( free_lock_obj != "free" ) {
+
+            // setup and encode our op params here
+	    inbl_lockobj_info op;
+	    op.table_name=table_name;
+	    op.num_objs=2;
+	    op.table_busy=false;
+	    op.table_group=free_lock_obj;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // kick off the workers
+            std::vector<std::thread> threads;
+	    // wthreads is hardcoded to 1.
+	
+            for (int i = 0; i < 1; i++) {
+              auto ioctx = new librados::IoCtx;
+              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+              checkret(ret, 0);
+              threads.push_back(std::thread(worker_free_lock_obj_op, ioctx, op));
+            }
+
+            for (auto& thread : threads) {
+                thread.join();
+            }
+
+            return 0;
+
+
+	}
+        else if ( get_lock_obj != "get" ) {
+
+            // setup and encode our op params here.
+	    inbl_lockobj_info op;
+	    op.table_name=table_name;
+	    op.num_objs=2;
+	    op.table_busy=false;
+	    op.table_group=get_lock_obj;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // kick off the workers
+            std::vector<std::thread> threads;
+	    // wthreads is hardcoded to 1.
+	
+            for (int i = 0; i < 1; i++) {
+              auto ioctx = new librados::IoCtx;
+              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+              checkret(ret, 0);
+              threads.push_back(std::thread(worker_get_lock_obj_op, ioctx, op));
+            }
+
+            for (auto& thread : threads) {
+                thread.join();
+            }
+            std::cout<<"It's here";
+            return 0;
+
+
+	}
+        else if ( acquire_lock_obj != "acquire" ) {
+
+            // setup and encode our op params here.
+	    inbl_lockobj_info op;
+	    op.table_name=table_name;
+	    op.num_objs=2;
+	    op.table_busy=false;
+	    op.table_group=acquire_lock_obj;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // kick off the workers
+            std::vector<std::thread> threads;
+	    // wthreads is hardcoded to 1.
+	
+            for (int i = 0; i < 1; i++) {
+              auto ioctx = new librados::IoCtx;
+              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+              checkret(ret, 0);
+              threads.push_back(std::thread(worker_acquire_lock_obj_op, ioctx, op));
+            }
+
+            for (auto& thread : threads) {
+                thread.join();
+            }
+            std::cout<<"It's here";
+            return 0;
+
+
+	}
+	// need to change parameters of rados_write
+    }
+
   result_count = 0;
   rows_returned = 0;
   nrows_processed = 0;
@@ -838,6 +972,7 @@ int main(int argc, char **argv)
         op.index2_preds = qop_index2_preds;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
+	// Option1: while(busy) // wait. use transaction-lock
         int ret = ioctx.aio_exec(oid, s->c,
             "tabular", "exec_query_op", inbl, &s->bl);
         checkret(ret, 0);
@@ -954,10 +1089,10 @@ int main(int argc, char **argv)
         checkret(ret, 0);
     }
 
+
       lock.lock();
       outstanding_ios++;
     }
-
     if (target_objects.empty())
       break;
     dispatch_cond.wait(lock);

@@ -296,6 +296,20 @@ static void print_data(const char *dataptr,
     print_lock.unlock();
 }
 
+static void print_data(bufferlist out) {
+    print_lock.lock();
+    inbl_lockobj_info info;
+
+    try {
+        bufferlist::iterator it = out.begin();
+        ::decode(info, it);
+    } catch (const buffer::error &err) {
+	    std::cout <<"ERROR: print_data: decoding inbl_lockobj_op failed";
+        return;
+    }
+    std::cout << "Busy:" << info.table_busy << std::endl;
+    print_lock.unlock();
+}
 
 static void worker_test_par(librados::IoCtx *ioctx, int i, uint64_t iters,
     bool test_par_read)
@@ -404,7 +418,80 @@ void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op)
   ioctx->close();
 }
 
+void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+{
+    std::string oid = op.table_group;
 
+    std::cout << "We spawned one thread here" << std::endl;
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "inittable_group_obj_query_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+    //print_data(&outbl);
+    ioctx->close();
+
+
+
+}
+
+void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+{
+
+    std::cout << "We spawned one thread here:" << op.table_name << std::endl;
+    std::string oid = op.table_group;
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "free_lock_obj_query_op",
+                          inbl, outbl);
+    std::cout << "Returned value is:" << ret;
+    checkret(ret, 0);
+    print_data(outbl);
+    ioctx->close();
+
+
+
+}
+
+void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+{
+
+    // Call get_lock_obj_query_op function
+    std::cout << "We spawned one thread here" << std::endl;
+    ceph::bufferlist inbl, outbl;
+    std::string oid = op.table_group;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "get_lock_obj_query_op",
+                          inbl, outbl);
+
+    checkret(ret, 0);
+    print_data(outbl);
+
+    ioctx->close();
+
+
+
+}
+
+void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+{
+
+    // Call get_lock_obj_query_op function
+    std::cout << "We spawned one thread here" << std::endl;
+    ceph::bufferlist inbl, outbl;
+    std::string oid = op.table_group;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "acquire_lock_obj_query_op",
+                          inbl, outbl);
+
+    checkret(ret, 0);
+    print_data(outbl);
+
+    ioctx->close();
+
+
+
+}
 // busy loop work to simulate high cpu cost ops
 volatile uint64_t __tabular_x;
 static void add_extra_row_cost(uint64_t cost)
