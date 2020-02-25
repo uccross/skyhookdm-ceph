@@ -158,3 +158,7 @@ void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op);
 void worker_transform_db_op(librados::IoCtx *ioctx, transform_op op);
 void worker();
 void handle_cb(librados::completion_t cb, void *arg);
+void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
+void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
+void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
+void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);

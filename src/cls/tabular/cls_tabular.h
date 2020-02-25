@@ -996,5 +996,54 @@ struct hep_op {
 WRITE_CLASS_ENCODER(hep_op)
 
 
+// Example struct to store and serialize output info that
+// can be returned from custom cls class read/write methods.
+struct inbl_lockobj_info {
+
+
+  bool table_busy;
+  int num_objs;
+  std::string table_name;
+  bool index;
+  // TODO: change it to struct col_stats
+  bool stats;
+  std::string table_group;
+
+  inbl_lockobj_info() {}
+  inbl_lockobj_info(bool tb,
+    int objs, std::string table_name)
+    :
+    table_busy(tb),
+    num_objs(objs),
+    table_name(table_name) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(table_busy, bl);
+    ::encode(num_objs, bl);
+    ::encode(table_name, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(table_busy, bl);
+    ::decode(num_objs, bl);
+    ::decode(table_name, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append("inbl_lockobj_info:");
+    s.append(" .table_busy=" + table_busy);
+    s.append(" .num_objs=" + num_objs);
+    s.append(" .table_name=" + table_name);
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(inbl_lockobj_info)
 
 #endif
