@@ -134,8 +134,8 @@ int main(int argc, char **argv)
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
     // query parameters (new) flatbufs
+    ("table-name", po::value<std::string>(&table_name)->default_value("None"), "Table name")
     ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::DBSCHEMA_NAME_DEFAULT), "Database schema name")
-    ("table-name", po::value<std::string>(&table_name)->default_value(Tables::TABLE_NAME_DEFAULT), "Table name")
     ("data-schema", po::value<std::string>(&data_schema)->default_value(data_schema_example), data_schema_format_help_msg.c_str())
     ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
     ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
@@ -203,12 +203,12 @@ int main(int argc, char **argv)
   for (unsigned int i = start_obj; i < start_obj+num_objs; i++) {
     if (subpartitions >= 0) {
         for (int j = 0; j < subpartitions; j++) {
-            const std::string oid = oid_prefix + "." + std::to_string(i) + "." + std::to_string(j);
+            const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(i) + "." + std::to_string(j);
             target_objects.push_back(oid);
         }
     }
     else {
-        const std::string oid = oid_prefix + "." + std::to_string(i);
+        const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(i);
         target_objects.push_back(oid);
     }
   }
