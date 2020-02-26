@@ -2880,6 +2880,7 @@ int wasm_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 */
+/*
 int example_func2(string wasm_engine){
         CLS_LOG(20, "Executing the binary file on the osd...");
         std::string command;
@@ -3035,7 +3036,7 @@ std::string GetStdoutFromCommand(string cmd) {
                 }
         return data;
 }
-
+*/
 
 static
 int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
