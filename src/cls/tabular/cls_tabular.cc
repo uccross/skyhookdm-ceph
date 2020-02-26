@@ -1353,6 +1353,13 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                     // default usage here assumes the fbmeta is already in the bl
                     sky_meta meta = getSkyMeta(&bl);
+                    CLS_LOG(20, "sky_meta: meta.blob_format=%d", meta.blob_format);
+                    CLS_LOG(20, "sky_meta: meta.blob_data=%p", &meta.blob_data[0]);
+                    CLS_LOG(20, "sky_meta: meta.blob_size=%lu", meta.blob_size);
+                    CLS_LOG(20, "sky_meta: meta.blob_deleted=%d", meta.blob_deleted);
+                    CLS_LOG(20, "sky_meta: meta.blob_orig_off=%lu", meta.blob_orig_off);
+                    CLS_LOG(20, "sky_meta: meta.blob_orig_len=%lu", meta.blob_orig_len);
+                    CLS_LOG(20, "sky_meta: meta.blob_compression=%d", meta.blob_compression);
 
                     // debug/accounting
                     std::string errmsg;
