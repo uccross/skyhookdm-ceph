@@ -271,11 +271,11 @@ endif()
 
 # skyhookdb cls_wasm
 
-add_executable(wasmer-c-api-example /mnt/sda4/skyhookdm-ceph/src/cls/wasm/wasmer-c-api-example.c)
-add_executable(wasmer-cpp-api-example /mnt/sda4/skyhookdm-ceph/src/cls/wasm/wasmer-cpp-api-example.cc)
+add_executable(wasmer-c-api-example wasm/wasmer-c-api-example.c)
+add_executable(wasmer-cpp-api-example wasm/wasmer-cpp-api-example.cc)
 add_library(cls_wasm SHARED wasm/cls_wasm.cc)
-add_executable(wasmer_sum /mnt/sda4/skyhookdm-ceph/src/cls/wasm/wasmer_sum.c)
-add_executable(wasmer_sum_cpp /mnt/sda4/skyhookdm-ceph/src/cls/wasm/wasmer_sum.cc)
+add_executable(wasmer_sum wasm/wasmer_sum.c)
+add_executable(wasmer_sum_cpp wasm/wasmer_sum.cc)
 
 include(ExternalProject)
 set_directory_properties(PROPERTIES EP_PREFIX ${CMAKE_BINARY_DIR}/rust-build)
