@@ -159,7 +159,8 @@ echo `date`;
 cd ${HOME}
 for node in  `cat nodes.txt`; do
     echo ${node};
-    ssh ${node}  "yes | sudo mkfs -t ext4 /dev/${STORAGE_DEVICE}; sudo mkdir -p ${REPO_DIR}; sudo chown ${USER} ${REPO_DIR}" &
+    ssh ${node} "if df -h | grep -q ${STORAGE_DEVICE}; then echo \"mounted, unmounting\"; sudo umount /mnt/${STORAGE_DEVICE}; fi;";
+    ssh ${node}  "yes | sudo mkfs -t ext4 /dev/${STORAGE_DEVICE}; sudo mkdir -p ${REPO_DIR}; " &
 done;
 echo "Waiting... formatting storage device for repository dir";
 wait;
@@ -173,6 +174,7 @@ echo `date`;
 cd ${HOME}
 for node in  `cat nodes.txt`; do
     echo ${node};
+    ssh ${node} "sudo mount /dev/${STORAGE_DEVICE} ${REPO_DIR}; sudo chown -R ${USER} ${REPO_DIR};"
     ssh ${node} "cd ${REPO_DIR}; sudo rm -rf skyhookdm-ceph/; git clone https://github.com/uccross/skyhookdm-ceph.git > clone-repo.out 2>&1;" &
 done;
 echo "Waiting... clone-repo.sh";
