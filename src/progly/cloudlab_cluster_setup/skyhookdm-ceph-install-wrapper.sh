@@ -8,7 +8,9 @@
 if [ $# -le 1 ]
 then
   echo "Usage:"
-  echo "./this <number-of-osds> <path-to-your-id_rsa> <ubuntu|centos>"
+  echo "./this <number-of-osds> <path-to-your-id_rsa> <ubuntu|centos> <storage-device>"
+  echo "Ex:"
+  echo "./this 8 clusterkey.id_rsa ubuntu sdb"
   echo "forcing program exit..."
   exit 1
 else
@@ -37,8 +39,8 @@ sshkeypath=$2
 max_osd=$((nosds-1))
 pkgs="git x11-apps screen curl python nano scite vim x11-apps tmux dstat wget cmake ccache gnupg python-pip python3 python-virtualenv gcc g++ bzip2 libzip"
 CEPH_VER="luminous"
-REPO_DIR=${HOME}
-STORAGE_DISK="sdb"
+STORAGE_DEVICE=$4
+REPO_DIR="/mnt/${STORAGE_DEVICE}/"
 
 # prep for postgres installation later.
 sudo su -c "useradd postgres" ;
@@ -80,11 +82,11 @@ cd ${HOME}
 # get all the scripts and sample data from public repo.
 echo "Requires <4GB of space in your HOME dir to build some Ceph libs locally."
 echo "Installing Ceph ${CEPH_VER}, note assumes your cluster ssh generic privkey is avail in current dir, will replace your .ssh/id.rsa with this key, and move your current id.rsa to id.rsa.bak. "
-echo "NOTE: will clobber this entire device: ${STORAGE_DISK} on each machine.  Please cancel now if needed..."
+echo "NOTE: will clobber this entire device: ${STORAGE_DEVICE} on each machine.  Please cancel now if needed..."
 sleep 20s
 
 # hardcoded vars for now.
-pdsw_branch="skyhook-luminous";
+BRANCH="skyhook-luminous";
 echo "clear out prev skyhookdm repo dir and nodes.txt file."
 scripts_dir="${HOME}/"
 touch nodes.txt
@@ -147,6 +149,20 @@ wait;
 echo "";
 sleep 2s;
 
+# format storage device on all nodes, including client0
+echo "on all machines, format storage device and create repo dir...";
+echo `date`;
+cd ${HOME}
+for node in  `cat nodes.txt`; do
+    echo ${node};
+    ssh ${node|}  "yes | sudo mkfs -t ext4 /dev/${STORAGE_DEVICE}; sudo mkdir -p ${REPO_DIR}; sudo chown ${USER} ${REPO_DIR}" &
+done;
+echo "Waiting... formatting storage device for repository dir";
+wait;
+echo "";
+sleep 2s;
+
+
 # note this typically takes 1 min per node
 echo "on all machines, clone skyhook repo...";
 echo `date`;
@@ -166,7 +182,7 @@ echo `date`;
 cd ${HOME}
 for node in  `cat nodes.txt`; do
     echo ${node};
-    ssh ${node}  "cd ${REPO_DIR}/skyhookdm-ceph; export DEBIAN_FRONTEND=noninteractive; git checkout $pdsw_branch > git-checkout.out 2>&1; git submodule update --init --recursive  > submodule-init.out 2>&1; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
+    ssh ${node}  "cd ${REPO_DIR}/skyhookdm-ceph; export DEBIAN_FRONTEND=noninteractive; git checkout ${BRANCH} > git-checkout.out 2>&1; git submodule update --init --recursive  > submodule-init.out 2>&1; sudo ./install-deps.sh  > install-deps.out 2>&1 "  &
 done;
 echo "Waiting... install-deps.sh on all nodes";
 wait;
@@ -231,13 +247,13 @@ echo "Unmounting the data storage devs for ceph on osd nodes only..";
 cd ${HOME}
 for ((i = 0 ; i < ${nosds} ; i++)); do
     echo osd${i};
-    ssh osd${i} "if df -h | grep -q ${STORAGE_DISK}; then echo \"mounted, unmounting\"; sudo umount /mnt/${STORAGE_DISK}; fi;";
+    ssh osd${i} "if df -h | grep -q ${STORAGE_DEVICE}; then echo \"mounted, unmounting\"; sudo umount /mnt/${STORAGE_DEVICE}; fi;";
    ## no need to mkfs since we are now zapping ods
-   ##  ssh osd${i} "yes | sudo mkfs -t ext4 /dev/${STORAGE_DISK};" &
+   ##  ssh osd${i} "yes | sudo mkfs -t ext4 /dev/${STORAGE_DEVICE};" &
    # clear out any residue from first ceph partition (typically first 100MB-2GB)
    # problem seems unique to 12.2 luminous
    # https://tracker.ceph.com/issues/22354
-   ssh osd${i} "sudo dd if=/dev/zero of=${STORAGE_DISK} bs=1M count=2048;"
+   ssh osd${i} "sudo dd if=/dev/zero of=${STORAGE_DEVICE} bs=1M count=2048;"
 done;
 echo "";
 sleep 2s;
@@ -246,8 +262,8 @@ sleep 2s;
 cd ${HOME}/cluster
 for ((i = 0 ; i < ${nosds} ; i++)); do
     echo osd${i};
-    env/bin/ceph-deploy disk zap osd${i}:/dev/${STORAGE_DISK}
-    env/bin/ceph-deploy osd create osd${i}:/dev/${STORAGE_DISK}
+    env/bin/ceph-deploy disk zap osd${i}:/dev/${STORAGE_DEVICE}
+    env/bin/ceph-deploy osd create osd${i}:/dev/${STORAGE_DEVICE}
 done;
 
 # force push any new config changes
@@ -270,7 +286,7 @@ sudo chmod 0766 /etc/ceph/*.keyring
 echo "Client0: building skyhook specific binaries:  ./do_cmake.sh; then make cls_tabular run-query";
 echo `date`;
 cd ${REPO_DIR}/skyhookdm-ceph/;
-git checkout ${pdsw_branch};
+git checkout ${BRANCH};
 export DEBIAN_FRONTEND="noninteractive";
 git submodule update --init --recursive;
 sudo ./install-deps.sh;
