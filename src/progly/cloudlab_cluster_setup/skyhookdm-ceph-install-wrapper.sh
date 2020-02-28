@@ -8,7 +8,7 @@
 if [ $# -le 1 ]
 then
   echo "Usage:"
-  echo "./this <number-of-osds> <path-to-your-id_rsa> <ubuntu|centos> <storage-device>"
+  echo "./this <number-of-osds> <yourclusterkey.id_rsa> <ubuntu|centos> <storage-device>"
   echo "Ex:"
   echo "./this 8 clusterkey.id_rsa ubuntu sdb"
   echo "forcing program exit..."
@@ -82,7 +82,11 @@ cd ${HOME}
 # get all the scripts and sample data from public repo.
 echo "Requires <4GB of space in your HOME dir to build some Ceph libs locally."
 echo "Installing Ceph ${CEPH_VER}, note assumes your cluster ssh generic privkey is avail in current dir, will replace your .ssh/id.rsa with this key, and move your current id.rsa to id.rsa.bak. "
-echo "NOTE: will clobber this entire device: ${STORAGE_DEVICE} on each machine.  Please cancel now if needed..."
+echo "!!WARNING!!"
+echo "!!WARNING!!"
+echo "!!WARNING!!: this will clobber this entire device: ${STORAGE_DEVICE} on each machine.  Please cancel now if needed..."
+echo "!!WARNING!!"
+echo "!!WARNING!!"
 sleep 20s
 
 # hardcoded vars for now.
@@ -155,7 +159,7 @@ echo `date`;
 cd ${HOME}
 for node in  `cat nodes.txt`; do
     echo ${node};
-    ssh ${node|}  "yes | sudo mkfs -t ext4 /dev/${STORAGE_DEVICE}; sudo mkdir -p ${REPO_DIR}; sudo chown ${USER} ${REPO_DIR}" &
+    ssh ${node}  "yes | sudo mkfs -t ext4 /dev/${STORAGE_DEVICE}; sudo mkdir -p ${REPO_DIR}; sudo chown ${USER} ${REPO_DIR}" &
 done;
 echo "Waiting... formatting storage device for repository dir";
 wait;
@@ -177,7 +181,7 @@ echo "";
 sleep 2s;
 
 # note this takes about 1 min per node as well.
-echo "on all machines, , run install deps...";
+echo "on all machines, run install deps...";
 echo `date`;
 cd ${HOME}
 for node in  `cat nodes.txt`; do
@@ -299,6 +303,7 @@ echo `date`
 
 echo "Copying our libcls so file to each osd, to the correct dir, and set symlinks";
 for node in  `cat ${HOME}/nodes.txt`; do
+    echo ""
     echo ${node};
     scp ${REPO_DIR}/skyhookdm-ceph/build/lib/libcls_tabular.so.1.0.0  ${node}:/tmp/;
     ssh ${node} "sudo cp /tmp/libcls_tabular.so.1.0.0 ${LIB_CLS_DIR};";
