@@ -443,6 +443,22 @@ void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 
 }
 
+void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+{
+    std::string oid = op.table_group;
+
+    std::cout << "We spawned one thread here" << std::endl;
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "create_lock_obj_query_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+    //print_data(&outbl);
+    ioctx->close();
+
+
+
+}
 void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 {
 

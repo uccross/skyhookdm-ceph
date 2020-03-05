@@ -36,6 +36,7 @@ cls_method_handle_t h_freelockobj_query_op;
 cls_method_handle_t h_inittable_group_obj_query_op;
 cls_method_handle_t h_getlockobj_query_op;
 cls_method_handle_t h_acquirelockobj_query_op;
+cls_method_handle_t h_createlockobj_query_op;
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
     if (is_err)
@@ -2254,9 +2255,10 @@ static int inittable_group_obj_query_op(cls_method_context_t hctx, bufferlist *i
   if (in->length() > 100)
     return -EINVAL;
 
+  bool skipCreate=false;
   // only say hello to non-existent objects
   if (cls_cxx_stat(hctx, NULL, NULL) == 0)
-    return -EEXIST;
+    skipCreate=true;;
 
   /*bufferlist content;
   content.append("Hello, ");
@@ -2277,18 +2279,18 @@ static int inittable_group_obj_query_op(cls_method_context_t hctx, bufferlist *i
     }
 
   // create/write the object
-  int r = cls_cxx_write_full(hctx, in);
-  if (r < 0)
-    return r;
+  if(!skipCreate) {
+      int r = cls_cxx_write_full(hctx, in);
+      if (r < 0)
+          return r;
+  }
 
-  CLS_LOG(20, "After object creation");
   std::map<std::string, bufferlist> table_obj_map;
   int ret;
 
   table_obj_map[op.table_name]=*in;
   ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
 
-  CLS_LOG(20, "After omap set");
   if (ret < 0)
     return ret;
 
@@ -2326,6 +2328,51 @@ static int inittable_group_obj_query_op(cls_method_context_t hctx, bufferlist *i
   return 0;
 }
 
+static int create_lock_obj_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  // we can write arbitrary stuff to the ceph-osd debug log.  each log
+  // message is accompanied by an integer log level.  smaller is
+  // "louder".  how much of this makes it into the log is controlled
+  // by the debug_cls option on the ceph-osd, similar to how other log
+  // levels are controlled.  this message, at level 20, will generally
+  // not be seen by anyone unless debug_cls is set at 20 or higher.
+  CLS_LOG(20, "in create_lock_obj_query_op");
+
+  // see if the input data from the client matches what this method
+  // expects to receive.  your class can fill this buffer with what it
+  // wants.
+  if (in->length() > 100)
+    return -EINVAL;
+
+  // only say hello to non-existent objects
+  if (cls_cxx_stat(hctx, NULL, NULL) == 0)
+    return -EEXIST;
+
+  /*bufferlist content;
+  content.append("Hello, ");
+  if (in->length() == 0)
+    content.append("world");
+  else
+    content.append(*in);
+  content.append("!");*/
+
+    inbl_lockobj_info op;
+
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:create_lock_obj_query_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+
+  // create/write the object
+      int r = cls_cxx_write_full(hctx, in);
+      if (r < 0)
+          return r;
+
+      return 0;
+  }
 static
 int free_lock_obj_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
 {
@@ -2585,5 +2632,7 @@ void __cls_init()
   
   cls_register_cxx_method(h_class, "acquire_lock_obj_query_op",
       CLS_METHOD_RD | CLS_METHOD_WR, acquire_lock_obj_query_op, &h_acquirelockobj_query_op);
+  cls_register_cxx_method(h_class, "create_lock_obj_query_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, create_lock_obj_query_op, &h_createlockobj_query_op);
 }
 

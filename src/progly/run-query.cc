@@ -55,6 +55,7 @@ int main(int argc, char **argv)
   std::string init_lock_obj;
   std::string get_lock_obj;
   std::string acquire_lock_obj;
+  std::string create_lock_obj;
 
   // set based upon program_options
   int index_type = Tables::SIT_IDX_UNK;
@@ -173,6 +174,7 @@ int main(int argc, char **argv)
     ("lock-op", po::bool_switch(&lock_op)->default_value(false), "Use lock mechanism")
     ("get-lock-obj", po::value<std::string>(&get_lock_obj)->default_value("get"), "Get table values")
     ("acquire-lock-obj", po::value<std::string>(&acquire_lock_obj)->default_value("acquire"), "Get table values")
+    ("create-lock-obj", po::value<std::string>(&create_lock_obj)->default_value("create"), "Create Lock obj")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -914,6 +916,33 @@ int main(int argc, char **argv)
                 thread.join();
             }
             std::cout<<"It's here";
+            return 0;
+
+
+	}
+        else if ( create_lock_obj != "create" ) {
+
+            // setup and encode our op params here.
+	    inbl_lockobj_info op;
+	    op.num_objs=2;
+	    op.table_group=create_lock_obj;
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+
+            // kick off the workers
+            std::vector<std::thread> threads;
+	    // wthreads is hardcoded to 1.
+	
+            for (int i = 0; i < 1; i++) {
+              auto ioctx = new librados::IoCtx;
+              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+              checkret(ret, 0);
+              threads.push_back(std::thread(worker_create_lock_obj_op, ioctx, op));
+            }
+
+            for (auto& thread : threads) {
+                thread.join();
+            }
             return 0;
 
 
