@@ -163,3 +163,4 @@ void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
 void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
 void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
 void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
+void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op);
