@@ -422,7 +422,6 @@ void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 {
     std::string oid = op.table_group;
 
-    std::cout << "We spawned one thread here" << std::endl;
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
     int ret = ioctx->exec(oid, "tabular", "inittable_group_obj_query_op",
@@ -430,6 +429,7 @@ void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
     checkret(ret, 0);
     //print_data(&outbl);
     ioctx->close();
+    std::cout << "Ceph Lock Object initiated." << std::endl;
 
 
 
@@ -439,7 +439,6 @@ void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 {
     std::string oid = op.table_group;
 
-    std::cout << "We spawned one thread here" << std::endl;
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
     int ret = ioctx->exec(oid, "tabular", "create_lock_obj_query_op",
@@ -447,6 +446,7 @@ void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
     checkret(ret, 0);
     //print_data(&outbl);
     ioctx->close();
+    std::cout << "Ceph Lock object created." << std::endl;
 
 
 
@@ -454,7 +454,6 @@ void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 {
 
-    std::cout << "We spawned one thread here:" << op.table_name << std::endl;
     std::string oid = op.table_group;
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
@@ -473,7 +472,6 @@ void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 {
 
     // Call get_lock_obj_query_op function
-    std::cout << "We spawned one thread here" << std::endl;
     ceph::bufferlist inbl, outbl;
     std::string oid = op.table_group;
     ::encode(op, inbl);
@@ -493,7 +491,6 @@ void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 {
 
     // Call get_lock_obj_query_op function
-    std::cout << "We spawned one thread here" << std::endl;
     ceph::bufferlist inbl, outbl;
     std::string oid = op.table_group;
     ::encode(op, inbl);

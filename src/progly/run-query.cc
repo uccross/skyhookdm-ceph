@@ -883,7 +883,6 @@ int main(int argc, char **argv)
             for (auto& thread : threads) {
                 thread.join();
             }
-            std::cout<<"It's here";
             return 0;
 
 
@@ -913,7 +912,6 @@ int main(int argc, char **argv)
             for (auto& thread : threads) {
                 thread.join();
             }
-            std::cout<<"It's here";
             return 0;
 
 

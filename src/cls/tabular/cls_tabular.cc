@@ -2375,7 +2375,6 @@ static int inittable_group_obj_query_op(cls_method_context_t hctx, bufferlist *i
   //    If a class returns a positive value or puts data in the out
   //    buffer, the OSD code will ignore it and return 0 to the
   //    client.
-  CLS_LOG(20, "Before returning");
 
   bufferlist result_bl;
   ::encode(ret, *out);
@@ -2435,7 +2434,6 @@ int free_lock_obj_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist
 
     inbl_lockobj_info op;
 
-    CLS_LOG(20, "Before GetVal");
     try {
         bufferlist::iterator it = in->begin();
         ::decode(op, it);
@@ -2460,14 +2458,12 @@ int free_lock_obj_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist
     int ret;
 
     CLS_LOG(20, "*********Table_name is=%s", table_name.c_str());
-    CLS_LOG(20, "Before GetVal");
     bufferlist bl_entry2;
     ret = cls_cxx_map_get_val(hctx, table_name, &bl_entry2);
 
     if (ret < 0)
       return ret;
 
-    CLS_LOG(20, "After GetVals");
     inbl_lockobj_info op1;
     try {
         bufferlist::iterator it = bl_entry2.begin();
@@ -2605,7 +2601,6 @@ int acquire_lock_obj_query_op(cls_method_context_t hctx, bufferlist *in, bufferl
     CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_group = %s", op1.table_group);
     CLS_LOG(20, "Acquire_lock_obj_query_op: op.nobjs = %d", op1.num_objs);
 
-    CLS_LOG(20, "One step away from done");
     if(!op1.table_busy) {
 
    	
@@ -2620,7 +2615,6 @@ int acquire_lock_obj_query_op(cls_method_context_t hctx, bufferlist *in, bufferl
         
         CLS_LOG(20, "return value of omap set = %d", ret);
         	
-        CLS_LOG(20, "Acquire lock done");
     }
     else {
 	// Can't acquire lock

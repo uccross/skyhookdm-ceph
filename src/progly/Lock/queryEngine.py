@@ -110,7 +110,7 @@ def processWaitQueue():
 
 def execRequest(m):
 
-    oidPrefix="public." + m.table
+    oidPrefix="public"
 
     cmd = PATH + "bin/run-query --num-objs 1 --start-obj 0 --pool tpchdata --table-name " + m.table + " --oid-prefix " + oidPrefix + " --select " + "linenumber,geq,6;"
     output = subprocess.check_output(cmd, shell=True)
@@ -174,7 +174,7 @@ def main():
         if canProcess.empty() is not True:
             request=canProcess.get()
             execRequest(request)
-            freeTimes[request.table] = time.time() + random.randint(1,10)
+            freeTimes[request.table] = time.time() + random.randint(1,5)
         processWaitQueue()
         checkTimer(freeTimes)
 
