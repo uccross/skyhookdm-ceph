@@ -298,7 +298,7 @@ static void print_data(const char *dataptr,
 
 static void print_data(bufferlist out) {
     print_lock.lock();
-    inbl_lockobj_info info;
+    lockobj_info info;
 
     try {
         bufferlist::iterator it = out.begin();
@@ -418,14 +418,14 @@ void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op)
   ioctx->close();
 }
 
-void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+void worker_init_lock_obj_op(librados::IoCtx *ioctx, lockobj_info op)
 {
     std::string oid = op.table_group;
 
     std::cout << "We spawned one thread here" << std::endl;
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
-    int ret = ioctx->exec(oid, "tabular", "inittable_group_obj_query_op",
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_init_op",
                           inbl, outbl);
     checkret(ret, 0);
     //print_data(&outbl);
@@ -435,14 +435,14 @@ void worker_init_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 
 }
 
-void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+void worker_create_lock_obj_op(librados::IoCtx *ioctx, lockobj_info op)
 {
     std::string oid = op.table_group;
 
     std::cout << "We spawned one thread here" << std::endl;
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
-    int ret = ioctx->exec(oid, "tabular", "create_lock_obj_query_op",
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_create_op",
                           inbl, outbl);
     checkret(ret, 0);
     //print_data(&outbl);
@@ -451,16 +451,15 @@ void worker_create_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 
 
 }
-void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+void worker_free_lock_obj_op(librados::IoCtx *ioctx, lockobj_info op)
 {
 
     std::cout << "We spawned one thread here:" << op.table_name << std::endl;
     std::string oid = op.table_group;
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
-    int ret = ioctx->exec(oid, "tabular", "free_lock_obj_query_op",
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_free_op",
                           inbl, outbl);
-    std::cout << "Returned value is:" << ret;
     checkret(ret, 0);
     print_data(outbl);
     ioctx->close();
@@ -469,7 +468,7 @@ void worker_free_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 
 }
 
-void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+void worker_get_lock_obj_op(librados::IoCtx *ioctx, lockobj_info op)
 {
 
     // Call get_lock_obj_query_op function
@@ -477,7 +476,7 @@ void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
     ceph::bufferlist inbl, outbl;
     std::string oid = op.table_group;
     ::encode(op, inbl);
-    int ret = ioctx->exec(oid, "tabular", "get_lock_obj_query_op",
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_get_op",
                           inbl, outbl);
 
     checkret(ret, 0);
@@ -489,7 +488,7 @@ void worker_get_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
 
 }
 
-void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
+void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, lockobj_info op)
 {
 
     // Call get_lock_obj_query_op function
@@ -497,12 +496,13 @@ void worker_acquire_lock_obj_op(librados::IoCtx *ioctx, inbl_lockobj_info op)
     ceph::bufferlist inbl, outbl;
     std::string oid = op.table_group;
     ::encode(op, inbl);
-    int ret = ioctx->exec(oid, "tabular", "acquire_lock_obj_query_op",
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_acquire_op",
                           inbl, outbl);
 
     checkret(ret, 0);
     print_data(outbl);
 
+    std::cout<< "Value is this:" << ret;
     ioctx->close();
 
 

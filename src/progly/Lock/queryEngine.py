@@ -45,7 +45,7 @@ def acquireLock(table_name, table_group ):
     #os.system("bin/run-query --num-objs 2 --pool tpchdata --table-name lineitem --lock-op --get-lock-obj abcd.lock")
     #table_name="lineitem"
     #table_group="abcd.lock"
-    cmd = PATH + "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --acquire-lock-obj " + table_group
+    cmd = PATH + "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --lock-obj-acquire --oid-prefix public " + "--db-schema-name " + table_group
     output = subprocess.check_output(cmd, shell=True)
     #print output
     # parse output to get value of table busy
@@ -61,7 +61,7 @@ def acquireLock(table_name, table_group ):
     return value
 
 def freeLock(table_name, table_group ):
-    cmd = PATH + "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --free-lock-obj " + table_group
+    cmd = PATH + "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --lock-obj-free --oid-prefix public --db-schema-name " + table_group
     output = subprocess.check_output(cmd, shell=True)
 
 
@@ -110,7 +110,7 @@ def processWaitQueue():
 
 def execRequest(m):
 
-    oidPrefix="public." + m.table
+    oidPrefix="public"
 
     cmd = PATH + "bin/run-query --num-objs 1 --start-obj 0 --pool tpchdata --table-name " + m.table + " --oid-prefix " + oidPrefix + " --select " + "linenumber,geq,6;"
     output = subprocess.check_output(cmd, shell=True)

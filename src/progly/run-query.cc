@@ -50,11 +50,11 @@ int main(int argc, char **argv)
   std::string index2_preds;
   std::string index_cols;
   std::string index2_cols;
-  std::string free_lock_obj;
-  std::string init_lock_obj;
-  std::string get_lock_obj;
-  std::string acquire_lock_obj;
-  std::string create_lock_obj;
+  bool lock_obj_free;
+  bool lock_obj_init;
+  bool lock_obj_get;
+  bool lock_obj_acquire;
+  bool lock_obj_create;
 
   // set based upon program_options
   int index_type = Tables::SIT_IDX_UNK;
@@ -168,12 +168,12 @@ int main(int argc, char **argv)
     ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
-    ("free-lock-obj", po::value<std::string>(&free_lock_obj)->default_value("free"), "Initialise lock objects")
-    ("init-lock-obj", po::value<std::string>(&init_lock_obj)->default_value("init"), "Initialise table groups")
+    ("lock-obj-free", po::bool_switch(&lock_obj_free)->default_value(false), "Initialise lock objects")
+    ("lock-obj-init", po::bool_switch(&lock_obj_init)->default_value(false), "Initialise table groups")
     ("lock-op", po::bool_switch(&lock_op)->default_value(false), "Use lock mechanism")
-    ("get-lock-obj", po::value<std::string>(&get_lock_obj)->default_value("get"), "Get table values")
-    ("acquire-lock-obj", po::value<std::string>(&acquire_lock_obj)->default_value("acquire"), "Get table values")
-    ("create-lock-obj", po::value<std::string>(&create_lock_obj)->default_value("create"), "Create Lock obj")
+    ("lock-obj-get", po::bool_switch(&lock_obj_get)->default_value(false), "Get table values")
+    ("lock-obj-acquire", po::bool_switch(&lock_obj_acquire)->default_value(false), "Get table values")
+    ("lock-obj-create", po::bool_switch(&lock_obj_create)->default_value(false), "Create Lock obj")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -797,16 +797,16 @@ int main(int argc, char **argv)
     return 0;
   }
 
-    if ( lock_op) {
+    if (lock_op) {
        
 	// check which lock-op flag is set
-	if ( init_lock_obj != "init" ) { 
+	if (lock_obj_init) { 
             // setup and encode our op params here.
-	    inbl_lockobj_info op;
-	    op.table_name=table_name;
-	    op.num_objs=9;
-	    op.table_busy=false;
-	    op.table_group=init_lock_obj;
+	    lockobj_info op;
+	    op.table_name = table_name;
+	    op.num_objs = num_objs;
+	    op.table_busy = false;
+	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
@@ -828,14 +828,14 @@ int main(int argc, char **argv)
             return 0;
 	
 	}
-        else if ( free_lock_obj != "free" ) {
+        else if (lock_obj_free) {
 
             // setup and encode our op params here
-	    inbl_lockobj_info op;
-	    op.table_name=table_name;
-	    op.num_objs=2;
-	    op.table_busy=false;
-	    op.table_group=free_lock_obj;
+	    lockobj_info op;
+	    op.table_name = table_name;
+	    op.num_objs = num_objs;
+	    op.table_busy = false;
+	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
@@ -858,14 +858,14 @@ int main(int argc, char **argv)
 
 
 	}
-        else if ( get_lock_obj != "get" ) {
+        else if (lock_obj_get) {
 
             // setup and encode our op params here.
-	    inbl_lockobj_info op;
-	    op.table_name=table_name;
-	    op.num_objs=2;
-	    op.table_busy=false;
-	    op.table_group=get_lock_obj;
+	    lockobj_info op;
+	    op.table_name = table_name;
+	    op.num_objs = num_objs;
+	    op.table_busy = false;
+	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
@@ -883,19 +883,18 @@ int main(int argc, char **argv)
             for (auto& thread : threads) {
                 thread.join();
             }
-            std::cout<<"It's here";
             return 0;
 
 
 	}
-        else if ( acquire_lock_obj != "acquire" ) {
+        else if (lock_obj_acquire) {
 
             // setup and encode our op params here.
-	    inbl_lockobj_info op;
-	    op.table_name=table_name;
-	    op.num_objs=2;
-	    op.table_busy=false;
-	    op.table_group=acquire_lock_obj;
+	    lockobj_info op;
+	    op.table_name = table_name;
+	    op.num_objs = num_objs;
+	    op.table_busy = false;
+	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
@@ -913,17 +912,16 @@ int main(int argc, char **argv)
             for (auto& thread : threads) {
                 thread.join();
             }
-            std::cout<<"It's here";
             return 0;
 
 
 	}
-        else if ( create_lock_obj != "create" ) {
+        else if (lock_obj_create) {
 
             // setup and encode our op params here.
-	    inbl_lockobj_info op;
-	    op.num_objs=2;
-	    op.table_group=create_lock_obj;
+	    lockobj_info op;
+	    op.num_objs = num_objs;
+	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
