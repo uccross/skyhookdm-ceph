@@ -1052,11 +1052,12 @@ struct lockobj_info {
 
   lockobj_info() {}
   lockobj_info(bool tb,
-  int objs, std::string table_name)
+  int objs, std::string table_name, std::string table_group)
   :
   table_busy(tb),
   num_objs(objs),
-  table_name(table_name) { }
+  table_name(table_name),
+  table_group(table_group) { }
 
   // serialize the fields into bufferlist to be sent over the wire
   void encode(bufferlist& bl) const {

@@ -798,7 +798,8 @@ int main(int argc, char **argv)
   }
 
     if (lock_op) {
-       
+      
+	int nthreads=1; 
 	// check which lock-op flag is set
 	if (lock_obj_init) { 
             // setup and encode our op params here.
@@ -814,11 +815,11 @@ int main(int argc, char **argv)
             std::vector<std::thread> threads;
 	    // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < nthreads; i++) {
               auto ioctx = new librados::IoCtx;
               int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
               checkret(ret, 0);
-              threads.push_back(std::thread(worker_init_lock_obj_op, ioctx, op));
+              threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
             }
 
             for (auto& thread : threads) {
@@ -834,7 +835,7 @@ int main(int argc, char **argv)
 	    lockobj_info op;
 	    op.table_name = table_name;
 	    op.num_objs = num_objs;
-	    op.table_busy = false;
+	    op.table_busy = true;
 	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
@@ -843,11 +844,11 @@ int main(int argc, char **argv)
             std::vector<std::thread> threads;
 	    // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < nthreads; i++) {
               auto ioctx = new librados::IoCtx;
               int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
               checkret(ret, 0);
-              threads.push_back(std::thread(worker_free_lock_obj_op, ioctx, op));
+              threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
             }
 
             for (auto& thread : threads) {
@@ -858,13 +859,14 @@ int main(int argc, char **argv)
 
 
 	}
+	/* NOTE: lock-obj-get is only used for debugging purpose */
         else if (lock_obj_get) {
 
             // setup and encode our op params here.
 	    lockobj_info op;
 	    op.table_name = table_name;
 	    op.num_objs = num_objs;
-	    op.table_busy = false;
+	    op.table_busy = true;
 	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
@@ -873,11 +875,11 @@ int main(int argc, char **argv)
             std::vector<std::thread> threads;
 	    // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < nthreads; i++) {
               auto ioctx = new librados::IoCtx;
               int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
               checkret(ret, 0);
-              threads.push_back(std::thread(worker_get_lock_obj_op, ioctx, op));
+              threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
             }
 
             for (auto& thread : threads) {
@@ -893,7 +895,7 @@ int main(int argc, char **argv)
 	    lockobj_info op;
 	    op.table_name = table_name;
 	    op.num_objs = num_objs;
-	    op.table_busy = false;
+	    op.table_busy = true;
 	    op.table_group = db_schema_name;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
@@ -901,12 +903,12 @@ int main(int argc, char **argv)
             // kick off the workers
             std::vector<std::thread> threads;
 	    // wthreads is hardcoded to 1.
-	
-            for (int i = 0; i < 1; i++) {
+	    
+            for (int i = 0; i < nthreads; i++) {
               auto ioctx = new librados::IoCtx;
               int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
               checkret(ret, 0);
-              threads.push_back(std::thread(worker_acquire_lock_obj_op, ioctx, op));
+              threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
             }
 
             for (auto& thread : threads) {
@@ -929,11 +931,11 @@ int main(int argc, char **argv)
             std::vector<std::thread> threads;
 	    // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < 1; i++) {
+            for (int i = 0; i < nthreads; i++) {
               auto ioctx = new librados::IoCtx;
               int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
               checkret(ret, 0);
-              threads.push_back(std::thread(worker_create_lock_obj_op, ioctx, op));
+              threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
             }
 
             for (auto& thread : threads) {
@@ -943,7 +945,6 @@ int main(int argc, char **argv)
 
 
 	}
-	// need to change parameters of rados_write
     }
 
   result_count = 0;

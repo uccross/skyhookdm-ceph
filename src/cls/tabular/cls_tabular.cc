@@ -2407,6 +2407,7 @@ int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "lock_obj_free_op 1: op_out.table_name=%s", op_out.table_name.c_str());
     std::map<std::string, bufferlist> table_obj_map;
 
+    /* NOTE: If already free skip setting it here */
     if (op_out.table_busy) {
         op_out.table_busy=false;
         ::encode(op_out, *out);

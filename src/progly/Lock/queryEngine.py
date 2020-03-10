@@ -26,9 +26,6 @@ freeTime = 0.0
 processedTid = ()
 PATH = sys.argv[1]
 def isTableBusy(table_name, table_group ):
-    #os.system("bin/run-query --num-objs 2 --pool tpchdata --table-name lineitem --lock-op --get-lock-obj abcd.lock")
-    #table_name="lineitem"
-    #table_group="abcd.lock"
     cmd = "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --get-lock-obj " + table_group
 
     output = subprocess.check_output(cmd, shell=True)
@@ -42,12 +39,8 @@ def isTableBusy(table_name, table_group ):
     return value
 
 def acquireLock(table_name, table_group ):
-    #os.system("bin/run-query --num-objs 2 --pool tpchdata --table-name lineitem --lock-op --get-lock-obj abcd.lock")
-    #table_name="lineitem"
-    #table_group="abcd.lock"
     cmd = PATH + "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --lock-obj-acquire --oid-prefix public " + "--db-schema-name " + table_group
     output = subprocess.check_output(cmd, shell=True)
-    #print output
     # parse output to get value of table busy
 
     # Acquired the lock
@@ -63,18 +56,6 @@ def acquireLock(table_name, table_group ):
 def freeLock(table_name, table_group ):
     cmd = PATH + "bin/run-query --num-objs 1 --pool tpchdata --table-name " + table_name +" --lock-op --lock-obj-free --oid-prefix public --db-schema-name " + table_group
     output = subprocess.check_output(cmd, shell=True)
-
-
-
-def queueOps():
-
-    q= Queue.Queue()
-
-    for i in range(5):
-        q.put(i)
-
-    while not q.empty():
-        print q.get()
 
 def processRequests(requests):
 
@@ -154,7 +135,6 @@ def checkTimer(freeTimes):
 
 
 def main():
-    #table_busy = isTableBusy("lineitem", "abcd.lock")
 
 
     print 'List of requests to be processed:\n'
@@ -166,6 +146,7 @@ def main():
 
     freeTimes=dict()
 
+    # NOTE: This is main while loop
     while canProcess.empty() is not True or waitQueue.empty() is not True:
 
         print 'List of requests in canProcess Queue:',list(canProcess.queue)
