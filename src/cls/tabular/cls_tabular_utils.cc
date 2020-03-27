@@ -3145,7 +3145,8 @@ sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
             meta->blob_data()->size(), // blob actual size
 
             // serialized blob data
-            reinterpret_cast<const char*>(meta->blob_data()->Data()));
+            reinterpret_cast<const char*>(meta->blob_data()->Data())
+        );
     }
     else {
         std::cout << "[DEBUG] Constructing Dummy FBMeta Wrapper" << std::endl;
