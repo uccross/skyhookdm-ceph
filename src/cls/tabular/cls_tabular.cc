@@ -2288,20 +2288,8 @@ int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
 static int lock_obj_init_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  // we can write arbitrary stuff to the ceph-osd debug log.  each log
-  // message is accompanied by an integer log level.  smaller is
-  // "louder".  how much of this makes it into the log is controlled
-  // by the debug_cls option on the ceph-osd, similar to how other log
-  // levels are controlled.  this message, at level 20, will generally
-  // not be seen by anyone unless debug_cls is set at 20 or higher.
-  CLS_LOG(20, "in lock_obj_init_op");
-
-  // see if the input data from the client matches what this method
-  // expects to receive.  your class can fill this buffer with what it
-  // wants.
 
   bool skipCreate=false;
-  // only say hello to non-existent objects
   if (cls_cxx_stat(hctx, NULL, NULL) == 0)
     skipCreate=true;;
 
@@ -2340,19 +2328,7 @@ static int lock_obj_init_op(cls_method_context_t hctx, bufferlist *in, bufferlis
 
 static int lock_obj_create_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  // we can write arbitrary stuff to the ceph-osd debug log.  each log
-  // message is accompanied by an integer log level.  smaller is
-  // "louder".  how much of this makes it into the log is controlled
-  // by the debug_cls option on the ceph-osd, similar to how other log
-  // levels are controlled.  this message, at level 20, will generally
-  // not be seen by anyone unless debug_cls is set at 20 or higher.
-  CLS_LOG(20, "in lock_obj_create_op");
 
-  // see if the input data from the client matches what this method
-  // expects to receive.  your class can fill this buffer with what it
-  // wants.
-
-  // only say hello to non-existent objects
   if (cls_cxx_stat(hctx, NULL, NULL) == 0)
     return -EEXIST;
 
@@ -2388,8 +2364,6 @@ int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
     std::string table_name = op_in.table_name;
     using namespace Tables;
-    //schema_vec data_schema = schemaFromString(op.data_schema);
-    // Write to an omap instead
     int ret;
     bufferlist bl_entry2;
     ret = cls_cxx_map_get_val(hctx, table_name, &bl_entry2);
@@ -2418,8 +2392,6 @@ int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
           return ret;
 
     }
-    // encode result data for client.
-    //::encode(result_bl, *out);
     return 0;
 }
 
@@ -2445,7 +2417,6 @@ int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "lock_obj_get_op: op.table_name=%s", table_name.c_str());
 
     using namespace Tables;
-    //schema_vec data_schema = schemaFromString(op.data_schema);
 
 
     int ret;
@@ -2465,10 +2436,8 @@ int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     CLS_LOG(20, "lock_obj_get_op: op_out.table_name = %s", op_out.table_name.c_str());
     CLS_LOG(20, "lock_obj_get_op: op_out.table_group = %s", op_out.table_group.c_str());
     CLS_LOG(20, "lock_obj_get_op: op_out.nobjs = %d", op_out.num_objs);
-    // encode result data for client.
     bufferlist result_bl;
     result_bl.append("result data goes into result bl.");
-    //::encode(ret, *out);
     ::encode(op_out, *out);
     return 0;
 }
@@ -2494,8 +2463,6 @@ int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *o
     CLS_LOG(20, "lock_obj_acquire_op: op.numobjs=%d", nobjs);
 
     using namespace Tables;
-    //schema_vec data_schema = schemaFromString(op.data_schema);
-    // Write to an omap instead
     int ret;
 
     bufferlist bl_entry;

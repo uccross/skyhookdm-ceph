@@ -103,11 +103,11 @@ def generateRequests():
 
     m = MyStruct(1, 'S', 2, 1 , 12)
 
-    n = MyStruct(1, 'S', 3, 3, 24)
+    n = MyStruct(1, 'S', 1, 3, 24)
 
-    o = MyStruct(1, 'T', 0, 2, 36)
+    o = MyStruct(1, 'T', 3, 2, 36)
 
-    p = MyStruct(1, 'S', 3, 4, 48)
+    p = MyStruct(1, 'T', 2, 4, 48)
     requests=[]
 
     requests.append(m)
@@ -155,7 +155,7 @@ def main():
         if canProcess.empty() is not True:
             request=canProcess.get()
             execRequest(request)
-            freeTimes[request.table] = time.time() + random.randint(1,10)
+            freeTimes[request.table] = time.time() + random.randint(1,2)
         processWaitQueue()
         checkTimer(freeTimes)
 
