@@ -3129,7 +3129,12 @@ createFbMeta(
 sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
 
     if (is_meta) {
+        std::cout << "[DEBUG] Parsing FBMeta Structure:" << std::endl;
+
         const FB_Meta* meta = GetFB_Meta(bl->c_str());
+
+        std::cout << "[DEBUG]\t Blob Format: " << std::hex << meta->blob_format() << std::endl;
+        std::cout << "[DEBUG]\t Blob Compression: " << std::hex << meta->blob_compression() << std::endl;
 
         return sky_meta(
             meta->blob_orig_off(),     // data position in original file
@@ -3143,6 +3148,8 @@ sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
             reinterpret_cast<const char*>(meta->blob_data()->Data()));
     }
     else {
+        std::cout << "[DEBUG] Constructing Dummy FBMeta Wrapper" << std::endl;
+
         return sky_meta(    // for testing new raw formats without meta wrapper
             0,              // off
             0,              // len
