@@ -2288,10 +2288,9 @@ int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
 static int lock_obj_init_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-
-  bool skipCreate=false;
-  if (cls_cxx_stat(hctx, NULL, NULL) == 0)
-    skipCreate=true;;
+    bool skipCreate = false;
+    if (cls_cxx_stat(hctx, NULL, NULL) == 0)
+        skipCreate=true;;
 
     lockobj_info op_in;
 
@@ -2304,50 +2303,49 @@ static int lock_obj_init_op(cls_method_context_t hctx, bufferlist *in, bufferlis
     }
 
   // create/write the object
-  if(!skipCreate) {
-      int r = cls_cxx_write_full(hctx, in);
-      if (r < 0)
+    if(!skipCreate) {
+        int r = cls_cxx_write_full(hctx, in);
+        if (r < 0)
           return r;
-  }
+     }
 
-  std::map<std::string, bufferlist> table_obj_map;
-  int ret;
+     std::map<std::string, bufferlist> table_obj_map;
+     int ret;
 
-  table_obj_map[op_in.table_name]=*in;
-  ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
+     table_obj_map[op_in.table_name]=*in;
+     ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
 
-  if (ret < 0)
-    return ret;
+     if (ret < 0)
+         return ret;
 
-  bufferlist result_bl;
-  ::encode(ret, *out);
-  result_bl.append("Created Special Ceph Object");
-  ::encode(result_bl, *out);
-  return 0;
+     bufferlist result_bl;
+     ::encode(ret, *out);
+     result_bl.append("Created Special Ceph Object");
+     ::encode(result_bl, *out);
+     return 0;
 }
 
 static int lock_obj_create_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+    if (cls_cxx_stat(hctx, NULL, NULL) == 0)
+        return -EEXIST;
 
-  if (cls_cxx_stat(hctx, NULL, NULL) == 0)
-    return -EEXIST;
+    lockobj_info op;
 
-  lockobj_info op;
-
-  try {
+    try {
       bufferlist::iterator it = in->begin();
       ::decode(op, it);
-  } catch (const buffer::error &err) {
+    } catch (const buffer::error &err) {
       CLS_ERR("ERROR: cls_tabular: lock_obj_create_op: decoding inbl_lockobj_op");
       return -EINVAL;
-  }
+    }
 
   // create/write the object
-  int r = cls_cxx_write_full(hctx, in);
-  if (r < 0)
-      return r;
+    int r = cls_cxx_write_full(hctx, in);
+    if (r < 0)
+        return r;
 
-  return 0;
+    return 0;
   }
 static
 int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
@@ -2383,14 +2381,13 @@ int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
     /* NOTE: If already free skip setting it here */
     if (op_out.table_busy) {
-        op_out.table_busy=false;
+        op_out.table_busy = false;
         ::encode(op_out, *out);
         // TODO: encode new op and set
-        table_obj_map[op_out.table_name]=*out;
+        table_obj_map[op_out.table_name] = *out;
         ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
         if (ret < 0)
           return ret;
-
     }
     return 0;
 }
@@ -2545,6 +2542,7 @@ void __cls_init()
   
   cls_register_cxx_method(h_class, "lock_obj_acquire_op",
       CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_acquire_op, &h_acquirelockobj_query_op);
+
   cls_register_cxx_method(h_class, "lock_obj_create_op",
       CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_create_op, &h_createlockobj_query_op);
 }

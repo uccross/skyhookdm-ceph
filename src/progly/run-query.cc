@@ -798,152 +798,129 @@ int main(int argc, char **argv)
   }
 
     if (lock_op) {
-      
-	int nthreads=1; 
+      int nthreads=1; 
 	// check which lock-op flag is set
-	if (lock_obj_init) { 
-            // setup and encode our op params here.
-	    lockobj_info op;
-	    op.table_name = table_name;
-	    op.num_objs = num_objs;
-	    op.table_busy = false;
-	    op.table_group = db_schema_name;
-            ceph::bufferlist inbl;
-            ::encode(op, inbl);
+      if (lock_obj_init) { 
+        // setup and encode our op params here.
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = false;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
 
-            // kick off the workers
-            std::vector<std::thread> threads;
-	    // wthreads is hardcoded to 1.
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < nthreads; i++) {
-              auto ioctx = new librados::IoCtx;
-              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-              checkret(ret, 0);
-              threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
-            }
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
+          }
 
-            for (auto& thread : threads) {
-                thread.join();
-            }
-
-            return 0;
-	
-	}
-        else if (lock_obj_free) {
-
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_free) {
             // setup and encode our op params here
-	    lockobj_info op;
-	    op.table_name = table_name;
-	    op.num_objs = num_objs;
-	    op.table_busy = true;
-	    op.table_group = db_schema_name;
-            ceph::bufferlist inbl;
-            ::encode(op, inbl);
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = true;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
 
-            // kick off the workers
-            std::vector<std::thread> threads;
-	    // wthreads is hardcoded to 1.
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < nthreads; i++) {
-              auto ioctx = new librados::IoCtx;
-              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-              checkret(ret, 0);
-              threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
-            }
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
+          }
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_get) {
+          // setup and encode our op params here.
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = true;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
 
-            for (auto& thread : threads) {
-                thread.join();
-            }
-
-            return 0;
-
-
-	}
-	/* NOTE: lock-obj-get is only used for debugging purpose */
-        else if (lock_obj_get) {
-
-            // setup and encode our op params here.
-	    lockobj_info op;
-	    op.table_name = table_name;
-	    op.num_objs = num_objs;
-	    op.table_busy = true;
-	    op.table_group = db_schema_name;
-            ceph::bufferlist inbl;
-            ::encode(op, inbl);
-
-            // kick off the workers
-            std::vector<std::thread> threads;
-	    // wthreads is hardcoded to 1.
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < nthreads; i++) {
-              auto ioctx = new librados::IoCtx;
-              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-              checkret(ret, 0);
-              threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
-            }
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
+          }
 
-            for (auto& thread : threads) {
-                thread.join();
-            }
-            return 0;
-
-
-	}
-        else if (lock_obj_acquire) {
-
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_acquire) {
             // setup and encode our op params here.
-	    lockobj_info op;
-	    op.table_name = table_name;
-	    op.num_objs = num_objs;
-	    op.table_busy = true;
-	    op.table_group = db_schema_name;
-            ceph::bufferlist inbl;
-            ::encode(op, inbl);
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = true;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
 
-            // kick off the workers
-            std::vector<std::thread> threads;
-	    // wthreads is hardcoded to 1.
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
 	    
-            for (int i = 0; i < nthreads; i++) {
-              auto ioctx = new librados::IoCtx;
-              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-              checkret(ret, 0);
-              threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
-            }
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
+          }
 
-            for (auto& thread : threads) {
-                thread.join();
-            }
-            return 0;
-
-
-	}
-        else if (lock_obj_create) {
-
-            // setup and encode our op params here.
-	    lockobj_info op;
-	    op.num_objs = num_objs;
-	    op.table_group = db_schema_name;
-            ceph::bufferlist inbl;
-            ::encode(op, inbl);
-
-            // kick off the workers
-            std::vector<std::thread> threads;
-	    // wthreads is hardcoded to 1.
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_create) {
+          // setup and encode our op params here.
+	  lockobj_info op;
+	  op.num_objs = num_objs;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
 	
-            for (int i = 0; i < nthreads; i++) {
-              auto ioctx = new librados::IoCtx;
-              int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-              checkret(ret, 0);
-              threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
-            }
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
+          }
 
-            for (auto& thread : threads) {
-                thread.join();
-            }
-            return 0;
-
-
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
 	}
     }
 
@@ -1116,7 +1093,6 @@ int main(int argc, char **argv)
             "tabular", "hep_query_op", inbl, &s->bl);
         checkret(ret, 0);
     }
-
 
       lock.lock();
       outstanding_ios++;

@@ -1042,8 +1042,6 @@ WRITE_CLASS_ENCODER(hep_op)
 // Example struct to store and serialize output info that
 // can be returned from custom cls class read/write methods.
 struct lockobj_info {
-
-
   bool table_busy;
   int num_objs;
   std::string table_name;

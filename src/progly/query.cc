@@ -431,9 +431,6 @@ void worker_lock_obj_init_op(librados::IoCtx *ioctx, lockobj_info op)
     //print_data(&outbl);
     std::cout << "Initialized lock object." << std::endl;
     ioctx->close();
-
-
-
 }
 
 void worker_lock_obj_create_op(librados::IoCtx *ioctx, lockobj_info op)
@@ -448,9 +445,6 @@ void worker_lock_obj_create_op(librados::IoCtx *ioctx, lockobj_info op)
     //print_data(&outbl);
     std::cout << "Lock object created." << std::endl;
     ioctx->close();
-
-
-
 }
 void worker_lock_obj_free_op(librados::IoCtx *ioctx, lockobj_info op)
 {
@@ -463,9 +457,6 @@ void worker_lock_obj_free_op(librados::IoCtx *ioctx, lockobj_info op)
     checkret(ret, 0);
     print_data(outbl);
     ioctx->close();
-
-
-
 }
 
 /* NOTE: This is for debugging */
@@ -483,9 +474,6 @@ void worker_lock_obj_get_op(librados::IoCtx *ioctx, lockobj_info op)
     print_data(outbl);
 
     ioctx->close();
-
-
-
 }
 
 void worker_lock_obj_acquire_op(librados::IoCtx *ioctx, lockobj_info op)
@@ -503,9 +491,6 @@ void worker_lock_obj_acquire_op(librados::IoCtx *ioctx, lockobj_info op)
 
     std::cout << "Lock object acquired." << std::endl;
     ioctx->close();
-
-
-
 }
 // busy loop work to simulate high cpu cost ops
 volatile uint64_t __tabular_x;
