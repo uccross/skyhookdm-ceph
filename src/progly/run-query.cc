@@ -34,6 +34,7 @@ int main(int argc, char **argv)
   bool index_create;
   bool mem_constrain;
   bool text_index_ignore_stopwords;
+  bool lock_op;
   int index_plan_type;
   int trans_format_type;
   std::string trans_format_str;
@@ -49,6 +50,11 @@ int main(int argc, char **argv)
   std::string index2_preds;
   std::string index_cols;
   std::string index2_cols;
+  bool lock_obj_free;
+  bool lock_obj_init;
+  bool lock_obj_get;
+  bool lock_obj_acquire;
+  bool lock_obj_create;
 
   // set based upon program_options
   int index_type = Tables::SIT_IDX_UNK;
@@ -162,6 +168,12 @@ int main(int argc, char **argv)
     ("dataset", po::value<std::string>(&dataset_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("file", po::value<std::string>(&file_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
     ("tree", po::value<std::string>(&tree_name)->default_value(""), "For HEP data. Not implemented yet.  (def=\"\")")
+    ("lock-obj-free", po::bool_switch(&lock_obj_free)->default_value(false), "Initialise lock objects")
+    ("lock-obj-init", po::bool_switch(&lock_obj_init)->default_value(false), "Initialise table groups")
+    ("lock-op", po::bool_switch(&lock_op)->default_value(false), "Use lock mechanism")
+    ("lock-obj-get", po::bool_switch(&lock_obj_get)->default_value(false), "Get table values")
+    ("lock-obj-acquire", po::bool_switch(&lock_obj_acquire)->default_value(false), "Get table values")
+    ("lock-obj-create", po::bool_switch(&lock_obj_create)->default_value(false), "Create Lock obj")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -705,13 +717,13 @@ int main(int argc, char **argv)
     // set client-local output value from user provided boost options
     print_header = header;
 
-  } else {
+  } /*else {
 
     // specified query type is unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
 
-  }  // end verify query params
+  }  // end verify query params*/
 
   // launch index creation on given table and cols here.
   if (query == "flatbuf" && index_create) {
@@ -785,6 +797,133 @@ int main(int argc, char **argv)
     return 0;
   }
 
+    if (lock_op) {
+      int nthreads=1; 
+	// check which lock-op flag is set
+      if (lock_obj_init) { 
+        // setup and encode our op params here.
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = false;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
+	
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
+          }
+
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_free) {
+            // setup and encode our op params here
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = true;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
+	
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
+          }
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_get) {
+          // setup and encode our op params here.
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = true;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
+	
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
+          }
+
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_acquire) {
+            // setup and encode our op params here.
+	  lockobj_info op;
+	  op.table_name = table_name;
+	  op.num_objs = num_objs;
+	  op.table_busy = true;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
+	    
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
+          }
+
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	} else if (lock_obj_create) {
+          // setup and encode our op params here.
+	  lockobj_info op;
+	  op.num_objs = num_objs;
+	  op.table_group = db_schema_name;
+          ceph::bufferlist inbl;
+          ::encode(op, inbl);
+          // kick off the workers
+          std::vector<std::thread> threads;
+	  // wthreads is hardcoded to 1.
+	
+          for (int i = 0; i < nthreads; i++) {
+            auto ioctx = new librados::IoCtx;
+            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+            checkret(ret, 0);
+            threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
+          }
+
+          for (auto& thread : threads) {
+            thread.join();
+          }
+          return 0;
+	}
+    }
+
   result_count = 0;
   rows_returned = 0;
   nrows_processed = 0;
@@ -838,6 +977,7 @@ int main(int argc, char **argv)
         op.index2_preds = qop_index2_preds;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
+	// Option1: while(busy) // wait. use transaction-lock
         int ret = ioctx.aio_exec(oid, s->c,
             "tabular", "exec_query_op", inbl, &s->bl);
         checkret(ret, 0);
@@ -957,7 +1097,6 @@ int main(int argc, char **argv)
       lock.lock();
       outstanding_ios++;
     }
-
     if (target_objects.empty())
       break;
     dispatch_cond.wait(lock);

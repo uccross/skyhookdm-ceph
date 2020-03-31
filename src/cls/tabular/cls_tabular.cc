@@ -33,7 +33,11 @@ cls_method_handle_t h_exec_runstats_op;
 cls_method_handle_t h_build_index;
 cls_method_handle_t h_exec_build_sky_index_op;
 cls_method_handle_t h_transform_db_op;
-
+cls_method_handle_t h_freelockobj_query_op;
+cls_method_handle_t h_inittable_group_obj_query_op;
+cls_method_handle_t h_getlockobj_query_op;
+cls_method_handle_t h_acquirelockobj_query_op;
+cls_method_handle_t h_createlockobj_query_op;
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
     if (is_err)
@@ -2282,6 +2286,218 @@ int hep_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
+static int lock_obj_init_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    bool skipCreate = false;
+    if (cls_cxx_stat(hctx, NULL, NULL) == 0)
+        skipCreate=true;;
+
+    lockobj_info op_in;
+
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op_in, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular: lock_obj_init_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+
+  // create/write the object
+    if(!skipCreate) {
+        int r = cls_cxx_write_full(hctx, in);
+        if (r < 0)
+          return r;
+     }
+
+     std::map<std::string, bufferlist> table_obj_map;
+     int ret;
+
+     table_obj_map[op_in.table_name]=*in;
+     ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
+
+     if (ret < 0)
+         return ret;
+
+     bufferlist result_bl;
+     ::encode(ret, *out);
+     result_bl.append("Created Special Ceph Object");
+     ::encode(result_bl, *out);
+     return 0;
+}
+
+static int lock_obj_create_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+    if (cls_cxx_stat(hctx, NULL, NULL) == 0)
+        return -EEXIST;
+
+    lockobj_info op;
+
+    try {
+      bufferlist::iterator it = in->begin();
+      ::decode(op, it);
+    } catch (const buffer::error &err) {
+      CLS_ERR("ERROR: cls_tabular: lock_obj_create_op: decoding inbl_lockobj_op");
+      return -EINVAL;
+    }
+
+  // create/write the object
+    int r = cls_cxx_write_full(hctx, in);
+    if (r < 0)
+        return r;
+
+    return 0;
+  }
+static
+int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
+{
+    lockobj_info op_in;
+
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op_in, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular: lock_obj_get_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+
+    std::string table_name = op_in.table_name;
+    using namespace Tables;
+    int ret;
+    bufferlist bl_entry2;
+    ret = cls_cxx_map_get_val(hctx, table_name, &bl_entry2);
+    if (ret < 0)
+      return ret;
+    lockobj_info op_out;
+    try {
+        bufferlist::iterator it = bl_entry2.begin();
+        ::decode(op_out, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:init_lock_obj_query_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+    CLS_LOG(20, "lock_obj_free_op 1: op_out.table_busy = %d", op_out.table_busy);
+    CLS_LOG(20, "lock_obj_free_op 1: op_out.table_name=%s", op_out.table_name.c_str());
+    std::map<std::string, bufferlist> table_obj_map;
+
+    /* NOTE: If already free skip setting it here */
+    if (op_out.table_busy) {
+        op_out.table_busy = false;
+        ::encode(op_out, *out);
+        // TODO: encode new op and set
+        table_obj_map[op_out.table_name] = *out;
+        ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
+        if (ret < 0)
+          return ret;
+    }
+    return 0;
+}
+
+static
+int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
+{
+    lockobj_info op_in;
+
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op_in, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular: lock_obj_get_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+
+    std::string table_name = op_in.table_name;
+    int nobjs = op_in.num_objs;
+    bool tableBusy = op_in.table_busy;
+
+    CLS_LOG(20, "lock_obj_get_op: op.table_busy = %d", tableBusy);
+    CLS_LOG(20, "lock_obj_get_op: op.numobjs=%d", nobjs);
+    CLS_LOG(20, "lock_obj_get_op: op.table_name=%s", table_name.c_str());
+
+    using namespace Tables;
+
+
+    int ret;
+    bufferlist bl_entry;
+    ret = cls_cxx_map_get_val(hctx, table_name, &bl_entry);
+    if (ret < 0)
+      return ret;
+    lockobj_info op_out;
+    try {
+        bufferlist::iterator it = bl_entry.begin();
+        ::decode(op_out, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR: cls_tabular:init_lock_obj_query_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+    CLS_LOG(20, "lock_obj_get_op: op_out.table_busy = %d", op_out.table_busy);
+    CLS_LOG(20, "lock_obj_get_op: op_out.table_name = %s", op_out.table_name.c_str());
+    CLS_LOG(20, "lock_obj_get_op: op_out.table_group = %s", op_out.table_group.c_str());
+    CLS_LOG(20, "lock_obj_get_op: op_out.nobjs = %d", op_out.num_objs);
+    bufferlist result_bl;
+    result_bl.append("result data goes into result bl.");
+    ::encode(op_out, *out);
+    return 0;
+}
+
+static
+int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
+{
+    lockobj_info op_in;
+
+    try {
+        bufferlist::iterator it = in->begin();
+        ::decode(op_in, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR 1: cls_tabular:init_lock_obj_query_op: decoding inbl_lockobj_op");
+        return -EINVAL;
+    }
+
+    std::string table_name = op_in.table_name;
+    int nobjs = op_in.num_objs;
+    bool tableBusy = op_in.table_busy;
+
+    CLS_LOG(20, "lock_obj_acquire_op: op.table_busy = %d", tableBusy);
+    CLS_LOG(20, "lock_obj_acquire_op: op.numobjs=%d", nobjs);
+
+    using namespace Tables;
+    int ret;
+
+    bufferlist bl_entry;
+    ret = cls_cxx_map_get_val(hctx, table_name, &bl_entry);
+
+    if (ret < 0)
+      return ret;
+
+    lockobj_info op_out;
+    try {
+        bufferlist::iterator it = bl_entry.begin();
+        ::decode(op_out, it);
+    } catch (const buffer::error &err) {
+        CLS_ERR("ERROR 2: cls_tabular:init_lock_obj_query_op: decoding init_lockobj_op");
+        return -EINVAL;
+    }
+
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_busy = %d", op_out.table_busy);
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_name = %s", op_out.table_name.c_str());
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_group = %s", op_out.table_group.c_str());
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.nobjs = %d", op_out.num_objs);
+
+    if(!op_out.table_busy) {
+        op_out.table_busy=!op_out.table_busy;
+	bufferlist bflst;
+	::encode(op_out, bflst);
+        std::map<std::string, bufferlist> table_obj_map;
+        table_obj_map[op_out.table_name]=bflst;
+        ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
+    }
+    else {
+	// Can't acquire lock
+	op_out.table_busy=false;
+    }
+    CLS_LOG(20, "Done setting up the values");
+    ::encode(op_out, *out);
+    return 0;
+}
 void __cls_init()
 {
   CLS_LOG(20, "Loaded tabular class!");
@@ -2314,5 +2530,20 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "transform_db_op",
       CLS_METHOD_RD | CLS_METHOD_WR, transform_db_op, &h_transform_db_op);
+
+  cls_register_cxx_method(h_class, "lock_obj_init_op",
+      CLS_METHOD_PROMOTE | CLS_METHOD_WR, lock_obj_init_op, &h_inittable_group_obj_query_op);
+
+  cls_register_cxx_method(h_class, "lock_obj_free_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_free_op, &h_freelockobj_query_op);
+
+  cls_register_cxx_method(h_class, "lock_obj_get_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_get_op, &h_getlockobj_query_op);
+  
+  cls_register_cxx_method(h_class, "lock_obj_acquire_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_acquire_op, &h_acquirelockobj_query_op);
+
+  cls_register_cxx_method(h_class, "lock_obj_create_op",
+      CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_create_op, &h_createlockobj_query_op);
 }
 
