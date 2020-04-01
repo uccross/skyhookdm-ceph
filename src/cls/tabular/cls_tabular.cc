@@ -943,6 +943,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     std::replace(msg.begin(), msg.end(), '\n', ' ');
 
     if (op.query == "flatbuf") {
+        std::cout << "[DEBUG] Executing Query Op " << op.query << std::endl;
 
         using namespace Tables;
 
@@ -1352,7 +1353,13 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     */
 
                     // default usage here assumes the fbmeta is already in the bl
+                    std::cout << "[DEBUG] Parsing bufferlist into Skyhook Metadata structure"
+                              << std::endl;
+
                     sky_meta meta = getSkyMeta(&bl);
+
+                    std::cout << "[DEBUG] bufferlist parsed" << std::endl;
+
                     CLS_LOG(20, "sky_meta: meta.blob_format=%d", meta.blob_format);
                     CLS_LOG(20, "sky_meta: meta.blob_data=%p", &meta.blob_data[0]);
                     CLS_LOG(20, "sky_meta: meta.blob_size=%lu", meta.blob_size);
@@ -1947,6 +1954,8 @@ int exec_runstats_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 static
 int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
+    std::cout << "[DEBUG] Executing Transform DB Op" << std::endl;
+
     transform_op op;
     int offset = 0;
 
