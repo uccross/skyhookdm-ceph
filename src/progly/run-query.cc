@@ -901,11 +901,11 @@ int main(int argc, char **argv) {
             lock.unlock();
 
             // dispatch an io request
-            AioState *s = new AioState;
-            s->c = librados::Rados::aio_create_completion(s, NULL, handle_cb);
+            AioState *io_state = new AioState;
+            io_state->c = librados::Rados::aio_create_completion(io_state, NULL, handle_cb);
 
-            memset(&s->times, 0, sizeof(s->times));
-            s->times.dispatch = getns();
+            memset(&io_state->times, 0, sizeof(io_state->times));
+            io_state->times.dispatch = getns();
 
             if (query == "flatbuf" ) {
                 std::cout << "[DEBUG] Query is 'flatbuf'" << std::endl;
@@ -938,7 +938,7 @@ int main(int argc, char **argv) {
                     ::encode(op, inbl);
 
                     std::cout << "[DEBUG] Invoking `ioctx.aio_exec`" << std::endl;
-                    int ret = ioctx.aio_exec(oid, s->c, "tabular", "exec_query_op", inbl, &s->bl);
+                    int ret = ioctx.aio_exec(oid, io_state->c, "tabular", "exec_query_op", inbl, &io_state->bl);
                     std::cout << "[DEBUG] Call, `ioctx.aio_exec`, completed" << std::endl;
 
                     checkret(ret, 0);
@@ -948,7 +948,7 @@ int main(int argc, char **argv) {
                     std::cout << "[DEBUG] Not using cls (use_cls is false)" << std::endl;
 
                     std::cout << "[DEBUG] Invoking `ioctx.aio_exec`" << std::endl;
-                    int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+                    int ret = ioctx.aio_read(oid, io_state->c, &io_state->bl, 0, 0);
                     std::cout << "[DEBUG] Call, `ioctx.aio_exec`, completed" << std::endl;
 
                     checkret(ret, 0);
@@ -987,13 +987,13 @@ int main(int argc, char **argv) {
 
                     ceph::bufferlist inbl;
                     ::encode(op, inbl);
-                    int ret = ioctx.aio_exec(oid, s->c,
-                        "tabular", "test_query_op", inbl, &s->bl);
+                    int ret = ioctx.aio_exec(oid, io_state->c,
+                        "tabular", "test_query_op", inbl, &io_state->bl);
                     checkret(ret, 0);
                 }
 
                 else {
-                    int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+                    int ret = ioctx.aio_read(oid, io_state->c, &io_state->bl, 0, 0);
                     checkret(ret, 0);
                 }
             }
@@ -1012,14 +1012,14 @@ int main(int argc, char **argv) {
                     ::encode(op, inbl);
 
                     // execute our example method on the object, passing in our op.
-                    int ret = ioctx.aio_exec(oid, s->c, "tabular", "example_query_op", inbl, &s->bl);
+                    int ret = ioctx.aio_exec(oid, io_state->c, "tabular", "example_query_op", inbl, &io_state->bl);
                     checkret(ret, 0);
                 }
 
                 // execute standard read
                 else {
                     // read entire object by specifying off=0 len=0.
-                    int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+                    int ret = ioctx.aio_read(oid, io_state->c, &io_state->bl, 0, 0);
                     checkret(ret, 0);
                 }
             }
@@ -1038,14 +1038,14 @@ int main(int argc, char **argv) {
                     ::encode(op, inbl);
 
                     // execute our example method on the object, passing in our op.
-                    int ret = ioctx.aio_exec(oid, s->c, "tabular", "wasm_query_op", inbl, &s->bl);
+                    int ret = ioctx.aio_exec(oid, io_state->c, "tabular", "wasm_query_op", inbl, &io_state->bl);
                     checkret(ret, 0);
                 }
 
                 // execute standard read
                 else {
                     // read entire object by specifying off=0 len=0.
-                    int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+                    int ret = ioctx.aio_read(oid, io_state->c, &io_state->bl, 0, 0);
                     checkret(ret, 0);
                 }
             }
@@ -1065,7 +1065,7 @@ int main(int argc, char **argv) {
                 ::encode(op, inbl);
 
                 // we only execute read via CLS method
-                int ret = ioctx.aio_exec(oid, s->c, "tabular", "hep_query_op", inbl, &s->bl);
+                int ret = ioctx.aio_exec(oid, io_state->c, "tabular", "hep_query_op", inbl, &io_state->bl);
                 checkret(ret, 0);
             }
 
