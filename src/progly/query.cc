@@ -414,294 +414,131 @@ static void add_extra_row_cost(uint64_t cost)
   }
 }
 
-void worker()
-{
-  std::unique_lock<std::mutex> lock(work_lock);
-  while (true) {
-    // wait for work, or done
-    if (ready_ios.empty()) {
-      if (stop)
-        break;
-      work_cond.wait(lock);
-      continue;
-    }
+void worker() {
+    std::unique_lock<std::mutex> lock(work_lock);
 
-    // prepare result
-    AioState *s = ready_ios.front();
-    ready_ios.pop_front();
+    while (true) {
+        // wait for work, or done
+        if (ready_ios.empty()) {
+            if (stop) { break; }
 
-    // process result without lock. we own it now.
-    lock.unlock();
+            work_cond.wait(lock);
+            continue;
+        }
 
-    dispatch_lock.lock();
-    outstanding_ios--;
-    dispatch_lock.unlock();
-    dispatch_cond.notify_one();
+        // prepare result
+        AioState *s = ready_ios.front();
+        ready_ios.pop_front();
 
-    struct timing times = s->times;
-    uint64_t nrows_server_processed = 0;
-    uint64_t eval2_start = getns();
+        // process result without lock. we own it now.
+        lock.unlock();
 
-    if (query == "flatbuf") {
+        dispatch_lock.lock();
+        outstanding_ios--;
+        dispatch_lock.unlock();
+        dispatch_cond.notify_one();
 
-        using namespace Tables;
+        struct timing times = s->times;
+        uint64_t nrows_server_processed = 0;
+        uint64_t eval2_start = getns();
 
         // standard librados read will return the raw object data (unprocessed)
         // cls read (execute) will return processed data from each obj.
         // in both cases, the results are wrapped as a sequence of bufferlists
         // currently each bufferlist is a skyhook flatbuf data structure.
 
-        bufferlist wrapped_bls;   // to store the seq of bls.
+        if (query == "flatbuf") {
 
-        // first extract the top-level statistics encoded during cls processing
-        if (use_cls) {
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(times.read_ns, it);
-                ::decode(times.eval_ns, it);
-                ::decode(nrows_server_processed, it);
-                ::decode(wrapped_bls, it);  // contains a seq of encoded bls.
-            } catch (ceph::buffer::error&) {
-                int decode_runquery_cls = 0;
-                assert(decode_runquery_cls);
-            }
-            nrows_processed += nrows_server_processed;
-        } else {
-            wrapped_bls = s->bl;  // contains a seq of encoded bls.
-        }
-        delete s;  // we're done processing all of the bls contained within
+            using namespace Tables;
 
-        // decode and process each bl (contains 1 flatbuf) in a loop.
-        ceph::bufferlist::iterator it = wrapped_bls.begin();
-        while (it.get_remaining() > 0) {
-            ceph::bufferlist bl;
-            try {
-                ::decode(bl, it);  // unpack the next data struct
-            } catch (ceph::buffer::error&) {
-                int decode_runquery_noncls = 0;
-                assert(decode_runquery_noncls);
-            }
+            // to store the seq of bls.
+            bufferlist wrapped_bls;
 
-            /*
-            * NOTE:
-            *
-            * to manually test new formats you can append your new serialized
-            * formatted data as a char* into a bl, then set optional args to
-            * false and specify the format type such as this:
-            * sky_meta meta = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
-            *
-            * which creates a new fbmeta from your new type of bl data.
-            * then you can check the fields:
-            * std::cout << "meta.blob_format:" << meta.blob_format << endl;
-            */
+            // first extract the top-level statistics encoded during cls processing
+            if (use_cls) {
+                try {
+                    ceph::bufferlist::iterator it = s->bl.begin();
 
-            // default usage here assumes the fbmeta is already in the bl
-            sky_meta meta = getSkyMeta(&bl);
+                    ::decode(times.read_ns, it);
+                    ::decode(times.eval_ns, it);
+                    ::decode(nrows_server_processed, it);
 
-            // this code block is only used for accounting (rows processed)
-            switch (meta.blob_format) {
-
-                case SFT_FLATBUF_FLEX_ROW:
-                case SFT_ARROW:
-                case SFT_JSON: {
-                    sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                       meta.blob_size,
-                                                       meta.blob_format);
-                    nrows_processed += root.nrows;
-                    rows_returned += root.nrows;
-                    break;
+                    // contains a seq of encoded bls.
+                    ::decode(wrapped_bls, it);
+                }
+                
+                catch (ceph::buffer::error&) {
+                    int decode_runquery_cls = 0;
+                    assert(decode_runquery_cls);
                 }
 
-                case SFT_FLATBUF_UNION_ROW:
-                case SFT_FLATBUF_UNION_COL: {
+                std::cout << "[DEBUG] rows processed (server): "
+                          << nrows_server_processed
+                          << std::endl;
 
-                    // extract ptr to meta data blob
-                    const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                    size_t blob_sz = meta.blob_size;
-
-                    // extract bl_seq bufferlist
-                    ceph::bufferlist bl_seq;
-                    bl_seq.append(blob_dataptr, blob_sz);
-
-                    // just need to grab the first bufferlist in the bl_seq
-                    ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                    // decode decrements get_remaining by moving itr
-                    ceph::bufferlist bl;
-                    ::decode(bl, it_bl_seq);
-                    const char* dataptr = bl.c_str();
-                    size_t datasz = bl.length();
-
-                    // get the number of rows returned for accounting purposes
-                    sky_root root = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
-                    rows_returned += root.nrows;
-                    break;
-                }
-                case SFT_FLATBUF_CSV_ROW:
-                case SFT_PG_TUPLE:
-                case SFT_CSV:
-                default:
-                    assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                nrows_processed += nrows_server_processed;
             }
 
-            // check if cols to be projected or preds remaining to be applied
-            // TODO: add any global aggs here.
-            bool more_processing = false;
-            if (!use_cls) {
-                // TODO: remove pushed-down preds from sky_qry_preds then we
-                // can remove project flag and just check size of preds here.
-                if ((project_cols != PROJECT_DEFAULT) || (sky_qry_preds.size() > 0)) {
-                    more_processing = true;
-                }
-            }
-
-            // nothing left to do here, so we just print results
-            if (!more_processing) {
-
-                switch (meta.blob_format) {
-                    case SFT_JSON:
-                    case SFT_FLATBUF_FLEX_ROW:
-                    case SFT_ARROW: {
-
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data,
-                                               meta.blob_size,
-                                               meta.blob_format);
-
-                        result_count += root.nrows;
-
-                        print_data(meta.blob_data,
-                                   meta.blob_size,
-                                   meta.blob_format);
-                        break;
-                    }
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL: {
-
-                        // extract ptr to meta data blob
-                        const char* blob_dataptr = \
-                                reinterpret_cast<const char*>(meta.blob_data);
-                        size_t blob_sz = meta.blob_size;
-
-                        // extract bl_seq bufferlist
-                        ceph::bufferlist bl_seq;
-                        bl_seq.append(blob_dataptr, blob_sz);
-
-                        // bl_seq for ROW format will only contain one bl
-                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                        bool first_iteration = true;
-                        while (it_bl_seq.get_remaining() > 0) {
-
-                            // decode decrements get_remaining by moving itr
-                            ceph::bufferlist bl;
-                            ::decode(bl, it_bl_seq);
-                            const char* dataptr = bl.c_str();
-                            size_t datasz = bl.length();
-
-                            // get the number of rows returned for accounting
-                            if (first_iteration) {
-                                sky_root root = getSkyRoot(dataptr,
-                                                           datasz,
-                                                           SFT_FLATBUF_UNION_ROW);
-                                result_count += root.nrows;
-                                first_iteration = false;
-                            }
-
-                            // do the print
-                            if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
-                                print_data(dataptr,
-                                           datasz,
-                                           SFT_FLATBUF_UNION_ROW);
-                            }
-                            else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
-                                print_data(dataptr,
-                                           datasz,
-                                           SFT_FLATBUF_UNION_COL);
-                            }
-                            else {
-                                assert(Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-                            }
-
-                        } // while
-                        break;
-                    }
-
-                    case SFT_FLATBUF_CSV_ROW:
-                    case SFT_PG_TUPLE:
-                    case SFT_CSV:
-                    default:
-                        assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-                }
-            }
             else {
+                // contains a seq of encoded bls.
+                wrapped_bls = s->bl;
+            }
 
-                // more processing to do such as min, sort, any other remaining preds.
-                std::string errmsg;
+            // we're done processing all of the bls contained within
+            delete s;
 
+            // decode and process each bl (contains 1 flatbuf) in a loop.
+            ceph::bufferlist::iterator it = wrapped_bls.begin();
+
+            while (it.get_remaining() > 0) {
+                std::cout << "[DEBUG] Processing bufferlist" << std::endl;
+
+                ceph::bufferlist bl;
+
+                try {
+                    // unpack the next data struct
+                    ::decode(bl, it);
+                }
+                
+                catch (ceph::buffer::error&) {
+                    int decode_runquery_noncls = 0;
+                    assert(decode_runquery_noncls);
+                }
+
+                /*
+                 * NOTE:
+                 *
+                 * to manually test new formats you can append your new serialized
+                 * formatted data as a char* into a bl, then set optional args to
+                 * false and specify the format type such as this:
+                 * sky_meta meta = getSkyMeta(bl, false, SFT_FLATBUF_FLEX_ROW);
+                 *
+                 * which creates a new fbmeta from your new type of bl data.
+                 * then you can check the fields:
+                 * std::cout << "meta.blob_format:" << meta.blob_format << endl;
+                 */
+
+                // default usage here assumes the fbmeta is already in the bl
+                std::cout << "[DEBUG] Parsing skyhook metadata" << std::endl;
+                sky_meta meta = getSkyMeta(&bl);
+                std::cout << "[DEBUG] Skyhook metadata parsed" << std::endl;
+
+                // this code block is only used for accounting (rows processed)
                 switch (meta.blob_format) {
 
-                    case SFT_FLATBUF_FLEX_ROW: {
-                        flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
-                        int ret = processSkyFb(flatbldr,
-                                               sky_tbl_schema,
-                                               sky_qry_schema,
-                                               sky_qry_preds,
-                                               meta.blob_data,
-                                               meta.blob_size,
-                                               errmsg);
-                        if (ret != 0) {
-                            int more_processing_failure = true;
-                            std::cerr << "ERROR: query.cc: processing flatbuf: "
-                                      << errmsg << "\n Tables::ErrCodes=" << ret
-                                      << endl;
-                            assert(more_processing_failure);
-                        }
-
-                        // TODO: we should be using uint8_t here
-                        const char* processed_data = \
-                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
-                        sky_root root = getSkyRoot(processed_data, 0);
-                        result_count += root.nrows;
-                        print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
+                    case SFT_FLATBUF_FLEX_ROW:
+                    case SFT_ARROW:
+                    case SFT_JSON: {
+                        sky_root root = Tables::getSkyRoot(meta.blob_data,
+                                                           meta.blob_size,
+                                                           meta.blob_format);
+                        nrows_processed += root.nrows;
+                        rows_returned += root.nrows;
                         break;
                     }
-
-                    case SFT_ARROW: {
-                        std::shared_ptr<arrow::Table> table;
-                        int ret = processArrowCol(
-                                      &table,
-                                      sky_tbl_schema,
-                                      sky_qry_schema,
-                                      sky_qry_preds,
-                                      meta.blob_data,
-                                      meta.blob_size,
-                                      errmsg);
-                        if (ret != 0) {
-                            int more_processing_failure = true;
-                            std::cerr << "ERROR: query.cc: processing arrow: "
-                                      << errmsg << "\n Tables::ErrCodes=" << ret
-                                      << endl;
-                            assert(more_processing_failure);
-                        }
-                        else {
-                            std::shared_ptr<arrow::Buffer> buffer;
-                            auto schema = table->schema();
-                            auto metadata = schema->metadata();
-                            result_count += std::stoi(metadata->value(METADATA_NUM_ROWS));
-                            convert_arrow_to_buffer(table, &buffer);
-                            print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
-                        }
-                        break;
-                    }
-
-                    case SFT_JSON:  // TODO: call processJSON() here.
-                        break;
 
                     case SFT_FLATBUF_UNION_ROW:
                     case SFT_FLATBUF_UNION_COL: {
-                        flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
-                        int ret;
 
                         // extract ptr to meta data blob
                         const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
@@ -711,301 +548,456 @@ void worker()
                         ceph::bufferlist bl_seq;
                         bl_seq.append(blob_dataptr, blob_sz);
 
-                        // bl_seq for ROW format will only contain one bl
+                        // just need to grab the first bufferlist in the bl_seq
                         ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
 
+                        // decode decrements get_remaining by moving itr
                         ceph::bufferlist bl;
-                        ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
+                        ::decode(bl, it_bl_seq);
                         const char* dataptr = bl.c_str();
                         size_t datasz = bl.length();
 
-                        if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
-                            ret = processSkyFb_fbu_rows(
-                                   flatbldr,
-                                   sky_tbl_schema,
-                                   sky_qry_schema,
-                                   sky_qry_preds,
-                                   dataptr,
-                                   datasz,
-                                   errmsg);
-                        }
-                        else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
-                            ret = processSkyFb_fbu_cols(
-                                    bl_seq,
-                                    flatbldr,
-                                    sky_tbl_schema,
-                                    sky_qry_schema,
-                                    sky_qry_preds,
-                                    dataptr,
-                                    datasz,
-                                    errmsg);
-                        }
-                        else {
-                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-                        }
-
-                        if (ret != 0) {
-                            int more_processing_failure = true;
-                            std::cerr << "ERROR: query.cc: processing flatbuf: "
-                                      << errmsg << "\n Tables::ErrCodes=" << ret
-                                      << endl;
-                            assert(more_processing_failure);
-                        }
-
-                        // TODO: we should be using uint8_t here
-                        const char* processed_data = \
-                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
-                        sky_root root = getSkyRoot(processed_data, 0);
-                        result_count += root.nrows;
-                        print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
+                        // get the number of rows returned for accounting purposes
+                        sky_root root = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
+                        rows_returned += root.nrows;
                         break;
                     }
+
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
                     default:
                         assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
                 }
-            }
-        } // endloop of processing sequence of encoded bls
 
-    }
-    else if (query == "example") {
+                // check if cols to be projected or preds remaining to be applied
+                // TODO: add any global aggs here.
+                bool more_processing = false;
 
-        using namespace Tables;
+                if (!use_cls) {
+                    // TODO: remove pushed-down preds from sky_qry_preds then we
+                    // can remove project flag and just check size of preds here.
+                    if ((project_cols != PROJECT_DEFAULT) || (sky_qry_preds.size() > 0)) {
+                        more_processing = true;
+                    }
+                }
 
-        // to store the result from an object
-        bufferlist bl;
+                // nothing left to do here, so we just print results
+                if (!more_processing) {
+                    switch (meta.blob_format) {
+                        case SFT_JSON:
+                        case SFT_FLATBUF_FLEX_ROW:
+                        case SFT_ARROW: {
 
-        if (use_cls) {
+                            sky_root root = Tables::getSkyRoot(
+                                meta.blob_data,
+                                meta.blob_size,
+                                meta.blob_format
+                            );
 
-            // result came from cls read, so we unpack our outbl info
-            // added by the example cls method
-            outbl_sample_info info;
+                            result_count += root.nrows;
 
-            // decode the outbl from cls_tabular.cc example method to extract
-            // results and metadata.
-            // this worker has an AioState *s struct, declared above.
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(info, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_examplequery_cls = 0;
-                assert(decode_examplequery_cls);
-            }
-            times.read_ns = info.read_time_ns;
-            times.eval_ns = info.eval_time_ns;
-            rows_returned += info.rows_processed;
-            result_count += info.rows_processed;
-            cout << "count thus far... " <<rows_returned << std::endl;
-        } else {
+                            print_data(
+                                meta.blob_data,
+                                meta.blob_size,
+                                meta.blob_format
+                            );
 
-            // result came from standard read, no extra info to unpack
-            // the outbl is just the actual data, and is stored in s.
-            bl = s->bl;
+                            break;
+                        }
+
+                        case SFT_FLATBUF_UNION_ROW:
+                        case SFT_FLATBUF_UNION_COL: {
+
+                            // extract ptr to meta data blob
+                            const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
+                            size_t blob_sz = meta.blob_size;
+
+                            // extract bl_seq bufferlist
+                            ceph::bufferlist bl_seq;
+                            bl_seq.append(blob_dataptr, blob_sz);
+
+                            // bl_seq for ROW format will only contain one bl
+                            ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
+
+                            bool first_iteration = true;
+                            while (it_bl_seq.get_remaining() > 0) {
+
+                                // decode decrements get_remaining by moving itr
+                                ceph::bufferlist bl;
+                                ::decode(bl, it_bl_seq);
+                                const char* dataptr = bl.c_str();
+                                size_t datasz = bl.length();
+
+                                // get the number of rows returned for accounting
+                                if (first_iteration) {
+                                    sky_root root = getSkyRoot(
+                                        dataptr, datasz, SFT_FLATBUF_UNION_ROW
+                                    );
+
+                                    result_count += root.nrows;
+                                    first_iteration = false;
+                                }
+
+                                // do the print
+                                if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
+                                    print_data(
+                                        dataptr, datasz, SFT_FLATBUF_UNION_ROW
+                                    );
+                                }
+
+                                else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
+                                    print_data(
+                                        dataptr, datasz, SFT_FLATBUF_UNION_COL
+                                    );
+                                }
+
+                                else {
+                                    assert(Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                                }
+
+                            } // while
+
+                            break;
+                        }
+
+                        case SFT_FLATBUF_CSV_ROW:
+                        case SFT_PG_TUPLE:
+                        case SFT_CSV:
+                        default:
+                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                    }
+                }
+
+                else {
+
+                    // more processing to do such as min, sort, any other remaining preds.
+                    std::string errmsg;
+
+                    switch (meta.blob_format) {
+
+                        case SFT_FLATBUF_FLEX_ROW: {
+                            flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
+                            int ret = processSkyFb(flatbldr,
+                                                   sky_tbl_schema,
+                                                   sky_qry_schema,
+                                                   sky_qry_preds,
+                                                   meta.blob_data,
+                                                   meta.blob_size,
+                                                   errmsg);
+                            if (ret != 0) {
+                                int more_processing_failure = true;
+                                std::cerr << "ERROR: query.cc: processing flatbuf: "
+                                          << errmsg << "\n Tables::ErrCodes=" << ret
+                                          << endl;
+                                assert(more_processing_failure);
+                            }
+
+                            // TODO: we should be using uint8_t here
+                            const char* processed_data = \
+                                reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
+                            sky_root root = getSkyRoot(processed_data, 0);
+                            result_count += root.nrows;
+                            print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
+                            break;
+                        }
+
+                        case SFT_ARROW: {
+                            std::shared_ptr<arrow::Table> table;
+                            int ret = processArrowCol(
+                                          &table,
+                                          sky_tbl_schema,
+                                          sky_qry_schema,
+                                          sky_qry_preds,
+                                          meta.blob_data,
+                                          meta.blob_size,
+                                          errmsg);
+                            if (ret != 0) {
+                                int more_processing_failure = true;
+                                std::cerr << "ERROR: query.cc: processing arrow: "
+                                          << errmsg << "\n Tables::ErrCodes=" << ret
+                                          << endl;
+                                assert(more_processing_failure);
+                            }
+                            else {
+                                std::shared_ptr<arrow::Buffer> buffer;
+                                auto schema = table->schema();
+                                auto metadata = schema->metadata();
+                                result_count += std::stoi(metadata->value(METADATA_NUM_ROWS));
+                                convert_arrow_to_buffer(table, &buffer);
+                                print_data(buffer->ToString().c_str(), buffer->size(), SFT_ARROW);
+                            }
+                            break;
+                        }
+
+                        case SFT_JSON:  // TODO: call processJSON() here.
+                            break;
+
+                        case SFT_FLATBUF_UNION_ROW:
+                        case SFT_FLATBUF_UNION_COL: {
+                            flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
+                            int ret;
+
+                            // extract ptr to meta data blob
+                            const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
+                            size_t blob_sz = meta.blob_size;
+
+                            // extract bl_seq bufferlist
+                            ceph::bufferlist bl_seq;
+                            bl_seq.append(blob_dataptr, blob_sz);
+
+                            // bl_seq for ROW format will only contain one bl
+                            ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
+
+                            ceph::bufferlist bl;
+                            ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
+                            const char* dataptr = bl.c_str();
+                            size_t datasz = bl.length();
+
+                            if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
+                                ret = processSkyFb_fbu_rows(
+                                       flatbldr,
+                                       sky_tbl_schema,
+                                       sky_qry_schema,
+                                       sky_qry_preds,
+                                       dataptr,
+                                       datasz,
+                                       errmsg);
+                            }
+                            else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
+                                ret = processSkyFb_fbu_cols(
+                                        bl_seq,
+                                        flatbldr,
+                                        sky_tbl_schema,
+                                        sky_qry_schema,
+                                        sky_qry_preds,
+                                        dataptr,
+                                        datasz,
+                                        errmsg);
+                            }
+                            else {
+                                assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                            }
+
+                            if (ret != 0) {
+                                int more_processing_failure = true;
+                                std::cerr << "ERROR: query.cc: processing flatbuf: "
+                                          << errmsg << "\n Tables::ErrCodes=" << ret
+                                          << endl;
+                                assert(more_processing_failure);
+                            }
+
+                            // TODO: we should be using uint8_t here
+                            const char* processed_data = \
+                                reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
+                            sky_root root = getSkyRoot(processed_data, 0);
+                            result_count += root.nrows;
+                            print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
+                            break;
+                        }
+                        case SFT_FLATBUF_CSV_ROW:
+                        case SFT_PG_TUPLE:
+                        case SFT_CSV:
+                        default:
+                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                    }
+                }
+            } // endloop of processing sequence of encoded bls
+
         }
+      else if (query == "example") {
 
-        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+          using namespace Tables;
 
-    }
-    else if (query == "wasm") {
+          // to store the result from an object
+          bufferlist bl;
 
-        using namespace Tables;
-
-        // to store the result from an object
-        bufferlist bl;
-
-        if (use_cls) {
-
-            // result came from cls read, so we unpack our outbl info
-            // added by the example cls method
-            wasm_outbl_sample_info info;
-
-            // decode the outbl from cls_tabular.cc example method to extract
-            // results and metadata.
-            // this worker has an AioState *s struct, declared above.
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(info, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_examplequery_cls = 0;
-                assert(decode_examplequery_cls);
-            }
-            times.read_ns = info.read_time_ns;
-            times.eval_ns = info.eval_time_ns;
-            rows_returned += info.rows_processed;
-            result_count += info.rows_processed;
-            cout << "count thus far... " <<rows_returned << std::endl;
-        } else {
-
-            // result came from standard read, no extra info to unpack
-            // the outbl is just the actual data, and is stored in s.
-            bl = s->bl;
-        }
-
-        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
-
-    }
-    else if (query == "hep") {
-
-        using namespace Tables;
-
-        // to store the result from an object.
-        // the out bufferlist contains a cls_return_code and then
-        // the actual result (if any) from the obj.
-        bufferlist bl;
-        int cls_result_code = 0;
-
-        // check if object did not exist/had empty data partition.
-        if (s->bl.length() > 0) {
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(cls_result_code, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_hepquery_cls = 0;
-                assert(decode_hepquery_cls);
-            }
-
-            // we do nothing for ClsResultCodeFalse, indicates no matching data
-            // was returned from this object from the query, otherwise we output
-            // result as as pyarrow binary
-            if (cls_result_code == TablesErrCodes::ClsResultCodeTrue)
-                print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
-        }
-    }
-    else {   // older processing code below
-
-        // NOTE: these only used for older fixed size rows test dataset
-        static const size_t order_key_field_offset = 0;
-        static const size_t line_number_field_offset = 12;
-        static const size_t quantity_field_offset = 16;
-        static const size_t extended_price_field_offset = 24;
-        static const size_t discount_field_offset = 32;
-        static const size_t shipdate_field_offset = 50;
-        static const size_t comment_field_offset = 97;
-        static const size_t comment_field_length = 44;
-        ceph::bufferlist bl;
-
-        // if it was a cls read, first unpack some of the cls processing info
-        if (use_cls) {
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(times.read_ns, it);
-                ::decode(times.eval_ns, it);
-                ::decode(nrows_server_processed, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_runquery_cls = 0;
-                assert(decode_runquery_cls);
-            }
-        } else {
-            bl = s->bl;
-        }
-
-        // data is now all in bl
-        delete s;
-
-        // our older query processing code below...
-        // apply the query
-        size_t row_size;
-        if (old_projection && use_cls)
-          row_size = 8;
-        else
-          row_size = 141;
-        const char *rows = bl.c_str();
-        const size_t num_rows = bl.length() / row_size;
-        rows_returned += num_rows;
-
-        if (use_cls)
-            nrows_processed += nrows_server_processed;
-        else
-            nrows_processed += num_rows;
-
-        if (query == "a") {
           if (use_cls) {
-            // if we are using cls then storage system returns the number of
-            // matching rows rather than the actual rows. so we patch up the
-            // results to the presentation of the results is correct.
-            size_t matching_rows;
-            ceph::bufferlist::iterator it = bl.begin();
-            ::decode(matching_rows, it);
-            result_count += matching_rows;
+
+              // result came from cls read, so we unpack our outbl info
+              // added by the example cls method
+              outbl_sample_info info;
+
+              // decode the outbl from cls_tabular.cc example method to extract
+              // results and metadata.
+              // this worker has an AioState *s struct, declared above.
+              try {
+                  ceph::bufferlist::iterator it = s->bl.begin();
+                  ::decode(info, it);
+                  ::decode(bl, it);
+              } catch (ceph::buffer::error&) {
+                  int decode_examplequery_cls = 0;
+                  assert(decode_examplequery_cls);
+              }
+              times.read_ns = info.read_time_ns;
+              times.eval_ns = info.eval_time_ns;
+              rows_returned += info.rows_processed;
+              result_count += info.rows_processed;
+              cout << "count thus far... " <<rows_returned << std::endl;
           } else {
+
+              // result came from standard read, no extra info to unpack
+              // the outbl is just the actual data, and is stored in s.
+              bl = s->bl;
+          }
+
+          print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+
+      }
+      else if (query == "wasm") {
+
+          using namespace Tables;
+
+          // to store the result from an object
+          bufferlist bl;
+
+          if (use_cls) {
+
+              // result came from cls read, so we unpack our outbl info
+              // added by the example cls method
+              wasm_outbl_sample_info info;
+
+              // decode the outbl from cls_tabular.cc example method to extract
+              // results and metadata.
+              // this worker has an AioState *s struct, declared above.
+              try {
+                  ceph::bufferlist::iterator it = s->bl.begin();
+                  ::decode(info, it);
+                  ::decode(bl, it);
+              } catch (ceph::buffer::error&) {
+                  int decode_examplequery_cls = 0;
+                  assert(decode_examplequery_cls);
+              }
+              times.read_ns = info.read_time_ns;
+              times.eval_ns = info.eval_time_ns;
+              rows_returned += info.rows_processed;
+              result_count += info.rows_processed;
+              cout << "count thus far... " <<rows_returned << std::endl;
+          } else {
+
+              // result came from standard read, no extra info to unpack
+              // the outbl is just the actual data, and is stored in s.
+              bl = s->bl;
+          }
+
+          print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+
+      }
+      else if (query == "hep") {
+
+          using namespace Tables;
+
+          // to store the result from an object.
+          // the out bufferlist contains a cls_return_code and then
+          // the actual result (if any) from the obj.
+          bufferlist bl;
+          int cls_result_code = 0;
+
+          // check if object did not exist/had empty data partition.
+          if (s->bl.length() > 0) {
+              try {
+                  ceph::bufferlist::iterator it = s->bl.begin();
+                  ::decode(cls_result_code, it);
+                  ::decode(bl, it);
+              } catch (ceph::buffer::error&) {
+                  int decode_hepquery_cls = 0;
+                  assert(decode_hepquery_cls);
+              }
+
+              // we do nothing for ClsResultCodeFalse, indicates no matching data
+              // was returned from this object from the query, otherwise we output
+              // result as as pyarrow binary
+              if (cls_result_code == TablesErrCodes::ClsResultCodeTrue)
+                  print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
+          }
+      }
+      else {   // older processing code below
+
+          // NOTE: these only used for older fixed size rows test dataset
+          static const size_t order_key_field_offset = 0;
+          static const size_t line_number_field_offset = 12;
+          static const size_t quantity_field_offset = 16;
+          static const size_t extended_price_field_offset = 24;
+          static const size_t discount_field_offset = 32;
+          static const size_t shipdate_field_offset = 50;
+          static const size_t comment_field_offset = 97;
+          static const size_t comment_field_length = 44;
+          ceph::bufferlist bl;
+
+          // if it was a cls read, first unpack some of the cls processing info
+          if (use_cls) {
+              try {
+                  ceph::bufferlist::iterator it = s->bl.begin();
+                  ::decode(times.read_ns, it);
+                  ::decode(times.eval_ns, it);
+                  ::decode(nrows_server_processed, it);
+                  ::decode(bl, it);
+              } catch (ceph::buffer::error&) {
+                  int decode_runquery_cls = 0;
+                  assert(decode_runquery_cls);
+              }
+          } else {
+              bl = s->bl;
+          }
+
+          // data is now all in bl
+          delete s;
+
+          // our older query processing code below...
+          // apply the query
+          size_t row_size;
+          if (old_projection && use_cls)
+            row_size = 8;
+          else
+            row_size = 141;
+          const char *rows = bl.c_str();
+          const size_t num_rows = bl.length() / row_size;
+          rows_returned += num_rows;
+
+          if (use_cls)
+              nrows_processed += nrows_server_processed;
+          else
+              nrows_processed += num_rows;
+
+          if (query == "a") {
+            if (use_cls) {
+              // if we are using cls then storage system returns the number of
+              // matching rows rather than the actual rows. so we patch up the
+              // results to the presentation of the results is correct.
+              size_t matching_rows;
+              ceph::bufferlist::iterator it = bl.begin();
+              ::decode(matching_rows, it);
+              result_count += matching_rows;
+            } else {
+              if (old_projection && use_cls) {
+                result_count += num_rows;
+              } else {
+                for (size_t rid = 0; rid < num_rows; rid++) {
+                  const char *row = rows + rid * row_size;
+                  const char *vptr = row + extended_price_field_offset;
+                  const double val = *(const double*)vptr;
+                  if (val > extended_price) {
+                    result_count++;
+                    // when a predicate passes, add some extra work
+                    add_extra_row_cost(extra_row_cost);
+                  }
+                }
+              }
+            }
+          }
+          else if (query == "b") {
             if (old_projection && use_cls) {
-              result_count += num_rows;
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                print_row(row);
+                result_count++;
+              }
             } else {
               for (size_t rid = 0; rid < num_rows; rid++) {
                 const char *row = rows + rid * row_size;
                 const char *vptr = row + extended_price_field_offset;
                 const double val = *(const double*)vptr;
                 if (val > extended_price) {
-                  result_count++;
-                  // when a predicate passes, add some extra work
-                  add_extra_row_cost(extra_row_cost);
-                }
-              }
-            }
-          }
-        }
-        else if (query == "b") {
-          if (old_projection && use_cls) {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              print_row(row);
-              result_count++;
-            }
-          } else {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              const char *vptr = row + extended_price_field_offset;
-              const double val = *(const double*)vptr;
-              if (val > extended_price) {
-                print_row(row);
-                result_count++;
-                add_extra_row_cost(extra_row_cost);
-              }
-            }
-          }
-        }
-        else if (query == "c") {
-          if (old_projection && use_cls) {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              print_row(row);
-              result_count++;
-            }
-          } else {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              const char *vptr = row + extended_price_field_offset;
-              const double val = *(const double*)vptr;
-              if (val == extended_price) {
-                print_row(row);
-                result_count++;
-                add_extra_row_cost(extra_row_cost);
-              }
-            }
-          }
-        }
-        else if (query == "d") {
-          if (old_projection && use_cls) {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              print_row(row);
-              result_count++;
-            }
-          } else {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              const char *vptr = row + order_key_field_offset;
-              const int order_key_val = *(const int*)vptr;
-              if (order_key_val == order_key) {
-                const char *vptr = row + line_number_field_offset;
-                const int line_number_val = *(const int*)vptr;
-                if (line_number_val == line_number) {
                   print_row(row);
                   result_count++;
                   add_extra_row_cost(extra_row_cost);
@@ -1013,24 +1005,42 @@ void worker()
               }
             }
           }
-        }
-        else if (query == "e") {
-          if (old_projection && use_cls) {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              print_row(row);
-              result_count++;
+          else if (query == "c") {
+            if (old_projection && use_cls) {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                print_row(row);
+                result_count++;
+              }
+            } else {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                const char *vptr = row + extended_price_field_offset;
+                const double val = *(const double*)vptr;
+                if (val == extended_price) {
+                  print_row(row);
+                  result_count++;
+                  add_extra_row_cost(extra_row_cost);
+                }
+              }
             }
-          } else {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-
-              const int shipdate_val = *((const int *)(row + shipdate_field_offset));
-              if (shipdate_val >= ship_date_low && shipdate_val < ship_date_high) {
-                const double discount_val = *((const double *)(row + discount_field_offset));
-                if (discount_val > discount_low && discount_val < discount_high) {
-                  const double quantity_val = *((const double *)(row + quantity_field_offset));
-                  if (quantity_val < quantity) {
+          }
+          else if (query == "d") {
+            if (old_projection && use_cls) {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                print_row(row);
+                result_count++;
+              }
+            } else {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                const char *vptr = row + order_key_field_offset;
+                const int order_key_val = *(const int*)vptr;
+                if (order_key_val == order_key) {
+                  const char *vptr = row + line_number_field_offset;
+                  const int line_number_val = *(const int*)vptr;
+                  if (line_number_val == line_number) {
                     print_row(row);
                     result_count++;
                     add_extra_row_cost(extra_row_cost);
@@ -1039,46 +1049,71 @@ void worker()
               }
             }
           }
-        }
-        else if (query == "f") {
-          if (old_projection && use_cls) {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              print_row(row);
-              result_count++;
-            }
-          } else {
-            RE2 re(comment_regex);
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              const char *cptr = row + comment_field_offset;
-              const std::string comment_val = string_ncopy(cptr,
-                  comment_field_length);
-              if (RE2::PartialMatch(comment_val, re)) {
+          else if (query == "e") {
+            if (old_projection && use_cls) {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
                 print_row(row);
                 result_count++;
-                add_extra_row_cost(extra_row_cost);
+              }
+            } else {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+
+                const int shipdate_val = *((const int *)(row + shipdate_field_offset));
+                if (shipdate_val >= ship_date_low && shipdate_val < ship_date_high) {
+                  const double discount_val = *((const double *)(row + discount_field_offset));
+                  if (discount_val > discount_low && discount_val < discount_high) {
+                    const double quantity_val = *((const double *)(row + quantity_field_offset));
+                    if (quantity_val < quantity) {
+                      print_row(row);
+                      result_count++;
+                      add_extra_row_cost(extra_row_cost);
+                    }
+                  }
+                }
               }
             }
           }
-        }
-        else if (query == "fastpath") {
-            for (size_t rid = 0; rid < num_rows; rid++) {
-              const char *row = rows + rid * row_size;
-              print_row(row);
-              result_count++;
+          else if (query == "f") {
+            if (old_projection && use_cls) {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                print_row(row);
+                result_count++;
+              }
+            } else {
+              RE2 re(comment_regex);
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                const char *cptr = row + comment_field_offset;
+                const std::string comment_val = string_ncopy(cptr,
+                    comment_field_length);
+                if (RE2::PartialMatch(comment_val, re)) {
+                  print_row(row);
+                  result_count++;
+                  add_extra_row_cost(extra_row_cost);
+                }
+              }
             }
-        }
-        else {  // unrecognized query type
-          assert(0);
-        }
+          }
+          else if (query == "fastpath") {
+              for (size_t rid = 0; rid < num_rows; rid++) {
+                const char *row = rows + rid * row_size;
+                print_row(row);
+                result_count++;
+              }
+          }
+          else {  // unrecognized query type
+            assert(0);
+          }
+      }
+
+      times.eval2_ns = getns() - eval2_start;
+
+      lock.lock();
+      timings.push_back(times);
     }
-
-    times.eval2_ns = getns() - eval2_start;
-
-    lock.lock();
-    timings.push_back(times);
-  }
 }
 
 /*
