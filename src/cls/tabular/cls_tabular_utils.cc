@@ -3142,7 +3142,7 @@ sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
             meta->blob_compression(),  // blob compression
             meta->blob_format(),       // blob's format (i.e.,SkyFormatType)
             meta->blob_deleted(),      // blob valid (not deleted)
-            meta->blob_data()->size(), // blob actual size
+            meta->blob_size(),         // blob size
 
             // serialized blob data
             reinterpret_cast<const char*>(meta->blob_data()->Data())
