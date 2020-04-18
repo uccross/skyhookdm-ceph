@@ -1448,7 +1448,13 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                     case SFT_FLATBUF_FLEX_ROW: {
 
-                        flatbuffers::FlatBufferBuilder result_builder(1024);
+                        int bldr_size = 1024;
+                        flatbuffers::FlatBufferBuilder result_builder(bldr_size);
+
+                        // temporary toggle for wasm execution testing
+                        bool wasm = false;
+
+                        if (!wasm) {
                         ret = processSkyFb(result_builder,
                                            data_schema,
                                            query_schema,
@@ -1457,6 +1463,42 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                            meta.blob_size,
                                            errmsg,
                                            row_nums);
+                        }
+                        else {
+                            // convert all params to native char or int types for wasm
+                            char* bldrptr = reinterpret_cast<char*>(&result_builder);
+                            std::string ds = schemaToString(data_schema);
+                            std::string qs = schemaToString(query_schema);
+                            std::string qp = predsToString(query_preds, data_schema);
+                            int ERRMSG_MAX_LEN = 256;
+                            char* errmsg_ptr = (char*) calloc(ERRMSG_MAX_LEN, sizeof(char));
+                            int row_nums_size = static_cast<int>(row_nums.size());
+                            int* row_nums_ptr = (int*) calloc(row_nums_size, sizeof(int));
+                            std::copy(row_nums.begin(), row_nums.end(), row_nums_ptr);
+
+                            ret = processSkyFbWASM(
+                                    bldrptr,
+                                    bldr_size,
+                                    const_cast<char*>(ds.c_str()),
+                                    ds.length(),
+                                    const_cast<char*>(qs.c_str()),
+                                    qs.length(),
+                                    const_cast<char*>(qp.c_str()),
+                                    qp.length(),
+                                    const_cast<char*>(meta.blob_data),
+                                    meta.blob_size,
+                                    errmsg_ptr,
+                                    ERRMSG_MAX_LEN,
+                                    row_nums_ptr,
+                                    row_nums_size);
+
+                            errmsg.append(errmsg_ptr);
+                            free(errmsg_ptr);
+                            free(row_nums_ptr);
+
+                            // debug only
+                            CLS_LOG(20, "processSkyFbWASM errmsg=%s", errmsg.c_str());
+                        }
 
                         if (ret != 0) {
                             CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
@@ -2348,7 +2390,7 @@ static int lock_obj_create_op(cls_method_context_t hctx, bufferlist *in, bufferl
     return 0;
   }
 static
-int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
+int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     lockobj_info op_in;
 
@@ -2393,7 +2435,7 @@ int lock_obj_free_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 }
 
 static
-int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
+int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     lockobj_info op_in;
 
@@ -2440,7 +2482,7 @@ int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 }
 
 static
-int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)  
+int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     lockobj_info op_in;
 
@@ -2539,7 +2581,7 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "lock_obj_get_op",
       CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_get_op, &h_getlockobj_query_op);
-  
+
   cls_register_cxx_method(h_class, "lock_obj_acquire_op",
       CLS_METHOD_RD | CLS_METHOD_WR, lock_obj_acquire_op, &h_acquirelockobj_query_op);
 

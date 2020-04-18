@@ -960,6 +960,22 @@ int processSkyFb(
         std::string& errmsg,
         const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
 
+int processSkyFbWASM(
+        char* _flatbldr,
+        int _flatbldr_len,
+        char* _data_schema,
+        int _data_schema_len,
+        char* _query_schema,
+        int _query_schema_len,
+        char* _preds,
+        int _preds_len,
+        char* _fb,
+        int _fb_size,
+        char* _errmsg,
+        int _errmsg_len,
+        int* _row_nums,
+        int _row_nums_size);
+
 int processArrow(
         std::shared_ptr<arrow::Table>* table,
         schema_vec& tbl_schema,

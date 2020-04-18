@@ -967,8 +967,7 @@ struct wasm_outbl_sample_info {
 };
 WRITE_CLASS_ENCODER(wasm_outbl_sample_info)
 
-// Example struct to store and serialize read/write info
-// for custom cls class methods
+// Custom op struct for HEP data queries.
 struct hep_op {
 
   bool fastpath;
@@ -1039,13 +1038,12 @@ struct hep_op {
 WRITE_CLASS_ENCODER(hep_op)
 
 
-// Example struct to store and serialize output info that
-// can be returned from custom cls class read/write methods.
+// Locking object information, used for cross-object atomic
+// exclusive lock mechanism.
 struct lockobj_info {
   bool table_busy;
   int num_objs;
   std::string table_name;
-  // TODO: change it to struct col_stats
   std::string table_group;
 
   lockobj_info() {}
