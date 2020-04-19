@@ -290,3 +290,8 @@ add_executable(fbreader_fbu2 tabular/fbreader_fbu2.cc tabular/cls_tabular_utils.
 target_link_libraries(fbreader_fbu2 librados global re2 arrow parquet )
 install(TARGETS fbreader_fbu2 DESTINATION bin)
 
+# ------------------------------ 
+# Custom
+add_executable(fb_meta tabular/fb_meta.cc)
+target_link_libraries(fb_meta ${Boost_PROGRAM_OPTIONS_LIBRARY} librados arrow)
+install(TARGETS fb_meta DESTINATION bin)
