@@ -46,3 +46,20 @@ target_link_libraries(ceph_test_skyhook_query
 include_directories(${CMAKE_SOURCE_DIR}/src/googletest/googlemock/include)
 install(TARGETS ceph_test_skyhook_query DESTINATION bin)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-function")
+
+# ------------------------------
+# Written by: akmontan@ucsc.edu
+# This is for custom skyhook query code
+add_executable(
+    run_skyhook_query run_skyhook_query.cc
+                      skyhook_query.cc
+                      ../cls/tabular/skyhook_data.cc
+)
+
+target_link_libraries(
+    run_skyhook_query ${Boost_PROGRAM_OPTIONS_LIBRARY}
+                      arrow
+                      librados
+)
+
+install(TARGETS run_skyhook_query DESTINATION bin)
