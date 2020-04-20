@@ -24,6 +24,7 @@ int table_from_record_reader(std::shared_ptr<arrow::ipc::RecordBatchReader> &rec
     return 0;
 }
 
+/*
 const std::string* domain_binary_data_from_wrapper(Tables::FB_Meta *sky_wrapper) {
     // Get the binary data from the flatbuffer structure
     const flatbuffers::Vector<uint8_t> *blob_data_binary = sky_wrapper->blob_data();
@@ -37,12 +38,25 @@ const std::string* domain_binary_data_from_wrapper(Tables::FB_Meta *sky_wrapper)
 
     return raw_buffer_data;
 }
+*/
 
 // ------------------------------
 // SkyhookWrapper member functions
-/*
 SkyhookWrapper::SkyhookWrapper(const char *skyhook_meta_flatbuffer) {
     metadata = Tables::GetFB_Meta(skyhook_meta_flatbuffer);
+
+    // Temporary Debug statements of some flatbuffer fields
+    std::cout << "[FLATBUF] Blob Format: " << metadata->blob_format()
+              << std::endl
+              << "[FLATBUF] Blob Size: "   << metadata->blob_size()
+              << std::endl;
+}
+
+SkyhookWrapper::SkyhookWrapper(librados::bufferlist *rados_read_buffer) {
+    char *object_data = new char[rados_read_buffer->length() + 1];
+    memcpy(object_data, rados_read_buffer->c_str(), rados_read_buffer->length() + 1);
+
+    metadata = Tables::GetFB_Meta(object_data);
 
     // Temporary Debug statements of some flatbuffer fields
     std::cout << "[FLATBUF] Blob Format: " << metadata->blob_format()
@@ -68,7 +82,6 @@ const std::string* SkyhookWrapper::get_domain_binary_data() {
 
     return raw_buffer_data;
 }
-*/
 
 // ------------------------------
 // SkyhookDomainData member functions

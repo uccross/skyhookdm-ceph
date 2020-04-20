@@ -1,5 +1,7 @@
 #include <iostream>
 
+#include "include/rados/librados.hpp"
+
 #include "arrow/api.h"
 #include "arrow/io/memory.h"
 #include "arrow/ipc/reader.h"
@@ -9,16 +11,15 @@
 
 const std::string* domain_binary_data_from_wrapper(Tables::FB_Meta *sky_wrapper);
 
-/*
 struct SkyhookWrapper {
     const Tables::FB_Meta *metadata = NULL;
 
     SkyhookWrapper(const char *flatbuffer_binary_data);
+    SkyhookWrapper(librados::bufferlist *rados_read_buffer);
 
     uint64_t           get_domain_binary_size();
     const std::string* get_domain_binary_data();
 };
-*/
 
 struct SkyhookDomainData {
     std::shared_ptr<arrow::Table>                  data_table;
