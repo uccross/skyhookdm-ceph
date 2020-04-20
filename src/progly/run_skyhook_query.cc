@@ -63,7 +63,7 @@ int config_cluster_handle(opt_parser::variables_map *cli_args, librados::Rados *
     return cluster->connect();
 }
 
-int query_cluster(opt_parser::variables_map *cli_args, Tables::FB_Meta **sky_wrapper) {
+int query_cluster(opt_parser::variables_map *cli_args, SkyhookWrapper **sky_wrapper) {
     // ------------------------------
     // Grab variables from CLI arguments
     std::string pool_name, table_name, path_to_config;
@@ -108,38 +108,15 @@ int query_cluster(opt_parser::variables_map *cli_args, Tables::FB_Meta **sky_wra
     if (skyhook_status < 0) { return STATUS_ERROR_EXEC; }
 
     // Prep sky_wrapper with read data
-    if (DEBUG) { std::cout << "Read completed and successful" << std::endl; }
-    char *object_data = new char[bufferlist_read.length() + 1];
-    memcpy(object_data, bufferlist_read.c_str(), bufferlist_read.length() + 1);
+    // char *object_data = new char[bufferlist_read.length() + 1];
+    // memcpy(object_data, bufferlist_read.c_str(), bufferlist_read.length() + 1);
 
-    *sky_wrapper = (Tables::FB_Meta *) Tables::GetFB_Meta(object_data);
-
-    if (DEBUG) {
-        std::cout << "SkyhookWrapper constructed from bufferlist data" << std::endl;
-
-        // SkyhookDomainData sky_domain = SkyhookDomainData((*sky_wrapper)->get_domain_binary_data());
-        SkyhookDomainData sky_domain = SkyhookDomainData(domain_binary_data_from_wrapper(*sky_wrapper));
-
-        std::cout << "Number of data rows: " << sky_domain.num_rows() << std::endl;
-        std::cout << "[ARROW] Table |> Row Count: " << sky_domain.num_rows()
-                  << std::endl;
-
-        std::string column_name = "0000892fbc276097f396352e3f2a4b51";
-        std::shared_ptr<arrow::ChunkedArray> table_column = sky_domain.get_column(column_name);
-        std::shared_ptr<arrow::Array>        column_chunk = table_column->chunk(0);
-
-        std::cout << "[ARROW] Table |> Column: "      << column_name
-                  << std::endl
-                  << "[ARROW] Table |> Chunk Count: " << table_column->num_chunks()
-                  << std::endl
-                  << "[ARROW] Chunk |> Data: "        << column_chunk->ToString()
-                  << std::endl;
-    }
-
+    // *sky_wrapper = (Tables::FB_Meta *) Tables::GetFB_Meta(object_data);
+    *sky_wrapper = new SkyhookWrapper(&bufferlist_read);
     return 0;
 };
 
-int parse_file(opt_parser::variables_map *cli_args, Tables::FB_Meta **sky_wrapper) {
+int parse_file(opt_parser::variables_map *cli_args, SkyhookWrapper **sky_wrapper) {
     std::string path_to_datafile;
 
     try {
@@ -153,8 +130,8 @@ int parse_file(opt_parser::variables_map *cli_args, Tables::FB_Meta **sky_wrappe
     const char *file_data = bytebuffer_from_filepath(path_to_datafile);
     if (file_data == NULL) { return STATUS_ERROR_RESOURCE; }
 
-    // *sky_wrapper = new SkyhookWrapper(file_data);
-    *sky_wrapper = (Tables::FB_Meta *) Tables::GetFB_Meta(file_data);
+    *sky_wrapper = new SkyhookWrapper(file_data);
+    // *sky_wrapper = (Tables::FB_Meta *) Tables::GetFB_Meta(file_data);
     return 0;
 }
 
@@ -176,7 +153,7 @@ int main(int argc, char **argv) {
 
     int status_code = STATUS_WHAT_DO;
 
-    Tables::FB_Meta *sky_wrapper = NULL;
+    SkyhookWrapper *sky_wrapper = NULL;
 
     if (parsed_args->count("pool")) {
         status_code = query_cluster(parsed_args, &sky_wrapper);
@@ -187,16 +164,11 @@ int main(int argc, char **argv) {
     }
 
     if (status_code == 0) {
-        if (DEBUG) {
-            // std::cout << "Domain data size: " << sky_wrapper->get_domain_binary_size()
-            std::cout << "Domain data size: " << sky_wrapper->blob_size()
-                      << std::endl;
-        }
-
-        // SkyhookDomainData *sky_domain = new SkyhookDomainData(sky_wrapper->get_domain_binary_data());
-        SkyhookDomainData *sky_domain = new SkyhookDomainData(domain_binary_data_from_wrapper(sky_wrapper));
+        SkyhookDomainData *sky_domain = new SkyhookDomainData(sky_wrapper->get_domain_binary_data());
 
         std::cout << "[ARROW] Table |> Row Count: " << sky_domain->num_rows()
+                  << std::endl
+                  << "[ARROW] Table |> Schema: "    << sky_domain->data_schema->ToString()
                   << std::endl;
 
         std::string column_name = "0000892fbc276097f396352e3f2a4b51";
