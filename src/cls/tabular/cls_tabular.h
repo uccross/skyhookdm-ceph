@@ -967,8 +967,7 @@ struct wasm_outbl_sample_info {
 };
 WRITE_CLASS_ENCODER(wasm_outbl_sample_info)
 
-// Example struct to store and serialize read/write info
-// for custom cls class methods
+// Custom op struct for HEP data queries.
 struct hep_op {
 
   bool fastpath;
@@ -1039,5 +1038,52 @@ struct hep_op {
 WRITE_CLASS_ENCODER(hep_op)
 
 
+// Locking object information, used for cross-object atomic
+// exclusive lock mechanism.
+struct lockobj_info {
+  bool table_busy;
+  int num_objs;
+  std::string table_name;
+  std::string table_group;
+
+  lockobj_info() {}
+  lockobj_info(bool tb,
+  int objs, std::string table_name, std::string table_group)
+  :
+  table_busy(tb),
+  num_objs(objs),
+  table_name(table_name),
+  table_group(table_group) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(table_busy, bl);
+    ::encode(num_objs, bl);
+    ::encode(table_name, bl);
+    ::encode(table_group, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(table_busy, bl);
+    ::decode(num_objs, bl);
+    ::decode(table_name, bl);
+    ::decode(table_group, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append(" lockobj_info:");
+    s.append(" .table_busy=" + table_busy);
+    s.append(" .num_objs=" + num_objs);
+    s.append(" .table_name=" + table_name);
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(lockobj_info)
 
 #endif

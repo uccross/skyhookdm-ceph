@@ -296,6 +296,21 @@ static void print_data(const char *dataptr,
     print_lock.unlock();
 }
 
+/* NOTE: This function will be used by python driver  */
+static void print_data(bufferlist out) {
+    print_lock.lock();
+    lockobj_info info;
+
+    try {
+        bufferlist::iterator it = out.begin();
+        ::decode(info, it);
+    } catch (const buffer::error &err) {
+	    std::cout <<"ERROR: print_data: decoding inbl_lockobj_op failed";
+        return;
+    }
+    std::cout << "Busy:" << info.table_busy << std::endl;
+    print_lock.unlock();
+}
 
 static void worker_test_par(librados::IoCtx *ioctx, int i, uint64_t iters,
     bool test_par_read)
@@ -404,7 +419,79 @@ void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op)
   ioctx->close();
 }
 
+void worker_lock_obj_init_op(librados::IoCtx *ioctx, lockobj_info op)
+{
+    std::string oid = op.table_group;
 
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_init_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+    //print_data(&outbl);
+    std::cout << "Initialized lock object." << std::endl;
+    ioctx->close();
+}
+
+void worker_lock_obj_create_op(librados::IoCtx *ioctx, lockobj_info op)
+{
+    std::string oid = op.table_group;
+
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_create_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+    //print_data(&outbl);
+    std::cout << "Lock object created." << std::endl;
+    ioctx->close();
+}
+void worker_lock_obj_free_op(librados::IoCtx *ioctx, lockobj_info op)
+{
+
+    std::string oid = op.table_group;
+    ceph::bufferlist inbl, outbl;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_free_op",
+                          inbl, outbl);
+    checkret(ret, 0);
+    print_data(outbl);
+    ioctx->close();
+}
+
+/* NOTE: This is for debugging */
+void worker_lock_obj_get_op(librados::IoCtx *ioctx, lockobj_info op)
+{
+
+    // Call get_lock_obj_query_op function
+    ceph::bufferlist inbl, outbl;
+    std::string oid = op.table_group;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_get_op",
+                          inbl, outbl);
+
+    checkret(ret, 0);
+    print_data(outbl);
+
+    ioctx->close();
+}
+
+void worker_lock_obj_acquire_op(librados::IoCtx *ioctx, lockobj_info op)
+{
+
+    // Call get_lock_obj_query_op function
+    ceph::bufferlist inbl, outbl;
+    std::string oid = op.table_group;
+    ::encode(op, inbl);
+    int ret = ioctx->exec(oid, "tabular", "lock_obj_acquire_op",
+                          inbl, outbl);
+
+    checkret(ret, 0);
+    print_data(outbl);
+
+    std::cout << "Lock object acquired." << std::endl;
+    ioctx->close();
+}
 // busy loop work to simulate high cpu cost ops
 volatile uint64_t __tabular_x;
 static void add_extra_row_cost(uint64_t cost)
