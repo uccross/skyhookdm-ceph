@@ -1,5 +1,5 @@
 # ignore everything except stuff whitelisted below
 **/*
 
-!/build/bin/cls_tabular
 !/build/bin/run-query
+!/build/lib/libcls_tabular.so.1.0.0

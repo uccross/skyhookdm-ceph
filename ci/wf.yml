@@ -5,14 +5,18 @@
 #   popper run -f ci/wf.yml
 
 steps:
-- uses: docker://popperized/ceph-builder:skyhook-bionic
+- id: build libcls_tabular
+  uses: docker://popperized/ceph-builder:skyhook-bionic
   args: cls_tabular run-query ceph_test_skyhook_query
   env:
     CMAKE_FLAGS: -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_RBD=OFF -DWITH_CEPHFS=OFF -DWITH_RADOSGW=OFF -DWITH_LEVELDB=OFF -DWITH_MANPAGE=OFF -DWITH_RDMA=OFF -DWITH_OPENLDAP=OFF -DWITH_FUSE=OFF -DWITH_LIBCEPHFS=OFF -DWITH_KRBD=OFF -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF -DWITH_SYSTEMD=OFF -DWITH_SPDK=OFF -DWITH_CCACHE=ON -DBOOST_J=24
     BUILD_THREADS: 24
 
-- uses: docker://byrnedo/alpine-curl:0.1.8
+
+- id: download test data
+  uses: docker://byrnedo/alpine-curl:0.1.8
   runs: sh
+  args:
   - -c
   - |
     if [[ -d ./data ]]; then
@@ -27,37 +31,42 @@ steps:
       curl -LO https://users.soe.ucsc.edu/~jlefevre/skyhookdb/testdata/obj000000$i.bin
     done
 
-# build an image that installs:
-# - upstream ceph-mon/ceph-osd packages for luminous/bionic (NOTE: this has to
-#   match the distro from the builder)
-# - skyhook cls_tabular library
-# - runtime dependencies for cls_tabular such as libarrow, libhdf5, etc
-- uses: docker://docker:19.03.3
-  args: build -t popperized/skyhoodm-libcls:luminous-bionic -f ci/Dockerfile .
 
-# run tests
-- uses: docker://popperized/skyhookdm-libcls:luminous-bionic
+- id: build image with skyhook library in it
+  uses: docker://docker:19.03.3
+  args: build -t popperized/skyhookdm-libcls:luminous-bionic -f ci/Dockerfile .
+    # image contains:
+    #   - upstream ceph-mon/ceph-osd packages for luminous/bionic (NOTE: base image has
+    #     to match the base distro used for the builder image)
+    #   - skyhook libcls_tabular library and run-query binary
+    #   - runtime dependencies for the above (such as libarrow, libhdf5, etc)
+
+
+- id: run tests
+  uses: docker://popperized/skyhookdm-libcls:luminous-bionic
   # don't pull because we want to run what we built above
   skip_pull: true
   runs: bash
   args:
   - -c
   - |
+    # go to /tmp so all data gets written to the container's filesystem.
+    # (we don't need to persist any file that gets written during tests)
+    cd /tmp
     # booth a single-osd instance
-    ci/micro-osd.sh test
-
-    # copy conf to default location
-    cp test/ceph.conf .
-
+    /workspace/ci/micro-osd.sh test
+    # copy conf to where test expects it (PWD)
+    cp test/ceph.conf ./
     # run test
-    exec build/bin/ceph_test_skyhook_query
+    exec /workspace/build/bin/ceph_test_skyhook_query
+
 
 # push to registry
-- uses: docker://docker:19.03.3
-  secrets: [DOCKER_USERNAME, DOCKER_PASSWORD]
-  runs: /bin/sh
-  args:
-  - -c,
-  - |
-    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-    docker push popperized/skyhookdm-libcls:luminous-bionic
+#- uses: docker://docker:19.03.3
+#  secrets: [DOCKER_USERNAME, DOCKER_PASSWORD]
+#  runs: /bin/sh
+#  args:
+#  - -c,
+#  - |
+#    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+#    docker push popperized/skyhookdm-libcls:luminous-bionic

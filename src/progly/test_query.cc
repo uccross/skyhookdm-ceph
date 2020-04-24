@@ -1,4 +1,3 @@
-#include <filesystem>
 #include <iostream>
 #include "query.h"
 #include "test/librados/test.h"
@@ -27,7 +26,7 @@ class SkyhookQuery : public ::testing::Test {
       ASSERT_EQ(0, rados.ioctx_create(pool_name.c_str(), ioctx));
 
       // ingest data
-      std::string dirname = std::filesystem::current_path() + "/data/";
+      std::string dirname = "./data/";
       for (int i = 0; i < (int) default_nobject; i++) {
 
         // populate target objects, used by query.cc
