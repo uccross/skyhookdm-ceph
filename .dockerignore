@@ -1,0 +1,5 @@
+# ignore everything except stuff whitelisted below
+**/*
+
+!/build/bin/cls_tabular
+!/build/bin/run-query
