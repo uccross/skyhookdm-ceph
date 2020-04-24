@@ -7,29 +7,10 @@
 steps:
 - id: build libcls_tabular
   uses: docker://popperized/ceph-builder:skyhook-bionic
-  args: cls_tabular run-query ceph_test_skyhook_query
+  args: cls_tabular run-query ceph_test_skyhook_query sky_tabular_flatflex_writer
   env:
     CMAKE_FLAGS: -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_RBD=OFF -DWITH_CEPHFS=OFF -DWITH_RADOSGW=OFF -DWITH_LEVELDB=OFF -DWITH_MANPAGE=OFF -DWITH_RDMA=OFF -DWITH_OPENLDAP=OFF -DWITH_FUSE=OFF -DWITH_LIBCEPHFS=OFF -DWITH_KRBD=OFF -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF -DWITH_SYSTEMD=OFF -DWITH_SPDK=OFF -DWITH_CCACHE=ON -DBOOST_J=4
     BUILD_THREADS: 4
-
-
-- id: download test data
-  uses: docker://byrnedo/alpine-curl:0.1.8
-  runs: sh
-  args:
-  - -c
-  - |
-    if [[ -d ./data ]]; then
-      exit 0
-    else
-      mkdir -p data
-    fi
-
-    cd data/
-
-    for i in $(seq 0 9); do
-      curl -LO https://users.soe.ucsc.edu/~jlefevre/skyhookdb/testdata/obj000000$i.bin
-    done
 
 
 - id: build image with skyhook library in it
@@ -50,15 +31,21 @@ steps:
   args:
   - -c
   - |
-    # go to /tmp so all data gets written to the container's filesystem.
-    # (we don't need to persist any file that gets written during tests)
-    cd /tmp
-    # booth a single-osd instance
-    /workspace/ci/micro-osd.sh test
+    # download test data if it doesn't exist
+    if [[ ! -d ./data ]]; then
+      mkdir -p data
+      pushd data/
+      for i in $(seq 0 9); do
+        curl -LO https://users.soe.ucsc.edu/~jlefevre/skyhookdb/testdata/obj000000$i.bin
+      done
+      popd
+    fi
+    # boot a single-osd instance
+    ci/micro-osd.sh test
     # copy conf to where test expects it (PWD)
     cp test/ceph.conf ./
     # run test
-    exec /workspace/build/bin/ceph_test_skyhook_query
+    exec ceph_test_skyhook_query
 
 
 # push to registry
