@@ -925,24 +925,27 @@ read_sky_index(
 /*
  * Primary method to process queries
  */
-static
-int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
-{
-    int ret = 0;
+static int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
+    int      ret            = 0;
     uint64_t rows_processed = 0;
-    uint64_t read_ns = 0;
-    uint64_t eval_ns = 0;
-    bufferlist result_bl;  // result set to be returned to client.
+    uint64_t read_ns        = 0;
+    uint64_t eval_ns        = 0;
+
+    // result set to be returned to client.
+    bufferlist result_bl;
     query_op op;
 
     // extract the query op to get the query request params
     try {
         bufferlist::iterator it = in->begin();
         ::decode(op, it);
-    } catch (const buffer::error &err) {
+    }
+
+    catch (const buffer::error &err) {
         CLS_ERR("ERROR: decoding query op");
         return -EINVAL;
     }
+
     std::string msg = op.toString();
     std::replace(msg.begin(), msg.end(), '\n', ' ');
 
@@ -954,8 +957,9 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // hold result of index lookups or read all flatbufs
         bool index1_exists = false;
         bool index2_exists = false;
-        bool use_index1 = false;
-        bool use_index2 = false;
+        bool use_index1    = false;
+        bool use_index2    = false;
+
         std::map<int, struct read_info> reads;
         std::map<int, struct read_info> idx1_reads;
         std::map<int, struct read_info> idx2_reads;
@@ -964,18 +968,22 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // i.e., the entire obj
         // NOTE: fastpath will not increment rows_processed since we do nothing
         if (op.fastpath == true) {
-            bufferlist b;  // to hold the obj data.
+            // to hold the obj data.
+            bufferlist b;
             uint64_t start = getns();
-            ret = cls_cxx_read(hctx, 0, 0, &b);  // read entire object.
+
+            // read entire object.
+            ret = cls_cxx_read(hctx, 0, 0, &b);
             if (ret < 0) {
-              CLS_ERR("ERROR: reading flatbuf obj %d", ret);
-              return ret;
+                CLS_ERR("ERROR: reading flatbuf obj %d", ret);
+                return ret;
             }
+
             read_ns = getns() - start;
             result_bl = b;
+        }
 
-        } else {
-
+        else {
             // data_schema is the table's current schema
             // TODO: redundant, this is also stored in the fb, extract from fb?
             schema_vec data_schema = schemaFromString(op.data_schema);
@@ -984,66 +992,54 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             schema_vec query_schema = schemaFromString(op.query_schema);
 
             // predicates to be applied, if any
-            predicate_vec query_preds = predsFromString(data_schema,
-                                                        op.query_preds);
+            predicate_vec query_preds = predsFromString(data_schema, op.query_preds);
 
             // required for index plan or scan plan if index plan not chosen.
             predicate_vec index_preds;
             predicate_vec index2_preds;
 
-            std::string key_fb_prefix = buildKeyPrefix(SIT_IDX_FB,
-                                                       op.db_schema_name,
-                                                       op.table_name);
+            std::string key_fb_prefix = buildKeyPrefix(
+                SIT_IDX_FB, op.db_schema_name, op.table_name
+            );
+
             // lookup correct flatbuf and potentially set specific row nums
             // to be processed next in processFb()
             if (op.index_read) {
 
                 // get info for index1
-                schema_vec index_schema = \
-                        schemaFromString(op.index_schema);
+                schema_vec index_schema = schemaFromString(op.index_schema);
+                index_preds             = predsFromString(data_schema, op.index_preds);
 
-                index_preds = \
-                        predsFromString(data_schema, op.index_preds);
+                std::vector<std::string> index_cols = colnamesFromSchema(index_schema);
 
-                std::vector<std::string> index_cols = \
-                        colnamesFromSchema(index_schema);
-
-                std::string key_data_prefix = \
-                        buildKeyPrefix(op.index_type,
-                                       op.db_schema_name,
-                                       op.table_name,
-                                       index_cols);
+                std::string key_data_prefix = buildKeyPrefix(
+                    op.index_type,
+                    op.db_schema_name,
+                    op.table_name,
+                    index_cols
+                );
 
                 // get info for index2
-                schema_vec index2_schema = \
-                        schemaFromString(op.index2_schema);
-                index2_preds = \
-                        predsFromString(data_schema, op.index2_preds);
+                schema_vec index2_schema = schemaFromString(op.index2_schema);
+                index2_preds             = predsFromString(data_schema, op.index2_preds);
 
-                std::vector<std::string> index2_cols = \
-                        colnamesFromSchema(index2_schema);
+                std::vector<std::string> index2_cols = colnamesFromSchema(index2_schema);
 
-                std::string key2_data_prefix = \
-                        buildKeyPrefix(op.index2_type,
-                                       op.db_schema_name,
-                                       op.table_name,
-                                       index2_cols);
+                std::string key2_data_prefix = buildKeyPrefix(
+                    op.index2_type, op.db_schema_name, op.table_name, index2_cols
+                );
 
                 // verify if index1 is present in omap
-                index1_exists = sky_index_exists(hctx,
-                                                 key_data_prefix);
+                index1_exists = sky_index_exists(hctx, key_data_prefix);
 
                 // check local statistics, decide to use or not.
-                if (index1_exists)
-                    use_index1 = use_sky_index(hctx,
-                                               key_data_prefix,
-                                               index_preds);
+                if (index1_exists) {
+                    use_index1 = use_sky_index(hctx, key_data_prefix, index_preds);
+                }
 
                 if (use_index1) {
-
                     // check for case of multicol index but not all equality.
-                    if (index_cols.size() > 1 and
-                        !check_predicate_ops_all_equality(index_preds)) {
+                    if (index_cols.size() > 1 and !check_predicate_ops_all_equality(index_preds)) {
 
                         // NOTE: mutlicol indexes only support range queries
                         // over first col (but all cols for equality queries)
@@ -1054,216 +1050,189 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         // since in the future index queries will support
                         // ranges on multicols.
 
-                        query_preds.reserve(query_preds.size() +
-                                            index_preds.size());
+                        query_preds.reserve(query_preds.size() + index_preds.size());
+
                         for (unsigned i = 0; i < index_preds.size(); i++) {
                             query_preds.push_back(index_preds[i]);
                         }
                     }
 
                     // index lookup to set the read requests, if any rows match
-                    ret = read_sky_index(hctx,
-                                         index_preds,
-                                         key_fb_prefix,
-                                         key_data_prefix,
-                                         op.index_type,
-                                         op.index_batch_size,
-                                         idx1_reads);
+                    ret = read_sky_index(
+                        hctx, index_preds,
+                        key_fb_prefix, key_data_prefix,
+                        op.index_type, op.index_batch_size,
+                        idx1_reads
+                    );
+
                     if (ret < 0) {
                         CLS_ERR("ERROR: do_index_lookup failed. %d", ret);
                         return ret;
                     }
-                    CLS_LOG(20, "exec_query_op: index1 found %lu entries",
-                            idx1_reads.size());
 
-                    reads = idx1_reads;  // populate with reads from index1
+                    CLS_LOG(20, "exec_query_op: index1 found %lu entries", idx1_reads.size());
+
+                    // populate with reads from index1
+                    reads = idx1_reads;  
 
                     // check for second index/index plan type and set READs.
                     switch (op.index_plan_type) {
+                        case SIP_IDX_STANDARD:
+                            break;
 
-                    case SIP_IDX_STANDARD: {
-                        break;
-                    }
+                        case SIP_IDX_INTERSECTION:
+                        case SIP_IDX_UNION: {
 
-                    case SIP_IDX_INTERSECTION:
-                    case SIP_IDX_UNION: {
+                            // verify if index2 is present in omap
+                            index2_exists = sky_index_exists(hctx, key2_data_prefix);
 
-                        // verify if index2 is present in omap
-                        index2_exists = sky_index_exists(hctx,
-                                                         key2_data_prefix);
-
-                        // check local statistics, decide to use or not.
-                        if (index2_exists)
-                            use_index2 &= use_sky_index(hctx,
-                                                        key2_data_prefix,
-                                                        index2_preds);
-
-                        if (use_index2) {
-
-                            // check for case of multicol index but not all equality.
-                            if (index2_cols.size() > 1 and
-                                !check_predicate_ops_all_equality(index2_preds)) {
-
-                                // NOTE: same reasoning as above for index1_preds
-                                query_preds.reserve(query_preds.size() +
-                                                    index2_preds.size());
-                                for (unsigned i = 0; i < index2_preds.size(); i++) {
-                                    query_preds.push_back(index2_preds[i]);
-                                }
+                            // check local statistics, decide to use or not.
+                            if (index2_exists) {
+                                use_index2 &= use_sky_index(hctx, key2_data_prefix, index2_preds);
                             }
 
-                            ret = read_sky_index(hctx,
-                                                 index2_preds,
-                                                 key_fb_prefix,
-                                                 key2_data_prefix,
-                                                 op.index2_type,
-                                                 op.index_batch_size,
-                                                 idx2_reads);
-                            if (ret < 0) {
-                                CLS_ERR("ERROR: do_index2_lookup failed. %d",
-                                        ret);
-                                return ret;
-                            }
+                            if (use_index2) {
+                                // check for case of multicol index but not all equality.
+                                if (index2_cols.size() > 1 and !check_predicate_ops_all_equality(index2_preds)) {
 
-                            CLS_LOG(20, "exec_query_op: index2 found %lu entries",
-                                    idx2_reads.size());
-
-                            // INDEX PLAN (INTERSECTION or UNION)
-                            // for each fbseq_num in idx1 reads, check if idx2
-                            // has any rows for same fbseq_num, perform
-                            // intersection or union of rows, store resulting
-                            // rows into our reads vector.
-                            ///reads.clear();
-
-                            // for union always "populate" the first vector
-                            // because we always iterate over that one, so it
-                            // cannot be empty
-                            if (idx1_reads.empty() and
-                                op.index_plan_type == SIP_IDX_UNION)   {
-
-                                idx1_reads = idx2_reads;
-                            }
-
-                            for (auto it1 = idx1_reads.begin();
-                                      it1 != idx1_reads.end(); ++it1) {
-
-                                int fbnum = it1->first;
-                                auto it2 = idx2_reads.find(fbnum);
-
-                                // if not found but we need to do union, then
-                                // point the second iterator back to the first.
-                                if (it2 == idx2_reads.end() and
-                                    op.index_plan_type == SIP_IDX_UNION) {
-
-                                    it2 = it1;
+                                    // NOTE: same reasoning as above for index1_preds
+                                    query_preds.reserve(query_preds.size() + index2_preds.size());
+                                    for (unsigned i = 0; i < index2_preds.size(); i++) {
+                                        query_preds.push_back(index2_preds[i]);
+                                    }
                                 }
 
-                                if (it2 != idx2_reads.end()) {
-                                    struct Tables::read_info ri1 = it1->second;
-                                    struct Tables::read_info ri2 = it2->second;
-                                    std::vector<unsigned> rnums1 = ri1.rnums;
-                                    std::vector<unsigned> rnums2 = ri2.rnums;
-                                    std::sort(rnums1.begin(), rnums1.end());
-                                    std::sort(rnums2.begin(), rnums2.end());
-                                    std::vector<unsigned> result_rnums(
-                                            rnums1.size() + rnums2.size());
+                                ret = read_sky_index(
+                                    hctx          , index2_preds,
+                                    key_fb_prefix , key2_data_prefix,
+                                    op.index2_type, op.index_batch_size,
+                                    idx2_reads
+                                );
 
-                                    switch (op.index_plan_type) {
+                                if (ret < 0) {
+                                    CLS_ERR("ERROR: do_index2_lookup failed. %d", ret);
+                                    return ret;
+                                }
 
-                                    case SIP_IDX_INTERSECTION: {
-                                        auto it = std::set_intersection(
-                                                        rnums1.begin(),
-                                                        rnums1.end(),
-                                                        rnums2.begin(),
-                                                        rnums2.end(),
-                                                        result_rnums.begin());
-                                        result_rnums.resize(it -
-                                                        result_rnums.begin());
-                                        break;
+                                CLS_LOG(20, "exec_query_op: index2 found %lu entries", idx2_reads.size());
+
+                                // INDEX PLAN (INTERSECTION or UNION)
+                                // for each fbseq_num in idx1 reads, check if idx2
+                                // has any rows for same fbseq_num, perform
+                                // intersection or union of rows, store resulting
+                                // rows into our reads vector.
+                                ///reads.clear();
+
+                                // for union always "populate" the first vector
+                                // because we always iterate over that one, so it
+                                // cannot be empty
+                                if (idx1_reads.empty() and op.index_plan_type == SIP_IDX_UNION)   {
+                                    idx1_reads = idx2_reads;
+                                }
+
+                                for (auto it1 = idx1_reads.begin(); it1 != idx1_reads.end(); ++it1) {
+                                    int fbnum = it1->first;
+                                    auto it2 = idx2_reads.find(fbnum);
+
+                                    // if not found but we need to do union, then
+                                    // point the second iterator back to the first.
+                                    if (it2 == idx2_reads.end() and op.index_plan_type == SIP_IDX_UNION) {
+                                        it2 = it1;
                                     }
 
-                                    case SIP_IDX_UNION: {
-                                        auto it = std::set_union(
-                                                        rnums1.begin(),
-                                                        rnums1.end(),
-                                                        rnums2.begin(),
-                                                        rnums2.end(),
-                                                        result_rnums.begin());
-                                        result_rnums.resize(it -
-                                                        result_rnums.begin());
-                                        break;
-                                    }
+                                    if (it2 != idx2_reads.end()) {
+                                        struct Tables::read_info ri1 = it1->second;
+                                        struct Tables::read_info ri2 = it2->second;
 
-                                    default: {
-                                        // none
-                                    }}
+                                        std::vector<unsigned> rnums1 = ri1.rnums;
+                                        std::vector<unsigned> rnums2 = ri2.rnums;
 
-                                    if (!result_rnums.empty()) {
-                                        reads[fbnum] = Tables::read_info(
-                                                            ri1.fb_seq_num,
-                                                            ri1.off,
-                                                            ri1.len,
-                                                            result_rnums);
+                                        std::sort(rnums1.begin(), rnums1.end());
+                                        std::sort(rnums2.begin(), rnums2.end());
+
+                                        std::vector<unsigned> result_rnums(rnums1.size() + rnums2.size());
+
+                                        switch (op.index_plan_type) {
+
+                                            case SIP_IDX_INTERSECTION: {
+                                                auto it = std::set_intersection(
+                                                    rnums1.begin(), rnums1.end(),
+                                                    rnums2.begin(), rnums2.end(),
+                                                    result_rnums.begin()
+                                                );
+
+                                                result_rnums.resize(it - result_rnums.begin());
+                                                break;
+                                            }
+
+                                            case SIP_IDX_UNION: {
+                                                auto it = std::set_union(
+                                                    rnums1.begin(), rnums1.end(),
+                                                    rnums2.begin(), rnums2.end(),
+                                                    result_rnums.begin()
+                                                );
+
+                                                result_rnums.resize(it - result_rnums.begin());
+                                                break;
+                                            }
+
+                                            default:
+                                                break;
+                                        }
+
+                                        if (!result_rnums.empty()) {
+                                            reads[fbnum] = Tables::read_info(
+                                                ri1.fb_seq_num, ri1.off, ri1.len, result_rnums
+                                            );
+                                        }
                                     }
                                 }
                             }
-                        } // end if (use_index2)
-                        break;
-                    }
+                            // end if (use_index2)
+                            break;
+                        }
 
-                    default:
-                        use_index1 = false;  // no index plan type specified.
-                        use_index2 = false;  // no index plan type specified.
+                        default:
+                            use_index1 = false;  // no index plan type specified.
+                            use_index2 = false;  // no index plan type specified.
                     }
-                }  // end if (use_index1)
+                }
+                // end if (use_index1)
             }
 
-
             /*
-             * At this point we either used an index or not, act accordingly:
+             * if we used an index, then we either:
+             *     1. found matching entries and set the reads vector with a sequence of fbs
+             *        containing the data
+             *     2. found no matching index entries and so the reads vector is empty, which is ok
              *
-             * if we did use an index, then either we already
-             *      1. found matching entries and set the reads vector with a
-             *         sequence of fbs containing the data
-             *      or
-             *      2. found no matching index entries and so the reads vector
-             *         is empty, which is ok
-             *
-             * if we did NOT use an index, then either we need to either
-             *      1. set the reads vector with a single read for the entire
-             *         object at once
-             *      or
-             *      2. set the reads vector with a sequence of fbs if we are
-             *         mem constrained.
+             * if we did NOT use an index, then we need to either:
+             *      1. set the reads vector with a single read for the entire object at once
+             *      2. set the reads vector with a sequence of fbs if we are mem constrained.
              */
 
             if (op.index_read) {
-                // If we were requested to do an index plan but locally
-                // decided not to use one or both indexes, then we must add
-                // those requested index predicates to our query_preds so those
-                // predicates can be applied during the data scan operator
-                if (!use_index1) {
-                    if (!index_preds.empty()) {
-                            query_preds.insert(
-                                query_preds.end(),
-                                std::make_move_iterator(index_preds.begin()),
-                                std::make_move_iterator(index_preds.end()));
-                    }
+                // If requested to do an index plan but locally decided not to use indexes, then we
+                // add the index predicates to query_preds so they're applied during data scan op
+                if (!use_index1 and !index_preds.empty()) {
+                    query_preds.insert(
+                        query_preds.end(),
+                        std::make_move_iterator(index_preds.begin()),
+                        std::make_move_iterator(index_preds.end())
+                    );
                 }
 
-                if (!use_index2) {
-                    if (!index2_preds.empty()) {
-                            query_preds.insert(
-                                query_preds.end(),
-                                std::make_move_iterator(index2_preds.begin()),
-                                std::make_move_iterator(index2_preds.end()));
-                    }
+                if (!use_index2 and !index2_preds.empty()) {
+                    query_preds.insert(
+                        query_preds.end(),
+                        std::make_move_iterator(index2_preds.begin()),
+                        std::make_move_iterator(index2_preds.end())
+                    );
                 }
             }
 
 
-            if (!op.index_read or
-                (op.index_read and (!use_index1 and !use_index2))) {
+            if (!op.index_read or (op.index_read and (!use_index1 and !use_index2))) {
                 // if no index read was requested,
                 // or it was requested and we decided not to use either index,
                 // then we must read the entire object (perform table scan).
@@ -1277,17 +1246,18 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 bool read_full_object = true;
 
                 if (op.mem_constrain) {
-
                     // try to set the reads[] with the fb sequence
                     int ret = read_fbs_index(hctx, key_fb_prefix, reads);
 
-                    if (reads.empty())
+                    if (reads.empty()) {
                         CLS_LOG(20,"exec_query_op: WARN: No FBs index entries found.");
+                    }
 
                     // if we found the fb sequence of offsets, then we
                     // no longer need to read the full object.
-                    if (ret >= 0 and !reads.empty())
+                    if (ret >= 0 and !reads.empty()) {
                         read_full_object = false;
+                    }
                 }
 
                 // if we must read the full object, we set the reads[] to
@@ -1296,6 +1266,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     int fb_seq_num = Tables::DATASTRUCT_SEQ_NUM_MIN;
                     int off = 0;
                     int len = 0;
+
                     std::vector<unsigned int> rnums = {};
                     struct read_info ri(fb_seq_num, off, len, {});
                     reads[fb_seq_num] = ri;
@@ -1308,26 +1279,32 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // weak ordering in map will iterate over fb nums in sequence
             for (auto it = reads.begin(); it != reads.end(); ++it) {
                 bufferlist b;
+
                 size_t off = it->second.off;
                 size_t len = it->second.len;
+
                 std::vector<unsigned int> row_nums = it->second.rnums;
-                std::string msg = "off=" + std::to_string(off) +
-                                  ";len=" + std::to_string(len);
+                std::string msg = "off=" + std::to_string(off) + ";len=" + std::to_string(len);
 
                 uint64_t start = getns();
+
                 ret = cls_cxx_read(hctx, off, len, &b);
                 if (ret < 0) {
-                  std::string msg = std::to_string(ret) + "reading obj at off="
-                                    + std::to_string(off) + ";len="
-                                    + std::to_string(len);
-                  CLS_ERR("ERROR: %s", msg.c_str());
-                  return ret;
+                    std::string msg = (
+                        std::to_string(ret) +
+                        "reading obj at offset=" + std::to_string(off) +
+                        "; len="                 + std::to_string(len)
+                    );
+
+                    CLS_ERR("ERROR: %s", msg.c_str());
+                    return ret;
                 }
+
                 read_ns += getns() - start;
                 start = getns();
+
                 ceph::bufferlist::iterator it2 = b.begin();
                 while (it2.get_remaining() > 0) {
-
                     // unpack the next data stucture (ds) in sequence
                     // obj contains a sequence of fbmeta's, each encoded as bl
                     // object layout: bl1,bl2,bl3,....bln
@@ -1337,8 +1314,11 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                     bufferlist bl;
                     try {
-                        ::decode(bl, it2);  // TODO: decode as FB_META
-                    } catch (const buffer::error &err) {
+                        // TODO: decode as FB_META
+                        ::decode(bl, it2);  
+                    }
+
+                    catch (const buffer::error &err) {
                         CLS_ERR("ERROR: decoding data from it2 (ds sequence");
                         return -EINVAL;
                     }
@@ -1377,19 +1357,18 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     int ds_rows_processed = 0;
 
                     // CREATE An FB_META, start with an empty builder first
-                    flatbuffers::FlatBufferBuilder *meta_builder =      \
-                        new flatbuffers::FlatBufferBuilder();
+                    flatbuffers::FlatBufferBuilder *meta_builder = new flatbuffers::FlatBufferBuilder();
 
                     // this code block is only used for accounting (rows processed)
                     int root_rows = 0;
                     switch (meta.blob_format) {
-
                         case SFT_FLATBUF_FLEX_ROW:
                         case SFT_ARROW:
                         case SFT_JSON: {
-                            sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                               meta.blob_size,
-                                                               meta.blob_format);
+                            sky_root root = Tables::getSkyRoot(
+                                meta.blob_data, meta.blob_size, meta.blob_format
+                            );
+
                             root_rows += root.nrows;
                             break;
                         }
@@ -1398,8 +1377,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                         case SFT_FLATBUF_UNION_COL: {
 
                             // extract ptr to meta data blob
-                            const char* blob_dataptr = \
-                                reinterpret_cast<const char*>(meta.blob_data);
+                            const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
                             size_t blob_sz = meta.blob_size;
 
                             // extract bl_seq bufferlist
@@ -1412,237 +1390,244 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                             // decode decrements get_remaining by moving iterator
                             ceph::bufferlist bl;
                             ::decode(bl, it_bl_seq);
+
                             const char* dataptr = bl.c_str();
-                            size_t datasz = bl.length();
+                            size_t datasz       = bl.length();
 
                             // get the number of rows returned for accounting
-                            sky_root root = getSkyRoot(dataptr,
-                                                       datasz,
-                                                       SFT_FLATBUF_UNION_ROW);
-                            root_rows = root.nrows;
+                            sky_root root = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
+                            root_rows     = root.nrows;
+
                             break;
                         }
-                    } //switch
+                    }
+                    //end switch
 
                     // call associated process method based on ds type
                     switch (meta.blob_format) {
+                        case SFT_JSON: {
+                            sky_root root = Tables::getSkyRoot(
+                                meta.blob_data, meta.blob_size, meta.blob_format
+                            );
 
-                    case SFT_JSON: {
+                            char  *orig_data = const_cast<char*>(meta.blob_data);
+                            size_t orig_size = meta.blob_size;
 
-                        sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data,
-                                               meta.blob_size,
-                                               meta.blob_format);
+                            // TODO: write, and call, processJSON() here (See below for similar)
+                            // currently, original data_blob is propagated as processed result
+                            char  *result_data = orig_data;
+                            size_t result_size = orig_size;
 
-                        // TODO: write json processing function,
-                        // now we just pass thru the original
-                        // meta.data_blob as the processed result data
-                        char* orig_data = const_cast<char*>(meta.blob_data);
-                        size_t orig_size = meta.blob_size;
+                            createFbMeta(
+                                meta_builder,
+                                SFT_FLATBUF_FLEX_ROW,
+                                reinterpret_cast<unsigned char*>(result_data),
+                                result_size
+                            );
 
-                        // TODO: call processJSON() here. See below for similar
-                        // function required here to get result data
-                        char* result_data = orig_data;
-                        size_t result_size = orig_size;
-
-                        createFbMeta(meta_builder,
-                                     SFT_FLATBUF_FLEX_ROW,
-                                     reinterpret_cast<unsigned char*>(
-                                        result_data),
-                                     result_size);
-                        break;
-                    }
-
-                    case SFT_FLATBUF_FLEX_ROW: {
-
-                        int bldr_size = 1024;
-                        flatbuffers::FlatBufferBuilder result_builder(bldr_size);
-
-                        // temporary toggle for wasm execution testing
-                        bool wasm = false;
-
-                        if (!wasm) {
-                        ret = processSkyFb(result_builder,
-                                           data_schema,
-                                           query_schema,
-                                           query_preds,
-                                           meta.blob_data,
-                                           meta.blob_size,
-                                           errmsg,
-                                           row_nums);
-                        }
-                        else {
-                            // convert all params to native char or int types for wasm
-                            char* bldrptr = reinterpret_cast<char*>(&result_builder);
-                            std::string ds = schemaToString(data_schema);
-                            std::string qs = schemaToString(query_schema);
-                            std::string qp = predsToString(query_preds, data_schema);
-                            int ERRMSG_MAX_LEN = 256;
-                            char* errmsg_ptr = (char*) calloc(ERRMSG_MAX_LEN, sizeof(char));
-                            int row_nums_size = static_cast<int>(row_nums.size());
-                            int* row_nums_ptr = (int*) calloc(row_nums_size, sizeof(int));
-                            std::copy(row_nums.begin(), row_nums.end(), row_nums_ptr);
-
-                            ret = processSkyFbWASM(
-                                    bldrptr,
-                                    bldr_size,
-                                    const_cast<char*>(ds.c_str()),
-                                    ds.length(),
-                                    const_cast<char*>(qs.c_str()),
-                                    qs.length(),
-                                    const_cast<char*>(qp.c_str()),
-                                    qp.length(),
-                                    const_cast<char*>(meta.blob_data),
-                                    meta.blob_size,
-                                    errmsg_ptr,
-                                    ERRMSG_MAX_LEN,
-                                    row_nums_ptr,
-                                    row_nums_size);
-
-                            errmsg.append(errmsg_ptr);
-                            free(errmsg_ptr);
-                            free(row_nums_ptr);
-
-                            // debug only
-                            CLS_LOG(20, "processSkyFbWASM errmsg=%s", errmsg.c_str());
+                            break;
                         }
 
-                        if (ret != 0) {
-                            CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
-                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                            return -1;
-                        }
+                        case SFT_FLATBUF_FLEX_ROW: {
+                            int bldr_size = 1024;
+                            flatbuffers::FlatBufferBuilder result_builder(bldr_size);
 
-                        createFbMeta(meta_builder,
-                                     SFT_FLATBUF_FLEX_ROW,
-                                     reinterpret_cast<unsigned char*>(
-                                            result_builder.GetBufferPointer()),
-                                     result_builder.GetSize());
-                        break;
-                    }
+                            // temporary toggle for wasm execution testing
+                            bool wasm = false;
 
-                    case SFT_ARROW: {
-                        std::shared_ptr<arrow::Table> table;
-                        ret = processArrowCol(&table,
-                                              data_schema,
-                                              query_schema,
-                                              query_preds,
-                                              meta.blob_data,
-                                              meta.blob_size,
-                                              errmsg,
-                                              row_nums);
-
-                        if (ret != 0) {
-                            CLS_ERR("ERROR: processArrow %s", errmsg.c_str());
-                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                            return -1;
-                        }
-
-                        std::shared_ptr<arrow::Buffer> buffer;
-                        convert_arrow_to_buffer(table, &buffer);
-                        createFbMeta(meta_builder,
-                                     SFT_ARROW,
-                                     reinterpret_cast<unsigned char*>(buffer->mutable_data()),
-                                     buffer->size());
-                        break;
-                    }
-
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL: {
-                        flatbuffers::FlatBufferBuilder result_builder(1024);
-                        int ret;
-
-                        // extract ptr to meta data blob
-                        const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                        size_t blob_sz           = meta.blob_size;
-
-                        // extract bl_seq bufferlist
-                        ceph::bufferlist bl_seq;
-                        bl_seq.append(blob_dataptr, blob_sz);
-
-                        // bl_seq for ROW format will only contain one bl
-                        // bl_seq for COL format may contain multiple bls
-                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                        ceph::bufferlist bl;
-                        ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
-                        const char* dataptr = bl.c_str();
-                        size_t datasz       = bl.length();
-
-                        if(meta.blob_format == SFT_FLATBUF_UNION_ROW)
-                            ret = processSkyFb_fbu_rows(
-                                   result_builder,
-                                   data_schema,
-                                   query_schema,
-                                   query_preds,
-                                   dataptr,
-                                   datasz,
-                                   errmsg,
-                                   row_nums);
-                        else if(meta.blob_format == SFT_FLATBUF_UNION_COL)
-                            ret = processSkyFb_fbu_cols(
-                                    bl_seq,
+                            if (!wasm) {
+                                ret = processSkyFb(
                                     result_builder,
-                                    data_schema,
-                                    query_schema,
-                                    query_preds,
-                                    dataptr,
-                                    datasz,
-                                    errmsg,
-                                    row_nums);
-                        else
-                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                                    data_schema   , query_schema,
+                                    query_preds   ,
+                                    meta.blob_data, meta.blob_size,
+                                    errmsg        , row_nums
+                                );
+                            }
 
-                        if (ret != 0) {
-                            CLS_ERR("ERROR: processSkyFb_fbu_* %s", errmsg.c_str());
-                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                            return -1;
+                            else {
+                                // convert all params to native char or int types for wasm
+                                std::string ds       = schemaToString(data_schema);
+                                std::string qs       = schemaToString(query_schema);
+                                std::string qp       = predsToString(query_preds, data_schema);
+
+                                int   ERRMSG_MAX_LEN = 256;
+                                int   row_nums_size  = static_cast<int>(row_nums.size());
+                                int  *row_nums_ptr   = (int *)  calloc(row_nums_size, sizeof(int));
+                                char *errmsg_ptr     = (char *) calloc(ERRMSG_MAX_LEN, sizeof(char));
+                                char *bldrptr        = reinterpret_cast<char*>(&result_builder);
+
+                                std::copy(row_nums.begin(), row_nums.end(), row_nums_ptr);
+
+                                ret = processSkyFbWASM(
+                                    bldrptr                          , bldr_size,
+                                    const_cast<char*>(ds.c_str())    , ds.length(),
+                                    const_cast<char*>(qs.c_str())    , qs.length(),
+                                    const_cast<char*>(qp.c_str())    , qp.length(),
+                                    const_cast<char*>(meta.blob_data), meta.blob_size,
+                                    errmsg_ptr                       , ERRMSG_MAX_LEN,
+                                    row_nums_ptr                     , row_nums_size
+                                );
+
+                                errmsg.append(errmsg_ptr);
+                                free(errmsg_ptr);
+                                free(row_nums_ptr);
+
+                                // debug only
+                                CLS_LOG(20, "processSkyFbWASM errmsg=%s", errmsg.c_str());
+                            }
+
+                            if (ret != 0) {
+                                CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
+                                CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                                return -1;
+                            }
+
+                            createFbMeta(
+                                meta_builder,
+                                SFT_FLATBUF_FLEX_ROW,
+                                reinterpret_cast<unsigned char*>(result_builder.GetBufferPointer()),
+                                result_builder.GetSize()
+                            );
+
+                            break;
                         }
 
-                        createFbMeta(meta_builder,
-                                     SFT_FLATBUF_FLEX_ROW,
-                                     reinterpret_cast<unsigned char*>(
-                                            result_builder.GetBufferPointer()),
-                                     result_builder.GetSize());
-                        break;
-                    }
-                    case SFT_FLATBUF_CSV_ROW:
-                    case SFT_PG_TUPLE:
-                    case SFT_CSV:
-                    default:
-                        assert (SkyFormatTypeNotRecognized==0);
+                        case SFT_ARROW: {
+                            std::shared_ptr<arrow::Table> table;
+
+                            ret = processArrowCol(
+                                &table        ,
+                                data_schema   , query_schema,
+                                query_preds   ,
+                                meta.blob_data, meta.blob_size,
+                                errmsg        , row_nums
+                            );
+
+                            if (ret != 0) {
+                                CLS_ERR("ERROR: processArrow %s", errmsg.c_str());
+                                CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                                return -1;
+                            }
+
+                            std::shared_ptr<arrow::Buffer> buffer;
+                            convert_arrow_to_buffer(table, &buffer);
+                            createFbMeta(
+                                meta_builder,
+                                SFT_ARROW,
+                                reinterpret_cast<unsigned char*>(buffer->mutable_data()),
+                                buffer->size()
+                            );
+
+                            break;
+                        }
+
+                        case SFT_FLATBUF_UNION_ROW:
+                        case SFT_FLATBUF_UNION_COL: {
+                            flatbuffers::FlatBufferBuilder result_builder(1024);
+                            int ret;
+
+                            // extract ptr to meta data blob
+                            const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
+                            size_t blob_sz           = meta.blob_size;
+
+                            // extract bl_seq bufferlist
+                            ceph::bufferlist bl_seq;
+                            bl_seq.append(blob_dataptr, blob_sz);
+
+                            // bl_seq for ROW format will only contain one bl
+                            // bl_seq for COL format may contain multiple bls
+                            ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
+
+                            ceph::bufferlist bl;
+                            ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
+
+                            const char* dataptr = bl.c_str();
+                            size_t datasz       = bl.length();
+
+                            if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
+                                ret = processSkyFb_fbu_rows(
+                                    result_builder,
+                                    data_schema   , query_schema,
+                                    query_preds   ,
+                                    dataptr       , datasz,
+                                    errmsg        , row_nums
+                                );
+                            }
+
+                            else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
+                                ret = processSkyFb_fbu_cols(
+                                    bl_seq     , result_builder,
+                                    data_schema, query_schema,
+                                    query_preds,
+                                    dataptr    , datasz,
+                                    errmsg     , row_nums
+                                );
+                            }
+
+                            else {
+                                assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+                            }
+
+                            if (ret != 0) {
+                                CLS_ERR("ERROR: processSkyFb_fbu_* %s", errmsg.c_str());
+                                CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                                return -1;
+                            }
+
+                            createFbMeta(
+                                meta_builder,
+                                SFT_FLATBUF_FLEX_ROW,
+                                reinterpret_cast<unsigned char*>(result_builder.GetBufferPointer()),
+                                result_builder.GetSize()
+                            );
+
+                            break;
+                        }
+
+                        case SFT_FLATBUF_CSV_ROW:
+                        case SFT_PG_TUPLE:
+                        case SFT_CSV:
+                        default:
+                            assert (SkyFormatTypeNotRecognized==0);
                     }
 
                     // add meta_builder's data into a bufferlist as char*
                     bufferlist meta_bl;
-                    meta_bl.append(reinterpret_cast<const char*>(       \
-                                           meta_builder->GetBufferPointer()),
-                                   meta_builder->GetSize());
+                    meta_bl.append(
+                        reinterpret_cast<const char*>(meta_builder->GetBufferPointer()),
+                        meta_builder->GetSize()
+                    );
 
                     // add this result into our results bl
                     ::encode(meta_bl, result_bl);
                     delete meta_builder;
 
-                    if (op.index_read)
+                    if (op.index_read) {
                         ds_rows_processed = row_nums.size();
-                    else
+                    }
+                    else {
                         ds_rows_processed = root_rows;
-                    break;
+                    }
 
                     // add this processed ds to sequence of bls and update counter
                     rows_processed += ds_rows_processed;
+
+                    break;
                 }
+
                 eval_ns += getns() - start;
             }
         }
     }
 
-  // store timings and result set into output BL
-  ::encode(read_ns, *out);
-  ::encode(eval_ns, *out);
-  ::encode(rows_processed, *out);
-  ::encode(result_bl, *out);
-  return 0;
+    // store timings and result set into output BL
+    ::encode(read_ns, *out);
+    ::encode(eval_ns, *out);
+    ::encode(rows_processed, *out);
+    ::encode(result_bl, *out);
+
+    return 0;
 }
 
 
@@ -2490,22 +2475,21 @@ int lock_obj_get_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return 0;
 }
 
-static
-int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
-{
+static int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out) {
     lockobj_info op_in;
 
     try {
         bufferlist::iterator it = in->begin();
         ::decode(op_in, it);
-    } catch (const buffer::error &err) {
+    }
+    catch (const buffer::error &err) {
         CLS_ERR("ERROR 1: cls_tabular:init_lock_obj_query_op: decoding inbl_lockobj_op");
         return -EINVAL;
     }
 
     std::string table_name = op_in.table_name;
-    int nobjs = op_in.num_objs;
-    bool tableBusy = op_in.table_busy;
+    int nobjs              = op_in.num_objs;
+    bool tableBusy         = op_in.table_busy;
 
     CLS_LOG(20, "lock_obj_acquire_op: op.table_busy = %d", tableBusy);
     CLS_LOG(20, "lock_obj_acquire_op: op.numobjs=%d", nobjs);
@@ -2516,39 +2500,46 @@ int lock_obj_acquire_op(cls_method_context_t hctx, bufferlist *in, bufferlist *o
     bufferlist bl_entry;
     ret = cls_cxx_map_get_val(hctx, table_name, &bl_entry);
 
-    if (ret < 0)
-      return ret;
+    if (ret < 0) { return ret; }
 
     lockobj_info op_out;
     try {
         bufferlist::iterator it = bl_entry.begin();
         ::decode(op_out, it);
-    } catch (const buffer::error &err) {
+    }
+    catch (const buffer::error &err) {
         CLS_ERR("ERROR 2: cls_tabular:init_lock_obj_query_op: decoding init_lockobj_op");
         return -EINVAL;
     }
 
-    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_busy = %d", op_out.table_busy);
-    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_name = %s", op_out.table_name.c_str());
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_busy = %d" , op_out.table_busy);
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_name = %s" , op_out.table_name.c_str());
     CLS_LOG(20, "Acquire_lock_obj_query_op: op.table_group = %s", op_out.table_group.c_str());
-    CLS_LOG(20, "Acquire_lock_obj_query_op: op.nobjs = %d", op_out.num_objs);
+    CLS_LOG(20, "Acquire_lock_obj_query_op: op.nobjs = %d"      , op_out.num_objs);
 
-    if(!op_out.table_busy) {
-        op_out.table_busy=!op_out.table_busy;
-	bufferlist bflst;
-	::encode(op_out, bflst);
+    if (!op_out.table_busy) {
+        op_out.table_busy = !op_out.table_busy;
+
+        bufferlist bflst;
+        ::encode(op_out, bflst);
+
         std::map<std::string, bufferlist> table_obj_map;
-        table_obj_map[op_out.table_name]=bflst;
+        table_obj_map[op_out.table_name] = bflst;
+
         ret = cls_cxx_map_set_vals(hctx, &table_obj_map);
     }
+
+    // Can't acquire lock
     else {
-	// Can't acquire lock
-	op_out.table_busy=false;
+        op_out.table_busy=false;
     }
+
     CLS_LOG(20, "Done setting up the values");
     ::encode(op_out, *out);
+
     return 0;
 }
+
 void __cls_init()
 {
   CLS_LOG(20, "Loaded tabular class!");
