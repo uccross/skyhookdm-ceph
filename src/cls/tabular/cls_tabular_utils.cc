@@ -2153,8 +2153,11 @@ int processSkyFbWASM(
 // simple converstion from schema to its str representation.
 std::string schemaToString(schema_vec schema) {
     std::string s;
-    for (auto it = schema.begin(); it != schema.end(); ++it)
+
+    for (auto it = schema.begin(); it != schema.end(); ++it) {
         s.append(it->toString() + "\n");
+    }
+
     return s;
 }
 
@@ -3470,8 +3473,8 @@ sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
 
         const FB_Meta* meta = GetFB_Meta(bl->c_str());
 
-        std::cout << "[DEBUG]\t Blob Format: " << std::hex << meta->blob_format() << std::endl;
-        std::cout << "[DEBUG]\t Blob Compression: " << std::hex << meta->blob_compression() << std::endl;
+        std::cout << "[DEBUG]\t Blob Format: " << meta->blob_format() << std::endl;
+        std::cout << "[DEBUG]\t Blob Compression: " << meta->blob_size() << std::endl;
 
         return sky_meta(
             meta->blob_orig_off(),     // data position in original file
@@ -3482,7 +3485,7 @@ sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
             meta->blob_size(),         // blob size
 
             // serialized blob data
-            reinterpret_cast<const char*>(meta->blob_data()->Data())
+            reinterpret_cast<const char*>(meta->blob_data()->data())
         );
     }
     else {
@@ -3551,17 +3554,53 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             std::shared_ptr<arrow::Buffer> buffer = \
                 arrow::MutableBuffer::Wrap(reinterpret_cast<uint8_t*>(const_cast<char*>(ds)), ds_size);
             extract_arrow_from_buffer(&table, buffer);
+
             auto schema = table->schema();
             auto metadata = schema->metadata();
-            skyhook_version = std::stoi(metadata->value(METADATA_SKYHOOK_VERSION));
-            data_format_type = std::stoi(metadata->value(METADATA_DATA_FORMAT_TYPE));
-            data_structure_version = std::stoi(metadata->value(METADATA_DATA_STRUCTURE_VERSION));
-            data_schema_version = std::stoi(metadata->value(METADATA_DATA_SCHEMA_VERSION));
+
+            std::cout << "[DEBUG] Domain Schema: " << schema->ToString()
+                      << std::endl
+            ;
+
+            std::cout << "skyhook version: " << metadata->value(METADATA_SKYHOOK_VERSION)
+                      << std::endl
+                      << "skyhook data format type: " << metadata->value(METADATA_DATA_FORMAT_TYPE)
+                      << std::endl
+                      << "skyhook data structure version: " << metadata->value(METADATA_DATA_STRUCTURE_VERSION)
+                      << std::endl
+                      << "skyhook data schema version: " << metadata->value(METADATA_DATA_SCHEMA_VERSION)
+                      << std::endl
+            ;
+
+            skyhook_version = 0;
+            data_format_type = 0;
+            data_structure_version = 0;
+            data_schema_version = 0;
+
+            /*
+            try {
+                skyhook_version = std::stoi(metadata->value(METADATA_SKYHOOK_VERSION));
+                data_format_type = std::stoi(metadata->value(METADATA_DATA_FORMAT_TYPE));
+                data_structure_version = std::stoi(metadata->value(METADATA_DATA_STRUCTURE_VERSION));
+                data_schema_version = std::stoi(metadata->value(METADATA_DATA_SCHEMA_VERSION));
+            }
+
+            catch (const std::invalid_argument &invalid_arg_err) {
+                std::cout << "Some metadata values are empty." << std::endl;
+            }
+            */
+
             data_schema = metadata->value(METADATA_DATA_SCHEMA);
             db_schema_name = metadata->value(METADATA_DB_SCHEMA);
             table_name = metadata->value(METADATA_TABLE_NAME);
             data_vec = NULL;
-            nrows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+            // nrows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+            nrows = table->num_rows();
+
+            std::cout << "Num Rows: " << nrows
+                      << std::endl
+            ;
+
             break;
         }
 
@@ -6064,7 +6103,8 @@ long long int printArrowbufRowAsCsv(const char* dataptr,
     auto schema = table->schema();
     auto metadata = schema->metadata();
     schema_vec sc = schemaFromString(metadata->value(METADATA_DATA_SCHEMA));
-    int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+    // int num_rows = std::stoi(metadata->value(METADATA_NUM_ROWS));
+    int num_rows = table->num_rows();
     int num_cols = 0;
 
     if (print_verbose)
