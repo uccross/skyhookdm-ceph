@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
     std::string index2_preds;
     std::string index_cols;
     std::string index2_cols;
+    std::string path_to_data_schema;
 
     // set based upon program_options
     int  index_type  = Tables::SIT_IDX_UNK;
@@ -104,20 +105,37 @@ int main(int argc, char **argv) {
        << "...>"    << ops_help_msg;
     std::string select_help_msg = ss.str();
 
-    std::string data_schema_format_help_msg("NOTE: schema format is: \"col_num  col_type (as SkyDataType enum)  col_is_key col_is_nullable  col_name; col_num col_type ...;\"");
+    std::string data_schema_format_help_msg(
+        "NOTE: schema format is: "
+        "(col_num col_type col_is_key col_is_nullable col_name;)+"
+    );
+
     std::string data_schema_example(
-        "0 3 1 0 ORDERKEY ; 1 3 0 1 PARTKEY ; 2 3 0 1 SUPPKEY ; 3 3 1 0 LINENUMBER ; "           \
-        "4 12 0 1 QUANTITY ; 5 13 0 1 EXTENDEDPRICE ; 6 12 0 1 DISCOUNT ; 7 13 0 1 TAX ; "       \
-        "8 9 0 1 RETURNFLAG ; 9 9 0 1 LINESTATUS ; 10 14 0 1 SHIPDATE ; 11 14 0 1 COMMITDATE ; " \
-        "12 14 0 1 RECEIPTDATE ; 13 15 0 1 SHIPINSTRUCT ; 14 15 0 1 SHIPMODE ; 15 15 0 1 COMMENT"
+        " 0  3 1 0 ORDERKEY      ;"
+        " 1  3 0 1 PARTKEY       ;"
+        " 2  3 0 1 SUPPKEY       ;"
+        " 3  3 1 0 LINENUMBER    ;"
+        " 4 12 0 1 QUANTITY      ;"
+        " 5 13 0 1 EXTENDEDPRICE ;"
+        " 6 12 0 1 DISCOUNT      ;"
+        " 7 13 0 1 TAX           ;"
+        " 8  9 0 1 RETURNFLAG    ;"
+        " 9  9 0 1 LINESTATUS    ;"
+        "10 14 0 1 SHIPDATE      ;"
+        "11 14 0 1 COMMITDATE    ;"
+        "12 14 0 1 RECEIPTDATE   ;"
+        "13 15 0 1 SHIPINSTRUCT  ;"
+        "14 15 0 1 SHIPMODE      ;"
+        "15 15 0 1 COMMENT"
     );
 
     std::string create_index_help_msg(
-        "To create index on RIDs only, specify '"
+          "To create index on RIDs only, specify '"
         + Tables::RID_INDEX
         + "', else specify "
         + project_help_msg
-        + ", currently only supports unique indexes over integral columns, with max number of cols = "
+        + ", currently only supports unique indexes over integral columns"
+        + ", with max number of cols = "
         + std::to_string(Tables::MAX_INDEX_COLS)
     );
 
@@ -127,7 +145,7 @@ int main(int argc, char **argv) {
         ("pool", po::value<std::string>(&pool)->required(), "pool")
         ("num-objs", po::value<unsigned>(&num_objs)->required(), "num objects")
         ("start-obj", po::value<unsigned>(&start_obj)->default_value(0), "start object (for transform operation")
-        ("subpartitions", po::value<int>(&subpartitions)->default_value(-1), "maximum num of subpartitions of object names e.g. obj.243.0 and obj.243.1 is one object that has subpartitions=2")
+        ("subpartitions", po::value<int>(&subpartitions)->default_value(-1), "maximum subpartition count for object names (e.g. subpartitions=2 for 'obj.243.0'")
         ("use-cls", po::bool_switch(&use_cls)->default_value(false), "use cls")
         ("quiet,q", po::bool_switch(&quiet)->default_value(false), "quiet")
         ("query", po::value<std::string>(&query)->default_value("flatbuf"), "query name")
@@ -156,6 +174,7 @@ int main(int argc, char **argv) {
         ("table-name", po::value<std::string>(&table_name)->default_value("None"), "Table name")
         ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::DBSCHEMA_NAME_DEFAULT), "Database schema name")
         ("data-schema", po::value<std::string>(&data_schema)->default_value(data_schema_example), data_schema_format_help_msg.c_str())
+        ("data-schema-file", po::value<std::string>(&path_to_data_schema)->default_value("query.data-schema"), "Path to file containing data schema")
         ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
         ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
         ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")
@@ -221,26 +240,19 @@ int main(int argc, char **argv) {
     checkret(ret, 0);
     timings.reserve(num_objs);
 
-    // create list of objs to access.
-    // start_obj defaults to zero, but start_obj and num_objs can be used to
-    // operate on subset ranges of all objects for ops like tranforms or
-    // indexing, stats, etc.
-    for (unsigned int i = start_obj; i < start_obj+num_objs; i++) {
-        if (subpartitions >= 0) {
-            for (int j = 0; j < subpartitions; j++) {
-                const std::string oid = (
-                      oid_prefix
-                    + "." + table_name
-                    + "." + std::to_string(i)
-                    + "." + std::to_string(j)
-                );
+    // create list of objs to access, using start_obj (default: 0) and num_objs (required, no
+    // default). Use start_obj and num_objs to operate on subset ranges of all objects for ops.
+    for (unsigned int obj_ndx = start_obj; obj_ndx < start_obj + num_objs; obj_ndx++) {
+        const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(obj_ndx);
 
-                target_objects.push_back(oid);
-            }
+        if (subpartitions == -1) {
+            target_objects.push_back(oid);
+            continue;
         }
 
-        else {
-            const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(i);
+        // If there are subpartitions...
+        for (int part_ndx = 0; part_ndx < subpartitions; part_ndx++) {
+            const std::string oid_subpart = oid + "." + std::to_string(part_ndx);
             target_objects.push_back(oid);
         }
     }
@@ -894,8 +906,6 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    // - INSERT NEW CODE HERE
-
     if (lock_op) {
         int nthreads=1; 
 
@@ -1048,7 +1058,6 @@ int main(int argc, char **argv) {
             return 0;
 	    }
     }
-    // - NEW CODE HERE
 
     // counters for overall stats
     result_count    = 0;
@@ -1123,9 +1132,9 @@ int main(int argc, char **argv) {
                 else {
                     std::cout << "[DEBUG] Not using cls (use_cls is false)" << std::endl;
 
-                    std::cout << "[DEBUG] Invoking `ioctx.aio_exec`" << std::endl;
+                    std::cout << "[DEBUG] Invoking `ioctx.aio_read`" << std::endl;
                     int ret = ioctx.aio_read(oid, io_state->c, &io_state->bl, 0, 0);
-                    std::cout << "[DEBUG] Call, `ioctx.aio_exec`, completed" << std::endl;
+                    std::cout << "[DEBUG] Call, `ioctx.aio_read`, completed" << std::endl;
 
                     checkret(ret, 0);
                 }
