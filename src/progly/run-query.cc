@@ -206,6 +206,10 @@ int main(int argc, char **argv) {
         ("lock-obj-get"    , po::bool_switch(&lock_obj_get)->default_value(false)    , "Get table values")
         ("lock-obj-acquire", po::bool_switch(&lock_obj_acquire)->default_value(false), "Get table values")
         ("lock-obj-create" , po::bool_switch(&lock_obj_create)->default_value(false) , "Create Lock obj")
+
+        /* for single-cell workload */
+        ("cell-metadata", po::bool_switch()->default_value(false), "Read cell annotations (metadata)")
+        ("gene-metadata", po::bool_switch()->default_value(false), "Read gene annotations (metadata)")
     ;
 
     po::options_description all_opts("Allowed options");
@@ -242,18 +246,34 @@ int main(int argc, char **argv) {
 
     // create list of objs to access, using start_obj (default: 0) and num_objs (required, no
     // default). Use start_obj and num_objs to operate on subset ranges of all objects for ops.
-    for (unsigned int obj_ndx = start_obj; obj_ndx < start_obj + num_objs; obj_ndx++) {
-        const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(obj_ndx);
+    if (vm["cell-metadata"].as<bool>()) {
+        std::cout << "[DEBUG] Retrieving cell metadata" << std::endl;
 
-        if (subpartitions == -1) {
-            target_objects.push_back(oid);
-            continue;
-        }
+        target_objects.push_back(oid_prefix + "." + table_name + ".cells");
+    }
 
-        // If there are subpartitions...
-        for (int part_ndx = 0; part_ndx < subpartitions; part_ndx++) {
-            const std::string oid_subpart = oid + "." + std::to_string(part_ndx);
-            target_objects.push_back(oid);
+    else if (vm["gene-metadata"].as<bool>()) {
+        std::cout << "[DEBUG] Retrieving gene metadata" << std::endl;
+
+        target_objects.push_back(oid_prefix + "." + table_name + ".genes");
+    }
+
+    else {
+        std::cout << "[DEBUG] Retrieving domain data" << std::endl;
+
+        for (unsigned int obj_ndx = start_obj; obj_ndx < start_obj + num_objs; obj_ndx++) {
+            const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(obj_ndx);
+
+            if (subpartitions == -1) {
+                target_objects.push_back(oid);
+                continue;
+            }
+
+            // If there are subpartitions...
+            for (int part_ndx = 0; part_ndx < subpartitions; part_ndx++) {
+                const std::string oid_subpart = oid + "." + std::to_string(part_ndx);
+                target_objects.push_back(oid);
+            }
         }
     }
 
