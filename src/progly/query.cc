@@ -217,6 +217,16 @@ static void print_data(const char *dataptr,
                 );
             }
 
+            else if (skyhook_output_format == SkyFormatType::SFT_PYARROW_BINARY) {
+                row_counter += Tables::printArrowbufRowAsPyArrowBinary(
+                    dataptr,
+                    datasz,
+                    print_header,
+                    print_verbose,
+                    row_limit - row_counter
+                );
+            }
+
             else {
                 row_counter += Tables::printArrowbufRowAsCsv(
                     dataptr,
