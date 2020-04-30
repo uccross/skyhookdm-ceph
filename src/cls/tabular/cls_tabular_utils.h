@@ -42,6 +42,8 @@
 #include "fb_meta_generated.h"
 #include "fbu_generated.h"
 
+#define DEBUG_PRINT 0
+
 namespace Tables {
 
 enum TablesErrCodes {
