@@ -54,7 +54,6 @@ int main(int argc, char **argv) {
     std::string index2_preds;
     std::string index_cols;
     std::string index2_cols;
-    std::string path_to_data_schema;
 
     // set based upon program_options
     int  index_type  = Tables::SIT_IDX_UNK;
@@ -174,7 +173,6 @@ int main(int argc, char **argv) {
         ("table-name", po::value<std::string>(&table_name)->default_value("None"), "Table name")
         ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::DBSCHEMA_NAME_DEFAULT), "Database schema name")
         ("data-schema", po::value<std::string>(&data_schema)->default_value(data_schema_example), data_schema_format_help_msg.c_str())
-        ("data-schema-file", po::value<std::string>(&path_to_data_schema)->default_value("query.data-schema"), "Path to file containing data schema")
         ("index-create", po::bool_switch(&index_create)->default_value(false), create_index_help_msg.c_str())
         ("index-read", po::bool_switch(&index_read)->default_value(false), "Use the index for query")
         ("mem-constrain", po::bool_switch(&mem_constrain)->default_value(false), "Read/process data structs one at a time within object")
@@ -208,6 +206,7 @@ int main(int argc, char **argv) {
         ("lock-obj-create" , po::bool_switch(&lock_obj_create)->default_value(false) , "Create Lock obj")
 
         /* for single-cell workload */
+        ("data-schema-file", po::value<std::string>()->default_value("query.data-schema"), "Path to file containing data schema")
         ("cell-metadata", po::bool_switch()->default_value(false), "Read cell annotations (metadata)")
         ("gene-metadata", po::bool_switch()->default_value(false), "Read gene annotations (metadata)")
     ;
@@ -243,6 +242,22 @@ int main(int argc, char **argv) {
     ret = cluster.ioctx_create(pool.c_str(), ioctx);
     checkret(ret, 0);
     timings.reserve(num_objs);
+
+    // Parse data schema from file, if provided
+    if (vm.count("data-schema-file")) {
+        ifstream schema_file(vm["data-schema-file"].as<std::string>());
+
+        if (schema_file.is_open()) {
+            std::string column_schema;
+            data_schema = "";
+
+            while (getline(schema_file, column_schema)) {
+                data_schema += column_schema;
+            }
+
+            schema_file.close();
+        }
+    }
 
     // create list of objs to access, using start_obj (default: 0) and num_objs (required, no
     // default). Use start_obj and num_objs to operate on subset ranges of all objects for ops.
