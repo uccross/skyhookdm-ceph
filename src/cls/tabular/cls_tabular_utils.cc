@@ -5800,24 +5800,25 @@ int flatten_table(const std::shared_ptr<arrow::Table> &input_table,
  * @param[out] buffer : Output buffer
  * Return Value: error code
  */
-int convert_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table, std::shared_ptr<arrow::Buffer>* buffer)
-{
+int convert_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table,
+                            std::shared_ptr<arrow::Buffer> *buffer) {
     // Initilization related to writing to the the file
-    std::shared_ptr<arrow::ipc::RecordBatchWriter> writer;
-    arrow::Result<std::shared_ptr<arrow::io::BufferOutputStream>>  out;
-    std::shared_ptr<arrow::io::BufferOutputStream> output;
+    std::shared_ptr<arrow::ipc::RecordBatchWriter>                writer;
+    arrow::Result<std::shared_ptr<arrow::io::BufferOutputStream>> out;
+
     out = arrow::io::BufferOutputStream::Create(STREAM_CAPACITY, arrow::default_memory_pool());
-    if (out.ok()) {
-        output = out.ValueOrDie();
-        arrow::io::OutputStream *raw_out = output.get();
-        arrow::Table *raw_table = table.get();
-        arrow::ipc::RecordBatchStreamWriter::Open(raw_out, raw_table->schema(), &writer);
-    }  
+
+    // TODO: what is the error code we should return?
+    if (not out.ok()) { return 1; }
+
+    arrow::ipc::RecordBatchStreamWriter::Open(out.ValueOrDie().get(), table->schema(), &writer);
 
     // Initilization related to reading from arrow
     writer->WriteTable(*(table.get()));
     writer->Close();
-    output->Finish();
+
+    out.ValueOrDie()->Finish();
+
     return 0;
 }
 
