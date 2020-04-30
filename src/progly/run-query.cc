@@ -247,19 +247,25 @@ int main(int argc, char **argv) {
     // create list of objs to access, using start_obj (default: 0) and num_objs (required, no
     // default). Use start_obj and num_objs to operate on subset ranges of all objects for ops.
     if (vm["cell-metadata"].as<bool>()) {
-        std::cout << "[DEBUG] Retrieving cell metadata" << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Retrieving cell metadata" << std::endl;
+        }
 
         target_objects.push_back(oid_prefix + "." + table_name + ".cells");
     }
 
     else if (vm["gene-metadata"].as<bool>()) {
-        std::cout << "[DEBUG] Retrieving gene metadata" << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Retrieving gene metadata" << std::endl;
+        }
 
         target_objects.push_back(oid_prefix + "." + table_name + ".genes");
     }
 
     else {
-        std::cout << "[DEBUG] Retrieving domain data" << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Retrieving domain data" << std::endl;
+        }
 
         for (unsigned int obj_ndx = start_obj; obj_ndx < start_obj + num_objs; obj_ndx++) {
             const std::string oid = oid_prefix + "." + table_name + "." + std::to_string(obj_ndx);
@@ -420,21 +426,31 @@ int main(int argc, char **argv) {
 
 
         // Get the destination object type for the transform operation
-        std::cout << "[DEBUG] Tansform Format Str: " << trans_format_str << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Tansform Format Str: " << trans_format_str << std::endl;
+        }
+
         if      (trans_format_str == "FLATBUFFER") { trans_format_type = SFT_FLATBUF_FLEX_ROW; }
         else if (trans_format_str ==      "ARROW") { trans_format_type = SFT_ARROW;            }
         else { assert(0); }
 
 
         // verify desired result format is supported
-        std::cout << "[DEBUG] Result Format: " << resformat << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Result Format: " << resformat << std::endl;
+        }
+
         switch (resformat) {
             case SFT_ARROW:
-                std::cout << "[DEBUG]\t SFT_ARROW" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG]\t SFT_ARROW" << std::endl;
+                }
                 break;
 
             case SFT_FLATBUF_FLEX_ROW:
-                std::cout << "[DEBUG]\t SFT_FLATBUF_FLEX_ROW" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG]\t SFT_FLATBUF_FLEX_ROW" << std::endl;
+                }
                 break;
 
             default:
@@ -442,18 +458,27 @@ int main(int argc, char **argv) {
         }
 
         // verify desired program output format is supported
-        std::cout << "[DEBUG] Output Format: " << output_format << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Output Format: " << output_format << std::endl;
+        }
+
         switch (sky_format_type_from_string(output_format)) {
             case SFT_CSV:
-                std::cout << "[DEBUG]\t (SFT: " << SFT_CSV << ")" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG]\t (SFT: " << SFT_CSV << ")" << std::endl;
+                }
                 break;
 
             case SFT_PG_BINARY:
-                std::cout << "[DEBUG]\t (SFT: " << SFT_PG_BINARY << ")" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG]\t (SFT: " << SFT_PG_BINARY << ")" << std::endl;
+                }
                 break;
 
             case SFT_PYARROW_BINARY:
-                std::cout << "[DEBUG]\t (SFT: " << SFT_PYARROW_BINARY << ")" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG]\t (SFT: " << SFT_PYARROW_BINARY << ")" << std::endl;
+                }
                 break;
 
             default:
@@ -483,7 +508,10 @@ int main(int argc, char **argv) {
         sky_idx2_preds = predsFromString(sky_tbl_schema, index2_preds);
 
         // verify and set the query schema, check for select *
-        std::cout << "[DEBUG] Using Schema: " << data_schema << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Using Schema: " << data_schema << std::endl;
+        }
+
         if (project_cols == PROJECT_DEFAULT) {
             for (auto it = sky_tbl_schema.begin(); it != sky_tbl_schema.end(); ++it) {
                 // deep copy
@@ -850,7 +878,9 @@ int main(int argc, char **argv) {
     }
     */
 
-    std::cout << "[DEBUG] End query param verification" << std::endl;
+    if (DEBUG_PRINT) {
+        std::cout << "[DEBUG] End query param verification" << std::endl;
+    }
 
     // ------------------------------
     // end verify query params
@@ -1099,7 +1129,9 @@ int main(int argc, char **argv) {
             // get an object to process
             if (target_objects.empty()) { break; }
 
-            std::cout << "[DEBUG] Retrieved an object to process" << std::endl;
+            if (DEBUG_PRINT) {
+                std::cout << "[DEBUG] Retrieved an object to process" << std::endl;
+            }
 
             std::string oid = target_objects.back();
             target_objects.pop_back();
@@ -1113,10 +1145,14 @@ int main(int argc, char **argv) {
             io_state->times.dispatch = getns();
 
             if (query == "flatbuf" ) {
-                std::cout << "[DEBUG] Query is 'flatbuf'" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG] Query is 'flatbuf'" << std::endl;
+                }
 
                 if (use_cls) {
-                    std::cout << "[DEBUG] Using cls (use_cls is true)" << std::endl;
+                    if (DEBUG_PRINT) {
+                        std::cout << "[DEBUG] Using cls (use_cls is true)" << std::endl;
+                    }
 
                     query_op op;
 
@@ -1142,19 +1178,30 @@ int main(int argc, char **argv) {
                     ceph::bufferlist inbl;
                     ::encode(op, inbl);
 
-                    std::cout << "[DEBUG] Invoking `ioctx.aio_exec`" << std::endl;
+                    if (DEBUG_PRINT) {
+                        std::cout << "[DEBUG] Invoking `ioctx.aio_exec`" << std::endl;
+                    }
+
                     int ret = ioctx.aio_exec(oid, io_state->c, "tabular", "exec_query_op", inbl, &io_state->bl);
-                    std::cout << "[DEBUG] Call, `ioctx.aio_exec`, completed" << std::endl;
+
+                    if (DEBUG_PRINT) {
+                        std::cout << "[DEBUG] Call, `ioctx.aio_exec`, completed" << std::endl;
+                    }
 
                     checkret(ret, 0);
                 }
 
                 else {
-                    std::cout << "[DEBUG] Not using cls (use_cls is false)" << std::endl;
+                    if (DEBUG_PRINT) {
+                        std::cout << "[DEBUG] Not using cls (use_cls is false)" << std::endl;
+                        std::cout << "[DEBUG] Invoking `ioctx.aio_read`" << std::endl;
+                    }
 
-                    std::cout << "[DEBUG] Invoking `ioctx.aio_read`" << std::endl;
                     int ret = ioctx.aio_read(oid, io_state->c, &io_state->bl, 0, 0);
-                    std::cout << "[DEBUG] Call, `ioctx.aio_read`, completed" << std::endl;
+
+                    if (DEBUG_PRINT) {
+                        std::cout << "[DEBUG] Call, `ioctx.aio_read`, completed" << std::endl;
+                    }
 
                     checkret(ret, 0);
                 }
@@ -1286,7 +1333,10 @@ int main(int argc, char **argv) {
     lock.unlock();
 
     // drain any still-in-flight operations
-    std::cout << "[DEBUG] Draining remaining in-flight operations" << std::endl;
+    if (DEBUG_PRINT) {
+        std::cout << "[DEBUG] Draining remaining in-flight operations" << std::endl;
+    }
+
     while (true) {
         lock.lock();
 
@@ -1313,7 +1363,9 @@ int main(int argc, char **argv) {
     for (auto& thread : threads) { thread.join(); }
     ioctx.close();
 
-    std::cout << "[DEBUG] Worker threads cleaned up" << std::endl;
+    if (DEBUG_PRINT) {
+        std::cout << "[DEBUG] Worker threads cleaned up" << std::endl;
+    }
 
     // after all objs done processing, if postgres binary fstream,
     // add final trailer to output.
@@ -1377,6 +1429,9 @@ int main(int argc, char **argv) {
         out.close();
     }
 
-    std::cout << "[DEBUG] Exiting run-query client" << std::endl;
+    if (DEBUG_PRINT) {
+        std::cout << "[DEBUG] Exiting run-query client" << std::endl;
+    }
+
     return 0;
 }

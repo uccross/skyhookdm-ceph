@@ -18,6 +18,8 @@
 #include "cls/tabular/cls_tabular_utils.h"
 #include "re2/re2.h"
 
+#define DEBUG_PRINT 0
+
 extern inline uint64_t __getns(clockid_t clock)
 {
   struct timespec ts;

@@ -607,9 +607,11 @@ void worker() {
                     assert(decode_runquery_cls);
                 }
 
-                std::cout << "[DEBUG] rows processed (server): "
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG] rows processed (server): "
                           << nrows_server_processed
                           << std::endl;
+                }
 
                 nrows_processed += nrows_server_processed;
             }
@@ -626,7 +628,9 @@ void worker() {
             ceph::bufferlist::iterator it = wrapped_bls.begin();
 
             while (it.get_remaining() > 0) {
-                std::cout << "[DEBUG] Processing bufferlist" << std::endl;
+                if (DEBUG_PRINT) {
+                    std::cout << "[DEBUG] Processing bufferlist" << std::endl;
+                }
 
                 ceph::bufferlist bl;
 
@@ -654,9 +658,11 @@ void worker() {
                  */
 
                 // default usage here assumes the fbmeta is already in the bl
-                std::cout << "[DEBUG] Parsing skyhook metadata" << std::endl;
+                if (DEBUG_PRINT) { std::cout << "[DEBUG] Parsing skyhook metadata" << std::endl; }
+
                 sky_meta meta = getSkyMeta(&bl);
-                std::cout << "[DEBUG] Skyhook metadata parsed" << std::endl;
+
+                if (DEBUG_PRINT) { std::cout << "[DEBUG] Skyhook metadata parsed" << std::endl; }
 
                 // this code block is only used for accounting (rows processed)
                 switch (meta.blob_format) {
@@ -709,11 +715,6 @@ void worker() {
                 // TODO: add any global aggs here.
                 bool more_processing = false;
 
-                std::cout << "SkyRoot has been constructed."
-                          << "More processing? " << more_processing
-                          << std::endl
-                ;
-
                 if (!use_cls) {
                     // TODO: remove pushed-down preds from sky_qry_preds then we
                     // can remove project flag and just check size of preds here.
@@ -729,7 +730,9 @@ void worker() {
                         case SFT_FLATBUF_FLEX_ROW:
                         case SFT_ARROW: {
 
-                            std::cout << "Printing Arrow (or JSON/FLEX) results." << std::endl;
+                            if (DEBUG_PRINT) {
+                                std::cout << "Printing Arrow (or JSON/FLEX) results." << std::endl;
+                            }
 
                             sky_root root = Tables::getSkyRoot(
                                 meta.blob_data,

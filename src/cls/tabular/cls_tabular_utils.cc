@@ -3469,12 +3469,16 @@ createFbMeta(
 sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
 
     if (is_meta) {
-        std::cout << "[DEBUG] Parsing FBMeta Structure:" << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Parsing FBMeta Structure:" << std::endl;
+        }
 
         const FB_Meta* meta = GetFB_Meta(bl->c_str());
 
-        std::cout << "[DEBUG]\t Blob Format: " << meta->blob_format() << std::endl;
-        std::cout << "[DEBUG]\t Blob Compression: " << meta->blob_size() << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG]\t Blob Format: " << meta->blob_format() << std::endl;
+            std::cout << "[DEBUG]\t Blob Compression: " << meta->blob_size() << std::endl;
+        }
 
         return sky_meta(
             meta->blob_orig_off(),     // data position in original file
@@ -3489,7 +3493,9 @@ sky_meta getSkyMeta(bufferlist *bl, bool is_meta, int data_format) {
         );
     }
     else {
-        std::cout << "[DEBUG] Constructing Dummy FBMeta Wrapper" << std::endl;
+        if (DEBUG_PRINT) {
+            std::cout << "[DEBUG] Constructing Dummy FBMeta Wrapper" << std::endl;
+        }
 
         return sky_meta(    // for testing new raw formats without meta wrapper
             0,              // off
@@ -3558,19 +3564,23 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             auto schema = table->schema();
             auto metadata = schema->metadata();
 
-            std::cout << "[DEBUG] Domain Schema: " << schema->ToString()
-                      << std::endl
-            ;
+            if (DEBUG_PRINT) {
+                std::cout << "[DEBUG] Domain Schema: " << schema->ToString()
+                          << std::endl
+                ;
+            }
 
-            std::cout << "skyhook version: " << metadata->value(METADATA_SKYHOOK_VERSION)
-                      << std::endl
-                      << "skyhook data format type: " << metadata->value(METADATA_DATA_FORMAT_TYPE)
-                      << std::endl
-                      << "skyhook data structure version: " << metadata->value(METADATA_DATA_STRUCTURE_VERSION)
-                      << std::endl
-                      << "skyhook data schema version: " << metadata->value(METADATA_DATA_SCHEMA_VERSION)
-                      << std::endl
-            ;
+            if (DEBUG_PRINT) {
+                std::cout << "skyhook version: " << metadata->value(METADATA_SKYHOOK_VERSION)
+                          << std::endl
+                          << "skyhook data format type: " << metadata->value(METADATA_DATA_FORMAT_TYPE)
+                          << std::endl
+                          << "skyhook data structure version: " << metadata->value(METADATA_DATA_STRUCTURE_VERSION)
+                          << std::endl
+                          << "skyhook data schema version: " << metadata->value(METADATA_DATA_SCHEMA_VERSION)
+                          << std::endl
+                ;
+            }
 
             skyhook_version = 0;
             data_format_type = 0;
@@ -3597,9 +3607,11 @@ sky_root getSkyRoot(const char *ds, size_t ds_size, int ds_format) {
             // nrows = std::stoi(metadata->value(METADATA_NUM_ROWS));
             nrows = table->num_rows();
 
-            std::cout << "Num Rows: " << nrows
-                      << std::endl
-            ;
+            if (DEBUG_PRINT) {
+                std::cout << "Num Rows: " << nrows
+                          << std::endl
+                ;
+            }
 
             break;
         }
