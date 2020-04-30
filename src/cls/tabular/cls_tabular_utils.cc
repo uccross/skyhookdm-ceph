@@ -5745,7 +5745,7 @@ int convert_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table, std::sha
 {
     // Initilization related to writing to the the file
     std::shared_ptr<arrow::ipc::RecordBatchWriter> writer;
-    arrow::Result<std::shared_ptr<arrow::io::BufferOutputStream>>  out;
+    arrow::Result<std::shared_ptr<arrow::io::BufferOutputStream>> out;
     std::shared_ptr<arrow::io::BufferOutputStream> output;
     out = arrow::io::BufferOutputStream::Create(STREAM_CAPACITY, arrow::default_memory_pool());
     if (out.ok()) {
@@ -5758,7 +5758,11 @@ int convert_arrow_to_buffer(const std::shared_ptr<arrow::Table> &table, std::sha
     // Initilization related to reading from arrow
     writer->WriteTable(*(table.get()));
     writer->Close();
-    output->Finish();
+    arrow::Result<std::shared_ptr<arrow::Buffer>> buff;
+    buff = output->Finish();
+    if (buff.ok()) {
+        *buffer = buff.ValueOrDie();
+    }
     return 0;
 }
 
