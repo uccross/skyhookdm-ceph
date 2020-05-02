@@ -17,5 +17,13 @@ RUN apt update && \
     rm -rf /var/lib/apt/lists/* /var/tmp/*
 
 COPY build/bin/run-query build/bin/sky_tabular_flatflex_writer build/bin/ceph_test_skyhook_query /usr/bin/
-COPY build/lib/libcls_tabular.so.1.0.0 /usr/lib/libcls_tabular.so
+
+# copy our cls library to correct path as below
+#
+# ubuntu cls dir path
+# LIB_CLS_DIR=/usr/lib/x86_64-linux-gnu/rados-classes/
+#
+# centos cls dir path
+# LIB_CLS_DIR=/usr/lib64/rados-classes/
+
 COPY build/lib/libcls_tabular.so.1.0.0 /usr/lib/x86_64-linux-gnu/rados-classes/libcls_tabular.so
