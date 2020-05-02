@@ -18,3 +18,4 @@ RUN apt update && \
 
 COPY build/bin/run-query build/bin/sky_tabular_flatflex_writer build/bin/ceph_test_skyhook_query /usr/bin/
 COPY build/lib/libcls_tabular.so.1.0.0 /usr/lib/libcls_tabular.so
+COPY build/lib/libcls_tabular.so.1.0.0 /usr/lib/x86_64-linux-gnu/rados-classes/libcls_tabular.so
