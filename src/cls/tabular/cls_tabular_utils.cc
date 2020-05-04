@@ -6509,7 +6509,7 @@ long long int printArrowbufRowAsPyArrowBinary(
 
 
     // add buf len to output
-    int32_t buf_len = static_cast<int32_t>(datasz);
+    uint64_t buf_len = static_cast<uint64_t>(datasz);
     ss.write(reinterpret_cast<const char*>(&buf_len), sizeof(buf_len));
 
     // add const char* arrow buf
