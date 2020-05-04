@@ -40,10 +40,13 @@ steps:
       done
       popd
     fi
+
     # boot a single-osd instance
     ci/micro-osd.sh test
+
     # copy conf to where test expects it (PWD)
     cp test/ceph.conf ./
+
     # run test
     exec ceph_test_skyhook_query
 
@@ -53,7 +56,7 @@ steps:
   secrets: [DOCKER_USERNAME, DOCKER_PASSWORD]
   runs: /bin/sh
   args:
-  - -c,
+  - -c
   - |
     docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
     docker push popperized/skyhookdm-libcls:luminous-bionic
