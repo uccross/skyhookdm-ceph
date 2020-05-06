@@ -50,13 +50,12 @@ steps:
     # run test
     exec ceph_test_skyhook_query
 
-
-# push to registry
-- uses: docker://docker:19.03.3
-  secrets: [DOCKER_USERNAME, DOCKER_PASSWORD]
-  runs: /bin/sh
-  args:
-  - -c
-  - |
-    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-    docker push popperized/skyhookdm-libcls:luminous-bionic
+## push to registry
+#- uses: docker://docker:19.03.3
+#  secrets: [DOCKER_USERNAME, DOCKER_PASSWORD]
+#  runs: /bin/sh
+#  args:
+#  - -c
+#  - |
+#    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+#    docker push popperized/skyhookdm-libcls:luminous-bionic
