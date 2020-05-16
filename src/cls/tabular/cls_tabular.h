@@ -77,7 +77,8 @@ enum SkyFormatType {
     SFT_PG_BINARY,
     SFT_PYARROW_BINARY,
     SFT_HDF5,
-    SFT_EXAMPLE_FORMAT
+    SFT_EXAMPLE_FORMAT,
+    SFT_ANY
 };
 
 
@@ -114,6 +115,7 @@ struct query_op {
 
   // query parameters
   std::string query;   // query type TODO: remove
+  bool debug;
   bool fastpath;
   bool index_read;
   bool mem_constrain;
@@ -137,6 +139,7 @@ struct query_op {
   // serialize the fields into bufferlist to be sent over the wire
   void encode(bufferlist& bl) const {
     ENCODE_START(1, 1, bl);
+    ::encode(debug, bl);
     ::encode(query, bl);
     ::encode(fastpath, bl);
     ::encode(index_read, bl);
@@ -161,6 +164,7 @@ struct query_op {
   // deserialize the fields from the bufferlist into this struct
   void decode(bufferlist::iterator& bl) {
     DECODE_START(1, bl);
+    ::decode(debug, bl);
     ::decode(query, bl);
     ::decode(fastpath, bl);
     ::decode(index_read, bl);
@@ -185,6 +189,7 @@ struct query_op {
   std::string toString() {
     std::string s;
     s.append("query_op:");
+    s.append(" .debug=" + std::to_string(debug));
     s.append(" .fastpath=" + std::to_string(fastpath));
     s.append(" .index_read=" + std::to_string(index_read));
     s.append(" .index_type=" + std::to_string(index_type));
@@ -1047,13 +1052,16 @@ struct lockobj_info {
   std::string table_group;
 
   lockobj_info() {}
-  lockobj_info(bool tb,
-  int objs, std::string table_name, std::string table_group)
-  :
-  table_busy(tb),
-  num_objs(objs),
-  table_name(table_name),
-  table_group(table_group) { }
+  lockobj_info(
+    bool _table_busy,
+    int _num_objs,
+    std::string _table_name,
+    std::string _table_group)
+    :
+    table_busy(_table_busy),
+    num_objs(_num_objs),
+    table_name(_table_name),
+    table_group(_table_group) { }
 
   // serialize the fields into bufferlist to be sent over the wire
   void encode(bufferlist& bl) const {
@@ -1081,6 +1089,7 @@ struct lockobj_info {
     s.append(" .table_busy=" + table_busy);
     s.append(" .num_objs=" + num_objs);
     s.append(" .table_name=" + table_name);
+    s.append(" .table_group=" + table_group);
     return s;
   }
 };
