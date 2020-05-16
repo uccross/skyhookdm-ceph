@@ -77,7 +77,11 @@ enum TablesErrCodes {
     NoInStorageProcessingRequired,
     NoMatchingDataFound,
     ClsResultCodeTrue,
-    ClsResultCodeFalse
+    ClsResultCodeFalse,
+    EINVALID_INTERMEDIATE_FORMAT,
+    EINVALID_CLIENT_FORMAT,
+    EINVALID_TRANSFORM_FORMAT,
+    EDECODE_BUFFERLIST_FAILURE,
 };
 
 // skyhook data types, as supported by underlying data format
