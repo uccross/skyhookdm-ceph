@@ -376,7 +376,7 @@ int main(int argc, char **argv)
             break;
         }
         default:
-            assert(Tables::TablesErrCodes::EINVALID_CLIENT_FORMAT);
+            assert(Tables::TablesErrCodes::EINVALID_OUTPUT_FORMAT);
     }
 
     // below we convert user input to skyhook structures for error checking,
@@ -392,11 +392,11 @@ int main(int argc, char **argv)
     // verify and set the query predicates
     sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
 
-    /*
-     *  TODO: remove, used for debugging typed preds
-     *  for (auto p:sky_qry_preds) cerr << p->toString();
-     *   cerr << endl;
-     */
+    if (debug) {
+        std::cout << "DEBUG: run-query: query predicates:\n";
+        for (auto p:sky_qry_preds)
+            std::cout << p->toString() << std::endl;
+    }
 
     // verify and set the index predicates
     sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
