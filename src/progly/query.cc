@@ -32,6 +32,8 @@ uint64_t extra_row_cost;
 std::vector<timing> timings;
 
 // query parameters to be encoded into query_op struct
+
+// query_op params old
 double extended_price;
 int order_key;
 int line_number;
@@ -42,7 +44,8 @@ double discount_high;
 double quantity;
 std::string comment_regex;
 
-// query_op params for flatbufs
+// query_op params new
+bool debug;
 bool qop_fastpath;
 bool qop_index_read;
 bool qop_mem_constrain;
@@ -85,7 +88,7 @@ std::string qop_tree_name;
 bool runstats;
 std::string project_cols;
 
-// for debugging, prints full record header and metadata
+// prints full record header and metadata
 bool print_verbose;
 
 // final output format
@@ -307,7 +310,7 @@ static void print_data(const char *dataptr,
     print_lock.unlock();
 }
 
-/* NOTE: This function will be used by python driver  */
+/* NOTE: This function will be used by python driver for locking  */
 static void print_data(bufferlist out) {
     print_lock.lock();
     lockobj_info info;
@@ -316,7 +319,7 @@ static void print_data(bufferlist out) {
         bufferlist::iterator it = out.begin();
         ::decode(info, it);
     } catch (const buffer::error &err) {
-	    std::cout <<"ERROR: print_data: decoding inbl_lockobj_op failed";
+	    std::cout <<"ERROR: print_data: decoding lockobj_info failed";
         return;
     }
     std::cout << "Busy:" << info.table_busy << std::endl;
@@ -379,6 +382,10 @@ void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op)
 
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
+
+    if (debug)
+        cout << "DEBUG: query.cc: worker_exec_build_sky_index_op: launching exec for oid=" << oid << endl;
+
     int ret = ioctx->exec(oid, "tabular", "exec_build_sky_index_op",
                           inbl, outbl);
     checkret(ret, 0);
@@ -400,6 +407,10 @@ void worker_transform_db_op(librados::IoCtx *ioctx, transform_op op)
 
     ceph::bufferlist inbl, outbl;
     ::encode(op, inbl);
+
+    if (debug)
+        cout << "DEBUG: query.cc: worker_transform_db_op: launching exec for oid=" << oid << endl;
+
     int ret = ioctx->exec(oid, "tabular", "transform_db_op",
                           inbl, outbl);
     checkret(ret, 0);
@@ -515,6 +526,7 @@ static void add_extra_row_cost(uint64_t cost)
 void worker()
 {
   std::unique_lock<std::mutex> lock(work_lock);
+
   while (true) {
     // wait for work, or done
     if (ready_ios.empty()) {
@@ -524,9 +536,13 @@ void worker()
       continue;
     }
 
+
     // prepare result
     AioState *s = ready_ios.front();
     ready_ios.pop_front();
+
+    if (debug)
+        cout << "DEBUG: query.cc: worker: popped front of ready_ios" << endl;
 
     // process result without lock. we own it now.
     lock.unlock();
@@ -536,49 +552,34 @@ void worker()
     dispatch_lock.unlock();
     dispatch_cond.notify_one();
 
-    struct timing times = s->times;
-    uint64_t nrows_server_processed = 0;
-    uint64_t eval2_start = getns();
+    //~struct timing times = s->times;
+    //~uint64_t nrows_server_processed = 0;
+    //~uint64_t eval2_start = getns();
 
     if (query == "flatbuf") {
 
+        if (debug)
+            cout << "DEBUG: query.cc: worker: query==flatbuf" << endl;
+
         using namespace Tables;
 
-        // standard librados read will return the raw object data (unprocessed)
-        // cls read (execute) will return processed data from each obj.
-        // in both cases, the results are wrapped as a sequence of bufferlists
-        // currently each bufferlist is a skyhook flatbuf data structure.
+        // get returned data from our Aio State struct
+        ceph::bufferlist data_read = s->bl;
+        ceph::bufferlist result_data;
+        ceph::bufferlist::iterator it = data_read.begin();
 
-        bufferlist wrapped_bls;   // to store the seq of bls.
+        if (debug)
+            cout << "DEBUG: query.cc: worker: decoding result data begin" << endl;
 
-        // first extract the top-level statistics encoded during cls processing
-        if (use_cls) {
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(times.read_ns, it);
-                ::decode(times.eval_ns, it);
-                ::decode(nrows_server_processed, it);
-                ::decode(wrapped_bls, it);  // contains a seq of encoded bls.
-            } catch (ceph::buffer::error&) {
-                int decode_runquery_cls = 0;
-                assert(decode_runquery_cls);
-            }
-            nrows_processed += nrows_server_processed;
-        } else {
-            wrapped_bls = s->bl;  // contains a seq of encoded bls.
+        try {
+            ::decode(result_data, it);  // unpack the data struct
         }
-        delete s;  // we're done processing all of the bls contained within
+        catch (ceph::buffer::error&) {
+            assert(Tables::TablesErrCodes::EDECODE_BUFFERLIST_FAILURE==0);
+        }
 
-        // decode and process each bl (contains 1 flatbuf) in a loop.
-        ceph::bufferlist::iterator it = wrapped_bls.begin();
-        while (it.get_remaining() > 0) {
-            ceph::bufferlist bl;
-            try {
-                ::decode(bl, it);  // unpack the next data struct
-            } catch (ceph::buffer::error&) {
-                int decode_runquery_noncls = 0;
-                assert(decode_runquery_noncls);
-            }
+        if (debug)
+            cout << "DEBUG: query.cc: worker: decoding result data end" << endl;
 
             /*
             * NOTE:
@@ -594,53 +595,28 @@ void worker()
             */
 
             // default usage here assumes the fbmeta is already in the bl
-            sky_meta meta = getSkyMeta(&bl);
+        sky_meta meta = getSkyMeta(&result_data);
 
-            // this code block is only used for accounting (rows processed)
-            switch (meta.blob_format) {
+            //~ // this code block is only used for accounting (rows processed)
+            //~ switch (meta.blob_format) {
 
-                case SFT_FLATBUF_FLEX_ROW:
-                case SFT_ARROW:
-                case SFT_JSON: {
-                    sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                       meta.blob_size,
-                                                       meta.blob_format);
-                    nrows_processed += root.nrows;
-                    rows_returned += root.nrows;
-                    break;
-                }
+                //~ case SFT_FLATBUF_FLEX_ROW:
+                //~ case SFT_ARROW:
+                //~ case SFT_JSON: {
+                    //~ sky_root root = Tables::getSkyRoot(meta.blob_data,
+                                                       //~ meta.blob_size,
+                                                       //~ meta.blob_format);
+                    //~ nrows_processed += root.nrows;
+                    //~ rows_returned += root.nrows;
+                    //~ break;
+                //~ }
 
-                case SFT_FLATBUF_UNION_ROW:
-                case SFT_FLATBUF_UNION_COL: {
-
-                    // extract ptr to meta data blob
-                    const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                    size_t blob_sz = meta.blob_size;
-
-                    // extract bl_seq bufferlist
-                    ceph::bufferlist bl_seq;
-                    bl_seq.append(blob_dataptr, blob_sz);
-
-                    // just need to grab the first bufferlist in the bl_seq
-                    ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                    // decode decrements get_remaining by moving itr
-                    ceph::bufferlist bl;
-                    ::decode(bl, it_bl_seq);
-                    const char* dataptr = bl.c_str();
-                    size_t datasz = bl.length();
-
-                    // get the number of rows returned for accounting purposes
-                    sky_root root = getSkyRoot(dataptr, datasz, SFT_FLATBUF_UNION_ROW);
-                    rows_returned += root.nrows;
-                    break;
-                }
-                case SFT_FLATBUF_CSV_ROW:
-                case SFT_PG_TUPLE:
-                case SFT_CSV:
-                default:
-                    assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-            }
+                //~ case SFT_FLATBUF_CSV_ROW:
+                //~ case SFT_PG_TUPLE:
+                //~ case SFT_CSV:
+                //~ default:
+                    //~ assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
+            //~ }
 
             // check if cols to be projected or preds remaining to be applied
             // TODO: add any global aggs here.
@@ -673,58 +649,6 @@ void worker()
                                    meta.blob_format);
                         break;
                     }
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL: {
-
-                        // extract ptr to meta data blob
-                        const char* blob_dataptr = \
-                                reinterpret_cast<const char*>(meta.blob_data);
-                        size_t blob_sz = meta.blob_size;
-
-                        // extract bl_seq bufferlist
-                        ceph::bufferlist bl_seq;
-                        bl_seq.append(blob_dataptr, blob_sz);
-
-                        // bl_seq for ROW format will only contain one bl
-                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                        bool first_iteration = true;
-                        while (it_bl_seq.get_remaining() > 0) {
-
-                            // decode decrements get_remaining by moving itr
-                            ceph::bufferlist bl;
-                            ::decode(bl, it_bl_seq);
-                            const char* dataptr = bl.c_str();
-                            size_t datasz = bl.length();
-
-                            // get the number of rows returned for accounting
-                            if (first_iteration) {
-                                sky_root root = getSkyRoot(dataptr,
-                                                           datasz,
-                                                           SFT_FLATBUF_UNION_ROW);
-                                result_count += root.nrows;
-                                first_iteration = false;
-                            }
-
-                            // do the print
-                            if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
-                                print_data(dataptr,
-                                           datasz,
-                                           SFT_FLATBUF_UNION_ROW);
-                            }
-                            else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
-                                print_data(dataptr,
-                                           datasz,
-                                           SFT_FLATBUF_UNION_COL);
-                            }
-                            else {
-                                assert(Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-                            }
-
-                        } // while
-                        break;
-                    }
-
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -796,68 +720,6 @@ void worker()
                     case SFT_JSON:  // TODO: call processJSON() here.
                         break;
 
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL: {
-                        flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
-                        int ret;
-
-                        // extract ptr to meta data blob
-                        const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                        size_t blob_sz = meta.blob_size;
-
-                        // extract bl_seq bufferlist
-                        ceph::bufferlist bl_seq;
-                        bl_seq.append(blob_dataptr, blob_sz);
-
-                        // bl_seq for ROW format will only contain one bl
-                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                        ceph::bufferlist bl;
-                        ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
-                        const char* dataptr = bl.c_str();
-                        size_t datasz = bl.length();
-
-                        if (meta.blob_format == SFT_FLATBUF_UNION_ROW) {
-                            ret = processSkyFb_fbu_rows(
-                                   flatbldr,
-                                   sky_tbl_schema,
-                                   sky_qry_schema,
-                                   sky_qry_preds,
-                                   dataptr,
-                                   datasz,
-                                   errmsg);
-                        }
-                        else if (meta.blob_format == SFT_FLATBUF_UNION_COL) {
-                            ret = processSkyFb_fbu_cols(
-                                    bl_seq,
-                                    flatbldr,
-                                    sky_tbl_schema,
-                                    sky_qry_schema,
-                                    sky_qry_preds,
-                                    dataptr,
-                                    datasz,
-                                    errmsg);
-                        }
-                        else {
-                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-                        }
-
-                        if (ret != 0) {
-                            int more_processing_failure = true;
-                            std::cerr << "ERROR: query.cc: processing flatbuf: "
-                                      << errmsg << "\n Tables::ErrCodes=" << ret
-                                      << endl;
-                            assert(more_processing_failure);
-                        }
-
-                        // TODO: we should be using uint8_t here
-                        const char* processed_data = \
-                            reinterpret_cast<const char*>(flatbldr.GetBufferPointer());
-                        sky_root root = getSkyRoot(processed_data, 0);
-                        result_count += root.nrows;
-                        print_data(processed_data, 0, SFT_FLATBUF_FLEX_ROW);
-                        break;
-                    }
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -865,8 +727,9 @@ void worker()
                         assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
                 }
             }
-        } // endloop of processing sequence of encoded bls
+        //~} // end process result data.
 
+        delete s;
     }
     else if (query == "example") {
 
@@ -892,8 +755,8 @@ void worker()
                 int decode_examplequery_cls = 0;
                 assert(decode_examplequery_cls);
             }
-            times.read_ns = info.read_time_ns;
-            times.eval_ns = info.eval_time_ns;
+            //~ times.read_ns = info.read_time_ns;
+            //~ times.eval_ns = info.eval_time_ns;
             rows_returned += info.rows_processed;
             result_count += info.rows_processed;
             cout << "count thus far... " <<rows_returned << std::endl;
@@ -931,8 +794,8 @@ void worker()
                 int decode_examplequery_cls = 0;
                 assert(decode_examplequery_cls);
             }
-            times.read_ns = info.read_time_ns;
-            times.eval_ns = info.eval_time_ns;
+            //~ times.read_ns = info.read_time_ns;
+            //~ times.eval_ns = info.eval_time_ns;
             rows_returned += info.rows_processed;
             result_count += info.rows_processed;
             cout << "count thus far... " <<rows_returned << std::endl;
@@ -945,34 +808,6 @@ void worker()
 
         print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
 
-    }
-    else if (query == "hep") {
-
-        using namespace Tables;
-
-        // to store the result from an object.
-        // the out bufferlist contains a cls_return_code and then
-        // the actual result (if any) from the obj.
-        bufferlist bl;
-        int cls_result_code = 0;
-
-        // check if object did not exist/had empty data partition.
-        if (s->bl.length() > 0) {
-            try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(cls_result_code, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_hepquery_cls = 0;
-                assert(decode_hepquery_cls);
-            }
-
-            // we do nothing for ClsResultCodeFalse, indicates no matching data
-            // was returned from this object from the query, otherwise we output
-            // result as as pyarrow binary
-            if (cls_result_code == TablesErrCodes::ClsResultCodeTrue)
-                print_data(bl.c_str(), bl.length(), SFT_PYARROW_BINARY);
-        }
     }
     else {   // older processing code below
 
@@ -991,9 +826,9 @@ void worker()
         if (use_cls) {
             try {
                 ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(times.read_ns, it);
-                ::decode(times.eval_ns, it);
-                ::decode(nrows_server_processed, it);
+                //~ ::decode(times.read_ns, it);
+                //~ ::decode(times.eval_ns, it);
+                //~ ::decode(nrows_server_processed, it);
                 ::decode(bl, it);
             } catch (ceph::buffer::error&) {
                 int decode_runquery_cls = 0;
@@ -1017,9 +852,9 @@ void worker()
         const size_t num_rows = bl.length() / row_size;
         rows_returned += num_rows;
 
-        if (use_cls)
-            nrows_processed += nrows_server_processed;
-        else
+        //~ if (use_cls)
+            //~ nrows_processed += nrows_server_processed;
+        //~ else
             nrows_processed += num_rows;
 
         if (query == "a") {
@@ -1172,10 +1007,10 @@ void worker()
         }
     }
 
-    times.eval2_ns = getns() - eval2_start;
+    //times.eval2_ns = getns() - eval2_start;
 
     lock.lock();
-    timings.push_back(times);
+    //timings.push_back(times);
   }
 }
 
