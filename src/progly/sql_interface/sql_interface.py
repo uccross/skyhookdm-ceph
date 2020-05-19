@@ -118,7 +118,7 @@ class SkyhookSQLClient:
 
     def execQuery(self, cmd):
         print('Executing command: ' + cmd)
-        prog = 'cd ~/skyhookdm-ceph && /build/bin/run-query '
+        prog = 'cd ~/skyhookdm-ceph/build/ && '
         result = os.popen(prog + cmd).read()
         print(result)
         return
