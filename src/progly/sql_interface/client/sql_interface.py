@@ -24,7 +24,7 @@ class SkyhookSQLClient:
             if len(opt_list) > 4:
                 raise ValueError('Incorrect number of options set.')
             print(opt_list)
-            self.command = 'bin/runquery ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1]
+            self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1]
             print(self.command)
 
         print("Enter command options as command separated values below. Press 'Enter' without input to use default options.")
@@ -86,16 +86,18 @@ class SkyhookSQLClient:
             where_stream = list(extract_identifiers(where_stream))
             return (select_list, from_list, where_stream)
         
-        def formatQueryTupleToList(queryTuple):
+        def formatQueryTupleToList(queryInfo):
             listQuery, formattedList = [], []
-            listQuery.append(str(queryTuple[1]))
-            listQuery.append(str(queryTuple[0]))
+            # listQuery.append(str(queryInfo[2]))
+            listQuery.append(str(queryInfo[1]))
+            listQuery.append(str(queryInfo[0]))
 
             for element in listQuery:
                 for char in element:
                     if char in " []'":
                         element = element.replace(char,'')
                 formattedList.append(element)
+            print("FORMATTED LIST: formattedList")
             return formattedList
         
         def transformQuery(rawQuery):
@@ -106,7 +108,7 @@ class SkyhookSQLClient:
                 queryInfo = extractQueryInfo(parsed)
                 listQuery = formatQueryTupleToList(queryInfo)
                 if listQuery[1] == '':
-                    self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
+                    self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0], listQuery[1]))
                 else:
                     self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
             return
