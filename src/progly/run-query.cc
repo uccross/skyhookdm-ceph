@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 
   // user/client input, trimmed and encoded to skyhook structs for query_op
   // defaults set below via boost::program_options
-  bool debug;
+  //bool debug;
   bool index_read;
   bool index_create;
   bool mem_constrain;

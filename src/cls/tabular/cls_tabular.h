@@ -1095,4 +1095,62 @@ struct lockobj_info {
 };
 WRITE_CLASS_ENCODER(lockobj_info)
 
+// Used to collect runtime information in CLS during processing tasks.
+struct cls_info {
+  uint64_t rows_processed;
+  uint64_t read_ns;
+  uint64_t eval_ns;
+  std::string push_back_predicates;
+  std::string push_back_reason;
+
+  cls_info() {}
+  cls_info(
+    uint64_t _rows_processed,
+    uint64_t _read_ns,
+    uint64_t _eval_ns,
+    std::string _push_back_predicates,
+    std::string _push_back_reason)
+    :
+    rows_processed(_rows_processed),
+    read_ns(_read_ns),
+    eval_ns(_eval_ns),
+    push_back_predicates(_push_back_predicates),
+    push_back_reason(_push_back_reason) { }
+
+  // serialize the fields into bufferlist to be sent over the wire
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(rows_processed, bl);
+    ::encode(read_ns, bl);
+    ::encode(eval_ns, bl);
+    ::encode(push_back_predicates, bl);
+    ::encode(push_back_reason, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  // deserialize the fields from the bufferlist into this struct
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(rows_processed, bl);
+    ::decode(read_ns, bl);
+    ::decode(eval_ns, bl);
+    ::decode(push_back_predicates, bl);
+    ::decode(push_back_reason, bl);
+    DECODE_FINISH(bl);
+  }
+
+  std::string toString() {
+    std::string s;
+    s.append(" cls_info:");
+    s.append(" .rows_processed=" + std::to_string(rows_processed));
+    s.append(" .read_ns=" + std::to_string(read_ns));
+    s.append(" .eval_ns=" + std::to_string(eval_ns));
+    s.append(" .push_back_predicates=" + push_back_predicates);
+    s.append(" .push_back_reason=" + push_back_reason);
+    return s;
+  }
+};
+WRITE_CLASS_ENCODER(cls_info)
+
+
 #endif
