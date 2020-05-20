@@ -3,18 +3,20 @@ from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier
 import os
 
-class SkyhookSQLClient:
-    def __init__(self):
+class SkyhookSQLParser(self, rawUserQuery): 
+    def __init__(self, rawUserQuery):
+        self.rawQuery = rawUserQuery
         self.opt_list = None
         self.command = None
         self.command_list = []
         self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" '
 
+
     def clearPreviousQuery(self):
         self.command_list = []
         return
 
-    def checkOpts(self):
+    def checkOpts(self, opts):
         def parseOpts(opts):
             opt_list = opts.split(",")
             if len(opt_list) == 1:
@@ -27,13 +29,10 @@ class SkyhookSQLClient:
             self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1]
             print(self.command)
 
-        print("Enter command options as command separated values below. Press 'Enter' without input to use default options.")
-        print("Example: [num_objs],[pool_name]")
-        opts = input(">>> ")
         parseOpts(opts)
         return
     
-    def enterQuery(self):
+    def parseQuery(self):
         def extractQueryInfo(parsed):
             def extract_where(parsed):
                     where_seen = False
@@ -100,8 +99,8 @@ class SkyhookSQLClient:
             print("FORMATTED LIST: formattedList")
             return formattedList
         
-        def transformQuery(rawQuery):
-            statements = sqlparse.split(rawQuery)
+        def transformQuery():
+            statements = sqlparse.split(self.rawQuery)
             print(statements)
             for cmd in statements:
                 parsed = sqlparse.parse(cmd)[0]
@@ -113,9 +112,7 @@ class SkyhookSQLClient:
                     self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
             return
 
-        print("Enter a SQL query (Multiple semi-colon separated queries can be accepted).")
-        rawQuery = input(">>> ")
-        transformQuery(rawQuery)
+        transformQuery(self.rawQuery)
         return
 
     def execQuery(self, cmd):
@@ -126,26 +123,19 @@ class SkyhookSQLClient:
         return
 
 '''
-Entry point of SQL Client.
-Instantiates SkyhookSQLClient object and requests user input
-for a SQL query.
+Entry point of Skyhook SQL Parser.
+Instantiates SkyhookSQLParser object and transforms user input
+of a SQL query from the client into Skyhook query command. .
 
 Assumptions: 
-- SQL query is not validated.
-- Assumes working directory contains skyhookdm-ceph repository
+- No user input is validated. 
+- Assumes working in skyhookdm-ceph/src/progly/sql_interface
 - Assumes you are working with a physical OSD 
-- Joins don't work correctly yet
 '''
-def main():
-    skObj = SkyhookSQLClient()
-    skObj.checkOpts()
-
-    # Run until told otherwise.
-    while(1):
-        skObj.enterQuery()
-        for cmd in skObj.command_list:
-            skObj.execQuery(cmd)
-            skObj.clearPreviousQuery()
-
-if __name__ == "__main__":
-    main()
+def handleQuery(userOpts, rawUserQuery):
+    skObj = SkyhookSQLParser(rawUserQuery)
+    skObj.checkOpts(userOpts)
+    skObj.parseQuery()
+    for cmd in skObj.command_list:
+        skObj.execQuery(cmd)
+        skObj.clearPreviousQuery()
