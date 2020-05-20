@@ -935,6 +935,10 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     bufferlist result_bl;  // result set to be returned to client.
     query_op op;
 
+    CLS_LOG(20, "exec_query_op begin");
+    CLS_LOG(20, "exec_query_op decoding op begin");
+    //CLS_LOG(20, "exec_query_op decoding op next", std::to_string(result_bl.length()).c_str());
+
     // extract the query op to get the query request params
     try {
         bufferlist::iterator it = in->begin();
@@ -943,8 +947,13 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         CLS_ERR("ERROR: decoding query op");
         return -EINVAL;
     }
+
+    CLS_LOG(20, "exec_query_op decoding op end");
+
     std::string msg = op.toString();
     std::replace(msg.begin(), msg.end(), '\n', ' ');
+
+    CLS_LOG(20, "exec_query_op op.toString()=%s", msg.c_str());
 
     if (op.query == "flatbuf") {
 
@@ -1630,10 +1639,11 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         }
     }
 
+  CLS_LOG(20, "query_op.encoding result_bl size=%s", std::to_string(result_bl.length()).c_str());
   // store timings and result set into output BL
-  ::encode(read_ns, *out);
-  ::encode(eval_ns, *out);
-  ::encode(rows_processed, *out);
+  //~ ::encode(read_ns, *out);
+  //~ ::encode(eval_ns, *out);
+  //~ ::encode(rows_processed, *out);
   ::encode(result_bl, *out);
   return 0;
 }
