@@ -929,31 +929,28 @@ static
 int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
     int ret = 0;
-    uint64_t rows_processed = 0;
     uint64_t read_ns = 0;
     uint64_t eval_ns = 0;
     bufferlist result_bl;  // result set to be returned to client.
     query_op op;
-
-    CLS_LOG(20, "exec_query_op begin");
-    CLS_LOG(20, "exec_query_op decoding op begin");
-    //CLS_LOG(20, "exec_query_op decoding op next", std::to_string(result_bl.length()).c_str());
 
     // extract the query op to get the query request params
     try {
         bufferlist::iterator it = in->begin();
         ::decode(op, it);
     } catch (const buffer::error &err) {
-        CLS_ERR("ERROR: decoding query op");
+        CLS_ERR("ERROR: exec_query_op: decoding query op failed");
         return -EINVAL;
     }
 
-    CLS_LOG(20, "exec_query_op decoding op end");
-
+    // remove newlines for cls logging purpose
     std::string msg = op.toString();
     std::replace(msg.begin(), msg.end(), '\n', ' ');
 
-    CLS_LOG(20, "exec_query_op op.toString()=%s", msg.c_str());
+    if (op.debug) {
+        CLS_LOG(20, "exec_query_op decoded successfully");
+        CLS_LOG(20, "exec_query_op op.toString()=%s", op.toString().c_str());
+    }
 
     if (op.query == "flatbuf") {
 
@@ -1310,10 +1307,9 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 }
             }
 
-            // now we can decode and process each bl in the obj, specified
-            // by each read request.
-            // NOTE: 1 bl contains exactly 1 flatbuf.
-            // weak ordering in map will iterate over fb nums in sequence
+            // now we can decode and process each bl in the obj
+            // NOTE: 1 bl contains exactly 1 fbmeta.
+            // weak ordering in map will iterate over fbmetas in sequence
             for (auto it = reads.begin(); it != reads.end(); ++it) {
                 bufferlist b;
                 size_t off = it->second.off;
@@ -1365,89 +1361,46 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     */
 
                     // default usage here assumes the fbmeta is already in the bl
-                    sky_meta meta = getSkyMeta(&bl);
-                    CLS_LOG(20, "sky_meta: meta.blob_format=%d", meta.blob_format);
-                    CLS_LOG(20, "sky_meta: meta.blob_data=%p", &meta.blob_data[0]);
-                    CLS_LOG(20, "sky_meta: meta.blob_size=%lu", meta.blob_size);
-                    CLS_LOG(20, "sky_meta: meta.blob_deleted=%d", meta.blob_deleted);
-                    CLS_LOG(20, "sky_meta: meta.blob_orig_off=%lu", meta.blob_orig_off);
-                    CLS_LOG(20, "sky_meta: meta.blob_orig_len=%lu", meta.blob_orig_len);
-                    CLS_LOG(20, "sky_meta: meta.blob_compression=%d", meta.blob_compression);
+                    sky_meta fbmeta = getSkyMeta(&bl);
+                    if (op.debug) {
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_format=%d", fbmeta.blob_format);
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_data=%p", &fbmeta.blob_data[0]);
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_size=%lu", fbmeta.blob_size);
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_deleted=%d", fbmeta.blob_deleted);
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_orig_off=%lu", fbmeta.blob_orig_off);
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_orig_len=%lu", fbmeta.blob_orig_len);
+                        CLS_LOG(20, "sky_meta: fbmeta.blob_compression=%d", fbmeta.blob_compression);
+                    }
 
                     // debug/accounting
                     std::string errmsg;
-                    int ds_rows_processed = 0;
 
                     // CREATE An FB_META, start with an empty builder first
-                    flatbuffers::FlatBufferBuilder *meta_builder =      \
+                    flatbuffers::FlatBufferBuilder *fbmeta_builder =  \
                         new flatbuffers::FlatBufferBuilder();
 
-                    // this code block is only used for accounting (rows processed)
-                    int root_rows = 0;
-                    switch (meta.blob_format) {
-
-                        case SFT_FLATBUF_FLEX_ROW:
-                        case SFT_ARROW:
-                        case SFT_JSON: {
-                            sky_root root = Tables::getSkyRoot(meta.blob_data,
-                                                               meta.blob_size,
-                                                               meta.blob_format);
-                            root_rows += root.nrows;
-                            break;
-                        }
-
-                        case SFT_FLATBUF_UNION_ROW:
-                        case SFT_FLATBUF_UNION_COL: {
-
-                            // extract ptr to meta data blob
-                            const char* blob_dataptr = \
-                                reinterpret_cast<const char*>(meta.blob_data);
-                            size_t blob_sz = meta.blob_size;
-
-                            // extract bl_seq bufferlist
-                            ceph::bufferlist bl_seq;
-                            bl_seq.append(blob_dataptr, blob_sz);
-
-                            // just need to grab the first bufferlist in bl_seq
-                            ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                            // decode decrements get_remaining by moving iterator
-                            ceph::bufferlist bl;
-                            ::decode(bl, it_bl_seq);
-                            const char* dataptr = bl.c_str();
-                            size_t datasz = bl.length();
-
-                            // get the number of rows returned for accounting
-                            sky_root root = getSkyRoot(dataptr,
-                                                       datasz,
-                                                       SFT_FLATBUF_UNION_ROW);
-                            root_rows = root.nrows;
-                            break;
-                        }
-                    } //switch
-
                     // call associated process method based on ds type
-                    switch (meta.blob_format) {
+                    switch (fbmeta.blob_format) {
 
                     case SFT_JSON: {
 
                         sky_root root = \
-                            Tables::getSkyRoot(meta.blob_data,
-                                               meta.blob_size,
-                                               meta.blob_format);
+                            Tables::getSkyRoot(fbmeta.blob_data,
+                                               fbmeta.blob_size,
+                                               fbmeta.blob_format);
 
                         // TODO: write json processing function,
                         // now we just pass thru the original
                         // meta.data_blob as the processed result data
-                        char* orig_data = const_cast<char*>(meta.blob_data);
-                        size_t orig_size = meta.blob_size;
+                        char* orig_data = const_cast<char*>(fbmeta.blob_data);
+                        size_t orig_size = fbmeta.blob_size;
 
                         // TODO: call processJSON() here. See below for similar
                         // function required here to get result data
                         char* result_data = orig_data;
                         size_t result_size = orig_size;
 
-                        createFbMeta(meta_builder,
+                        createFbMeta(fbmeta_builder,
                                      SFT_FLATBUF_FLEX_ROW,
                                      reinterpret_cast<unsigned char*>(
                                         result_data),
@@ -1468,8 +1421,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                            data_schema,
                                            query_schema,
                                            query_preds,
-                                           meta.blob_data,
-                                           meta.blob_size,
+                                           fbmeta.blob_data,
+                                           fbmeta.blob_size,
                                            errmsg,
                                            row_nums);
                         }
@@ -1494,8 +1447,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                     qs.length(),
                                     const_cast<char*>(qp.c_str()),
                                     qp.length(),
-                                    const_cast<char*>(meta.blob_data),
-                                    meta.blob_size,
+                                    const_cast<char*>(fbmeta.blob_data),
+                                    fbmeta.blob_size,
                                     errmsg_ptr,
                                     ERRMSG_MAX_LEN,
                                     row_nums_ptr,
@@ -1515,7 +1468,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                             return -1;
                         }
 
-                        createFbMeta(meta_builder,
+                        createFbMeta(fbmeta_builder,
                                      SFT_FLATBUF_FLEX_ROW,
                                      reinterpret_cast<unsigned char*>(
                                             result_builder.GetBufferPointer()),
@@ -1529,8 +1482,8 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                               data_schema,
                                               query_schema,
                                               query_preds,
-                                              meta.blob_data,
-                                              meta.blob_size,
+                                              fbmeta.blob_data,
+                                              fbmeta.blob_size,
                                               errmsg,
                                               row_nums);
 
@@ -1542,72 +1495,13 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                         std::shared_ptr<arrow::Buffer> buffer;
                         convert_arrow_to_buffer(table, &buffer);
-                        createFbMeta(meta_builder,
+                        createFbMeta(fbmeta_builder,
                                      SFT_ARROW,
                                      reinterpret_cast<unsigned char*>(buffer->mutable_data()),
                                      buffer->size());
                         break;
                     }
 
-                    case SFT_FLATBUF_UNION_ROW:
-                    case SFT_FLATBUF_UNION_COL: {
-                        flatbuffers::FlatBufferBuilder result_builder(1024);
-                        int ret;
-
-                        // extract ptr to meta data blob
-                        const char* blob_dataptr = reinterpret_cast<const char*>(meta.blob_data);
-                        size_t blob_sz           = meta.blob_size;
-
-                        // extract bl_seq bufferlist
-                        ceph::bufferlist bl_seq;
-                        bl_seq.append(blob_dataptr, blob_sz);
-
-                        // bl_seq for ROW format will only contain one bl
-                        // bl_seq for COL format may contain multiple bls
-                        ceph::bufferlist::iterator it_bl_seq = bl_seq.begin();
-
-                        ceph::bufferlist bl;
-                        ::decode(bl, it_bl_seq); // this decrements get_remaining by moving iterator
-                        const char* dataptr = bl.c_str();
-                        size_t datasz       = bl.length();
-
-                        if(meta.blob_format == SFT_FLATBUF_UNION_ROW)
-                            ret = processSkyFb_fbu_rows(
-                                   result_builder,
-                                   data_schema,
-                                   query_schema,
-                                   query_preds,
-                                   dataptr,
-                                   datasz,
-                                   errmsg,
-                                   row_nums);
-                        else if(meta.blob_format == SFT_FLATBUF_UNION_COL)
-                            ret = processSkyFb_fbu_cols(
-                                    bl_seq,
-                                    result_builder,
-                                    data_schema,
-                                    query_schema,
-                                    query_preds,
-                                    dataptr,
-                                    datasz,
-                                    errmsg,
-                                    row_nums);
-                        else
-                            assert (Tables::TablesErrCodes::SkyFormatTypeNotRecognized==0);
-
-                        if (ret != 0) {
-                            CLS_ERR("ERROR: processSkyFb_fbu_* %s", errmsg.c_str());
-                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                            return -1;
-                        }
-
-                        createFbMeta(meta_builder,
-                                     SFT_FLATBUF_FLEX_ROW,
-                                     reinterpret_cast<unsigned char*>(
-                                            result_builder.GetBufferPointer()),
-                                     result_builder.GetSize());
-                        break;
-                    }
                     case SFT_FLATBUF_CSV_ROW:
                     case SFT_PG_TUPLE:
                     case SFT_CSV:
@@ -1616,35 +1510,30 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                     }
 
                     // add meta_builder's data into a bufferlist as char*
-                    bufferlist meta_bl;
-                    meta_bl.append(reinterpret_cast<const char*>(       \
-                                           meta_builder->GetBufferPointer()),
-                                   meta_builder->GetSize());
+                    bufferlist fbmeta_bl;
+                    fbmeta_bl.append(reinterpret_cast<const char*>( \
+                        fbmeta_builder->GetBufferPointer()),
+                        fbmeta_builder->GetSize()
+                    );
 
                     // add this result into our results bl
-                    ::encode(meta_bl, result_bl);
-                    delete meta_builder;
-
-                    if (op.index_read)
-                        ds_rows_processed = row_nums.size();
-                    else
-                        ds_rows_processed = root_rows;
-                    break;
-
-                    // add this processed ds to sequence of bls and update counter
-                    rows_processed += ds_rows_processed;
+                    result_bl = fbmeta_bl;
+                    delete fbmeta_builder;
                 }
                 eval_ns += getns() - start;
             }
         }
     }
 
-  CLS_LOG(20, "query_op.encoding result_bl size=%s", std::to_string(result_bl.length()).c_str());
+    if (op.debug)
+        CLS_LOG(20, "query_op.encoding result_bl size=%s", std::to_string(result_bl.length()).c_str());
   // store timings and result set into output BL
   //~ ::encode(read_ns, *out);
   //~ ::encode(eval_ns, *out);
   //~ ::encode(rows_processed, *out);
+
   ::encode(result_bl, *out);
+
   return 0;
 }
 
