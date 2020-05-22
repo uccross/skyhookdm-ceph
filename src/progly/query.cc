@@ -543,9 +543,12 @@ void worker()
     if (debug)
         cout << "DEBUG: query.cc: worker: popped front of ready_ios" << endl;
 
+    // get returned data out of our Aio State struct
+    ceph::bufferlist raw_result = s->bl;
+    ceph::bufferlist result;
+
     // process result without lock. we own it now.
     lock.unlock();
-
     dispatch_lock.lock();
     outstanding_ios--;
     dispatch_lock.unlock();
@@ -553,59 +556,54 @@ void worker()
 
     if (query == "flatbuf") {
 
-        if (debug)
-            cout << "DEBUG: query.cc: worker: query==flatbuf" << endl;
-
         using namespace Tables;
 
-        // get returned data from our Aio State struct
-        ceph::bufferlist result_data;
-        ceph::bufferlist::iterator it = s->bl.begin();
-
         if (debug) {
+            cout << "DEBUG: query.cc: worker: query==flatbuf" << endl;
             cout << "DEBUG: query.cc: worker: decoding result data start.\n";
-            cout << "DEBUG: query.cc: worker: s->bl.length()=%d" << s->bl.length() << endl;
-        }
-
-        try {
-            ceph::bufferlist wrapper_bl;
-            ::decode(wrapper_bl, it);  // unpack the data struct
-            if (debug) {
-                cout << "DEBUG: query.cc: worker:wrapper_bl.length()=%d"
-                     << wrapper_bl.length() << endl;
-            }
-
-            // data from a cls read will have a wrapper_bl containing both
-            // fb_meta and cls_info struct
-            if (use_cls) {
-                ceph::bufferlist::iterator it2 = wrapper_bl.begin();
-                ::decode(result_data, it2);  // unpack the data struct
-                if (debug) {
-                    cout << "DEBUG: query.cc: worker:result_data.length()=%d"
-                         << result_data.length() << endl;
-                }
-            }
-            else {
-                // data from regular read will have an fb_meta only, no wrapper
-                result_data = wrapper_bl;
-            }
-
-        }
-        catch (ceph::buffer::error&) {
-            std::cerr << "DEBUG: query.cc: worker: failed to decode returned" \
-                         " data into a bufferlist" << std::endl;
-            assert(Tables::TablesErrCodes::EDECODE_BUFFERLIST_FAILURE==0);
+            cout << "DEBUG: query.cc: worker: raw_result.length()=" << raw_result.length() << endl;
+            cout << "DEBUG: query.cc: worker: use_cls=" << use_cls << endl;
         }
 
         delete s;  // release aio struct.
 
-        if (debug)
-            cout << "DEBUG: query.cc: worker: decoding result data finish."
-                 << endl;
+        // decode our results if not empty. cases when it could be empty are
+        // (1) cls processing returned zero matching data
+        // (2) result was from a non-existing object/oid
+        // (3) result was from an existing object/oid that contained zero data
+        if (raw_result.length() >0) {
+            ceph::bufferlist::iterator it = raw_result.begin();
+            try {
+                ::decode(result, it);  // unpack the data struct
+            }
+            catch (ceph::buffer::error&) {
+                std::cerr << "DEBUG: query.cc: worker: failed to decode result data into a bufferlist" << std::endl;
+                assert(Tables::TablesErrCodes::EDECODE_BUFFERLIST_FAILURE==0);
+            }
+            if (debug) {
+                cout << "DEBUG: query.cc: worker: decoded result.length()=" << result.length() << endl;
+            }
+        }
+        else {
+            if (debug) {
+                cout << "DEBUG: query.cc: worker: raw_result is empty." << endl;
+            }
+            //times.eval2_ns = getns() - eval2_start;
+            lock.lock();
+            //timings.push_back(times);
+            break;  // capture and ignore case when object does not exist
+        }
+
+        if (debug) {
+            cout << "DEBUG: query.cc: worker: decoding result data finish." << endl;
+            cout << "DEBUG: query.cc: worker: calling getSkyMeta(&result)." << endl;
+        }
 
         // the result data should be a single bl with an fbmeta within.
-        sky_meta meta = getSkyMeta(&result_data);
+        sky_meta fbmeta = getSkyMeta(&result);
 
+        if (debug)
+            cout << "DEBUG: query.cc: worker: done with getSkyMeta(&result)." << endl;
 
         // check if cols to be projected or preds remaining to be applied
         // TODO: add any global aggs here.
@@ -621,21 +619,24 @@ void worker()
         // nothing left to do here, so we just print results
         if (!more_processing) {
 
-            switch (meta.blob_format) {
+            if (debug)
+                cout << "DEBUG: query.cc: worker:  !more_processing." << endl;
+
+            switch (fbmeta.blob_format) {
                 case SFT_JSON:
                 case SFT_FLATBUF_FLEX_ROW:
                 case SFT_ARROW: {
 
                     sky_root root = \
-                        Tables::getSkyRoot(meta.blob_data,
-                                           meta.blob_size,
-                                           meta.blob_format);
+                        Tables::getSkyRoot(fbmeta.blob_data,
+                                           fbmeta.blob_size,
+                                           fbmeta.blob_format);
 
                     result_count += root.nrows;
 
-                    print_data(meta.blob_data,
-                               meta.blob_size,
-                               meta.blob_format);
+                    print_data(fbmeta.blob_data,
+                               fbmeta.blob_size,
+                               fbmeta.blob_format);
                     break;
                 }
                 case SFT_FLATBUF_CSV_ROW:
@@ -647,26 +648,32 @@ void worker()
         }
         else {
 
+            if (debug)
+                cout << "DEBUG: query.cc: worker:  more_processing." << endl;
+
             // more processing to do such as min, sort, any other remaining preds.
             std::string errmsg;
 
-            switch (meta.blob_format) {
+            switch (fbmeta.blob_format) {
 
             case SFT_FLATBUF_FLEX_ROW: {
+
+                if (debug)
+                    cout << "DEBUG: query.cc: worker:  case SFT_FLATBUF_FLEX_ROW." << endl;
+
                 flatbuffers::FlatBufferBuilder flatbldr(1024); // pre-alloc
                 int ret = processSkyFb(flatbldr,
                                        sky_tbl_schema,
                                        sky_qry_schema,
                                        sky_qry_preds,
-                                       meta.blob_data,
-                                       meta.blob_size,
+                                       fbmeta.blob_data,
+                                       fbmeta.blob_size,
                                        errmsg);
                 if (ret != 0) {
-                    int more_processing_failure = true;
-                    std::cerr << "ERROR: query.cc: processing flatbuf: "
-                              << errmsg << "\n Tables::ErrCodes=" << ret
+                    std::cerr << "ERROR: query.cc: processSkyFb: "
+                              << errmsg << "\n ERR=" << ret
                               << endl;
-                    assert(more_processing_failure);
+                    assert(Tables::TablesErrCodes::ECLIENTSIDE_PROCESSING_FAILURE==0);
                 }
 
                 // TODO: we should be using uint8_t here
@@ -679,21 +686,24 @@ void worker()
             }
 
             case SFT_ARROW: {
+
+                if (debug)
+                    cout << "DEBUG: query.cc: worker:  case SFT_ARROW." << endl;
+
                 std::shared_ptr<arrow::Table> table;
                 int ret = processArrowCol(
                               &table,
                               sky_tbl_schema,
                               sky_qry_schema,
                               sky_qry_preds,
-                              meta.blob_data,
-                              meta.blob_size,
+                              fbmeta.blob_data,
+                              fbmeta.blob_size,
                               errmsg);
                 if (ret != 0) {
-                    int more_processing_failure = true;
-                    std::cerr << "ERROR: query.cc: processing arrow: "
-                              << errmsg << "\n Tables::ErrCodes=" << ret
+                    std::cerr << "ERROR: query.cc: processArrowCol: "
+                              << errmsg << "\n ERR=" << ret
                               << endl;
-                    assert(more_processing_failure);
+                    assert(Tables::TablesErrCodes::ECLIENTSIDE_PROCESSING_FAILURE==0);
                 }
                 else {
                     std::shared_ptr<arrow::Buffer> buffer;

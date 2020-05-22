@@ -82,6 +82,8 @@ enum TablesErrCodes {
     EINVALID_OUTPUT_FORMAT,
     EINVALID_TRANSFORM_FORMAT,
     EDECODE_BUFFERLIST_FAILURE,
+    ECLIENTSIDE_PROCESSING_FAILURE,
+    ESTORAGESIDE_PROCESSING_FAILURE
 };
 
 // skyhook data types, as supported by underlying data format
