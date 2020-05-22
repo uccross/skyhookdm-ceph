@@ -7,15 +7,15 @@
 steps:
 - id: build libcls_tabular
   uses: docker://popperized/ceph-builder:skyhook-bionic
-  args: cls_tabular run-query ceph_test_skyhook_query sky_tabular_flatflex_writer
+  args: ["cls_tabular", "run-query", "ceph_test_skyhook_query", "sky_tabular_flatflex_writer"]
   env:
-    CMAKE_FLAGS: -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_RBD=OFF -DWITH_CEPHFS=OFF -DWITH_RADOSGW=OFF -DWITH_LEVELDB=OFF -DWITH_MANPAGE=OFF -DWITH_RDMA=OFF -DWITH_OPENLDAP=OFF -DWITH_FUSE=OFF -DWITH_LIBCEPHFS=OFF -DWITH_KRBD=OFF -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF -DWITH_SYSTEMD=OFF -DWITH_SPDK=OFF -DWITH_CCACHE=ON -DBOOST_J=4
-    BUILD_THREADS: 4
+    CMAKE_FLAGS: -DCMAKE_BUILD_TYPE=MinSizeRel -DWITH_RBD=OFF -DWITH_CEPHFS=OFF -DWITH_RADOSGW=OFF -DWITH_LEVELDB=OFF -DWITH_MANPAGE=OFF -DWITH_RDMA=OFF -DWITH_OPENLDAP=OFF -DWITH_FUSE=OFF -DWITH_LIBCEPHFS=OFF -DWITH_KRBD=OFF -DWITH_LTTNG=OFF -DWITH_BABELTRACE=OFF -DWITH_SYSTEMD=OFF -DWITH_SPDK=OFF -DWITH_CCACHE=ON -DBOOST_J=16
+    BUILD_THREADS: '16'
 
 
 - id: build image with skyhook library in it
   uses: docker://docker:19.03.3
-  args: build -t popperized/skyhookdm-libcls:luminous-bionic -f ci/Dockerfile .
+  args: ['build', '-t', 'popperized/skyhookdm-libcls:luminous-bionic', '-f', 'ci/Dockerfile', '.']
     # image contains:
     #   - upstream ceph-mon/ceph-osd packages for luminous/bionic (NOTE: base image has
     #     to match the base distro used for the builder image)
@@ -27,7 +27,7 @@ steps:
   uses: docker://popperized/skyhookdm-libcls:luminous-bionic
   # don't pull because we want to run the image we built above
   skip_pull: true
-  runs: bash
+  runs: ['bash']
   args:
   - -c
   - |
@@ -53,7 +53,7 @@ steps:
 # push to registry
 - uses: docker://docker:19.03.3
   secrets: [DOCKER_USERNAME, DOCKER_PASSWORD]
-  runs: /bin/sh
+  runs: ['/bin/sh']
   args:
   - -c
   - |
