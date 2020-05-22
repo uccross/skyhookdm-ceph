@@ -26,10 +26,10 @@ USAGE NOTES
 # write to disk
 
 # for these, be sure to change num-objs to 2 in queries
-bin/sky_tabular_flatflex_writer --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 2 --flush_rows 9 --read_rows 17 --csv_delim "|" --use_hashing true --rid_start_value 2 --table_name testdata --input_oid 0 --obj_type SFT_FLATBUF_FLEX_ROW ;
+bin/sky_tabular_flatflex_writer --input_file_name lineitem.txt --input_file_schema lineitem_schema.txt --num_objs 2 --flush_rows 9 --read_rows 17 --csv_delim "|" --use_hashing true --rid_start_value 2 --table_name testdata --default_oid 0 --data_format SFT_FLATBUF_FLEX_ROW ;
 
 # for these, be sure to change num-objs to 1 in queries
-bin/sky_tabular_flatflex_writer --file_name lineitem.txt --schema_file_name lineitem_schema.txt --num_objs 1 --flush_rows 17 --read_rows 17 --csv_delim "|" --use_hashing false --rid_start_value 2 --table_name testdata --input_oid 111 --obj_type SFT_FLATBUF_FLEX_ROW ;
+bin/sky_tabular_flatflex_writer --input_file_name lineitem.txt --input_file_schema lineitem_schema.txt --num_objs 1 --flush_rows 17 --read_rows 17 --csv_delim "|" --use_hashing false --rid_start_value 2 --table_name testdata --default_oid 111 --data_format SFT_FLATBUF_FLEX_ROW ;
 
 # setup
 bin/rados mkpool tpchdata;
@@ -124,24 +124,24 @@ bucket_t *GetAndInitializeBucket(map<uint64_t, bucket_t *> &FBmap,
 
 int main(int argc, char *argv[])
 {
-    string file_name         = "";
-    string schema_file_name  = "";
+    string input_file_name         = "";
+    string input_file_schema  = "";
     string table_name        = "";
     uint64_t num_objs        = UINT_MAX;
     uint64_t rid_start_value = UINT_MAX;
     uint64_t flush_rows      = UINT_MAX;
     uint64_t read_rows       = UINT_MAX;
-    uint64_t input_oid       = UINT_MAX;
+    uint64_t default_oid       = UINT_MAX;
     char csv_delim           = Tables::CSV_DELIM;
     bool use_hashing         = false;
-    string obj_type          = "";
+    string data_format          = "";
 
 // -------------- Get Variables ---------------
     po::options_description gen_opts("General options");
     gen_opts.add_options()
       ("help,h", "show help message")
-      ("file_name", po::value<string>(&file_name)->required(), "file_name")
-      ("schema_file_name", po::value<string>(&schema_file_name)->required(), "schema_file_name")
+      ("input_file_name", po::value<string>(&input_file_name)->required(), "input_file_name")
+      ("input_file_schema", po::value<string>(&input_file_schema)->required(), "input_file_schema")
       ("num_objs", po::value<uint64_t>(&num_objs)->required(), "num_objs")
       ("rid_start_value", po::value<uint64_t>(&rid_start_value)->required(), "rid_start_value")
       ("flush_rows", po::value<uint64_t>(&flush_rows)->required(), "flush_rows")
@@ -149,8 +149,8 @@ int main(int argc, char *argv[])
       ("csv_delim", po::value<char>(&csv_delim)->required(), "csv_delim")
       ("use_hashing", po::value<bool>(&use_hashing)->required(), "use_hashing")
       ("table_name", po::value<string>(&table_name)->required(), "table_name")
-      ("input_oid", po::value<uint64_t>(&input_oid)->required(), "input_oid")
-      ("obj_type", po::value<string>(&obj_type)->required(), "obj_type");
+      ("default_oid", po::value<uint64_t>(&default_oid)->required(), "default_oid")
+      ("data_format", po::value<string>(&data_format)->required(), "data_format");
 
     po::options_description all_opts("Allowed options");
     all_opts.add(gen_opts);
@@ -158,6 +158,8 @@ int main(int argc, char *argv[])
     po::store( po::parse_command_line(argc, argv, all_opts ), vm);
     if(vm.count("help")) {
       std::cout << all_opts << std::endl;
+      std::cout << "Example: ./sky_tabular_flatflex_writer --csv_delim  \"|\" --input_file_name lineitem.100rows.csv --num_objs 2 --flush_rows 10 --read_rows 20 --default_oid 1 --data_format \"SFT_FLATBUF_FLEX_ROW\" --rid_start_value 0 --input_file_schema lineitem.schema.txt  --table_name \"lineitem\" --use_hashing \"true\"";
+
       return 1;
     }
     po::notify(vm);
@@ -165,14 +167,14 @@ int main(int argc, char *argv[])
     // returns schema vector and composite keys
     Tables::schema_vec schema;
     vector<int> composite_key_indexes;
-    schema = getSchema(composite_key_indexes, schema_file_name);
+    schema = getSchema(composite_key_indexes, input_file_schema);
     SCHEMA = Tables::schemaToString(schema);
 
 // ----------- Read Rows and Load into Corresponding FlatBuffer -----------
     map<uint64_t, bucket_t *> FBmap;
     bucket_t *bucketPtr;
 
-    std::ifstream inFile(file_name);
+    std::ifstream inFile(input_file_name);
     std::string line;
     uint64_t line_counter = 1;
     while(getline(inFile, line) && inFile.good()) {
@@ -199,7 +201,7 @@ int main(int argc, char *argv[])
               // write all rows between rid_start_row and (rid_start_row+read_rows)
               // to a single bucket/file.
               // define default oid
-              oid  = input_oid ;
+              oid  = default_oid ;
             }
 
             // --------- Get FB and insert ----------
@@ -218,7 +220,7 @@ int main(int argc, char *argv[])
                        oid, bucketPtr->nrows);
 
                 // Flush FlatBuffer to Ceph (currently writes to a file on disk)
-                flushFlatBuffer(obj_type,
+                flushFlatBuffer(data_format,
                                 SKYHOOK_VERSION,
                                 SCHEMA_VERSION,
                                 bucketPtr,
@@ -244,7 +246,7 @@ int main(int argc, char *argv[])
             printf("\tFlushing bucket %ld to Ceph with %ld rows\n",
                    b->oid, b->nrows);
 
-            flushFlatBuffer(obj_type, SKYHOOK_VERSION, SCHEMA_VERSION, b, SCHEMA, num_objs);
+            flushFlatBuffer(data_format, SKYHOOK_VERSION, SCHEMA_VERSION, b, SCHEMA, num_objs);
         } // for every FBmap key
     } // if using hashing
 
@@ -270,28 +272,28 @@ std::vector<std::string> line_split(const std::string &s, char delim) {
 
 void helpMenu() {
     printf("-h HELP MENU\n");
-    printf("\t-f [file_name]\n");
-    printf("\t-s [schema_file_name]\n");
+    printf("\t-f [input_file_name]\n");
+    printf("\t-s [input_file_schema]\n");
     printf("\t-o [number_of_objects]\n");
     printf("\t-r [number_of_rows_until_flush]\n");
     printf("\t-i [rid_start_value]\n");
     printf("\t-n [number_of_rows_to_read]\n");
 }
 
-void promptDataFile(ifstream& inFile, string& file_name) {
+void promptDataFile(ifstream& inFile, string& input_file_name) {
 
     // Open File
-    inFile.open(file_name, std::ifstream::in);
+    inFile.open(input_file_name, std::ifstream::in);
 
     // If file didn't open, prompt for data file
     while(!inFile)
     {
         cout<<"Cannot open file!"<<endl;
         cout<<"Which file will we load from? : ";
-        getline(cin, file_name);
-        inFile.open(file_name, ifstream::in);
+        getline(cin, input_file_name);
+        inFile.open(input_file_name, ifstream::in);
     }
-    std::cout<< "'" << file_name << "' was sucessfully opened!\n\n";
+    std::cout<< "'" << input_file_name << "' was sucessfully opened!\n\n";
 }
 
 uint32_t promptIntVariable(string variable, string num_string) {
@@ -331,26 +333,26 @@ vector<string> parseRow(string row, char delim=Tables::CSV_DELIM) {
 }
 
 Tables::schema_vec getSchema(vector<int>& compositeKey,
-                             string& schema_file_name) {
+                             string& input_file_schema) {
     ifstream schemaFile;
 
     vector<int> schema;
 
     // Try to open schema file
-    schemaFile.open(schema_file_name, std::ifstream::in);
+    schemaFile.open(input_file_schema, std::ifstream::in);
 
     // If schema file didn't open, prompt for schema file name
     while(!schemaFile)
     {
-        if(strcmp(schema_file_name.c_str(),"q") == 0 or
-           strcmp(schema_file_name.c_str(),"Q") == 0) {
+        if(strcmp(input_file_schema.c_str(),"q") == 0 or
+           strcmp(input_file_schema.c_str(),"Q") == 0) {
             exit(0);
         }
 
         std::cout << "Cannot open file! \t\t(Press Q or q to quit program)\n";
         std::cout << "Which file will we get the schema from? : ";
-        getline(cin, schema_file_name);
-        schemaFile.open(schema_file_name, ifstream::in);
+        getline(cin, input_file_schema);
+        schemaFile.open(input_file_schema, ifstream::in);
     }
 
     // Parse Schema File for Composite Key
@@ -366,12 +368,12 @@ Tables::schema_vec getSchema(vector<int>& compositeKey,
     schemaFile.close();
 
     // Getting entire schema string
-    ifstream t(schema_file_name);
+    ifstream t(input_file_schema);
     stringstream buffer;
     buffer << t.rdbuf();
     string schema_str = buffer.str();
     Tables::schema_vec sky_schema = Tables::schemaFromString(schema_str);
-    std::cout << "'" << schema_file_name
+    std::cout << "'" << input_file_schema
               << "' was sucessfully read and schema vector passed back!\n\n";
     return sky_schema;
 }
@@ -629,7 +631,7 @@ uint64_t getNextRID() {
 
 void
 flushFlatBuffer(
-    string obj_type,
+    string data_format,
     uint8_t skyhook_v,
     uint8_t schema_v,
     bucket_t *bucketPtr,
@@ -678,7 +680,7 @@ flushFlatBuffer(
     uint64_t oid = bucketPtr->oid;
 
     // Flush to Ceph Here TO OID bucket with n Rows or Crash if Failed
-    if(writeToDisk(obj_type, oid, schema_v, bucketPtr, numOfObjs) < 0)
+    if(writeToDisk(data_format, oid, schema_v, bucketPtr, numOfObjs) < 0)
         exit(EXIT_FAILURE);
 
     // Deallocate pointers
@@ -729,7 +731,7 @@ void finishFlatBuffer(
 /* TODO: instead of writing objects to disk, write directly to ceph. */
 int
 writeToDisk(
-    string obj_type,
+    string data_format,
     uint64_t oid,
     uint8_t schema_v,
     bucket_t *bucket,
@@ -739,46 +741,45 @@ writeToDisk(
     // formatted, serialized data
 
     // CREATE An FB_META, using an empty builder first.
-    flatbuffers::FlatBufferBuilder *meta_builder = \
+    flatbuffers::FlatBufferBuilder *fbmeta_builder = \
             new flatbuffers::FlatBufferBuilder();
-    if(obj_type== "SFT_FLATBUF_FLEX_ROW")
+    if(data_format== "SFT_FLATBUF_FLEX_ROW")
         createFbMeta(
-                meta_builder,
+                fbmeta_builder,
                 SFT_FLATBUF_FLEX_ROW,
                 reinterpret_cast<unsigned char*>(bucket->fb->GetBufferPointer()),
                 bucket->fb->GetSize());
     else {
-        std::cout << "obj_type '" << obj_type << "' not supported. aborting." << std::endl;
+        std::cout << "data_format '" << data_format << "' not supported. aborting." << std::endl;
         exit(1);
     }
 
-    // add meta_builder's data into a bufferlist as char*
-    bufferlist meta_bl;
-    meta_bl.append(
-            reinterpret_cast<const char*>(meta_builder->GetBufferPointer()),
-            meta_builder->GetSize());
+    // add fbmeta_builder's data into a bufferlist as char*
+    bufferlist fbmeta_bl;
+    fbmeta_bl.append(
+            reinterpret_cast<const char*>(fbmeta_builder->GetBufferPointer()),
+            fbmeta_builder->GetSize());
 
     // now encode the metabl into a wrapper bl so that it can be easily
     // unpacked via decode from a bl iterator into a bl, used by
     // query.cc and cls_tabular.cc
-    bufferlist bl_wrapper;
-    ::encode(meta_bl, bl_wrapper);
+    bufferlist fbmeta_wrapper_bl;
+    ::encode(fbmeta_bl, fbmeta_wrapper_bl);
 
-    string fname = "fbmeta.Skyhook.v2." + obj_type
+    string fname = "skyhook." + data_format
                                         + "." + bucket->table_name
-                                        + "." + std::to_string(oid)
-                                        + ".1-" + std::to_string(nobjs);
+                                        + "." + std::to_string(oid);
 
     // write to disk as binary bl data.
     int mode = 0600;
-    bl_wrapper.write_file(fname.c_str(), mode);
+    fbmeta_wrapper_bl.write_file(fname.c_str(), mode);
     std::cout << "bucket->fb->GetSize()=" << bucket->fb->GetSize()
-              << "; fbmeta_size=" << meta_builder->GetSize()
-              << "; meta_bl.len=" << meta_bl.length()
-              << "; bl_wrapper.len=" << bl_wrapper.length()
+              << "; fbmeta_builder len=" << fbmeta_builder->GetSize()
+              << "; fbmeta_bl len=" << fbmeta_bl.length()
+              << "; fbmeta_wrapper_bl len=" << fbmeta_wrapper_bl.length()
               << std::endl;
 
-    delete meta_builder;
+    delete fbmeta_builder;
     return 0;
 }
 
