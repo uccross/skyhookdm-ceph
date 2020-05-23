@@ -829,7 +829,6 @@ int main(int argc, char **argv)
 
   result_count = 0;
   rows_returned = 0;
-  //nrows_processed = 0;
   outstanding_ios = 0;
   stop = false;
 
@@ -1059,32 +1058,9 @@ int main(int argc, char **argv)
   // only report status messages during quiet operation
   // since otherwise we are printing as csv data to std out
   if (quiet) {
-      if (query == "a" && use_cls) {
-        std::cout << "total result row count: "
-                  << result_count << " / -1"
-                  << std::endl;
-      } else {
-        std::cout << "total result row count: "
-                  << result_count << " / "
-                  << rows_returned
-                  << std::endl;
-      }
+    std::cout << "total result row count: " << result_count << std::endl;
   }
 
-  //~ if (logfile.length()) {
-    //~ std::ofstream out;
-    //~ out.open(logfile, std::ios::trunc);
-    //~ out << "dispatch,response,read_ns,eval_ns,eval2_ns" << std::endl;
-    //~ for (const auto& time : timings) {
-      //~ out <<
-        //~ time.dispatch << "," <<
-        //~ time.response << "," <<
-        //~ time.read_ns << "," <<
-        //~ time.eval_ns << "," <<
-        //~ time.eval2_ns << std::endl;
-    //~ }
-    //~ out.close();
-  //~ }
 
   return 0;
 }

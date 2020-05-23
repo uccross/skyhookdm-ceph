@@ -106,7 +106,6 @@ Tables::predicate_vec sky_idx2_preds;
  // these are all intialized in run-query
 std::atomic<unsigned> result_count;
 std::atomic<unsigned> rows_returned;
-std::atomic<unsigned> nrows_processed;  // TODO: remove
 
 // used for print csv
 std::atomic<bool> print_header;
@@ -543,9 +542,14 @@ void worker()
     if (debug)
         cout << "DEBUG: query.cc: worker: popped front of ready_ios" << endl;
 
-    // get returned data out of our Aio State struct
+    // get returned data out of our Aio State struct, used by each query type.
     ceph::bufferlist raw_result = s->bl;
+
+    // hold unpacked results
     ceph::bufferlist result;
+
+    // contains cls stats such as read time, process time, pushdowns, etc.
+    cls_info info;
 
     // process result without lock. we own it now.
     lock.unlock();
@@ -567,14 +571,21 @@ void worker()
 
         delete s;  // release aio struct.
 
-        // decode our results if not empty. cases when it could be empty are
+        // decode our raw results if not empty. cases when it could be empty include:
         // (1) cls processing returned zero matching data
         // (2) result was from a non-existing object/oid
         // (3) result was from an existing object/oid that contained zero data
         if (raw_result.length() >0) {
             ceph::bufferlist::iterator it = raw_result.begin();
             try {
-                ::decode(result, it);  // unpack the data struct
+                if (use_cls) {
+                    ::decode(info, it);     // unpack the cls_info struct
+                    ::decode(result, it);  // unpack the result data bufferlist
+                }
+                else {                          // standard ceph read, no cls info was added.
+                    ::decode(result, it); // unpack the result data bufferlist
+                }
+
             }
             catch (ceph::buffer::error&) {
                 std::cerr << "DEBUG: query.cc: worker: failed to decode result data into a bufferlist" << std::endl;
@@ -585,13 +596,13 @@ void worker()
             }
         }
         else {
+
+            // raw result was empty, so we can ignore this result
             if (debug) {
                 cout << "DEBUG: query.cc: worker: raw_result is empty." << endl;
             }
-            //times.eval2_ns = getns() - eval2_start;
             lock.lock();
-            //timings.push_back(times);
-            break;  // capture and ignore case when object does not exist
+            break;
         }
 
         if (debug) {
@@ -605,9 +616,10 @@ void worker()
         if (debug)
             cout << "DEBUG: query.cc: worker: done with getSkyMeta(&result)." << endl;
 
-        // check if cols to be projected or preds remaining to be applied
         // TODO: add any global aggs here.
+        // TODO: check if any predicates or projects remain to be applied.
         bool more_processing = false;
+
         if (!use_cls) {
             // TODO: remove pushed-down preds from sky_qry_preds then we
             // can remove project flag and just check size of preds here.
@@ -731,78 +743,79 @@ void worker()
 
         using namespace Tables;
 
-        // to store the result from an object
-        bufferlist bl;
-
-        if (use_cls) {
-
-            // result came from cls read, so we unpack our outbl info
-            // added by the example cls method
-            outbl_sample_info info;
-
-            // decode the outbl from cls_tabular.cc example method to extract
-            // results and metadata.
-            // this worker has an AioState *s struct, declared above.
+        // decode our raw results if not empty. cases when it could be empty include:
+        // (1) cls processing returned zero matching data
+        // (2) result was from a non-existing object/oid
+        // (3) result was from an existing object/oid that contained zero data
+        if (raw_result.length() >0) {
+            ceph::bufferlist::iterator it = raw_result.begin();
             try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(info, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_examplequery_cls = 0;
-                assert(decode_examplequery_cls);
+                if (use_cls) {
+                    ::decode(info, it);     // unpack the cls_info struct
+                    ::decode(result, it);  // unpack the result data bufferlist
+                }
+                else {                          // standard ceph read, no cls info was added.
+                    ::decode(result, it); // unpack the result data bufferlist
+                }
             }
-            //~ times.read_ns = info.read_time_ns;
-            //~ times.eval_ns = info.eval_time_ns;
-            rows_returned += info.rows_processed;
-            result_count += info.rows_processed;
-            cout << "count thus far... " <<rows_returned << std::endl;
-        } else {
+            catch (ceph::buffer::error&) {
+                std::cerr << "DEBUG: query.cc: worker: failed to decode result data into a bufferlist" << std::endl;
+                assert(Tables::TablesErrCodes::EDECODE_BUFFERLIST_FAILURE==0);
+            }
+            if (debug) {
+                cout << "DEBUG: query.cc: worker: decoded result.length()=" << result.length() << endl;
+            }
+        }
+        else {
 
-            // result came from standard read, no extra info to unpack
-            // the outbl is just the actual data, and is stored in s.
-            bl = s->bl;
+            // raw result was empty, so we can ignore this result
+            if (debug) {
+                cout << "DEBUG: query.cc: worker: raw_result is empty." << endl;
+            }
+            lock.lock();
+            break;
         }
 
-        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
-
+        print_data(result.c_str(), result.length(), SFT_EXAMPLE_FORMAT);
     }
     else if (query == "wasm") {
 
         using namespace Tables;
 
-        // to store the result from an object
-        bufferlist bl;
-
-        if (use_cls) {
-
-            // result came from cls read, so we unpack our outbl info
-            // added by the example cls method
-            wasm_outbl_sample_info info;
-
-            // decode the outbl from cls_tabular.cc example method to extract
-            // results and metadata.
-            // this worker has an AioState *s struct, declared above.
+        // decode our raw results if not empty. cases when it could be empty include:
+        // (1) cls processing returned zero matching data
+        // (2) result was from a non-existing object/oid
+        // (3) result was from an existing object/oid that contained zero data
+        if (raw_result.length() >0) {
+            ceph::bufferlist::iterator it = raw_result.begin();
             try {
-                ceph::bufferlist::iterator it = s->bl.begin();
-                ::decode(info, it);
-                ::decode(bl, it);
-            } catch (ceph::buffer::error&) {
-                int decode_examplequery_cls = 0;
-                assert(decode_examplequery_cls);
+                if (use_cls) {
+                    ::decode(info, it);     // unpack the cls_info struct
+                    ::decode(result, it);  // unpack the result data bufferlist
+                }
+                else {                          // standard ceph read, no cls info was added.
+                    ::decode(result, it); // unpack the result data bufferlist
+                }
             }
-            //~ times.read_ns = info.read_time_ns;
-            //~ times.eval_ns = info.eval_time_ns;
-            rows_returned += info.rows_processed;
-            result_count += info.rows_processed;
-            cout << "count thus far... " <<rows_returned << std::endl;
-        } else {
+            catch (ceph::buffer::error&) {
+                std::cerr << "DEBUG: query.cc: worker: failed to decode result data into a bufferlist" << std::endl;
+                assert(Tables::TablesErrCodes::EDECODE_BUFFERLIST_FAILURE==0);
+            }
+            if (debug) {
+                cout << "DEBUG: query.cc: worker: decoded result.length()=" << result.length() << endl;
+            }
+        }
+        else {
 
-            // result came from standard read, no extra info to unpack
-            // the outbl is just the actual data, and is stored in s.
-            bl = s->bl;
+            // raw result was empty, so we can ignore this result
+            if (debug) {
+                cout << "DEBUG: query.cc: worker: raw_result is empty." << endl;
+            }
+            lock.lock();
+            break;
         }
 
-        print_data(bl.c_str(), bl.length(), SFT_EXAMPLE_FORMAT);
+        print_data(result.c_str(), result.length(), SFT_EXAMPLE_FORMAT);
 
     }
     else {   // older processing code below
@@ -816,22 +829,22 @@ void worker()
         static const size_t shipdate_field_offset = 50;
         static const size_t comment_field_offset = 97;
         static const size_t comment_field_length = 44;
-        ceph::bufferlist bl;
+
+        cls_info info;
+        ceph::bufferlist result;
 
         // if it was a cls read, first unpack some of the cls processing info
         if (use_cls) {
             try {
                 ceph::bufferlist::iterator it = s->bl.begin();
-                //~ ::decode(times.read_ns, it);
-                //~ ::decode(times.eval_ns, it);
-                //~ ::decode(nrows_server_processed, it);
-                ::decode(bl, it);
+                ::decode(info, it);
+                ::decode(result, it);
             } catch (ceph::buffer::error&) {
                 int decode_runquery_cls = 0;
                 assert(decode_runquery_cls);
             }
         } else {
-            bl = s->bl;
+            result = s->bl;
         }
 
         // data is now all in bl
@@ -844,14 +857,9 @@ void worker()
           row_size = 8;
         else
           row_size = 141;
-        const char *rows = bl.c_str();
-        const size_t num_rows = bl.length() / row_size;
+        const char *rows = result.c_str();
+        const size_t num_rows = result.length() / row_size;
         rows_returned += num_rows;
-
-        //~ if (use_cls)
-            //~ nrows_processed += nrows_server_processed;
-        //~ else
-            nrows_processed += num_rows;
 
         if (query == "a") {
           if (use_cls) {
@@ -859,7 +867,7 @@ void worker()
             // matching rows rather than the actual rows. so we patch up the
             // results to the presentation of the results is correct.
             size_t matching_rows;
-            ceph::bufferlist::iterator it = bl.begin();
+            ceph::bufferlist::iterator it = result.begin();
             ::decode(matching_rows, it);
             result_count += matching_rows;
           } else {
@@ -1003,10 +1011,7 @@ void worker()
         }
     }
 
-    //times.eval2_ns = getns() - eval2_start;
-
     lock.lock();
-    //timings.push_back(times);
   }
 }
 

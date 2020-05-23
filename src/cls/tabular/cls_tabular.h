@@ -1105,13 +1105,11 @@ struct cls_info {
 
   cls_info() {}
   cls_info(
-    uint64_t _rows_processed,
     uint64_t _read_ns,
     uint64_t _eval_ns,
     std::string _push_back_predicates,
     std::string _push_back_reason)
     :
-    rows_processed(_rows_processed),
     read_ns(_read_ns),
     eval_ns(_eval_ns),
     push_back_predicates(_push_back_predicates),
@@ -1120,7 +1118,6 @@ struct cls_info {
   // serialize the fields into bufferlist to be sent over the wire
   void encode(bufferlist& bl) const {
     ENCODE_START(1, 1, bl);
-    ::encode(rows_processed, bl);
     ::encode(read_ns, bl);
     ::encode(eval_ns, bl);
     ::encode(push_back_predicates, bl);
@@ -1131,7 +1128,6 @@ struct cls_info {
   // deserialize the fields from the bufferlist into this struct
   void decode(bufferlist::iterator& bl) {
     DECODE_START(1, bl);
-    ::decode(rows_processed, bl);
     ::decode(read_ns, bl);
     ::decode(eval_ns, bl);
     ::decode(push_back_predicates, bl);
@@ -1142,7 +1138,6 @@ struct cls_info {
   std::string toString() {
     std::string s;
     s.append(" cls_info:");
-    s.append(" .rows_processed=" + std::to_string(rows_processed));
     s.append(" .read_ns=" + std::to_string(read_ns));
     s.append(" .eval_ns=" + std::to_string(eval_ns));
     s.append(" .push_back_predicates=" + push_back_predicates);

@@ -135,7 +135,7 @@ extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
-extern std::atomic<unsigned> nrows_processed;  // TODO: remove
+//extern std::atomic<unsigned> nrows_processed;  // TODO: remove
 
 // used for print csv
 extern std::atomic<bool> print_header;
