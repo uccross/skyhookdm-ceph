@@ -17,4 +17,4 @@
 8933|2
 9860|5
 select * from lineitem where l_shipdate >= 757641600 and l_shipdate < 758678400 and l_discount > 0.001 and l_discount < 5 and l_quantity < 24
-total result row count: 18 / 10000
+total result row count: 18

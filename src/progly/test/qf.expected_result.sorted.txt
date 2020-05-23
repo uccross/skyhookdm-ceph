@@ -14,4 +14,4 @@
 73953.6|7330|5|900460800|0.02|42|refully express foxes wake regularly. blit
 86063.7|7462|4|799459200|0.08|46|along the regularly ironic deposits. q
 select * from lineitem where l_comment ilike '%regularly%'
-total result row count: 15 / 10000
+total result row count: 15
