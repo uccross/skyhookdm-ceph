@@ -119,4 +119,4 @@
 99598.5|2790|2|786844800|0|50|fter the regular ideas. f
 99763.5|3776|3|723340800|0.01|49|equests. final, thin grouches
 select * from lineitem where l_extendedprice > 91000
-total result row count: 120 / 120
+total result row count: 120

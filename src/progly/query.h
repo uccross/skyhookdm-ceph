@@ -63,6 +63,8 @@ extern uint64_t extra_row_cost;
 extern std::vector<timing> timings;
 
 // query parameters to be encoded into query_op struct
+
+// query params old
 extern double extended_price;
 extern int order_key;
 extern int line_number;
@@ -73,7 +75,8 @@ extern double discount_high;
 extern double quantity;
 extern std::string comment_regex;
 
-// query_op params for flatbufs
+// query_op params new
+extern bool debug;
 extern bool qop_fastpath;
 extern bool qop_index_read;
 extern bool qop_mem_constrain;
@@ -92,7 +95,6 @@ extern std::string qop_query_preds;
 extern std::string qop_index_preds;
 extern std::string qop_index2_preds;
 
-// build index op params for flatbufs
 extern bool idx_op_idx_unique;
 extern bool idx_op_ignore_stopwords;
 extern int idx_op_batch_size;
@@ -133,7 +135,7 @@ extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
-extern std::atomic<unsigned> nrows_processed;  // TODO: remove
+//extern std::atomic<unsigned> nrows_processed;  // TODO: remove
 
 // used for print csv
 extern std::atomic<bool> print_header;

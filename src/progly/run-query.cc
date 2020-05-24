@@ -30,6 +30,7 @@ int main(int argc, char **argv)
 
   // user/client input, trimmed and encoded to skyhook structs for query_op
   // defaults set below via boost::program_options
+  //bool debug;
   bool index_read;
   bool index_create;
   bool mem_constrain;
@@ -73,11 +74,8 @@ int main(int argc, char **argv)
   std::string tree_name;
   int subpartitions;
 
-  // format type of result set returned to query.cc driver
-  int resformat = SkyFormatType::SFT_FLATBUF_FLEX_ROW;
-
-  // program final output format type
-  std::string output_format;
+  // final output format type for client consumption
+  std::string client_format_str;
 
   // help menu messages for select and project
   std::string query_index_help_msg("Execute query via index lookup. Use " \
@@ -139,7 +137,8 @@ int main(int argc, char **argv)
     ("discount-high", po::value<double>(&discount_high)->default_value(-9999.0), "discount high")
     ("quantity", po::value<double>(&quantity)->default_value(0.0), "quantity")
     ("comment_regex", po::value<std::string>(&comment_regex)->default_value(""), "comment_regex")
-    // query parameters (new) flatbufs
+    // query parameters (new)
+    ("debug", po::bool_switch(&debug)->default_value(false), "debug")
     ("table-name", po::value<std::string>(&table_name)->default_value("None"), "Table name")
     ("db-schema-name", po::value<std::string>(&db_schema_name)->default_value(Tables::DBSCHEMA_NAME_DEFAULT), "Database schema name")
     ("data-schema", po::value<std::string>(&data_schema)->default_value(data_schema_example), data_schema_format_help_msg.c_str())
@@ -156,12 +155,10 @@ int main(int argc, char **argv)
     ("index-ignore-stopwords", po::bool_switch(&text_index_ignore_stopwords)->default_value(false), "Ignore stopwords when building text index. (def=false)")
     ("index-plan-type", po::value<int>(&index_plan_type)->default_value(Tables::SIP_IDX_STANDARD), "If 2 indexes, for intersection plan use '2', for union plan use '3' (def='1')")
     ("runstats", po::bool_switch(&runstats)->default_value(false), "Run statistics on the specified table name")
-    ("transform-format-type", po::value<std::string>(&trans_format_str)->default_value("flatbuffer"), "Destination format type ")
+    ("transform-format-type", po::value<std::string>(&trans_format_str)->default_value("SFT_FLATBUF_FLEX_ROW"), "Destination format type ")
     ("verbose", po::bool_switch(&print_verbose)->default_value(false), "Print detailed record metadata.")
     ("header", po::bool_switch(&header)->default_value(false), "Print row header (i.e., row schema")
     ("limit", po::value<long long int>(&row_limit)->default_value(Tables::ROW_LIMIT_DEFAULT), "SQL limit option, limit num_rows of result set")
-    ("result-format", po::value<int>(&resformat)->default_value((int)SkyFormatType::SFT_FLATBUF_FLEX_ROW), "SkyFormatType (enum) of processed results (def=SFT_FLATBUF_FLEX_ROW")
-    ("output-format", po::value<std::string>(&output_format)->default_value("SFT_CSV"), "Final output format type enum SkyFormatType (def=csv)")
     ("example-counter", po::value<int>(&example_counter)->default_value(100), "Loop counter for example function")
     ("example-function-id", po::value<int>(&example_function_id)->default_value(1), "CLS function identifier for example function")
     ("oid-prefix", po::value<std::string>(&oid_prefix)->default_value("obj"), "Prefix to enumerated object ids (names) (def=obj)")
@@ -174,6 +171,7 @@ int main(int argc, char **argv)
     ("lock-obj-get", po::bool_switch(&lock_obj_get)->default_value(false), "Get table values")
     ("lock-obj-acquire", po::bool_switch(&lock_obj_acquire)->default_value(false), "Get table values")
     ("lock-obj-create", po::bool_switch(&lock_obj_create)->default_value(false), "Create Lock obj")
+    ("client-format", po::value<std::string>(&client_format_str)->default_value("SFT_ANY"), "Data format type to return to client (def=SFT_ANY)")
  ;
 
   po::options_description all_opts("Allowed options");
@@ -206,7 +204,7 @@ int main(int argc, char **argv)
   librados::IoCtx ioctx;
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
-  timings.reserve(num_objs);
+  //~timings.reserve(num_objs);
 
   // create list of objs to access.
   // start_obj defaults to zero, but start_obj and num_objs can be used to
@@ -331,6 +329,7 @@ int main(int argc, char **argv)
     boost::trim(index2_preds);
     boost::trim(text_index_delims);
     boost::trim(trans_format_str);
+    boost::trim(client_format_str);
 
     // standardize naming as uppercase
     boost::to_upper(db_schema_name);
@@ -339,6 +338,7 @@ int main(int argc, char **argv)
     boost::to_upper(index2_cols);
     boost::to_upper(project_cols);
     boost::to_upper(trans_format_str);
+    boost::to_upper(client_format_str);
 
     // current minimum required info for formulating IO requests.
     assert (!db_schema_name.empty());
@@ -354,32 +354,29 @@ int main(int argc, char **argv)
         assert (use_cls);
     }
 
-    // Get the destination object type for the transform operation
-    if (trans_format_str == "FLATBUFFER") {
-        trans_format_type = SFT_FLATBUF_FLEX_ROW;
-    } else if (trans_format_str == "ARROW") {
-        trans_format_type = SFT_ARROW;
-    } else {
-        assert(0);
-    }
-
-     // verify desired result format is supported
-    switch (resformat) {
-        case SFT_ARROW:
+    // set and validate the desired format types
+    trans_format_type = sky_format_type_from_string(trans_format_str);
+    switch (trans_format_type) {
         case SFT_FLATBUF_FLEX_ROW:
+        case SFT_ARROW:
+        { // these are supported tranformation formats
             break;
+        }
         default:
-            assert (SkyFormatTypeNotImplemented==0);
+            assert(Tables::TablesErrCodes::EINVALID_TRANSFORM_FORMAT);
     }
 
-    // verify desired program output format is supported
-    switch (sky_format_type_from_string(output_format)) {
+    skyhook_output_format = sky_format_type_from_string(client_format_str);
+    switch (skyhook_output_format) {
+        case SFT_ANY:
         case SFT_CSV:
         case SFT_PG_BINARY:
         case SFT_PYARROW_BINARY:
+        { // these are supported final output formats for the client
             break;
+        }
         default:
-            assert (SkyFormatTypeNotImplemented==0);
+            assert(Tables::TablesErrCodes::EINVALID_OUTPUT_FORMAT);
     }
 
     // below we convert user input to skyhook structures for error checking,
@@ -395,11 +392,11 @@ int main(int argc, char **argv)
     // verify and set the query predicates
     sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
 
-    /*
-     *  TODO: remove, used for debugging typed preds
-     *  for (auto p:sky_qry_preds) cerr << p->toString();
-     *   cerr << endl;
-     */
+    if (debug) {
+        std::cout << "DEBUG: run-query: query predicates:\n";
+        for (auto p:sky_qry_preds)
+            std::cout << p->toString() << std::endl;
+    }
 
     // verify and set the index predicates
     sky_idx_preds = predsFromString(sky_tbl_schema, index_preds);
@@ -596,7 +593,7 @@ int main(int argc, char **argv)
     qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
     qop_index_preds = predsToString(sky_idx_preds, sky_tbl_schema);
     qop_index2_preds = predsToString(sky_idx2_preds, sky_tbl_schema);
-    qop_result_format = resformat;
+    qop_result_format = skyhook_output_format;
     idx_op_idx_unique = idx_unique;
     idx_op_batch_size = index_batch_size;
     idx_op_idx_type = index_type;
@@ -605,8 +602,37 @@ int main(int argc, char **argv)
     idx_op_text_delims = text_index_delims;
     trans_op_format_type = trans_format_type;
 
+    if (debug) {
+        if (query == "flatbuf" || query == "fastpath") {
+            cout << "DEBUG: run-query: qop_fastpath=" << qop_fastpath << endl;
+            cout << "DEBUG: run-query: qop_index_read=" << qop_index_read << endl;
+            cout << "DEBUG: run-query: qop_index_type=" << qop_index_type << endl;
+            cout << "DEBUG: run-query: qop_index2_type=" << qop_index2_type << endl;
+            cout << "DEBUG: run-query: qop_index_plan_type=" << qop_index_plan_type << endl;
+            cout << "DEBUG: run-query: qop_index_batch_size=" << qop_index_batch_size << endl;
+            cout << "DEBUG: run-query: qop_db_schema_name=" << qop_db_schema_name << endl;
+            cout << "DEBUG: run-query: qop_table_name=" << qop_table_name << endl;
+            cout << "DEBUG: run-query: qop_data_schema=\n" << qop_data_schema << endl;
+            cout << "DEBUG: run-query: qop_query_schema=\n" << qop_query_schema << endl;
+            cout << "DEBUG: run-query: qop_index_schema=\n" << qop_index_schema << endl;
+            cout << "DEBUG: run-query: qop_index2_schema=\n" << qop_index2_schema << endl;
+            cout << "DEBUG: run-query: qop_query_preds=" << qop_query_preds << endl;
+            cout << "DEBUG: run-query: qop_index_preds=" << qop_index_preds << endl;
+            cout << "DEBUG: run-query: qop_index2_preds=" << qop_index2_preds << endl;
+            cout << "DEBUG: run-query: qop_result_format=" << qop_result_format << endl;
+        }
+        else if (index_create or index_read) {
+            cout << "DEBUG: run-query: idx_op_idx_unique=" << idx_op_idx_unique << endl;
+            cout << "DEBUG: run-query: idx_op_batch_size=" << idx_op_batch_size << endl;
+            cout << "DEBUG: run-query: idx_op_idx_type=" << idx_op_idx_type << endl;
+            cout << "DEBUG: run-query: idx_op_idx_schema=" << idx_op_idx_schema << endl;
+            cout << "DEBUG: run-query: idx_op_ignore_stopwords=" << idx_op_ignore_stopwords << endl;
+            cout << "DEBUG: run-query: idx_op_text_delims=" << idx_op_text_delims << endl;
+        }
+    }
+
     // other processing info
-    skyhook_output_format = sky_format_type_from_string(output_format);
+    skyhook_output_format = sky_format_type_from_string(client_format_str);
     if (skyhook_output_format == SFT_PG_BINARY)
         print_header = true;  // binary fstream always requires binary header
     else
@@ -659,70 +685,11 @@ int main(int argc, char **argv)
     expl_func_id = example_function_id;
 
   }
-  else if (query == "hep") {
-
-    // verify input params and set HEP op vals.
-    using namespace Tables;
-
-    boost::trim(dataset_name);
-    boost::trim(file_name);
-    boost::trim(tree_name);
-    boost::trim(data_schema);
-    boost::trim(project_cols);
-
-    boost::to_upper(dataset_name);
-    boost::to_upper(file_name);
-    boost::to_upper(tree_name);
-    boost::to_upper(data_schema);
-    boost::to_upper(project_cols);
-
-    assert (!data_schema.empty());
-    assert (!project_cols.empty());
-
-    // convert to skyhook structs
-    sky_tbl_schema = schemaFromString(data_schema);
-    if (project_cols == PROJECT_DEFAULT)
-        sky_qry_schema = schemaFromString(data_schema);
-    else
-        sky_qry_schema = schemaFromColNames(sky_tbl_schema, project_cols);
-    sky_qry_preds = predsFromString(sky_tbl_schema, query_preds);
-
-    // if selection preds, and project all cols, then set fastpath
-    fastpath = false;
-    if (sky_qry_preds.size() == 0) {
-        if (project_cols == PROJECT_DEFAULT) {
-            fastpath = true;
-        }
-        else {
-            // also check if all query cols and data cols are same in same order,
-            fastpath = true;
-            if (sky_qry_schema.size() == sky_tbl_schema.size()) {
-                for (unsigned i = 0; i< sky_qry_schema.size(); i++)
-                    fastpath &= compareColInfo(sky_tbl_schema[i], sky_qry_schema[i]);
-            }
-        }
-    }
-
-    // set hep_op params.
-    qop_fastpath = fastpath;
-    qop_dataset_name = dataset_name;
-    qop_file_name = file_name;
-    qop_tree_name = tree_name;
-    qop_data_schema = schemaToString(sky_tbl_schema);
-    qop_query_schema = schemaToString(sky_qry_schema);
-    qop_query_preds = predsToString(sky_qry_preds, sky_tbl_schema);
-
-    skyhook_output_format = sky_format_type_from_string(output_format);
-
-    // set client-local output value from user provided boost options
-    print_header = header;
-
-  } /*else {
+  else {
 
     // specified query type is unknown.
     std::cerr << "invalid query type: " << query << std::endl;
     exit(1);
-
   }  // end verify query params*/
 
   // launch index creation on given table and cols here.
@@ -759,6 +726,9 @@ int main(int argc, char **argv)
     // create idx_op for workers
     stats_op op(qop_db_schema_name, qop_table_name, qop_data_schema);
 
+    if (debug)
+        cout << "DEBUG: stats op=" << op.toString() << endl;
+
     // kick off the workers
     std::vector<std::thread> threads;
     for (int i = 0; i < wthreads; i++) {
@@ -781,6 +751,9 @@ int main(int argc, char **argv)
     // create idx_op for workers
     transform_op op(qop_table_name, qop_query_schema, trans_op_format_type);
 
+    if (debug)
+        cout << "DEBUG: transform op=" << op.toString() << endl;
+
     // kick off the workers
     std::vector<std::thread> threads;
     for (int i = 0; i < wthreads; i++) {
@@ -798,135 +771,64 @@ int main(int argc, char **argv)
   }
 
     if (lock_op) {
-      int nthreads=1; 
-	// check which lock-op flag is set
-      if (lock_obj_init) { 
-        // setup and encode our op params here.
-	  lockobj_info op;
-	  op.table_name = table_name;
-	  op.num_objs = num_objs;
-	  op.table_busy = false;
-	  op.table_group = db_schema_name;
-          ceph::bufferlist inbl;
-          ::encode(op, inbl);
 
-          // kick off the workers
-          std::vector<std::thread> threads;
-	  // wthreads is hardcoded to 1.
-	
-          for (int i = 0; i < nthreads; i++) {
-            auto ioctx = new librados::IoCtx;
-            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-            checkret(ret, 0);
+        // we only need 1 worker thread to access the single lock obj.
+        std::vector<std::thread> threads;
+        auto ioctx = new librados::IoCtx;
+        int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+        checkret(ret, 0);
+        ceph::bufferlist inbl;
+
+        // check which lock-op is set and setup and encode our op params here.
+        if (lock_obj_init) {
+            lockobj_info op(false, num_objs, table_name,db_schema_name);
             threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
-          }
-
-          for (auto& thread : threads) {
-            thread.join();
-          }
-          return 0;
-	} else if (lock_obj_free) {
-            // setup and encode our op params here
-	  lockobj_info op;
-	  op.table_name = table_name;
-	  op.num_objs = num_objs;
-	  op.table_busy = true;
-	  op.table_group = db_schema_name;
-          ceph::bufferlist inbl;
-          ::encode(op, inbl);
-
-          // kick off the workers
-          std::vector<std::thread> threads;
-	  // wthreads is hardcoded to 1.
-	
-          for (int i = 0; i < nthreads; i++) {
-            auto ioctx = new librados::IoCtx;
-            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-            checkret(ret, 0);
+            if (debug)
+                cout << "DEBUG: lock_obj_init op=" << op.toString() << endl;
+        }
+        else if (lock_obj_free){
+            lockobj_info op(true, num_objs, table_name,db_schema_name);
             threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
-          }
-          for (auto& thread : threads) {
-            thread.join();
-          }
-          return 0;
-	} else if (lock_obj_get) {
-          // setup and encode our op params here.
-	  lockobj_info op;
-	  op.table_name = table_name;
-	  op.num_objs = num_objs;
-	  op.table_busy = true;
-	  op.table_group = db_schema_name;
-          ceph::bufferlist inbl;
-          ::encode(op, inbl);
-
-          // kick off the workers
-          std::vector<std::thread> threads;
-	  // wthreads is hardcoded to 1.
-	
-          for (int i = 0; i < nthreads; i++) {
-            auto ioctx = new librados::IoCtx;
-            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-            checkret(ret, 0);
+            if (debug)
+                cout << "DEBUG: lock_obj_free op=" << op.toString() << endl;
+        }
+        else if (lock_obj_get){
+            lockobj_info op(true, num_objs, table_name,db_schema_name);
             threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
-          }
-
-          for (auto& thread : threads) {
-            thread.join();
-          }
-          return 0;
-	} else if (lock_obj_acquire) {
-            // setup and encode our op params here.
-	  lockobj_info op;
-	  op.table_name = table_name;
-	  op.num_objs = num_objs;
-	  op.table_busy = true;
-	  op.table_group = db_schema_name;
-          ceph::bufferlist inbl;
-          ::encode(op, inbl);
-
-          // kick off the workers
-          std::vector<std::thread> threads;
-	  // wthreads is hardcoded to 1.
-	    
-          for (int i = 0; i < nthreads; i++) {
-            auto ioctx = new librados::IoCtx;
-            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-            checkret(ret, 0);
+            if (debug)
+                cout << "DEBUG: lock_obj_get op=" << op.toString() << endl;
+        }
+        else if (lock_obj_acquire){
+            lockobj_info op(true, num_objs, table_name,db_schema_name);
             threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
-          }
-
-          for (auto& thread : threads) {
-            thread.join();
-          }
-          return 0;
-	} else if (lock_obj_create) {
-          // setup and encode our op params here.
-	  lockobj_info op;
-	  op.num_objs = num_objs;
-	  op.table_group = db_schema_name;
-          ceph::bufferlist inbl;
-          ::encode(op, inbl);
-          // kick off the workers
-          std::vector<std::thread> threads;
-	  // wthreads is hardcoded to 1.
-	
-          for (int i = 0; i < nthreads; i++) {
-            auto ioctx = new librados::IoCtx;
-            int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-            checkret(ret, 0);
+            if (debug)
+                cout << "DEBUG: lock_obj_acquire op=" << op.toString() << endl;
+        }
+        else if (lock_obj_create){
+            lockobj_info op(false, num_objs, table_name,db_schema_name);
             threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
-          }
+            if (debug)
+                cout << "DEBUG: lock_obj_create op=" << op.toString() << endl;
+        }
+        else {
+            cout << "lock_op unknown" << endl;
+        }
 
-          for (auto& thread : threads) {
+        for (auto& thread : threads) {
             thread.join();
-          }
-          return 0;
-	}
+        }
+
+        return 0;
     }
+
+
+  /*
+   *  Begin launching query op
+   *
+   */
 
   result_count = 0;
   rows_returned = 0;
-  nrows_processed = 0;
   outstanding_ios = 0;
   stop = false;
 
@@ -957,6 +859,7 @@ int main(int argc, char **argv)
       if (query == "flatbuf" ) {
         if (use_cls) {
         query_op op;
+        op.debug = debug;
         op.query = query;
         op.fastpath = qop_fastpath;
         op.index_read = qop_index_read;
@@ -977,11 +880,21 @@ int main(int argc, char **argv)
         op.index2_preds = qop_index2_preds;
         ceph::bufferlist inbl;
         ::encode(op, inbl);
-	// Option1: while(busy) // wait. use transaction-lock
+
+        if (debug)
+            cout << "DEBUG: run-query: launching aio_exec for oid=" << oid << endl;
+
+        // CLS Read
         int ret = ioctx.aio_exec(oid, s->c,
             "tabular", "exec_query_op", inbl, &s->bl);
         checkret(ret, 0);
+
       } else {
+
+        if (debug)
+            cout << "DEBUG: run-query: launching aio_read for oid=" << oid << endl;
+
+        // STD Read
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
         checkret(ret, 0);
       }
@@ -994,34 +907,35 @@ int main(int argc, char **argv)
         query == "e" or
         query == "f" or
         query == "g") {
-            if (use_cls) {
-                test_op op;
-                op.query = query;
-                op.fastpath = qop_fastpath;
-                op.extended_price = extended_price;
-                op.order_key = order_key;
-                op.line_number = line_number;
-                op.ship_date_low = ship_date_low;
-                op.ship_date_high = ship_date_high;
-                op.discount_low = discount_low;
-                op.discount_high = discount_high;
-                op.quantity = quantity;
-                op.comment_regex = comment_regex;
-                op.use_index = use_index;
-                op.old_projection = old_projection;
-                op.extra_row_cost = extra_row_cost;
-                op.fastpath = fastpath;
 
-                ceph::bufferlist inbl;
-                ::encode(op, inbl);
-                int ret = ioctx.aio_exec(oid, s->c,
-                    "tabular", "test_query_op", inbl, &s->bl);
-                checkret(ret, 0);
-            }
-            else {
-                int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
-                checkret(ret, 0);
-            }
+        if (use_cls) {
+            test_op op;
+            op.query = query;
+            op.fastpath = qop_fastpath;
+            op.extended_price = extended_price;
+            op.order_key = order_key;
+            op.line_number = line_number;
+            op.ship_date_low = ship_date_low;
+            op.ship_date_high = ship_date_high;
+            op.discount_low = discount_low;
+            op.discount_high = discount_high;
+            op.quantity = quantity;
+            op.comment_regex = comment_regex;
+            op.use_index = use_index;
+            op.old_projection = old_projection;
+            op.extra_row_cost = extra_row_cost;
+            op.fastpath = fastpath;
+
+            ceph::bufferlist inbl;
+            ::encode(op, inbl);
+            int ret = ioctx.aio_exec(oid, s->c,
+                "tabular", "test_query_op", inbl, &s->bl);
+            checkret(ret, 0);
+        }
+        else {
+            int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
+            checkret(ret, 0);
+        }
     }
 
     if (query == "example") {
@@ -1072,26 +986,6 @@ int main(int argc, char **argv)
             int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
             checkret(ret, 0);
         }
-    }
-
-    if (query == "hep") {
-
-        // encode our op params here.
-        hep_op op;
-        op.fastpath = qop_fastpath;
-        op.dataset_name = qop_dataset_name;
-        op.file_name = qop_file_name;
-        op.tree_name = qop_tree_name;
-        op.data_schema = qop_data_schema;
-        op.query_schema = qop_query_schema;
-        op.query_preds = qop_query_preds;
-        ceph::bufferlist inbl;
-        ::encode(op, inbl);
-
-        // we only execute read via CLS method
-        int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "hep_query_op", inbl, &s->bl);
-        checkret(ret, 0);
     }
 
       lock.lock();
@@ -1164,33 +1058,9 @@ int main(int argc, char **argv)
   // only report status messages during quiet operation
   // since otherwise we are printing as csv data to std out
   if (quiet) {
-      if (query == "a" && use_cls) {
-        std::cout << "total result row count: "
-                  << result_count << " / -1"
-                  //<< "; nrows_processed=" << nrows_processed << std::endl;
-                  << std::endl;
-      } else {
-        std::cout << "total result row count: "
-                  << result_count << " / "
-                  << rows_returned // << "; nrows_processed=" << nrows_processed << std::endl;
-                  << std::endl;
-      }
+    std::cout << "total result row count: " << result_count << std::endl;
   }
 
-  if (logfile.length()) {
-    std::ofstream out;
-    out.open(logfile, std::ios::trunc);
-    out << "dispatch,response,read_ns,eval_ns,eval2_ns" << std::endl;
-    for (const auto& time : timings) {
-      out <<
-        time.dispatch << "," <<
-        time.response << "," <<
-        time.read_ns << "," <<
-        time.eval_ns << "," <<
-        time.eval2_ns << std::endl;
-    }
-    out.close();
-  }
 
   return 0;
 }

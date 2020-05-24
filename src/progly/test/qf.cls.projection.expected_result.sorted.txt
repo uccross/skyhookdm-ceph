@@ -14,4 +14,4 @@
 9925|6
 9952|2
 select * from lineitem where l_comment ilike '%regularly%'
-total result row count: 15 / 15
+total result row count: 15

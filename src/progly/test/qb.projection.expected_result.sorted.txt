@@ -119,4 +119,4 @@
 9859|5
 9895|1
 select * from lineitem where l_extendedprice > 91000
-total result row count: 120 / 10000
+total result row count: 120
