@@ -971,38 +971,6 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     std::map<int, struct read_info> idx1_reads;
     std::map<int, struct read_info> idx2_reads;
 
-    // fastpath means we skip processing rows and just return all rows,
-    // i.e., the entire obj
-    if (op.fastpath == true) {
-
-        if (op.debug)
-            CLS_LOG(20, "exec_query_op: op.fastpath == true, reading obj data");
-
-        bufferlist data;  // to hold the obj data.
-        read_start = getns();
-        ret = cls_cxx_read(hctx, 0, 0, &data);  // read entire object.
-        if (ret < 0) {
-          CLS_ERR("ERROR: exec_query_op: error reading obj=%d", ret);
-          return ret;
-        }
-        read_ns = getns() - read_start;
-        result_bl = data;
-
-        cls_info info (read_ns, eval_ns,"","");
-
-        // add both our cls info struct and our result bl to the output buffer.
-        ::encode(info, *out);
-        ::encode(result_bl, *out);
-
-        if (op.debug) {
-            CLS_LOG(20, "exec_query_op: op.fastpath == true, result_bl size=%s", std::to_string(result_bl.length()).c_str());
-            CLS_LOG(20, "exec_query_op: op.fastpath == true, *out_bl size=%s", std::to_string(out->length()).c_str());
-        }
-
-        // short circuit since further processing not required.
-        return 0;
-    }
-
     // data_schema is the table's current schema
     // TODO: redundant, this is also stored in the fb, extract from fb?
     schema_vec data_schema = schemaFromString(op.data_schema);
@@ -1487,29 +1455,41 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 }
                 else {
 
-                    // normal case, pass in cpp typed params
-                    ret = processSkyFb(result_builder,
-                                       data_schema,
-                                       query_schema,
-                                       query_preds,
-                                       fbmeta.blob_data,
-                                       fbmeta.blob_size,
-                                       errmsg,
-                                       row_nums);
-                }
+                    // short circuit processing since select * query.
+                    if (op.fastpath) {
 
-                if (ret != 0) {
-                    CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
-                    CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                    return -1;
-                }
+                    // just create a new fbmeta from the orig data blob.
+                    createFbMeta(fbmeta_builder,
+                        SFT_FLATBUF_FLEX_ROW,
+                        reinterpret_cast<unsigned char*>(const_cast<char*>(fbmeta.blob_data)),
+                        fbmeta.blob_size);
+                    }
+                    else {
+                        // normal case, pass in cpp typed params
+                        ret = processSkyFb(result_builder,
+                                           data_schema,
+                                           query_schema,
+                                           query_preds,
+                                           fbmeta.blob_data,
+                                           fbmeta.blob_size,
+                                           errmsg,
+                                           row_nums);
 
-                createFbMeta(fbmeta_builder,
-                             SFT_FLATBUF_FLEX_ROW,
-                             reinterpret_cast<unsigned char*>(
-                                    result_builder.GetBufferPointer()),
-                                    result_builder.GetSize()
-                );
+
+                        if (ret != 0) {
+                            CLS_ERR("ERROR: processSkyFb %s", errmsg.c_str());
+                            CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                            return -1;
+                        }
+
+                        createFbMeta(fbmeta_builder,
+                                     SFT_FLATBUF_FLEX_ROW,
+                                     reinterpret_cast<unsigned char*>(
+                                            result_builder.GetBufferPointer()),
+                                            result_builder.GetSize()
+                        );
+                    }
+                }
                 break;
             }
 
@@ -1518,28 +1498,39 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                 if (op.debug)
                     CLS_LOG(20, "cls: exec_query_op: case SFT_ARROW");
 
-                std::shared_ptr<arrow::Table> table;
-                ret = processArrowCol(&table,
-                                      data_schema,
-                                      query_schema,
-                                      query_preds,
-                                      fbmeta.blob_data,
-                                      fbmeta.blob_size,
-                                      errmsg,
-                                      row_nums);
+                // short circuit processing since select * query.
+                if (op.fastpath) {
 
-                if (ret != 0) {
-                    CLS_ERR("ERROR: processArrowCol %s", errmsg.c_str());
-                    CLS_ERR("ERROR: TablesErrCodes::%d", ret);
-                    return -1;
-                }
-
-                std::shared_ptr<arrow::Buffer> buffer;
-                convert_arrow_to_buffer(table, &buffer);
+                // just create a new fbmeta from the orig data blob.
                 createFbMeta(fbmeta_builder,
-                             SFT_ARROW,
-                             reinterpret_cast<unsigned char*>(buffer->mutable_data()),
-                             buffer->size());
+                    SFT_ARROW,
+                    reinterpret_cast<unsigned char*>(const_cast<char*>(fbmeta.blob_data)),
+                    fbmeta.blob_size);
+                }
+                else {
+                    std::shared_ptr<arrow::Table> table;
+                    ret = processArrowCol(&table,
+                                          data_schema,
+                                          query_schema,
+                                          query_preds,
+                                          fbmeta.blob_data,
+                                          fbmeta.blob_size,
+                                          errmsg,
+                                          row_nums);
+
+                    if (ret != 0) {
+                        CLS_ERR("ERROR: processArrowCol %s", errmsg.c_str());
+                        CLS_ERR("ERROR: TablesErrCodes::%d", ret);
+                        return -1;
+                    }
+
+                    std::shared_ptr<arrow::Buffer> buffer;
+                    convert_arrow_to_buffer(table, &buffer);
+                    createFbMeta(fbmeta_builder,
+                                 SFT_ARROW,
+                                 reinterpret_cast<unsigned char*>(buffer->mutable_data()),
+                                 buffer->size());
+                }
                 break;
             }
 
