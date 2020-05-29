@@ -242,3 +242,5 @@ set(cls_lua_client_srcs
     lua/cls_lua_client.cc)
 add_library(cls_lua_client STATIC ${cls_lua_client_srcs})
 
+# cls_tabular
+add_subdirectory(tabular)
