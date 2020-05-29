@@ -262,3 +262,6 @@ install(TARGETS cls_cas DESTINATION ${cls_dir})
 set(cls_cas_client_srcs
   cas/cls_cas_client.cc)
 add_library(cls_cas_client STATIC ${cls_cas_client_srcs})
+
+# cls_tabular
+add_subdirectory(tabular)
