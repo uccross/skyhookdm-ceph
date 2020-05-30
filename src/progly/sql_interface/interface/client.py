@@ -1,8 +1,9 @@
 from parser import handleQuery 
 def main(): 
     # Use the same options for every query. TODO: Allow options changes while entering queries. 
-    print("Enter command options as command separated values below. Press 'Enter' without input to use default options.")
-    print("Example: [num_objs],[pool_name]")
+    print("Enter command options as command separated values belows. Press 'Enter' without input to use default options.")
+    print("Options (must be in this order): [num_objs],[pool_name],[use-cls],[quiet]")
+    print("Example: 2, tpchdata, [Y | N], [Y | N]")
     opts = input(">>> ")
 
     # Run until told otherwise.

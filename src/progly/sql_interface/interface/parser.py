@@ -18,6 +18,7 @@ class SkyhookSQLParser():
 
     def checkOpts(self, opts):
         def parseOpts(opts):
+            opts = ''.join(opts.split())
             opt_list = opts.split(",")
             if len(opt_list) == 1:
                 self.command = self.default_command
@@ -26,9 +27,16 @@ class SkyhookSQLParser():
             if len(opt_list) > 4:
                 raise ValueError('Incorrect number of options set.')
             print(opt_list)
-            self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1]
+            if opt_list[2] == 'N' and opt_list[3] == 'N':
+                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" '
+            if opt_list[2] == 'Y' and opt_list[3] == 'Y':
+                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls --quiet '
+            if opt_list[2] == 'Y' and opt_list[3] == 'N':
+                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls '
+            if opt_list[2] == 'N' and opt_list[3] == 'Y':
+                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --quiet '
             print(self.command)
-
+        
         parseOpts(opts)
         return
     
