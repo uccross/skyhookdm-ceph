@@ -1,5 +1,4 @@
 from parser import handleQuery 
-
 def main(): 
     # Use the same options for every query. TODO: Allow options changes while entering queries. 
     print("Enter command options as command separated values below. Press 'Enter' without input to use default options.")

@@ -3,7 +3,7 @@ from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier
 import os
 
-class SkyhookSQLParser(self, rawUserQuery): 
+class SkyhookSQLParser():
     def __init__(self, rawUserQuery):
         self.rawQuery = rawUserQuery
         self.opt_list = None
@@ -112,7 +112,7 @@ class SkyhookSQLParser(self, rawUserQuery):
                     self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
             return
 
-        transformQuery(self.rawQuery)
+        transformQuery()
         return
 
     def execQuery(self, cmd):
