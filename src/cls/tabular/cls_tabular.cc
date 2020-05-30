@@ -8,6 +8,9 @@
 *
 */
 
+#include "cls_tabular.h"
+#include "cls_tabular_utils.h"
+#include "cls_tabular_processing.h"
 
 #include <errno.h>
 #include <string>
@@ -17,8 +20,7 @@
 #include "re2/re2.h"
 #include "include/types.h"
 #include "objclass/objclass.h"
-#include "cls_tabular_utils.h"
-#include "cls_tabular.h"
+
 
 CLS_VER(1,0)
 CLS_NAME(tabular)
@@ -1286,12 +1288,12 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
         // if we must read the full object, we set the reads[] to
         // contain a single read, indicating the entire object.
         if (read_full_object) {
-                    int fb_seq_num = Tables::DATASTRUCT_SEQ_NUM_MIN;
-                    int off = 0;
-                    int len = 0;
-                    std::vector<unsigned int> rnums = {};
-                    struct read_info ri(fb_seq_num, off, len, {});
-                    reads[fb_seq_num] = ri;
+            int fb_seq_num = Tables::DATASTRUCT_SEQ_NUM_MIN;
+            int off = 0;
+            int len = 0;
+            std::vector<unsigned int> rnums = {};
+            struct read_info ri(fb_seq_num, off, len, {});
+            reads[fb_seq_num] = ri;
         }
     }
 
@@ -1889,11 +1891,6 @@ int test_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     ::encode(info, *out);
     ::encode(result_bl, *out);
 
-    //~ // store timings and result set into output BL
-    //~ ::encode(read_ns, *out);
-    //~ ::encode(eval_ns, *out);
-    //~ ::encode(rows_processed, *out);
-    //~ ::encode(result_bl, *out);
     return 0;
 }
 
@@ -2020,19 +2017,6 @@ int transform_db_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             }
             createFbMeta(meta_builder,
                          SFT_FLATBUF_FLEX_ROW,
-                         reinterpret_cast<unsigned char*>(
-                                 flatbldr.GetBufferPointer()),
-                         flatbldr.GetSize());
-        } else if (op.required_type == SFT_FLATBUF_UNION_ROW) {
-            flatbuffers::FlatBufferBuilder flatbldr(1024);  // pre-alloc sz
-
-            ret = transform_fbxrows_to_fbucols(meta.blob_data, meta.blob_size, errmsg, flatbldr);
-            if (ret != 0) {
-                CLS_ERR("ERROR: transforming object from fbxrows to fbucols");
-                return ret;
-            }
-            createFbMeta(meta_builder,
-                         SFT_FLATBUF_UNION_COL,
                          reinterpret_cast<unsigned char*>(
                                  flatbldr.GetBufferPointer()),
                          flatbldr.GetSize());

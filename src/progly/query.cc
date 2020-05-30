@@ -262,34 +262,6 @@ static void print_data(const char *dataptr,
                 row_limit - row_counter);
             break;
 
-        case SFT_FLATBUF_UNION_ROW:
-            if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
-                std::cerr << "Print SFT_FLATBUF_UNION_ROW: "
-                          << "SFT_PG_BINARY not implemented" << std::endl;
-                assert (Tables::SkyOutputBinaryNotImplemented==0);
-            }
-            row_counter += Tables::printFlatbufFBURowAsCsv(
-                dataptr,
-                datasz,
-                print_header,
-                print_verbose,
-                row_limit - row_counter);
-            break;
-
-        case SFT_FLATBUF_UNION_COL:
-            if (skyhook_output_format == SkyFormatType::SFT_PG_BINARY) {
-                std::cerr << "Print SFT_FLATBUF_UNION_COL: "
-                          << "SFT_PG_BINARY not implemented" << std::endl;
-                assert (Tables::SkyOutputBinaryNotImplemented==0);
-            }
-            row_counter += Tables::printFlatbufFBUColAsCsv(
-                dataptr,
-                datasz,
-                print_header,
-                print_verbose,
-                row_limit - row_counter);
-            break;
-
         case SFT_EXAMPLE_FORMAT:
             row_counter += Tables::printExampleFormatAsCsv(
                 dataptr,
@@ -480,7 +452,8 @@ void worker_lock_obj_free_op(librados::IoCtx *ioctx, lockobj_info op)
     ioctx->close();
 }
 
-/* NOTE: This is for debugging */
+// NOTE: This is for debugging lock ops only, it does not atomically create
+// or modify locks.
 void worker_lock_obj_get_op(librados::IoCtx *ioctx, lockobj_info op)
 {
 
@@ -514,6 +487,7 @@ void worker_lock_obj_acquire_op(librados::IoCtx *ioctx, lockobj_info op)
     ioctx->close();
 }
 // busy loop work to simulate high cpu cost ops
+// used to model extra processing time required per objects.
 volatile uint64_t __tabular_x;
 static void add_extra_row_cost(uint64_t cost)
 {
@@ -522,7 +496,8 @@ static void add_extra_row_cost(uint64_t cost)
   }
 }
 
-void worker()
+// primary method for read() queries.
+void worker_exec_query_op()
 {
   std::unique_lock<std::mutex> lock(work_lock);
 

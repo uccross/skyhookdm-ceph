@@ -16,6 +16,7 @@
 #include "include/rados/librados.hpp"
 #include "cls/tabular/cls_tabular.h"
 #include "cls/tabular/cls_tabular_utils.h"
+#include "cls/tabular/cls_tabular_processing.h"
 #include "re2/re2.h"
 
 extern inline uint64_t __getns(clockid_t clock)
@@ -135,7 +136,6 @@ extern Tables::predicate_vec sky_idx2_preds;
 
 extern std::atomic<unsigned> result_count;
 extern std::atomic<unsigned> rows_returned;
-//extern std::atomic<unsigned> nrows_processed;  // TODO: remove
 
 // used for print csv
 extern std::atomic<bool> print_header;
@@ -155,11 +155,12 @@ extern std::condition_variable work_cond;
 
 extern bool stop;
 
+// worker tasks for threads, corresponding to our cls methods
 void worker_build_index(librados::IoCtx *ioctx);
 void worker_exec_build_sky_index_op(librados::IoCtx *ioctx, idx_op op);
 void worker_exec_runstats_op(librados::IoCtx *ioctx, stats_op op);
 void worker_transform_db_op(librados::IoCtx *ioctx, transform_op op);
-void worker();
+void worker_exec_query_op();  // default worker task for exec_query_op
 void handle_cb(librados::completion_t cb, void *arg);
 void worker_lock_obj_init_op(librados::IoCtx *ioctx, lockobj_info op);
 void worker_lock_obj_free_op(librados::IoCtx *ioctx, lockobj_info op);

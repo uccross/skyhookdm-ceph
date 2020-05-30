@@ -148,7 +148,7 @@ class SkyhookQuery : public ::testing::Test {
       }
 
       // process data
-      worker();
+      worker_exec_query_op();
     }
 
     static Rados rados;

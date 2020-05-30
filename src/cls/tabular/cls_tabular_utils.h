@@ -40,7 +40,6 @@
 #include "skyhookv2_generated.h"
 #include "skyhookv2_csv_generated.h"
 #include "fb_meta_generated.h"
-#include "fbu_generated.h"
 
 namespace Tables {
 
@@ -232,13 +231,6 @@ const std::unordered_map<std::string, bool> IDX_STOPWORDS= {
     {"of", 1}, {"on", 1},
     {"that", 1}, {"the", 1}, {"to", 1},
     {"was", 1}, {"were", 1}, {"will", 1}, {"with", 1}
-};
-
-const std::map<int, int> FBU_TO_SDT = {
-    { Tables::DataTypes_FBU_SDT_UINT32_FBU, SDT_UINT32 },
-    { Tables::DataTypes_FBU_SDT_UINT64_FBU, SDT_UINT64 },
-    { Tables::DataTypes_FBU_SDT_FLOAT_FBU, SDT_FLOAT },
-    { Tables::DataTypes_FBU_SDT_STRING_FBU, SDT_STRING }
 };
 
 const int offset_to_skyhook_version = 4;
@@ -583,15 +575,11 @@ std::vector<std::string> colnamesFromSchema(schema_vec &schema);
 // the below are used in our root table
 typedef vector<uint8_t> delete_vector;
 typedef const flatbuffers::Vector<flatbuffers::Offset<Record>>* row_offs;
-typedef const flatbuffers::Vector<flatbuffers::Offset<Record_FBU>>* row_offs_fbu_rows;
-typedef const Tables::Cols_FBU* cols_fbu;
 
 // the below are used in our row table
 typedef vector<uint64_t> nullbits_vector;
 typedef vector<uint64_t> cols_rids_vector;
 typedef flexbuffers::Reference row_data_ref;
-typedef const flatbuffers::Vector<flatbuffers::Offset<void> >* row_data_ref_fbu_rows;
-typedef const Tables::Col_FBU* col_fbu;
 
 // this flatbuf meta wrappers allows read/write transfer of a single,
 // complete, self-contained serialized data format on disk or wire.
@@ -678,7 +666,6 @@ struct root_table {
 };
 typedef struct root_table sky_root;
 
-
 // skyhookdb row metadata and row data, wraps a row of data
 // abstracts a row from its underlying data format/layout
 struct rec_table {
@@ -697,41 +684,6 @@ struct rec_table {
         };
 };
 typedef struct rec_table sky_rec;
-
-struct rec_table_fbu {
-    const int64_t RID;
-    nullbits_vector nullbits;
-    const row_data_ref_fbu_rows data_fbu_rows;
-
-    rec_table_fbu(int64_t _RID,
-                  nullbits_vector _nullbits,
-                  row_data_ref_fbu_rows _data_fbu_rows) :
-        RID(_RID),
-        nullbits(_nullbits),
-        data_fbu_rows(_data_fbu_rows) {
-            // ensure one nullbit per col
-            int num_nullbits = nullbits.size() * sizeof(nullbits[0]) * 8;
-            assert (num_nullbits == MAX_TABLE_COLS);
-        };
-};
-typedef struct rec_table_fbu sky_rec_fbu;
-
-struct col_table_fbu {
-    const int64_t CID;
-    nullbits_vector nullbits;
-    std::vector< uint64_t > cols_rids ;
-    col_fbu data_fbu_col;
-
-    col_table_fbu(int64_t _CID,
-                  nullbits_vector _nullbits,
-                  std::vector< uint64_t > _cols_rids,
-                  col_fbu _data_fbu_col) :
-        CID(_CID),
-        nullbits(_nullbits),
-        cols_rids(_cols_rids),
-        data_fbu_col(_data_fbu_col) {};
-};
-typedef struct col_table_fbu sky_col_fbu;
 
 // holds the result of a read to be done, resulting from an index lookup
 // regarding specific flatbufs+rows to be read or else a seq of all flatbufs
@@ -850,29 +802,11 @@ sky_rec getSkyRec(
 *    int format=SFT_CSV);
 */
 
-sky_rec_fbu getSkyRec_fbu(sky_root root, int recid);
-sky_col_fbu getSkyCol_fbu(sky_root root, int colid);
-int getSkyCols_fbu_length(sky_root root);
-
 // print functions
 void printSkyRootHeader(sky_root &r);
 void printSkyRecHeader(sky_rec &r);
 
 long long int printFlatbufFlexRowAsCsv(
-        const char* dataptr,
-        const size_t datasz,
-        bool print_header,
-        bool print_verbose,
-        long long int max_to_print);
-
-long long int printFlatbufFBURowAsCsv(
-        const char* dataptr,
-        const size_t datasz,
-        bool print_header,
-        bool print_verbose,
-        long long int max_to_print);
-
-long long int printFlatbufFBUColAsCsv(
         const char* dataptr,
         const size_t datasz,
         bool print_header,
@@ -943,112 +877,20 @@ int transform_arrow_to_fb(
         std::string& errmsg,
         flatbuffers::FlatBufferBuilder& flatbldr);
 
-int transform_fbxrows_to_fbucols(
-        const char* data,
-        const size_t data_size,
-        std::string& errmsg,
-        flatbuffers::FlatBufferBuilder& flatbldr);
-
 bool hasAggPreds(predicate_vec &preds);
 
 // convert provided ops to/from internal skyhook representation (simple enums)
 int skyOpTypeFromString(std::string s);
 std::string skyOpTypeToString(int op);
 
-// for proj, select, fastpath, aggregations: process data and build return fb
-int processSkyFb(
-        flatbuffers::FlatBufferBuilder& flatb,
-        schema_vec& data_schema,
-        schema_vec& query_schema,
-        predicate_vec& preds,
-        const char* fb,
-        const size_t fb_size,
-        std::string& errmsg,
-        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
-
-int processSkyFbWASM(
-        char* _flatbldr,
-        int _flatbldr_len,
-        char* _data_schema,
-        int _data_schema_len,
-        char* _query_schema,
-        int _query_schema_len,
-        char* _preds,
-        int _preds_len,
-        char* _fb,
-        int _fb_size,
-        char* _errmsg,
-        int _errmsg_len,
-        int* _row_nums,
-        int _row_nums_size);
-
-int processArrow(
-        std::shared_ptr<arrow::Table>* table,
-        schema_vec& tbl_schema,
-        schema_vec& query_schema,
-        predicate_vec& preds,
-        const char* dataptr,
-        const size_t datasz,
-        std::string& errmsg,
-        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
-
-int processSkyFb_fbu_rows(
-        flatbuffers::FlatBufferBuilder& flatb,
-        schema_vec& data_schema,
-        schema_vec& query_schema,
-        predicate_vec& preds,
-        const char* fb,
-        const size_t fb_size,
-        std::string& errmsg,
-        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
-
-int processSkyFb_fbu_cols(
-        ceph::bufferlist,
-        flatbuffers::FlatBufferBuilder& flatb,
-        schema_vec& data_schema,
-        schema_vec& query_schema,
-        predicate_vec& preds,
-        const char* fb,
-        const size_t fb_size,
-        std::string& errmsg,
-        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
-
-int processArrowCol(
-        std::shared_ptr<arrow::Table>* table,
-        schema_vec& tbl_schema,
-        schema_vec& query_schema,
-        predicate_vec& preds,
-        const char* dataptr,
-        const size_t datasz,
-        std::string& errmsg,
-        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
-
-int processArrowColHEP(
-        std::shared_ptr<arrow::Table>* table,
-        schema_vec& tbl_schema,
-        schema_vec& query_schema,
-        predicate_vec& preds,
-        const char* dataptr,
-        const size_t datasz,
-        std::string& errmsg,
-        const std::vector<uint32_t>& row_nums=std::vector<uint32_t>());
-
-inline
 bool applyPredicates(predicate_vec& pv, sky_rec& rec);
 
-inline
-bool applyPredicates_fbu_cols(predicate_vec& pv, sky_col_fbu& skycol, uint64_t col_index, uint64_t rid);
-
-inline
 bool applyPredicatesArrow(predicate_vec& pv, std::shared_ptr<arrow::Table>& table,
                           int element_index);
-inline
+
 void applyPredicatesArrowCol(predicate_vec& pv,
                              std::shared_ptr<arrow::Array> col_array,
                              int col_idx, std::vector<uint32_t>& row_nums);
-
-inline
-bool applyPredicates_fbu_row(predicate_vec& pv, sky_rec_fbu& rec);
 
 inline
 bool compare(const int64_t& val1, const int64_t& val2, const int& op);

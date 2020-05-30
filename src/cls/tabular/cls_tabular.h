@@ -17,6 +17,7 @@
 
 void cls_log_message(std::string msg, bool is_err, int log_level);
 
+
 // used by Arrow format only
 #define STREAM_CAPACITY 1024
 #define ARROW_RID_INDEX(cols) (cols)

@@ -269,24 +269,15 @@ if(WITH_EMBEDDED)
   merge_static_libraries(cephd_cls cephd_cls_base liblua)
 endif()
 
-# skyhookdb cls_tabular
-add_library(cls_tabular SHARED tabular/cls_tabular.cc tabular/cls_tabular_utils.cc)
+# cls_tabular skyhook functions
+add_library(cls_tabular SHARED tabular/cls_tabular.cc tabular/cls_tabular_utils.cc tabular/cls_tabular_processing.cc)
 target_link_libraries(cls_tabular re2 arrow parquet Boost::date_time)
 set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_tabular DESTINATION ${cls_dir})
 
-# skyhook flatflex writer
-add_executable(sky_tabular_flatflex_writer tabular/sky_tabular_flatflex_writer.cc  tabular/cls_tabular_utils.cc)
+# cls_tabular skyhook flatflex writer
+add_executable(sky_tabular_flatflex_writer tabular/sky_tabular_flatflex_writer.cc  tabular/cls_tabular_utils.cc tabular/cls_tabular_processing.cc)
 target_link_libraries(sky_tabular_flatflex_writer librados global re2 arrow parquet)
 install(TARGETS sky_tabular_flatflex_writer DESTINATION bin)
 
-# skyhook fbwriter_fbu
-add_executable(fbwriter_fbu tabular/fbwriter_fbu.cc tabular/cls_tabular_utils.cc)
-target_link_libraries(fbwriter_fbu librados global re2 arrow parquet )
-install(TARGETS fbwriter_fbu DESTINATION bin)
-
-# skyhook fbreader_fbu2
-add_executable(fbreader_fbu2 tabular/fbreader_fbu2.cc tabular/cls_tabular_utils.cc)
-target_link_libraries(fbreader_fbu2 librados global re2 arrow parquet )
-install(TARGETS fbreader_fbu2 DESTINATION bin)
 

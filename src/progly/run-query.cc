@@ -25,7 +25,7 @@ int main(int argc, char **argv)
   bool transform_db;
   std::string logfile;
   int qdepth;
-  std::string dir;
+  std::string direction;
   std::string conf;
 
   // user/client input, trimmed and encoded to skyhook structs for query_op
@@ -124,7 +124,7 @@ int main(int argc, char **argv)
     ("index-batch-size", po::value<uint32_t>(&index_batch_size)->default_value(1000), "index (read/write) batch size")
     ("extra-row-cost", po::value<uint64_t>(&extra_row_cost)->default_value(0), "extra row cost")
     ("log-file", po::value<std::string>(&logfile)->default_value(""), "log file")
-    ("dir", po::value<std::string>(&dir)->default_value("fwd"), "direction")
+    ("direction", po::value<std::string>(&direction)->default_value("fwd"), "direction for cache warmup testing. choose one of: fwd, bwd, rnd")
     ("conf", po::value<std::string>(&conf)->default_value(""), "path to ceph.conf")
     ("transform-db", po::bool_switch(&transform_db)->default_value(false), "transform DB")
     // query parameters (old)
@@ -204,7 +204,6 @@ int main(int argc, char **argv)
   librados::IoCtx ioctx;
   ret = cluster.ioctx_create(pool.c_str(), ioctx);
   checkret(ret, 0);
-  //~timings.reserve(num_objs);
 
   // create list of objs to access.
   // start_obj defaults to zero, but start_obj and num_objs can be used to
@@ -223,19 +222,20 @@ int main(int argc, char **argv)
     }
   }
 
-  if (dir == "fwd") {
+  // for cache testing of objs: read oids forward, backward, random orders
+  if (direction == "fwd") {
     std::reverse(std::begin(target_objects),
         std::end(target_objects));
-  } else if (dir == "bwd") {
+  } else if (direction == "bwd") {
     // initial order
-  } else if (dir == "rnd") {
+  } else if (direction == "rnd") {
     std::random_shuffle(std::begin(target_objects),
         std::end(target_objects));
   } else {
     assert(0);
   }
 
-  // build index for query "d"
+  // older indexing build for query "d"
   if (build_index) {
     std::vector<std::thread> threads;
     for (int i = 0; i < wthreads; i++) {
@@ -366,6 +366,7 @@ int main(int argc, char **argv)
             assert(Tables::TablesErrCodes::EINVALID_TRANSFORM_FORMAT);
     }
 
+    // verify client specified output format is valid
     skyhook_output_format = sky_format_type_from_string(client_format_str);
     switch (skyhook_output_format) {
         case SFT_ANY:
@@ -576,7 +577,7 @@ int main(int argc, char **argv)
         }
     }
 
-    // set all of the flatbuf info for our query op.
+    // set all of the exec_query_op params for cls.
     qop_fastpath = fastpath;
     qop_index_read = index_read;
     qop_mem_constrain = mem_constrain;
@@ -692,6 +693,7 @@ int main(int argc, char **argv)
     exit(1);
   }  // end verify query params*/
 
+  // for INDEX CREATE job
   // launch index creation on given table and cols here.
   if (query == "flatbuf" && index_create) {
 
@@ -719,7 +721,7 @@ int main(int argc, char **argv)
     return 0;
   }
 
-
+  // for RUNSTATS job
   // launch run statistics on given table here.
   if (query == "flatbuf" && runstats) {
 
@@ -745,6 +747,7 @@ int main(int argc, char **argv)
     return 0;
   }
 
+  // for TRANSFORM OBJECT FORMAT job
   // launch transform operation here.
   if (query == "flatbuf" && transform_db) {
 
@@ -770,63 +773,62 @@ int main(int argc, char **argv)
     return 0;
   }
 
-    if (lock_op) {
+  // for LOCK OPERATION jobs
+  // there are several flavors such as lock init, free, etc.
+  if (lock_op) {
 
-        // we only need 1 worker thread to access the single lock obj.
-        std::vector<std::thread> threads;
-        auto ioctx = new librados::IoCtx;
-        int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
-        checkret(ret, 0);
-        ceph::bufferlist inbl;
+    // we only need 1 worker thread to access the single lock obj.
+    std::vector<std::thread> threads;
+    auto ioctx = new librados::IoCtx;
+    int ret = cluster.ioctx_create(pool.c_str(), *ioctx);
+    checkret(ret, 0);
+    ceph::bufferlist inbl;
 
-        // check which lock-op is set and setup and encode our op params here.
-        if (lock_obj_init) {
-            lockobj_info op(false, num_objs, table_name,db_schema_name);
-            threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
-            if (debug)
-                cout << "DEBUG: lock_obj_init op=" << op.toString() << endl;
-        }
-        else if (lock_obj_free){
-            lockobj_info op(true, num_objs, table_name,db_schema_name);
-            threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
-            if (debug)
-                cout << "DEBUG: lock_obj_free op=" << op.toString() << endl;
-        }
-        else if (lock_obj_get){
-            lockobj_info op(true, num_objs, table_name,db_schema_name);
-            threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
-            if (debug)
-                cout << "DEBUG: lock_obj_get op=" << op.toString() << endl;
-        }
-        else if (lock_obj_acquire){
-            lockobj_info op(true, num_objs, table_name,db_schema_name);
-            threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
-            if (debug)
-                cout << "DEBUG: lock_obj_acquire op=" << op.toString() << endl;
-        }
-        else if (lock_obj_create){
-            lockobj_info op(false, num_objs, table_name,db_schema_name);
-            threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
-            if (debug)
-                cout << "DEBUG: lock_obj_create op=" << op.toString() << endl;
-        }
-        else {
-            cout << "lock_op unknown" << endl;
-        }
-
-        for (auto& thread : threads) {
-            thread.join();
-        }
-
-        return 0;
+    // check which lock-op is set and setup and encode our op params here.
+    if (lock_obj_init) {
+        lockobj_info op(false, num_objs, table_name,db_schema_name);
+        threads.push_back(std::thread(worker_lock_obj_init_op, ioctx, op));
+        if (debug)
+            cout << "DEBUG: lock_obj_init op=" << op.toString() << endl;
+    }
+    else if (lock_obj_free){
+        lockobj_info op(true, num_objs, table_name,db_schema_name);
+        threads.push_back(std::thread(worker_lock_obj_free_op, ioctx, op));
+        if (debug)
+            cout << "DEBUG: lock_obj_free op=" << op.toString() << endl;
+    }
+    else if (lock_obj_get){
+        lockobj_info op(true, num_objs, table_name,db_schema_name);
+        threads.push_back(std::thread(worker_lock_obj_get_op, ioctx, op));
+        if (debug)
+            cout << "DEBUG: lock_obj_get op=" << op.toString() << endl;
+    }
+    else if (lock_obj_acquire){
+        lockobj_info op(true, num_objs, table_name,db_schema_name);
+        threads.push_back(std::thread(worker_lock_obj_acquire_op, ioctx, op));
+        if (debug)
+            cout << "DEBUG: lock_obj_acquire op=" << op.toString() << endl;
+    }
+    else if (lock_obj_create){
+        lockobj_info op(false, num_objs, table_name,db_schema_name);
+        threads.push_back(std::thread(worker_lock_obj_create_op, ioctx, op));
+        if (debug)
+            cout << "DEBUG: lock_obj_create op=" << op.toString() << endl;
+    }
+    else {
+        cout << "lock_op unknown" << endl;
     }
 
+    for (auto& thread : threads) {
+        thread.join();
+    }
 
-  /*
-   *  Begin launching query op
-   *
-   */
+    return 0;
+  }
 
+
+  // for QUERY OP job
+  // this is the main method for read() queries
   result_count = 0;
   rows_returned = 0;
   outstanding_ios = 0;
@@ -835,9 +837,10 @@ int main(int argc, char **argv)
   // start worker threads
   std::vector<std::thread> threads;
   for (int i = 0; i < wthreads; i++) {
-    threads.push_back(std::thread(worker));
+    threads.push_back(std::thread(worker_exec_query_op));
   }
 
+  // create the oid list, for dispatching workers
   std::unique_lock<std::mutex> lock(dispatch_lock);
   while (true) {
     while (outstanding_ios < qdepth) {
@@ -853,9 +856,12 @@ int main(int argc, char **argv)
       s->c = librados::Rados::aio_create_completion(
           s, NULL, handle_cb);
 
+      // keeps track of the worker latency
       memset(&s->times, 0, sizeof(s->times));
       s->times.dispatch = getns();
 
+      // set the now validated query op params into the op struct, and
+      // encode the op into the inbound bl for the specified oid.
       if (query == "flatbuf" ) {
         if (use_cls) {
         query_op op;
@@ -884,9 +890,8 @@ int main(int argc, char **argv)
         if (debug)
             cout << "DEBUG: run-query: launching aio_exec for oid=" << oid << endl;
 
-        // CLS Read
-        int ret = ioctx.aio_exec(oid, s->c,
-            "tabular", "exec_query_op", inbl, &s->bl);
+        // Launch CEPH CLS Read
+        int ret = ioctx.aio_exec(oid, s->c, "tabular", "exec_query_op", inbl, &s->bl);
         checkret(ret, 0);
 
       } else {
@@ -894,12 +899,14 @@ int main(int argc, char **argv)
         if (debug)
             cout << "DEBUG: run-query: launching aio_read for oid=" << oid << endl;
 
-        // STD Read
+        // Launch CEPH STANDARD Read
         int ret = ioctx.aio_read(oid, s->c, &s->bl, 0, 0);
         checkret(ret, 0);
       }
-  }
-    // handle older test queries
+    }
+
+    // OLDER TEST QUERIES
+    // handle older fixed queries
     if (query == "a" or
         query == "b" or
         query == "c" or
@@ -938,6 +945,8 @@ int main(int argc, char **argv)
         }
     }
 
+    // simple example query op for developers to extend with their own
+    // customized method
     if (query == "example") {
 
         if (use_cls) {  // execute a cls read method
@@ -952,8 +961,8 @@ int main(int argc, char **argv)
             ::encode(op, inbl);
 
             // execute our example method on the object, passing in our op.
-            int ret = ioctx.aio_exec(oid, s->c,
-                "tabular", "example_query_op", inbl, &s->bl);
+            int ret = ioctx.aio_exec(oid, s->c, "tabular",
+                                    "example_query_op", inbl, &s->bl);
             checkret(ret, 0);
         }
         else {  // execute standard read
@@ -963,6 +972,8 @@ int main(int argc, char **argv)
         }
       }
 
+    // method for executing query processing using pre-compiled binary wasm
+    // code on the OSDs
     if (query == "wasm") {
 
         if (use_cls) {  // execute a cls read method
@@ -977,8 +988,8 @@ int main(int argc, char **argv)
             ::encode(op, inbl);
 
             // execute our example method on the object, passing in our op.
-            int ret = ioctx.aio_exec(oid, s->c,
-                "tabular", "wasm_query_op", inbl, &s->bl);
+            int ret = ioctx.aio_exec(oid, s->c, "tabular",
+                                     "wasm_query_op", inbl, &s->bl);
             checkret(ret, 0);
         }
         else {  // execute standard read
@@ -1025,7 +1036,9 @@ int main(int argc, char **argv)
   }
   ioctx.close();
 
-
+  // all workers are done, now we check if we need to add any trailers to
+  // binary output such as postgres or pyarrow raw binary data being returned
+  // to those corresponding clients.
   if (stop) {
 
     // after all objs done processing, if postgres binary fstream,
