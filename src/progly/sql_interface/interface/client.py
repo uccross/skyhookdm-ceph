@@ -20,7 +20,9 @@ def main():
         rawUserQuery = input(">>> ")
 
         if changeSettings(rawUserQuery):
+            print("Enter new options: ")
             opts = input(">>> ")
+            pass  
 
         handleQuery(opts, rawUserQuery)
 
