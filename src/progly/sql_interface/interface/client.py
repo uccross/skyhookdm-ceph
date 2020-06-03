@@ -1,4 +1,11 @@
 from parser import handleQuery 
+
+def changeSettings(input): 
+    if input == 'options':
+        return True
+    else: 
+        return False
+
 def main(): 
     # Use the same options for every query. TODO: Allow options changes while entering queries. 
     print("Enter command options as command separated values belows. Press 'Enter' without input to use default options.")
@@ -9,7 +16,12 @@ def main():
     # Run until told otherwise.
     while(1):
         print("Enter a SQL query (Multiple semi-colon separated queries can be accepted).")
+        print("Enter 'options' to change options.")
         rawUserQuery = input(">>> ")
+
+        if changeSettings(rawUserQuery):
+            opts = input(">>> ")
+
         handleQuery(opts, rawUserQuery)
 
 
