@@ -111,6 +111,8 @@ class SkyhookSQLParser():
             statements = sqlparse.split(self.rawQuery)
             print(statements)
             for cmd in statements:
+                if cmd == '':
+                    continue # Skip if query empty to avoid IndexError (temp fix) 
                 parsed = sqlparse.parse(cmd)[0]
                 queryInfo = extractQueryInfo(parsed)
                 listQuery = formatQueryTupleToList(queryInfo)

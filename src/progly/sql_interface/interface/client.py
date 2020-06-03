@@ -25,7 +25,9 @@ def main():
 
         if rawUserQuery.split()[0] == 'file': 
             print(rawUserQuery)
-            for file in rawUserQuery.split(' ', 1)[1]: 
+            for file in rawUserQuery.split(' ', 1)[1].split():
+                print(rawUserQuery.split(' ', 1)[1])
+                print(file)
                 with open(file) as f: 
                     # Max 10MB. TODO: Implement lazy method with 'yield' to read file piece by piece for large files
                     size = 1024  
