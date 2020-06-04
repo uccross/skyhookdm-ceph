@@ -269,11 +269,19 @@ if(WITH_EMBEDDED)
   merge_static_libraries(cephd_cls cephd_cls_base liblua)
 endif()
 
+set(WASMER_LIB "/mnt/sda4/skyhookdm-ceph/src/cls/wasm/libiwasm.so")
+
 # skyhookdb cls_tabular
 add_library(cls_tabular SHARED tabular/cls_tabular.cc tabular/cls_tabular_utils.cc)
-target_link_libraries(cls_tabular re2 arrow parquet Boost::date_time)
+target_link_libraries(cls_tabular re2 arrow parquet Boost::date_time ${WASMER_LIB})
 set_target_properties(cls_tabular PROPERTIES VERSION "1.0.0" SOVERSION "1")
 install(TARGETS cls_tabular DESTINATION ${cls_dir})
+
+# skyhookdb cls_wasm
+add_library(cls_wasm SHARED wasm/cls_wasm.cc tabular/cls_tabular_utils.cc)
+target_link_libraries(cls_wasm re2 arrow parquet Boost::date_time ${WASMER_LIB})
+set_target_properties(cls_wasm PROPERTIES VERSION "1.0.0" SOVERSION "1")
+install(TARGETS cls_wasm DESTINATION ${cls_dir})
 
 # skyhook flatflex writer
 add_executable(sky_tabular_flatflex_writer tabular/sky_tabular_flatflex_writer.cc  tabular/cls_tabular_utils.cc)

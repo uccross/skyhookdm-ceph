@@ -20,6 +20,12 @@
 #include "cls_tabular_utils.h"
 #include "cls_tabular.h"
 
+#include "../wasm/wasm_export.h"
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <iostream>
+#include <fstream>
+
 CLS_VER(1,0)
 CLS_NAME(tabular)
 
@@ -38,6 +44,15 @@ cls_method_handle_t h_inittable_group_obj_query_op;
 cls_method_handle_t h_getlockobj_query_op;
 cls_method_handle_t h_acquirelockobj_query_op;
 cls_method_handle_t h_createlockobj_query_op;
+
+
+int bldr_size = 1024;
+flatbuffers::FlatBufferBuilder result_builder(bldr_size);
+char* meta_blob_data;
+int meta_blob_size;
+
+char* errmsg_ptr = (char*) calloc(256, sizeof(char));
+
 
 void cls_log_message(std::string msg, bool is_err = false, int log_level = 20) {
     if (is_err)
@@ -63,6 +78,558 @@ static inline uint64_t getns()
 static std::string string_ncopy(const char* buffer, std::size_t buffer_size) {
   const char* copyupto = std::find(buffer, buffer + buffer_size, 0);
   return std::string(buffer, copyupto);
+}
+
+extern "C" {
+  //char *bh_read_file_to_buffer(const char *filename, int *ret_size);
+  void _bh_log() {}
+  int foo(wasm_exec_env_t exec_env , int a, int b)
+{
+    CLS_LOG(20,"In foo function");
+    return a+b;
+}
+
+void foo2(wasm_exec_env_t exec_env, 
+          uint32_t msg_offset, 
+          uint32_t buffer_offset, 
+          int32_t buf_len)
+{
+    wasm_module_inst_t module_inst = get_module_inst(exec_env);
+    char *buffer;
+    char * msg ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset))
+        return;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset, buf_len))
+        return;
+
+    // do address conversion
+    buffer = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset);
+    msg = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset);
+
+    strncpy(buffer, msg, buf_len);
+}
+
+int processSkyFbWASM2(
+        char* _flatbldr,
+        int _flatbldr_len,
+        char* _data_schema,
+        int _data_schema_len,
+        char* _query_schema,
+        int _query_schema_len,
+        char* _preds,
+        int _preds_len,
+        char* _fb,
+        int _fb_size,
+        char* _errmsg,
+        int _errmsg_len,
+        int* _row_nums,
+        int _row_nums_size)
+{
+    
+
+    using namespace Tables;
+    
+    _flatbldr = reinterpret_cast<char*>(&result_builder);
+    flatbuffers::FlatBufferBuilder *flatbldr = (flatbuffers::FlatBufferBuilder*) _flatbldr;
+
+    // query params strings to skyhook types.
+    schema_vec data_schema = schemaFromString(std::string(_data_schema, _data_schema_len));
+    std::string s = schemaToString(data_schema);
+    
+    schema_vec query_schema = schemaFromString(std::string(_query_schema, _query_schema_len));
+    std::string st = schemaToString(query_schema);
+    
+    predicate_vec preds = predsFromString(data_schema, std::string(_preds, _preds_len));
+    //std::string predsToString(predicate_vec &preds, schema_vec &schema) {
+    std::string st2 = predsToString(preds,data_schema);
+
+    _fb = meta_blob_data;
+    _fb_size = meta_blob_size;
+    _errmsg = errmsg_ptr;
+
+    // this is the in-mem data (as a flatbuffer)
+    const char* fb = _fb;
+    int fb_size = _fb_size;
+
+    std::string errmsg;
+
+    // row_nums array represents those found by an index, if any.
+    std::vector<uint32_t> row_nums(&_row_nums[0], &_row_nums[_row_nums_size]);
+
+    int errcode = 0;
+    delete_vector dead_rows;
+    std::vector<flatbuffers::Offset<Tables::Record>> offs;
+    sky_root root = getSkyRoot(fb, fb_size, SFT_FLATBUF_FLEX_ROW);
+    
+
+    int col_idx_max = -1;
+    for (auto it=data_schema.begin(); it!=data_schema.end(); ++it) {
+        if (it->idx > col_idx_max)
+            col_idx_max = it->idx;
+    }
+
+    bool project_all = std::equal(data_schema.begin(), data_schema.end(),
+                                  query_schema.begin(), compareColInfo);
+
+    // build the flexbuf with computed aggregates, aggs are computed for
+    // each row that passes, and added to flexbuf after loop below.
+    bool encode_aggs = false;
+    if (hasAggPreds(preds)) encode_aggs = true;
+    bool encode_rows = !encode_aggs;
+
+    // determines if we process specific rows (from index lookup) or all rows
+    bool process_all_rows = false;
+    uint32_t nrows = 0;
+    if (row_nums.empty()) {         // default is empty, so process them all
+        process_all_rows = true;
+        nrows = root.nrows;
+    }
+    else {
+        process_all_rows = false;  // process only specific rows
+        nrows = row_nums.size();
+    }
+
+    for (uint32_t i = 0; i < nrows; i++){
+        // process row i or the specified row number
+        uint32_t rnum = 0;
+        if (process_all_rows) rnum = i;
+        else rnum = row_nums[i];
+
+        if (rnum > root.nrows) {
+            errmsg += "ERROR: rnum(" + std::to_string(rnum) +
+                      ") > root.nrows(" + to_string(root.nrows) + ")";
+            //  copy finite len errmsg into caller's char ptr
+            size_t len = _errmsg_len;
+            if(errmsg.length()+1 < len)
+                len = errmsg.length()+1;
+            strncpy(_errmsg, errmsg.c_str(), len);
+            return RowIndexOOB;
+        }
+
+        // skip dead rows.
+        if (root.delete_vec[rnum] == 1) continue;
+        sky_rec rec = getSkyRec(static_cast<row_offs>(root.data_vec)->Get(rnum));
+        
+        // apply predicates to this record
+        if (!preds.empty()) {
+            bool pass = applyPredicates(preds, rec);
+            if (!pass) continue;  // skip non matching rows.
+        }        
+        
+        
+        if (!encode_rows) continue;
+
+        if (project_all) {
+            // TODO:  just pass through row table offset to new data_vec
+            // (which is also type offs), do not rebuild row table and flexbuf
+        }
+        
+        auto row = rec.data.AsVector();
+
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flatbuffers::Offset<flatbuffers::Vector<unsigned char>> datavec;
+
+        flexbldr->Vector([&]() {
+
+            // iter over the query schema, locating it within the data schema
+            for (auto it=query_schema.begin();
+                      it!=query_schema.end() && !errcode; ++it) {
+                col_info col = *it;
+                
+                if (col.idx < AGG_COL_LAST or col.idx > col_idx_max) {
+                    errcode = TablesErrCodes::RequestedColIndexOOB;
+                    errmsg.append("ERROR processSkyFb(): table=" +
+                            root.table_name + "; rid=" +
+                            std::to_string(rec.RID) + " col.idx=" +
+                            std::to_string(col.idx) + " OOB.");
+
+                } else {
+
+                    switch(col.type) {  // encode data val into flexbuf
+
+                        case SDT_INT8:
+                            flexbldr->Add(row[col.idx].AsInt8());
+                            break;
+                        case SDT_INT16:
+                            flexbldr->Add(row[col.idx].AsInt16());
+                            break;
+                        case SDT_INT32:
+                            flexbldr->Add(row[col.idx].AsInt32());
+                            break;
+                        case SDT_INT64:
+                            flexbldr->Add(row[col.idx].AsInt64());
+                            break;
+                        case SDT_UINT8:
+                            flexbldr->Add(row[col.idx].AsUInt8());
+                            break;
+                        case SDT_UINT16:
+                            flexbldr->Add(row[col.idx].AsUInt16());
+                            break;
+                        case SDT_UINT32:
+                            flexbldr->Add(row[col.idx].AsUInt32());
+                            break;
+                        case SDT_UINT64:
+                            flexbldr->Add(row[col.idx].AsUInt64());
+                            break;
+                        case SDT_CHAR:
+                            flexbldr->Add(row[col.idx].AsInt8());
+                            break;
+                        case SDT_UCHAR:
+                            flexbldr->Add(row[col.idx].AsUInt8());
+                            break;
+                        case SDT_BOOL:
+                            flexbldr->Add(row[col.idx].AsBool());
+                            break;
+                        case SDT_FLOAT:
+                            flexbldr->Add(row[col.idx].AsFloat());
+                            break;
+                        case SDT_DOUBLE:
+                            flexbldr->Add(row[col.idx].AsDouble());
+                            break;
+                        case SDT_DATE:
+                            flexbldr->Add(row[col.idx].AsString().str());
+                            break;
+                        case SDT_STRING:
+                            flexbldr->Add(row[col.idx].AsString().str());
+                            break;
+                        default: {
+                            errcode = TablesErrCodes::UnsupportedSkyDataType;
+                            errmsg.append("ERROR processSkyFb(): table=" +
+                                    root.table_name + "; rid=" +
+                                    std::to_string(rec.RID) + " col.type=" +
+                                    std::to_string(col.type) +
+                                    " UnsupportedSkyDataType.");
+                        }
+                    }
+                }
+            }
+        });
+        
+        flexbldr->Finish();
+        long long int row_limit;
+        std::atomic<long long int> row_counter;
+        row_counter += printFlatbufFlexRowAsCsv(
+                    fb,
+                    fb_size,
+                    true,
+                    true,
+                    row_limit - row_counter);
+        
+        auto row_data = flatbldr->CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
+        // TODO: update nullbits
+        auto nullbits = flatbldr->CreateVector(rec.nullbits);
+        flatbuffers::Offset<Tables::Record> row_off = \
+                Tables::CreateRecord(*flatbldr, rec.RID, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
+        
+        errmsg.append("ERROR processSkyFb() : !encode_aggs");
+
+    }
+
+    if (encode_aggs){
+        PredicateBase* pb;
+        flexbuffers::Builder *flexbldr = new flexbuffers::Builder();
+        flexbldr->Vector([&]() {
+            for (auto itp = preds.begin(); itp != preds.end(); ++itp) {
+
+                // assumes preds appear in same order as return schema
+                if (!(*itp)->isGlobalAgg()) continue;
+                pb = *itp;
+                switch(pb->colType()) {  // encode agg data val into flexbuf
+                    case SDT_INT64: {
+                        TypedPredicate<int64_t>* p = \
+                                dynamic_cast<TypedPredicate<int64_t>*>(pb);
+                        int64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
+                        break;
+                    }
+                    case SDT_UINT32: {
+                        TypedPredicate<uint32_t>* p = \
+                                dynamic_cast<TypedPredicate<uint32_t>*>(pb);
+                        uint32_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
+                        break;
+                    }
+                    case SDT_UINT64: {
+                        TypedPredicate<uint64_t>* p = \
+                                dynamic_cast<TypedPredicate<uint64_t>*>(pb);
+                        uint64_t agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
+                        break;
+                    }
+                    case SDT_FLOAT: {
+                        TypedPredicate<float>* p = \
+                                dynamic_cast<TypedPredicate<float>*>(pb);
+                        float agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
+                        break;
+                    }
+                    case SDT_DOUBLE: {
+                        TypedPredicate<double>* p = \
+                                dynamic_cast<TypedPredicate<double>*>(pb);
+                        double agg_val = p->Val();
+                        flexbldr->Add(agg_val);
+                        p->updateAgg(0);  // reset accumulated add val
+                        break;
+                    }
+                    default:  assert(UnsupportedAggDataType==0);
+                }
+            }
+        });
+
+        flexbldr->Finish();
+
+        auto row_data = flatbldr->CreateVector(flexbldr->GetBuffer());
+        delete flexbldr;
+
+        // assume no nullbits in the agg results. ?
+        nullbits_vector nb(2,0);
+        auto nullbits = flatbldr->CreateVector(nb);
+        int RID = -1;  // agg recs only, since these are derived data
+        flatbuffers::Offset<Tables::Record> row_off = \
+            Tables::CreateRecord(*flatbldr, RID, nullbits, row_data);
+
+        // Continue building the ROOT flatbuf's dead vector and rowOffsets vec
+        dead_rows.push_back(0);
+        offs.push_back(row_off);
+        errmsg.append("ERROR processSkyFb() : encode_aggs");
+    }
+    
+    
+    std::string query_schema_str;
+    for (auto it = query_schema.begin(); it != query_schema.end(); ++it) {
+        query_schema_str.append(it->toString() + "\n");
+    }
+
+    auto return_data_schema = flatbldr->CreateString(query_schema_str);
+    auto db_schema_name = flatbldr->CreateString(root.db_schema_name);
+    auto table_name = flatbldr->CreateString(root.table_name);
+    auto delete_v = flatbldr->CreateVector(dead_rows);
+    auto rows_v = flatbldr->CreateVector(offs);
+
+    auto table = CreateTable(
+        *flatbldr,
+        root.data_format_type,
+        root.skyhook_version,
+        root.data_structure_version,
+        root.data_schema_version,
+        return_data_schema,
+        db_schema_name,
+        table_name,
+        delete_v,
+        rows_v,
+        offs.size());
+
+    // NOTE: the fb may be incomplete/empty, but must finish() else internal
+    // fb lib assert finished() fails, hence we must always return a valid fb
+    // and catch any ret error code upstream
+    flatbldr->Finish(table);
+
+    
+    size_t len = _errmsg_len;
+    if(errmsg.length()+1 < len)
+        len = errmsg.length()+1;
+    strncpy(_errmsg, errmsg.c_str(), len);
+
+    return errcode;
+}
+int foo3(wasm_exec_env_t exec_env, 
+          uint32_t msg_offset, 
+          uint32_t buffer_offset, 
+          int32_t buf_len,
+          int32_t _flatbldr_len,
+          uint32_t msg_offset2, 
+          uint32_t buffer_offset2, 
+          int32_t   buf_len2,
+          int32_t _data_schema_len,
+          uint32_t msg_offset3, 
+          uint32_t buffer_offset3, 
+          int32_t buf_len3,
+          int32_t msg_length3,
+          uint32_t msg_offset4, 
+          uint32_t buffer_offset4, 
+          int32_t buf_len4,
+          int32_t msg_length4,
+          uint32_t msg_offset5, 
+          uint32_t buffer_offset5, 
+          int32_t buf_len5,
+          int32_t msg_length5,
+          uint32_t msg_offset6, 
+          uint32_t buffer_offset6, 
+          int32_t buf_len6,
+          int32_t msg_length6,
+          uint32_t msg_offset7, 
+          uint32_t buffer_offset7, 
+          int32_t buf_len7,
+          int32_t msg_length7 )
+{
+    wasm_module_inst_t module_inst = get_module_inst(exec_env);
+    char *bldrptr;
+    char * msg ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset, buf_len))
+        return 1;
+    // do address conversion
+    bldrptr = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset);
+    msg = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset);
+
+    strncpy(bldrptr, msg, buf_len);
+    
+
+    char *ds;
+    char * msg2 ;
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset2))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset2, buf_len2))
+        return 1;
+    // do address conversion
+    ds = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset2);
+    msg2 = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset2);
+
+    strncpy(ds, msg2, buf_len2);
+   
+    char *qs;
+    char * msg3 ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset3))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset3, buf_len3))
+        return 1;
+    // do address conversion
+    qs = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset3);
+    msg3 = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset3);
+
+    strncpy(qs, msg3, buf_len3);
+
+    char *qp;
+    char * msg4 ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset4))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset4, buf_len4))
+        return 1;
+    // do address conversion
+    qp = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset4);
+    msg4 = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset4);
+
+    strncpy(qp, msg4, buf_len4);
+
+    char *meta_blob;
+    char * msg5 ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset5))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset5, buf_len5))
+        return 1;
+    // do address conversion
+    meta_blob = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset5);
+    msg5 = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset5);
+
+    strncpy(meta_blob, msg, buf_len);
+
+    char *errmsgptr;
+    char * msg6 ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset6))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset6, buf_len6))
+        return 1;
+    // do address conversion
+    errmsgptr = (char *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset6);
+    msg6 = (char *) wasm_runtime_addr_app_to_native(module_inst, msg_offset6);
+
+    strncpy(errmsgptr, msg6, buf_len6);
+  
+
+    int *rownumptr;
+    int * msg7 ;
+
+    // do boundary check
+    if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset7))
+        return 1;
+    
+    if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset7, buf_len7))
+        return 1;
+    // do address conversion
+    rownumptr = (int *)wasm_runtime_addr_app_to_native(module_inst, buffer_offset7);
+    msg7 = (int *) wasm_runtime_addr_app_to_native(module_inst, msg_offset7);
+
+    *rownumptr = *msg7;
+   
+    int ret;
+
+    ret = processSkyFbWASM2(
+                                    bldrptr,
+                                    _flatbldr_len, 
+                                    ds,
+                                    _data_schema_len,
+                                    qs,
+                                    msg_length3,
+                                    qp,
+                                    msg_length4,
+                                    meta_blob,
+                                    msg_length5,
+                                    errmsgptr,
+                                    msg_length6,
+                                    rownumptr,
+                                    msg_length7);
+    
+    return ret;
+
+}
+
+void foo4(wasm_exec_env_t exec_env, 
+          uint32_t msg_offset, 
+          uint32_t buffer_offset, 
+          int32_t buf_len,
+          int32_t msg_length1)
+          {
+               wasm_module_inst_t module_inst = get_module_inst(exec_env);
+                int *buffer;
+                int * msg ;
+
+                // do boundary check
+                if (!wasm_runtime_validate_app_str_addr(module_inst, msg_offset))
+                    return;
+                
+                if (!wasm_runtime_validate_app_addr(module_inst,buffer_offset, buf_len))
+                    return;
+                // do address conversion
+                buffer = (int*) wasm_runtime_addr_app_to_native(module_inst, buffer_offset);
+                msg = (int*) wasm_runtime_addr_app_to_native(module_inst, msg_offset);
+
+                *buffer = * msg;
+                CLS_LOG(20,"In foo4 function, buffer = %d and length = %d",buffer,buf_len);
+                CLS_LOG(20,"In foo4 function, length = %d",msg_length1);
+
+          }
+
 }
 
 // Get fb_seq_num from xattr, if not present set to min val
@@ -978,13 +1545,17 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
             // data_schema is the table's current schema
             // TODO: redundant, this is also stored in the fb, extract from fb?
             schema_vec data_schema = schemaFromString(op.data_schema);
-
+            
             // query_schema is the query schema
             schema_vec query_schema = schemaFromString(op.query_schema);
 
             // predicates to be applied, if any
             predicate_vec query_preds = predsFromString(data_schema,
                                                         op.query_preds);
+
+            std::string ds = schemaToString(data_schema);
+            std::string qs = schemaToString(query_schema);
+            std::string qp = predsToString(query_preds, data_schema);
 
             // required for index plan or scan plan if index plan not chosen.
             predicate_vec index_preds;
@@ -1448,11 +2019,10 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 
                     case SFT_FLATBUF_FLEX_ROW: {
 
-                        int bldr_size = 1024;
-                        flatbuffers::FlatBufferBuilder result_builder(bldr_size);
-
+                        // int bldr_size = 1024;
+                        // flatbuffers::FlatBufferBuilder result_builder(bldr_size);
                         // temporary toggle for wasm execution testing
-                        bool wasm = false;
+                        bool wasm = true;
 
                         if (!wasm) {
                         ret = processSkyFb(result_builder,
@@ -1465,6 +2035,142 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                            row_nums);
                         }
                         else {
+
+                            char *wasm_file = NULL;
+                            uint8_t *wasm_file_buf = NULL;
+                            int wasm_file_size;
+                            wasm_module_t wasm_module = NULL;
+
+                            wasm_module_inst_t wasm_module_inst = NULL;
+                            wasm_function_inst_t func;
+                            char error_buf[128];
+                            const char *exception;
+                            uint32_t func_argv[8] = { 0 };
+                            wasm_exec_env_t exec_env;
+                            uint32_t argv2[20];
+                            uint32_t argv3[4]={0};
+
+                            char * buffer = NULL;
+                            int32_t buffer_for_wasm;
+
+                            wasm_file = "/usr/local/bin/test.wasm";
+
+                            static NativeSymbol native_symbols[] = 
+                            {
+                                EXPORT_WASM_API(foo),
+                                EXPORT_WASM_API(foo2),
+                                EXPORT_WASM_API(foo3)
+                            };
+
+                            if (!wasm_runtime_init())
+                                return 0;
+                        
+                            int n_native_symbols = sizeof(native_symbols) / sizeof(NativeSymbol);
+                            if (!wasm_runtime_register_natives("env",
+                                                        native_symbols, 
+                                                        n_native_symbols)) {
+                                return 0;
+                            }
+
+                            long size;
+
+                            ifstream file ("/usr/local/bin/test.wasm", ios::in|ios::binary|ios::ate);
+                            size = file.tellg();
+                            file.seekg (0, ios::beg);
+                            buffer = new char [size];
+                            file.read (buffer, size);
+                            file.close();
+                            wasm_file_size = (int)size;
+
+                            if (!(wasm_file_buf = (uint8_t*) buffer))
+                                return 0;
+
+                            /* load WASM module */
+                            if (!(wasm_module = wasm_runtime_load(wasm_file_buf, wasm_file_size,
+                                                                error_buf, sizeof(error_buf)))) {
+                                CLS_LOG(20,"Runtime load error ", error_buf);
+                                return 0;
+                            }
+
+                            /* instantiate the module */
+                            if (!(wasm_module_inst = wasm_runtime_instantiate(wasm_module,
+                                                                            32 * 1024, /* stack size */
+                                                                            32 * 1024,  /* heap size */
+                                                                            error_buf,
+                                                                            sizeof(error_buf)))) {
+                                CLS_LOG(20,"Instantiate error",error_buf );
+                                return 0;
+                            }
+
+                            func = wasm_runtime_lookup_function(wasm_module_inst, "_main", "(i32i32)i32");
+                            if (!func) {
+                                CLS_LOG(20,"Lookup function _main failed.");
+                                return 0;
+                            }
+
+                            exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);
+
+                            wasm_runtime_call_wasm(exec_env, func, 2, func_argv);
+                            if ((exception = wasm_runtime_get_exception(wasm_module_inst))) {
+                                CLS_LOG(20,"Got exception: ",exception);
+                                return 0;
+                            }
+
+                            func = wasm_runtime_lookup_function(wasm_module_inst, "_fib", "(i32)i32");
+                            if (!func) {
+                                CLS_LOG(20,"Lookup function _main failed." );
+                                return 0;
+                            }
+                            exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);
+
+                            func_argv[0] = 20;
+                            wasm_runtime_call_wasm(exec_env, func, 1, func_argv);
+                            if ((exception = wasm_runtime_get_exception(wasm_module_inst))) {
+                                CLS_LOG(20,"Got exception: ",exception);
+                                return 0;
+                            }
+                            CLS_LOG(20,"Call fib(20), return = %d" , func_argv[0] );
+
+                            func = wasm_runtime_lookup_function(wasm_module_inst, "_passString", "(i32)i32");
+                            if (!func) {
+                                CLS_LOG(20,"Lookup function _main failed.");
+                                return 0;
+                            }
+                            exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);
+
+                            buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 10, (void**)&buffer);
+                            if(buffer_for_wasm != 0)
+                            {
+                                strncpy(buffer, "hello", 10);	// use native address for accessing in runtime
+                                //std::cout<<"buffer : "<<buffer<<std::endl;
+                                argv2[0] = buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[1] = 10;					// the size of buffer
+                                wasm_runtime_call_wasm(exec_env, func, 2, argv2);
+                                if ((exception = wasm_runtime_get_exception(wasm_module_inst))) {
+                                    CLS_LOG(20,"Got exception:%s",exception);
+                                    return 0;
+                                }
+                            wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+                            }
+
+                            func = wasm_runtime_lookup_function(wasm_module_inst, "_sum", "(i32i32)i32");
+                            if (!func) {
+                                CLS_LOG(20,"Lookup function _sum failed.");
+                                return 0;
+                            }
+                            exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);
+
+                            func_argv[0] = 2;
+                            func_argv[1] = 20;
+
+                            wasm_runtime_call_wasm(exec_env, func, 2, func_argv);
+                            if ((exception = wasm_runtime_get_exception(wasm_module_inst))) {
+                                CLS_LOG(20,"Got exception:%s ", exception );
+                                return 0;
+                            }
+                            CLS_LOG(20,"Call _sum(2,20), return = %d",func_argv[0]);
+
+
                             // convert all params to native char or int types for wasm
                             char* bldrptr = reinterpret_cast<char*>(&result_builder);
                             std::string ds = schemaToString(data_schema);
@@ -1476,22 +2182,77 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                             int* row_nums_ptr = (int*) calloc(row_nums_size, sizeof(int));
                             std::copy(row_nums.begin(), row_nums.end(), row_nums_ptr);
 
-                            ret = processSkyFbWASM(
-                                    bldrptr,
-                                    bldr_size,
-                                    const_cast<char*>(ds.c_str()),
-                                    ds.length(),
-                                    const_cast<char*>(qs.c_str()),
-                                    qs.length(),
-                                    const_cast<char*>(qp.c_str()),
-                                    qp.length(),
-                                    const_cast<char*>(meta.blob_data),
-                                    meta.blob_size,
-                                    errmsg_ptr,
-                                    ERRMSG_MAX_LEN,
-                                    row_nums_ptr,
-                                    row_nums_size);
 
+                            meta_blob_data = const_cast<char*>(meta.blob_data);
+                            meta_blob_size = meta.blob_size;
+
+                            func = wasm_runtime_lookup_function(wasm_module_inst, "_process", "(i32i32i32i32i32i32i32i32i32i32i32i32i32i32)i32");
+                            if (!func) {
+                                CLS_LOG(20,"Lookup function _process failed.");
+                                return 0;
+                            }
+                            exec_env = wasm_runtime_create_exec_env(wasm_module_inst, 32 * 1024);
+
+                            char * bldrptr_buffer = NULL;
+                            int32_t bldrptr_buffer_for_wasm;
+                            char * ds_buffer = NULL;
+                            int ds_buffer_for_wasm;
+                            char * qs_buffer = NULL;
+                            int32_t qs_buffer_for_wasm;
+                            char * qp_buffer = NULL;
+                            int32_t qp_buffer_for_wasm;
+                            char * meta_buffer = NULL;
+                            int32_t meta_buffer_for_wasm;
+                            char * error_buffer = NULL;
+                            int32_t error_buffer_for_wasm;
+                            int * row_nums_ptr_buffer = NULL;
+                            int32_t row_nums_ptr_buffer_for_wasm;
+
+                            bldrptr_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 1000, (void**)&bldrptr_buffer);
+                            ds_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 1000, (void**)&ds_buffer);
+                            qs_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 1000, (void**)&qs_buffer);
+                            qp_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 1000, (void**)&qp_buffer);
+                            meta_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 8000, (void**)&meta_buffer);
+                            error_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 1000, (void**)&error_buffer);
+                            row_nums_ptr_buffer_for_wasm = wasm_runtime_module_malloc(wasm_module_inst, 1000, (void**)&row_nums_ptr_buffer);
+
+                            if(bldrptr_buffer_for_wasm != 0 && ds_buffer_for_wasm != 0){
+                                strncpy(bldrptr_buffer, bldrptr, sizeof(bldrptr));	// use native address for accessing in runtime
+                                strcpy(ds_buffer, ds.c_str());	// use native address for accessing in runtime
+                                strcpy(qs_buffer, qs.c_str());
+                                strcpy(qp_buffer, qp.c_str());
+                                strncpy(meta_buffer, meta_blob_data, meta_blob_size);
+                                strncpy(error_buffer, errmsg_ptr, ERRMSG_MAX_LEN);
+                                *row_nums_ptr_buffer = *row_nums_ptr;
+
+                                argv2[0] = bldrptr_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[1] = bldr_size;					// the size of buffer
+                                argv2[2] = ds_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[3] = ds.length();					// the size of buffer
+                                argv2[4] = qs_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[5] = qs.length();	
+                                argv2[6] = qp_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[7] = qp.length();
+                                argv2[8] = meta_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[9] = meta_blob_size;	
+                                argv2[10] = error_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[11] = ERRMSG_MAX_LEN;
+                                argv2[12] = row_nums_ptr_buffer_for_wasm;  	// pass the buffer address for WASM space.
+                                argv2[13] = row_nums_size;
+
+                                wasm_runtime_call_wasm(exec_env, func, 14, argv2);
+                                if ((exception = wasm_runtime_get_exception(wasm_module_inst))) {
+                                    CLS_LOG(20,"Got exception:%s",exception);
+                                    return 0;
+                                }
+                                ret = argv2[0];
+                                CLS_LOG(20,"Return value from wasm (ret) = %d",ret );
+                                
+                                wasm_runtime_module_free(wasm_module_inst, buffer_for_wasm);
+
+                                 
+
+                            }
                             errmsg.append(errmsg_ptr);
                             free(errmsg_ptr);
                             free(row_nums_ptr);
@@ -1511,6 +2272,7 @@ int exec_query_op(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
                                      reinterpret_cast<unsigned char*>(
                                             result_builder.GetBufferPointer()),
                                      result_builder.GetSize());
+                        CLS_LOG(20, "Created Buffer");
                         break;
                     }
 

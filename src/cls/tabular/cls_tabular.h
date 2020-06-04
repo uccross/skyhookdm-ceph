@@ -863,15 +863,15 @@ struct outbl_sample_info {
 };
 WRITE_CLASS_ENCODER(outbl_sample_info)
 
-struct wasm_inbl_sample_op {
+struct wasm_inbl_sample_op_tabular {
 
   std::string message;
   std::string instructions;
   int counter;
   int func_id;
 
-  wasm_inbl_sample_op() {}
-  wasm_inbl_sample_op(
+  wasm_inbl_sample_op_tabular() {}
+  wasm_inbl_sample_op_tabular(
     std::string _message,
     std::string _instructions,
     int _counter,
@@ -912,19 +912,19 @@ struct wasm_inbl_sample_op {
     return s;
   }
 };
-WRITE_CLASS_ENCODER(wasm_inbl_sample_op)
+WRITE_CLASS_ENCODER(wasm_inbl_sample_op_tabular)
 
 // Example struct to store and serialize output info that
 // can be returned from custom cls class read/write methods.
-struct wasm_outbl_sample_info {
+struct wasm_outbl_sample_info_tabular {
 
   std::string message;
   int rows_processed;
   uint64_t read_time_ns;
   uint64_t eval_time_ns;
 
-  wasm_outbl_sample_info() {}
-  wasm_outbl_sample_info(
+  wasm_outbl_sample_info_tabular() {}
+  wasm_outbl_sample_info_tabular(
     std::string _message,
     int _rows_processed,
     uint64_t _read_time_ns,
@@ -965,7 +965,7 @@ struct wasm_outbl_sample_info {
     return s;
   }
 };
-WRITE_CLASS_ENCODER(wasm_outbl_sample_info)
+WRITE_CLASS_ENCODER(wasm_outbl_sample_info_tabular)
 
 // Custom op struct for HEP data queries.
 struct hep_op {

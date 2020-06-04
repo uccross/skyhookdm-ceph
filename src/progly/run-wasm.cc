@@ -67,6 +67,11 @@ int main(int argc, char **argv)
   int example_counter;
   int example_function_id;
 
+  // web assembly
+  std::string wasm_func;
+  std::string wasm_engine;
+  std::string func_params;
+
   // HEP options
   std::string dataset_name;
   std::string file_name;
@@ -174,6 +179,10 @@ int main(int argc, char **argv)
     ("lock-obj-get", po::bool_switch(&lock_obj_get)->default_value(false), "Get table values")
     ("lock-obj-acquire", po::bool_switch(&lock_obj_acquire)->default_value(false), "Get table values")
     ("lock-obj-create", po::bool_switch(&lock_obj_create)->default_value(false), "Create Lock obj")
+    ("wasm-func", po::value<std::string>(&wasm_func)->default_value(""), "wasm function name")
+    ("wasm-engine", po::value<std::string>(&wasm_engine)->default_value(""), "wasm engine name")
+    ("func-params", po::value<std::string>(&func_params)->default_value(""), "function parameters")
+ 
  ;
 
   po::options_description all_opts("Allowed options");
@@ -1054,17 +1063,16 @@ int main(int argc, char **argv)
         if (use_cls) {  // execute a cls read method
 
             // setup and encode our op params here.
-            wasm_inbl_sample_op_tabular op;
-            op.message = "This is an wasm op";
-            op.instructions = "Wasm instructions";
-            op.counter = example_counter;
-            op.func_id = example_function_id;
+            wasm_inbl_sample_op op;
+            op.wasm_func = wasm_func;
+            op.wasm_engine = wasm_engine;
+            op.func_params = func_params;
             ceph::bufferlist inbl;
             ::encode(op, inbl);
 
             // execute our example method on the object, passing in our op.
             int ret = ioctx.aio_exec(oid, s->c,
-                "tabular", "wasm_query_op", inbl, &s->bl);
+                "wasm", "wasm_query_op", inbl, &s->bl);
             checkret(ret, 0);
         }
         else {  // execute standard read

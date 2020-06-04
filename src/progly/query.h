@@ -16,6 +16,7 @@
 #include "include/rados/librados.hpp"
 #include "cls/tabular/cls_tabular.h"
 #include "cls/tabular/cls_tabular_utils.h"
+#include "cls/wasm/cls_wasm.h"
 #include "re2/re2.h"
 
 extern inline uint64_t __getns(clockid_t clock)
