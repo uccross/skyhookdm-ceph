@@ -17,38 +17,44 @@ class SkyhookSQLParser():
         return
 
     def checkOpts(self, opts):
-        def parseOpts(opts):
-            opts = ''.join(opts.split())
-            opt_list = opts.split(",")
-            if len(opt_list) == 1:
-                self.command = self.default_command
-                return
-            if len(opt_list) > 4:
-                raise ValueError('Incorrect number of options set.')
-            if opt_list[2] == 'N' and opt_list[3] == 'N':
-                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" '
-            if opt_list[2] == 'Y' and opt_list[3] == 'Y':
-                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls --quiet '
-            if opt_list[2] == 'Y' and opt_list[3] == 'N':
-                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls '
-            if opt_list[2] == 'N' and opt_list[3] == 'Y':
-                self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --quiet '
+        # def parseOpts(opts):
+
+        #     opts = ''.join(opts.split())
+        #     opt_list = opts.split(",")
+        #     if len(opt_list) == 1:
+        #         self.command = self.default_command
+        #         return
+        #     if len(opt_list) > 4:
+        #         raise ValueError('Incorrect number of options set.')
+        #     if opt_list[2] == 'N' and opt_list[3] == 'N':
+        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" '
+        #     if opt_list[2] == 'Y' and opt_list[3] == 'Y':
+        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls --quiet '
+        #     if opt_list[2] == 'Y' and opt_list[3] == 'N':
+        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls '
+        #     if opt_list[2] == 'N' and opt_list[3] == 'Y':
+        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --quiet '
         
-        parseOpts(opts)
+        # parseOpts(opts)
+        self.command = 'bin/run-query ' + '--num-objs ' + opts['num-objs'] + ' --pool ' + opts['pool'] + ' --oid-prefix \"public\" '
+        if opts['cls']:
+            self.command = self.command + '--use-cls '
+        if opts['quiet']:
+            self.command = self.command + '--quiet '
         return
     
     def parseQuery(self):
         def extractQueryInfo(parsed):
-            def extract_where(parsed):
-                    where_seen = False
-                    for item in parsed.tokens:
-                        if where_seen:
-                            if item.ttype is Where:
-                                return
-                            else:
-                                yield item
-                        elif item.ttype is Where and item.value.upper() == 'WHERE':
-                            where_seen = True
+            # def extract_where(parsed):
+            #         where_seen = False
+            #         for item in parsed.tokens:
+            #             if where_seen:
+            #                 if item.ttype is Where:
+            #                     return
+            #                 else:
+            #                     yield item
+            #             elif item.ttype is Where and item.value.upper() == 'WHERE':
+            #                 where_seen = True
 
             def extract_from(parsed):
                     from_seen = False
@@ -111,7 +117,7 @@ class SkyhookSQLParser():
                 queryInfo = extractQueryInfo(parsed)
                 listQuery = formatQueryTupleToList(queryInfo)
                 if listQuery[1] == '':
-                    self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0], listQuery[1]))
+                    self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
                 else:
                     self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
             return
