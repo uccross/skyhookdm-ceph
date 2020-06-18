@@ -17,26 +17,7 @@ class SkyhookSQLParser():
         return
 
     def checkOpts(self, opts):
-        # def parseOpts(opts):
-
-        #     opts = ''.join(opts.split())
-        #     opt_list = opts.split(",")
-        #     if len(opt_list) == 1:
-        #         self.command = self.default_command
-        #         return
-        #     if len(opt_list) > 4:
-        #         raise ValueError('Incorrect number of options set.')
-        #     if opt_list[2] == 'N' and opt_list[3] == 'N':
-        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" '
-        #     if opt_list[2] == 'Y' and opt_list[3] == 'Y':
-        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls --quiet '
-        #     if opt_list[2] == 'Y' and opt_list[3] == 'N':
-        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls '
-        #     if opt_list[2] == 'N' and opt_list[3] == 'Y':
-        #         self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --quiet '
-        
-        # parseOpts(opts)
-        self.command = 'bin/run-query ' + '--num-objs ' + opts['num-objs'] + ' --pool ' + opts['pool'] + ' --oid-prefix \"public\" '
+        self.command = 'bin/run-query ' + '--num-objs ' + str(opts["num_objs"]) + ' --pool ' + opts["pool"] + ' --oid-prefix \"public\" '
         if opts['cls']:
             self.command = self.command + '--use-cls '
         if opts['quiet']:

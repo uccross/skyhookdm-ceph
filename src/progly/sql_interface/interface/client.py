@@ -47,7 +47,7 @@ def main():
         if rawUserQuery == 'help':
             prettyPrintHelp()
             continue
-
+        opts = vars(options)
         if rawUserQuery.split()[0] == 'file': 
             print(rawUserQuery)
             for file in rawUserQuery.split(' ', 1)[1].split():
@@ -57,7 +57,7 @@ def main():
                     # Max 10MB. TODO: Implement lazy method with 'yield' to read file piece by piece for large files
                     size = 1024  
                     read_queries = f.read(size)
-                handleQuery(options, read_queries)
+                handleQuery(opts, read_queries)
             continue
 
         handleQuery(opts, rawUserQuery)
