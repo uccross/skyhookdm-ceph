@@ -1,5 +1,5 @@
 import sqlparse
-from sqlparse.tokens import Keyword, DML, Where
+from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier
 import os
 
@@ -9,7 +9,7 @@ class SkyhookSQLParser():
         self.opt_list = None
         self.command = None
         self.command_list = []
-        self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --use-cls'
+        self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --use-cls '
 
 
     def clearPreviousQuery(self):
@@ -82,12 +82,12 @@ class SkyhookSQLParser():
 
             select_stream = extract_select(parsed)
             from_stream = extract_from(parsed)
-            where_stream = extract_where(parsed)
+            # where_stream = extract_where(parsed)
 
             select_list = list(extract_identifiers(select_stream))
             from_list = list(extract_identifiers(from_stream))
-            where_stream = list(extract_identifiers(where_stream))
-            return (select_list, from_list, where_stream)
+            #where_stream = list(extract_identifiers(where_stream))
+            return (select_list, from_list) # where_stream)
         
         def formatQueryTupleToList(queryInfo):
             listQuery, formattedList = [], []
