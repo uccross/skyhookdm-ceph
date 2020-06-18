@@ -1,5 +1,5 @@
 import sqlparse
-from sqlparse.tokens import Keyword, DML
+from sqlparse.tokens import Keyword, DML, Where
 from sqlparse.sql import IdentifierList, Identifier
 import os
 
@@ -9,7 +9,7 @@ class SkyhookSQLParser():
         self.opt_list = None
         self.command = None
         self.command_list = []
-        self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" '
+        self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --use-cls'
 
 
     def clearPreviousQuery(self):
@@ -22,11 +22,9 @@ class SkyhookSQLParser():
             opt_list = opts.split(",")
             if len(opt_list) == 1:
                 self.command = self.default_command
-                print('Current command: ' + self.command)
                 return
             if len(opt_list) > 4:
                 raise ValueError('Incorrect number of options set.')
-            print(opt_list)
             if opt_list[2] == 'N' and opt_list[3] == 'N':
                 self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" '
             if opt_list[2] == 'Y' and opt_list[3] == 'Y':
@@ -35,7 +33,6 @@ class SkyhookSQLParser():
                 self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --use-cls '
             if opt_list[2] == 'N' and opt_list[3] == 'Y':
                 self.command = 'bin/run-query ' + '--num-objs ' + opt_list[0] + ' --pool ' + opt_list[1] + ' --oid-prefix \"public\" --quiet '
-            print(self.command)
         
         parseOpts(opts)
         return
@@ -46,11 +43,11 @@ class SkyhookSQLParser():
                     where_seen = False
                     for item in parsed.tokens:
                         if where_seen:
-                            if item.ttype is Keyword:
+                            if item.ttype is Where:
                                 return
                             else:
                                 yield item
-                        elif item.ttype is Keyword and item.value.upper() == 'WHERE':
+                        elif item.ttype is Where and item.value.upper() == 'WHERE':
                             where_seen = True
 
             def extract_from(parsed):
@@ -65,15 +62,15 @@ class SkyhookSQLParser():
                             from_seen = True
 
             def extract_select(parsed):
-                from_seen = False
+                select_seen = False
                 for item in parsed.tokens:
-                    if from_seen:
+                    if select_seen:
                         if item.ttype is Keyword:
                             return
                         else:
                             yield item
                     elif item.ttype is DML and item.value.upper() == 'SELECT':
-                        from_seen = True
+                        select_seen = True
 
             def extract_identifiers(token_stream):
                 for item in token_stream:
@@ -83,7 +80,6 @@ class SkyhookSQLParser():
                     elif isinstance(item, Identifier):
                         yield item.get_name()
 
-            print(parsed.tokens)
             select_stream = extract_select(parsed)
             from_stream = extract_from(parsed)
             where_stream = extract_where(parsed)
@@ -104,12 +100,10 @@ class SkyhookSQLParser():
                     if char in " []'":
                         element = element.replace(char,'')
                 formattedList.append(element)
-            print("FORMATTED LIST: formattedList")
             return formattedList
         
         def transformQuery():
             statements = sqlparse.split(self.rawQuery)
-            print(statements)
             for cmd in statements:
                 if cmd == '':
                     continue # Skip if query empty to avoid IndexError (temp fix) 
@@ -126,7 +120,6 @@ class SkyhookSQLParser():
         return
 
     def execQuery(self, cmd):
-        print('Executing command: ' + cmd)
         prog = 'cd ~/skyhookdm-ceph/build/ && '
         result = os.popen(prog + cmd).read()
         print(result)
