@@ -6,16 +6,25 @@ def changeSettings(input):
     else: 
         return False
 
-def main(): 
-    print("Enter options as comma separated values belows. Press 'Enter' without input to use default options.")
-    print("Options (must be in this order): [num_objs],[pool_name]") # TODO: --use-cls and --quiet 
-    print("Example: 2, tpchdata")
-    opts = input(">>> ")
+def prettyPrintIntro():
+    print('{:^100}'.format("Welcome to the Skyhook SQL Client Application")) 
+    print('{:^100}'.format("---------------------------------------------"))
+    print('{:>10}'.format("Here you can enter SQL queries such as: "))
+    print('{:^50}'.format("\t\tSELECT * FROM lineitem; SELECT orderkey, tax, comment FROM lineitem\n"))
+    print('{:^50}'.format("In order to change options enter 'options'; otherwise, if you need help enter 'help'\n"))
 
+    #print("Enter options as comma separated values belows. Press 'Enter' without input to use default options.")
+    #print("Options (must be in this order): [num_objs],[pool_name]") # TODO: --use-cls and --quiet 
+    #print("Example: 2, tpchdata")
+
+def main():
+    prettyPrintIntro()
+    opts = input(">>> ")
+    print("Enter a SQL query (Multiple semi-colon separated queries can be accepted).")
+    # print("Enter 'options' to change options. Enter 'file [file_1] ...' to use one or more SQL files.") # TODO: Formatting for changings options and using SQL files
+    
     # Run until told otherwise.
     while(1):
-        print("Enter a SQL query or SQL file (Multiple semi-colon separated queries can be accepted).")
-        # print("Enter 'options' to change options. Enter 'file [file_1] ...' to use one or more SQL files.") # TODO: Formatting for changings options and using SQL files
         rawUserQuery = input(">>> ")
 
         if changeSettings(rawUserQuery):
