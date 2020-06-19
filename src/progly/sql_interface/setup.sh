@@ -1,10 +1,5 @@
-echo "Updating. Installing python-pip3 and sqlparse module"
-# sudo apt-get update 
-apt-get install python-pip3 -y
-pip3 install sqlparse
-
 echo "Creating storage pool"
-ceph osd pool create tpchdata 128 128 replicated;
+bin/rados mkpool tpchdata;
 
 echo "Getting FLATBUF_FLEX_ROW test data"
 OBJ_TYPE=SFT_FLATBUF_FLEX_ROW; 
