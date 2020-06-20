@@ -1,7 +1,9 @@
 import unittest
 import os 
 import sys
-from interface.client import prettyPrintHelp, prettyPrintIntro
+
+# TODO: Setup venv for running sql client to get tests working 
+#  from interface.client import prettyPrintHelp, prettyPrintIntro
 
 class TestBasicQueries(unittest.TestCase): 
     def test_a_projection(self):

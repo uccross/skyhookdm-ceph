@@ -1,12 +1,19 @@
 ## Current Support
-This is an experimental project at this time. As such, only a small factor of SQL syntax is support as of now. 
+We support a small factor of SQL syntax at this time. Currently, we generate Skyhook queries and pushdown projections via a SQL statement such as: 
 
-Currently, SELECT-FROM query statements are supported. 
+* SELECT a,b FROM t; 
 
-## Upcoming Updates
-* `WHERE` and `LIKE` clause support
-* Subquery support in `WHERE` clauses. 
-* Options for --use-cls, --quiet. 
-* Basic aggregation queries.
-* Fix issue joins in `FROM` clauses to be comma separate strings when parsed.
-* Support for SQL files as an alternative to python shell.
+### Features Supported
+
+* Projection queries (`SELECT ... FROM ...`)
+* Setting options at execution time (`python3 client.py [OPTIONS]`)
+* Showing data schema (`DESCRIBE <tablename>`)
+
+### Upcoming Updates
+
+* Compound `WHERE` (`AND`/`OR`)
+* `LIKE` support
+* Aggregation queries
+* SQL file input
+* Subqueries 
+* Updating options 

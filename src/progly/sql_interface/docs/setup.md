@@ -1,11 +1,7 @@
-## Setup
-Run setup.sh to perform the following steps: 
-1. Install pip3 (if not already installed).
-2. Install SQLParse dependency for the project.
-3. Create a storage pool.
-4. Get and Store test data. 
+### Setup SkyhookDM SQL Client
 
-Steps 3. and 4. are the same as found in the Run Test Queries wiki page.
- 
-## Startup  
-Run startup.sh to start python shell for SQL interface.
+(Assuming you have already past the build stage and ready to run test queries)
+
+* Run the setup.sh script to check and install depdencies and create ceph pool with test data.
+
+* Run startup.sh to start python shell for SQL interface.

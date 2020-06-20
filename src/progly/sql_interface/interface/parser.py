@@ -1,11 +1,12 @@
+import os
+import logging
 import sqlparse
 from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier
-import os
 
 class SkyhookSQLParser():
-    def __init__(self, rawUserQuery):
-        self.rawQuery = rawUserQuery
+    def __init__(self, rawUserInput):
+        self.rawQuery = rawUserInput
         self.opt_list = None
         self.command = None
         self.command_list = []
@@ -122,10 +123,13 @@ Assumptions:
 - Assumes working in skyhookdm-ceph/src/progly/sql_interface
 - Assumes you are working with a physical OSD 
 '''
-def handleQuery(userOpts, rawUserQuery):
-    skObj = SkyhookSQLParser(rawUserQuery)
-    skObj.checkOpts(userOpts)
-    skObj.parseQuery()
-    for cmd in skObj.command_list:
-        skObj.execQuery(cmd)
-        skObj.clearPreviousQuery()
+def handleQuery(userOpts, rawUserInput):
+    assert isinstance(rawUserInput, str), 'Expected str'
+    assert isinstance(userOpts, dict), 'Expected dict'
+
+    skyObj = SkyhookSQLParser(rawUserInput) 
+    skyObj.checkOpts(userOpts)
+    skyObj.parseQuery()
+    for cmd in skyObj.command_list:
+        skyObj.execQuery(cmd)
+        skyObj.clearPreviousQuery()
