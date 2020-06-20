@@ -1,1 +1,1 @@
-python3 /client/client.py
+python3 interface/client.py

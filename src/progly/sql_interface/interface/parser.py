@@ -18,8 +18,8 @@ class SkyhookSQLParser():
         return
 
     def checkOpts(self, opts):
-        self.command = 'bin/run-query ' + '--num-objs ' + str(opts["num_objs"]) + ' --pool ' + opts["pool"] + ' --oid-prefix \"public\" '
-        if opts['cls']:
+        self.command = 'bin/run-query ' + '--num-objs ' + str(opts["num-objs"]) + ' --pool ' + opts["pool"] + ' --oid-prefix \"public\" '
+        if opts['use-cls']:
             self.command = self.command + '--use-cls '
         if opts['quiet']:
             self.command = self.command + '--quiet '
@@ -127,7 +127,7 @@ def handleQuery(userOpts, rawUserInput):
     assert isinstance(rawUserInput, str), 'Expected str'
     assert isinstance(userOpts, dict), 'Expected dict'
 
-    skyObj = SkyhookSQLParser(rawUserInput) 
+    skyObj = SkyhookSQLParser(rawUserInput)
     skyObj.checkOpts(userOpts)
     skyObj.parseQuery()
     for cmd in skyObj.command_list:
