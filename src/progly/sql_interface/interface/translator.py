@@ -176,8 +176,8 @@ Assumptions:
 - Assumes you are working with a physical OSD 
 '''
 def handleQuery(userOpts, rawUserInput):
-    assert isinstance(rawUserInput, str), 'Expected str'
-    assert isinstance(userOpts, dict), 'Expected dict'
+    assert isinstance(rawUserInput, str), "Expected str"
+    assert isinstance(userOpts, dict), "Expected dict"
 
     skyObj = SkyhookSQLParser(rawUserInput)
     skyObj.checkOpts(userOpts)

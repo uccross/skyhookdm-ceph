@@ -9,4 +9,4 @@ you have already completed the build steps to make SkyhookDM-Ceph and are ready 
 
 * Run `startup.sh` to run the client 
 
-* For custom options do not run `startup.sh`, and instead navigate to `interface/` to run `python3 client.py [OPTIONS]`
+* For custom options do not run `startup.sh`, and instead run `python3 -m interface.client -h` to show options. 
