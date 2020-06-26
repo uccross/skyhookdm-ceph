@@ -2,7 +2,7 @@ import os
 import logging
 import sqlparse
 from sqlparse.tokens import Keyword, DML
-from sqlparse.sql import IdentifierList, Identifier
+from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis, Comparison
 
 class SkyhookSQLParser():
     def __init__(self, rawUserInput):
@@ -27,16 +27,65 @@ class SkyhookSQLParser():
     
     def parseQuery(self):
         def extractQueryInfo(parsed):
-            # def extract_where(parsed):
-            #         where_seen = False
-            #         for item in parsed.tokens:
-            #             if where_seen:
-            #                 if item.ttype is Where:
-            #                     return
-            #                 else:
-            #                     yield item
-            #             elif item.ttype is Where and item.value.upper() == 'WHERE':
-            #                 where_seen = True
+            def extract_where(parsed):
+                # TODO: Order of allowableOps matters, fix this  
+                allowableOps = ['>=', '<=', '!=', '<>','=', '>', '<']
+                opsStrDict = {allowableOps[0]: 'geq',
+                              allowableOps[1]: 'leq',
+                              allowableOps[2]: 'neq',
+                              allowableOps[3]: 'neq',
+                              allowableOps[4]: 'eq',
+                              allowableOps[5]: 'gt',
+                              allowableOps[6]: 'lt'}
+                matched_op = False
+                try:
+                    where_tokens = []
+                    for item in parsed.tokens:
+                        if isinstance(item, Where):
+                            for i in item.tokens:
+                                if isinstance(i, Comparison):
+                                    for op in allowableOps:
+                                        if matched_op:
+                                            break
+                                        if op in str(i):
+                                            where_tokens.append(opsStrDict[op])
+                                            matched_op = True
+                                    where_tokens.append(i.left)
+                                    where_tokens.append(i.right)
+                                    where_tokens.insert(0, 'WHERE')
+                                    return where_tokens
+                except:
+                    print("Some error occured")
+                    pass
+
+               # TODO: Implement compound WHERE clauses below  
+               # where_tokens = []
+               # identifier = None
+               # for item in parsed.tokens:
+               #     if isinstance(item, Where):
+               #         for i in item.tokens:
+               #             if isinstance(i, Comparison):
+               #                 print(i.left)
+               #             try:
+               #                 name = i.get_real_name()
+               #                 if name and isinstance(i, Identifier):
+               #                     identifier = i
+               #                 elif identifier and isinstance(i, Parenthesis):
+               #                     sql_tokens.append({
+               #                         'key': str(identifier),
+               #                         'value': token.value
+               #                     })
+               #                 elif name:
+               #                     identifier = None
+               #                     sql_tokens.append({
+               #                         'key': str(name),
+               #                         'value': u''.join(token.value for token in i.flatten()),
+               #                     })
+               #                 else:
+               #                     get_tokens(i)
+               #             except Exception as e:
+               #                 print("Passing where token")
+               #                 pass
 
             def extract_from(parsed):
                     from_seen = False
@@ -70,12 +119,12 @@ class SkyhookSQLParser():
 
             select_stream = extract_select(parsed)
             from_stream = extract_from(parsed)
-            # where_stream = extract_where(parsed)
+            where_list = extract_where(parsed)
 
             select_list = list(extract_identifiers(select_stream))
             from_list = list(extract_identifiers(from_stream))
-            #where_stream = list(extract_identifiers(where_stream))
-            return (select_list, from_list) # where_stream)
+            #where_list = list(extract_identifiers(where_list)) #TODO: Make Where extraction a generator function
+            return (select_list, from_list, where_list)
         
         def formatQueryTupleToList(queryInfo):
             listQuery, formattedList = [], []
@@ -98,7 +147,10 @@ class SkyhookSQLParser():
                 parsed = sqlparse.parse(cmd)[0]
                 queryInfo = extractQueryInfo(parsed)
                 listQuery = formatQueryTupleToList(queryInfo)
-                if listQuery[1] == '':
+
+                if queryInfo[2][0] == 'WHERE':
+                    self.command_list.append(self.command + '--table-name "{0}" --select "{1},{2},{3}" --project "{4}"'.format(listQuery[0], queryInfo[2][2], queryInfo[2][1], queryInfo[2][3], listQuery[1]))
+                elif listQuery[1] == '':
                     self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
                 else:
                     self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
