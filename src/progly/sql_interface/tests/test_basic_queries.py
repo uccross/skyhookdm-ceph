@@ -3,15 +3,15 @@ import os
 import sys
 
 # TODO: Setup venv for running sql client to get tests working 
-#  from interface.client import prettyPrintHelp, prettyPrintIntro
+from interface.client import printHelpMsg, printIntroMsg
 
 class TestBasicQueries(unittest.TestCase): 
     def test_a_projection(self):
-        prettyPrintHelp()
+        printHelpMsg()
         return 
     
     def test_b_selection(self): 
-        prettyPrintIntro
+        printIntroMsg
         return 
 
 if __name__ == '__main__':

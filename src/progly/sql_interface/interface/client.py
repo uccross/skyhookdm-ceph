@@ -1,6 +1,6 @@
 import re
 import sys
-from parser import handleQuery 
+from .translator import handleQuery
 from optparse import OptionParser
 
 def changeOptions(optsDict):
