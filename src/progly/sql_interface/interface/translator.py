@@ -32,8 +32,8 @@ class SkyhookSQLParser():
                 allowableOps = ['>=', '<=', '!=', '<>','=', '>', '<']
                 opsStrDict = {allowableOps[0]: 'geq',
                               allowableOps[1]: 'leq',
-                              allowableOps[2]: 'neq',
-                              allowableOps[3]: 'neq',
+                              allowableOps[2]: 'ne',
+                              allowableOps[3]: 'ne',
                               allowableOps[4]: 'eq',
                               allowableOps[5]: 'gt',
                               allowableOps[6]: 'lt'}
@@ -119,6 +119,7 @@ class SkyhookSQLParser():
 
             select_stream = extract_select(parsed)
             from_stream = extract_from(parsed)
+            #TODO: Only extract_where if where is present 
             where_list = extract_where(parsed)
 
             select_list = list(extract_identifiers(select_stream))
@@ -147,10 +148,15 @@ class SkyhookSQLParser():
                 parsed = sqlparse.parse(cmd)[0]
                 queryInfo = extractQueryInfo(parsed)
                 listQuery = formatQueryTupleToList(queryInfo)
-
-                if queryInfo[2][0] == 'WHERE':
-                    self.command_list.append(self.command + '--table-name "{0}" --select "{1},{2},{3}" --project "{4}"'.format(listQuery[0], queryInfo[2][2], queryInfo[2][1], queryInfo[2][3], listQuery[1]))
-                elif listQuery[1] == '':
+                
+                # Check first if WHERE clause exists
+                try:
+                    if queryInfo[2][0] == 'WHERE':
+                        self.command_list.append(self.command + '--table-name "{0}" --select "{1},{2},{3}" --project "{4}"'.format(listQuery[0], queryInfo[2][2], queryInfo[2][1], queryInfo[2][3], listQuery[1]))
+                        return
+                except:
+                    pass
+                if listQuery[1] == '':
                     self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
                 else:
                     self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
@@ -163,7 +169,7 @@ class SkyhookSQLParser():
         prog = 'cd ~/skyhookdm-ceph/build/ && '
         result = os.popen(prog + cmd).read()
         print(result)
-        return
+        return result
 
 '''
 Entry point of Skyhook SQL Parser.
@@ -182,6 +188,9 @@ def handleQuery(userOpts, rawUserInput):
     skyObj = SkyhookSQLParser(rawUserInput)
     skyObj.checkOpts(userOpts)
     skyObj.parseQuery()
+    result = []
     for cmd in skyObj.command_list:
-        skyObj.execQuery(cmd)
+        result.append(skyObj.execQuery(cmd))
         skyObj.clearPreviousQuery()
+    return result
+

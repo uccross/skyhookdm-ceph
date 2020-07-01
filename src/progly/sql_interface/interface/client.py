@@ -48,7 +48,7 @@ def printIntroMsg():
 def main():
     usage = "usage: python3 %prog [options]"
     optParser = OptionParser(usage)
-    optParser.add_option("-c", "--use-cls", action="store_true", dest="use-cls",
+    optParser.add_option("-c", "--use-cls", action="store_false", dest="use-cls",
         default=True, help="push execution onto storage servers using object classes")
     optParser.add_option("-q", "--quiet", action="store_true", dest="quiet",
         default=False, help="see summary of query results only")
@@ -81,17 +81,22 @@ def main():
                 continue
             if rawUserInput == 'quit':
                 break
-
+            if 'describe table' in rawUserInput:
+                tableName = rawUserInput.split(' ')[-1]
+                showTableSchema = "bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --table-name \"{0}\" --header --limit 0".format(tableName)
+                print("Executing: {0}".format(showTableSchema))
+                res = handleQuery(optsDict, showTableSchema)
+                #print("hi")
             if rawUserInput.split()[0] == 'file': 
                 for file in rawUserInput.split(' ', 1)[1].split():
                     with open(file) as f: 
                         # Max 10MB. TODO: Implement lazy method with 'yield' to read file piece by piece for large files
                         size = 1024  
                         read_queries = f.read(size)
-                    handleQuery(optsDict, read_queries)
+                    res = handleQuery(optsDict, read_queries)
                 continue
 
-            handleQuery(optsDict, rawUserInput)
+            res = handleQuery(optsDict, rawUserInput)
         except:
             continue
 
