@@ -26,6 +26,8 @@ class TestBasicQueries(unittest.TestCase):
                 'pool': 'tpchdata'}
         query = "SELECT orderkey,tax,linenumber,returnflag \
             FROM lineitem"
+        with open('/expected/test_b_expected.txt') as f:
+            expected = f.read()
         res = handleQuery(defaultOpts, query)
         time.sleep(10)
     
@@ -36,6 +38,8 @@ class TestBasicQueries(unittest.TestCase):
                 'pool': 'tpchdata'}
         query = "SELECT linenumber,returnflag \
                  FROM lineitem"
+        with open('/expected/test_c_expected.txt') as f:
+            expected = f.read()
         res = handleQuery(opts, query)
         time.sleep(10)
     
@@ -46,6 +50,8 @@ class TestBasicQueries(unittest.TestCase):
                     'pool': 'tpchdata'}
         query = "SELECT shipdate, commitdate \
                  FROM lineitem"
+        with open('/expected/test_d_expected.txt') as f:
+            expected = f.read()
         res = handleQuery(opts, query)
         time.sleep(10)
     
@@ -57,6 +63,8 @@ class TestBasicQueries(unittest.TestCase):
         query = "SELECT orderkey \
                  FROM lineitem \
                  WHERE orderkey > 3"
+        with open('/expected/test_e_expected.txt') as f:
+            expected = f.read()
         res = handleQuery(opts, query) 
         time.sleep(10)
     
@@ -68,6 +76,8 @@ class TestBasicQueries(unittest.TestCase):
         query = "SELECT orderkey,tax,linenumber,returnflag \
                  FROM lineitem \
                  WHERE orderkey <> 2"
+        with open('/expected/test_f_expected.txt') as f:
+            expected = f.read()
         res = handleQuery(opts, query)
         time.sleep(10)
     
@@ -79,6 +89,8 @@ class TestBasicQueries(unittest.TestCase):
         query = "SELECT orderkey,tax,linenumber,returnflag \
                  FROM lineitem \
                  WHERE orderkey != 2"
+        with open('/expected/test_g_expected.txt') as f:
+            expected = f.read()
         res = handleQuery(opts, query)
         time.sleep(10)
 

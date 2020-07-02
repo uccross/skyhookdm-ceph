@@ -1,42 +1,25 @@
 import os
-import logging
 import sqlparse
 from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis, Comparison
+from .skyhookhandler import SkyhookHandler
 
 class SkyhookSQLParser():
-    def __init__(self, rawUserInput):
-        self.rawQuery = rawUserInput
-        self.opt_list = None
-        self.command = None
-        self.command_list = []
-        self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --use-cls '
+    def __init__(self, raw_input):
+        self.raw_query = raw_input
 
-
-    def clear_previous_query(self):
-        self.command_list = []
-        return
-
-    def check_opts(self, opts):
-        self.command = 'bin/run-query ' + '--num-objs ' + str(opts["num-objs"]) + ' --pool ' + opts["pool"] + ' --oid-prefix \"public\" '
-        if opts['use-cls']:
-            self.command = self.command + '--use-cls '
-        if opts['quiet']:
-            self.command = self.command + '--quiet '
-        return
-    
     def parse_query(self):
         def extract_query_info(parsed):
             def extract_where(parsed):
-                # TODO: Order of allowableOps matters, fix this  
-                allowableOps = ['>=', '<=', '!=', '<>','=', '>', '<']
-                opsStrDict = {allowableOps[0]: 'geq',
-                              allowableOps[1]: 'leq',
-                              allowableOps[2]: 'ne',
-                              allowableOps[3]: 'ne',
-                              allowableOps[4]: 'eq',
-                              allowableOps[5]: 'gt',
-                              allowableOps[6]: 'lt'}
+                # TODO: Order of allowed_ops matters, fix this  
+                allowed_ops = ['>=', '<=', '!=', '<>','=', '>', '<']
+                opts_dict = {allowed_ops[0]: 'geq',
+                              allowed_ops[1]: 'leq',
+                              allowed_ops[2]: 'ne',
+                              allowed_ops[3]: 'ne',
+                              allowed_ops[4]: 'eq',
+                              allowed_ops[5]: 'gt',
+                              allowed_ops[6]: 'lt'}
                 matched_op = False
                 try:
                     where_tokens = []
@@ -44,15 +27,14 @@ class SkyhookSQLParser():
                         if isinstance(item, Where):
                             for i in item.tokens:
                                 if isinstance(i, Comparison):
-                                    for op in allowableOps:
+                                    for op in allowed_ops:
                                         if matched_op:
                                             break
                                         if op in str(i):
-                                            where_tokens.append(opsStrDict[op])
+                                            where_tokens.append(opts_dict[op])
                                             matched_op = True
-                                    where_tokens.append(i.left)
-                                    where_tokens.append(i.right)
-                                    where_tokens.insert(0, 'WHERE')
+                                    where_tokens.append(str(i.left))
+                                    where_tokens.append(str(i.right))
                                     return where_tokens
                 except:
                     print("Some error occured")
@@ -119,16 +101,19 @@ class SkyhookSQLParser():
 
             select_stream = extract_select(parsed)
             from_stream = extract_from(parsed)
-            #TODO: Only extract_where if where is present 
             where_list = extract_where(parsed)
 
             select_list = list(extract_identifiers(select_stream))
             from_list = list(extract_identifiers(from_stream))
-            #where_list = list(extract_identifiers(where_list)) #TODO: Make Where extraction a generator function
+            #TODO: Make Where extraction a generator function
+            #where_list = list(extract_identifiers(where_list)) 
+
             return (select_list, from_list, where_list)
         
         def format_query_to_tuple_list(queryInfo):
             listQuery, formattedList = [], []
+            query_dict = {}
+
             # listQuery.append(str(queryInfo[2]))
             listQuery.append(str(queryInfo[1]))
             listQuery.append(str(queryInfo[0]))
@@ -138,38 +123,43 @@ class SkyhookSQLParser():
                     if char in " []'":
                         element = element.replace(char,'')
                 formattedList.append(element)
+
+            # TODO: Handle WHERE segment as above 
+            formattedList.append(queryInfo[2])
+
             return formattedList
         
         def transform_query():
-            statements = sqlparse.split(self.rawQuery)
-            for cmd in statements:
-                if cmd == '':
-                    continue # Skip if query empty to avoid IndexError (temp fix) 
-                parsed = sqlparse.parse(cmd)[0]
-                queryInfo = extract_query_info(parsed)
-                listQuery = format_query_to_tuple_list(queryInfo)
+            statements = sqlparse.split(self.raw_query)
+            queries = []
+            for st in statements:
+                if st == '':
+                    continue # TODO: Skip EOF (Fix: cut out in client?)
+                parsed = sqlparse.parse(st)[0]
+                query_info = extract_query_info(parsed)
+                list_query = format_query_to_tuple_list(query_info)
+
+                queries.append({'table_name': list_query[0],
+                                'projection': list_query[1],
+                                'selection': list_query[2]})
+
+            return queries
                 
-                # Check first if WHERE clause exists
-                try:
-                    if queryInfo[2][0] == 'WHERE':
-                        self.command_list.append(self.command + '--table-name "{0}" --select "{1},{2},{3}" --project "{4}"'.format(listQuery[0], queryInfo[2][2], queryInfo[2][1], queryInfo[2][3], listQuery[1]))
-                        return
-                except:
-                    pass
-                if listQuery[1] == '':
-                    self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
-                else:
-                    self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
-            return
+            #     # Check first if WHERE clause exists
+            #     try:
+            #         if queryInfo[2][0] == 'WHERE':
+            #             self.command_list.append(self.command + '--table-name "{0}" --select "{1},{2},{3}" --project "{4}"'.format(listQuery[0], queryInfo[2][2], queryInfo[2][1], queryInfo[2][3], listQuery[1]))
+            #             return
+            #     except:
+            #         pass
+            #     if listQuery[1] == '':
+            #         self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
+            #     else:
+            #         self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
+            # return
 
-        transform_query()
-        return
-
-    def exec_query(self, cmd):
-        prog = 'cd ~/skyhookdm-ceph/build/ && '
-        result = os.popen(prog + cmd).read()
-        print(result)
-        return result
+        queries = transform_query()
+        return queries
 
 '''
 Entry point of Skyhook SQL Parser.
@@ -181,16 +171,29 @@ Assumptions:
 - Assumes working in skyhookdm-ceph/src/progly/sql_interface
 - Assumes you are working with a physical OSD 
 '''
-def handle_query(userOpts, rawUserInput):
-    assert isinstance(rawUserInput, str), "Expected str"
-    assert isinstance(userOpts, dict), "Expected dict"
+# TODO: Extend this! Parser and SkyhookHandler must be separate
+# in order to improve modularity. Makes no sense to create new
+# class if the parser is still intrinsically tied to it? 
+def handle_query(options, raw_input):
+    assert isinstance(raw_input, str), "Expected str"
+    assert isinstance(options, dict), "Expected dict"
 
-    skyObj = SkyhookSQLParser(rawUserInput)
-    skyObj.check_opts(userOpts)
-    skyObj.parse_query()
-    result = []
-    for cmd in skyObj.command_list:
-        result.append(skyObj.exec_query(cmd))
-        skyObj.clear_previous_query()
-    return result
+    '''
+    sk_parser handles parsing and translation to Skyhook command
+        * Parses SQL Query into respective selection, projeciton, etc parts
+        * Hands these parts to sk_handler dictionary
+        * Fills in template and sends to sk_handler runquery operations
+    '''
+    sk_parser = SkyhookSQLParser(raw_input)
 
+    '''
+    sk_handler keeps track of parsed segments, option handling, query execution,
+    and packaging dataframe objects as binaries if requested (e.g. arrow objects)
+    '''
+    sk_handler = SkyhookHandler()
+    sk_handler.check_options(options)
+
+    queries = sk_parser.parse_query()
+    results = sk_handler.run_query(queries)
+
+    return results
