@@ -182,8 +182,8 @@ def handle_query(options, raw_input):
     '''
     # DESCRIBE TABLE T
     if isinstance(raw_input, dict):
-        if 'describe' in raw_input.keys:
-            results = sk_handler.run_query(raw_input)
+        if 'describe' in raw_input.keys():
+            results = sk_handler.run_predefined(raw_input['describe'])
             return results
 
     queries = sk_parser.parse_query()

@@ -29,8 +29,13 @@ class SkyhookHandler:
     def package_flatbuf_objects(self):
         return
 
+    def run_predefined(self, cmd):
+        res = os.popen(self.prog + cmd).read()
+        return res
+
     def run_query(self, queries): 
         for query in queries: 
+            cmd = ""
             # Check for WHERE clause 
             if query['table-name']:
                 cmd = self.command_template + '--table-name "{0}" '.format(query['table-name'])

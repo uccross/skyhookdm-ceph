@@ -74,4 +74,4 @@ class PredefinedCommands():
         self.Predefined = None
 
     def describe_table(self, table_name):
-        return {'describe':"bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --table-name \"{0}\" --header --limit 0".format(tableName)}
+        return {'describe':"bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --table-name \"{0}\" --header --limit 0".format(table_name)}

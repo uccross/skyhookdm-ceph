@@ -12,38 +12,42 @@ def main():
     
     # Run until told otherwise.
     while True:
-        try: 
-            rawUserInput = input(">>> ")
+        # try: 
+        rawUserInput = input(">>> ")
 
-            optsDict = vars(options)
-            # TODO: Implement pythonic switch-case using dicts for checking input? 
-            if rawUserInput == 'options': # TODO: Expose option changing to user
-                print("Current options: ", end=' ')
-                print(optsDict)
-                optsDict = optParser.change_options(optsDict)
-                continue
-            if rawUserInput == 'help':
-                print_help_msg()
-                continue
-            if rawUserInput == 'quit':
-                break
-            if 'describe table' in rawUserInput:
-                table_name = rawUserInput.split(' ')[-1]
-                show_table_schema = PredefinedCommands.describe_table(table_name)
-                print("Executing: {0}".format(show_table_schema))
-                result = handle_query(optsDict, show_table_schema)
-            if rawUserInput.split()[0] == 'file': 
-                for file in rawUserInput.split(' ', 1)[1].split():
-                    with open(file) as f: 
-                        # Max 10MB. TODO: Implement lazy method with 'yield' to read file piece by piece for large files
-                        size = 1024  
-                        read_queries = f.read(size)
-                    result = handle_query(optsDict, read_queries)
-                continue
+        optsDict = vars(options)
 
-            result = handle_query(optsDict, rawUserInput)
-        except:
+        if rawUserInput == 'options': # TODO: Expose option changing to user
+            print("Current options: ", end=' ')
+            print(optsDict)
+            optsDict = optParser.change_options(optsDict)
             continue
+
+        if rawUserInput == 'help':
+            print_help_msg()
+            continue
+
+        if rawUserInput == 'quit':
+            break
+
+        predefined = PredefinedCommands()
+        if 'describe table' in rawUserInput:
+            table_name = rawUserInput.split(' ')[-1]
+            show_table_schema = predefined.describe_table(table_name)
+            result = handle_query(optsDict, show_table_schema)
+
+        if rawUserInput.split()[0] == 'file': 
+            for file in rawUserInput.split(' ', 1)[1].split():
+                with open(file) as f: 
+                    # Max 10MB. TODO: Implement lazy method with 'yield' to read file piece by piece for large files
+                    size = 1024  
+                    read_queries = f.read(size)
+                result = handle_query(optsDict, read_queries)
+            continue
+
+        result = handle_query(optsDict, rawUserInput)
+        # except:
+        #     continue
 
 if __name__ == "__main__":
     main()
