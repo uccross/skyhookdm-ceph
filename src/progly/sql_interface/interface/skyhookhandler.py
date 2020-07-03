@@ -5,15 +5,9 @@ class SkyhookHandler:
                         'quiet':    False,
                         'pool':     'tpchdata',
                         'num-objs': 2}
-        self.sql_queries = None
         self.command_list = []
         self.command_template = None
         self.prog = "cd ~/skyhookdm-ceph/build && "
-        self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --use-cls '
-#        self.command = 'bin/run-query ' + '--num-objs ' + str(options["num-objs"]) + '\
- #                      --pool ' + options["pool"] + ' --oid-prefix \"public\" '
-
-                               
 
     def check_options(self, user_opts):
         # TODO: Handle --use-cls 'False' case. 
