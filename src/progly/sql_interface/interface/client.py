@@ -17,7 +17,7 @@ def main():
 
         optsDict = vars(options)
 
-        if rawUserInput == 'options': # TODO: Expose option changing to user
+        if rawUserInput == 'options': 
             print("Current options: ", end=' ')
             print(optsDict)
             optsDict = optParser.change_options(optsDict)
@@ -31,9 +31,11 @@ def main():
             break
 
         predefined = PredefinedCommands()
+        # TODO: Check for case sensitivity 
         if 'describe table' in rawUserInput:
             table_name = rawUserInput.split(' ')[-1]
             show_table_schema = predefined.describe_table(table_name)
+            print("Executing: " + show_table_schema['describe'])
             result = handle_query(optsDict, show_table_schema)
 
         if rawUserInput.split()[0] == 'file': 

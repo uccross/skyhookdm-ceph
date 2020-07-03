@@ -30,6 +30,7 @@ class SkyhookHandler:
         return
 
     def run_predefined(self, cmd):
+        print("Executing: " + self.prog + cmd)
         res = os.popen(self.prog + cmd).read()
         return res
 
