@@ -139,7 +139,7 @@ class SkyhookSQLParser():
                 query_info = extract_query_info(parsed)
                 list_query = format_query_to_tuple_list(query_info)
 
-                queries.append({'table_name': list_query[0],
+                queries.append({'table-name': list_query[0],
                                 'projection': list_query[1],
                                 'selection': list_query[2]})
 
