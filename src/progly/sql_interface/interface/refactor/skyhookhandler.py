@@ -43,7 +43,7 @@ class SkyhookHandler:
             if query['table-name']:
                 cmd = self.command_template + '--table-name "{0}" '.format(query['table-name'])
             if query['selection']:
-                cmd += '--select "{0},{1},{2} '.format(query['selection'][1],
+                cmd += '--select "{0},{1},{2}" '.format(query['selection'][1],
                                                         query['selection'][0],
                                                         query['selection'][2])
             if query['projection']:
@@ -55,7 +55,8 @@ class SkyhookHandler:
             print("Executing: " + self.prog + cmd)
             res = os.popen(self.prog + cmd).read()
             results.append(res)
-        print(results)
+        for res in results:
+            print(res)
         return results
 
     
