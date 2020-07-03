@@ -144,19 +144,6 @@ class SkyhookSQLParser():
                                 'selection': list_query[2]})
 
             return queries
-                
-            #     # Check first if WHERE clause exists
-            #     try:
-            #         if queryInfo[2][0] == 'WHERE':
-            #             self.command_list.append(self.command + '--table-name "{0}" --select "{1},{2},{3}" --project "{4}"'.format(listQuery[0], queryInfo[2][2], queryInfo[2][1], queryInfo[2][3], listQuery[1]))
-            #             return
-            #     except:
-            #         pass
-            #     if listQuery[1] == '':
-            #         self.command_list.append(self.command + '--table-name "{0}" --project "*"'.format(listQuery[0]))
-            #     else:
-            #         self.command_list.append(self.command + '--table-name "{0}" --project "{1}"'.format(listQuery[0], listQuery[1]))
-            # return
 
         queries = transform_query()
         return queries

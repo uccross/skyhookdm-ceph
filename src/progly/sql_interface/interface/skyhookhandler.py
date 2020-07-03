@@ -1,21 +1,32 @@
 import os
 class SkyhookHandler:
     def __init__(self):
-        self.opts = {}
-        self.objects = None
-        self.query = {}
+        self.options = {'use-cls':  True,
+                        'quiet':    False,
+                        'pool':     'tpchdata',
+                        'num-objs': 2}
+        self.sql_queries = None
         self.command_list = []
-        self.command_template = ""
-        self.skyhook_command = ""
-        self.prog = "cd ~/skyhookdm-ceph/build &&"
+        self.command_template = None
+        self.prog = "cd ~/skyhookdm-ceph/build && "
         self.default_command = 'bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --use-cls '
+#        self.command = 'bin/run-query ' + '--num-objs ' + str(options["num-objs"]) + '\
+ #                      --pool ' + options["pool"] + ' --oid-prefix \"public\" '
 
-    def check_opts(self):
-        self.command = 'bin/run-query ' + '--num-objs ' + str(opts["num-objs"]) + ' --pool ' + opts["pool"] + ' --oid-prefix \"public\" '
-        if opts['use-cls']:
-            self.command = self.command + '--use-cls '
-        if opts['quiet']:
-            self.command = self.command + '--quiet '
+                               
+
+    def check_options(self, user_opts):
+        # TODO: Handle --use-cls 'False' case. 
+        # TODO: Is verbose more readable? (ifel conditions for each option)
+        for opt in self.options:
+            if user_opts[opt]:
+                self.options[opt] = user_opts[opt]
+        self.command_template = "bin/run-query --num-objs " + str(self.options['num-objs']) + " \
+--pool " + str(self.options["pool"]) + " --oid-prefix \"public\" "
+        if self.options["use-cls"]:
+            self.command_template += "--use-cls "
+        if self.options["quiet"]:
+            self.command_template += ("--quiet ")
         return 
 
     def package_arrow_objects(self):
@@ -24,12 +35,24 @@ class SkyhookHandler:
     def package_flatbuf_objects(self):
         return
 
-    def run_query(self, cmd): 
-        # TODO:  Include formatting query here 
-        
+    def run_query(self, queries): 
+        for query in queries: 
+            # Check for WHERE clause 
+            if query['table-name']:
+                cmd = self.command_template + '--table-name "{0}" '.format(query['table-name'])
+            if query['selection']:
+                cmd += '--select "{0},{1},{2}" '.format(query['selection'][1],
+                                                        query['selection'][0],
+                                                        query['selection'][2])
+            if query['projection']:
+                cmd += '--project "{0}" '.format(query['projection'])
+            self.command_list.append(cmd)
+
         results = []
         for cmd in self.command_list:
-            res = os.popen(self.prog + self.query).read()
+            res = os.popen(self.prog + cmd).read()
+            results.append(res)
+        for res in results:
             print(res)
         return results
 
