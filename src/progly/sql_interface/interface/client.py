@@ -1,5 +1,6 @@
 from .parser import handle_query
-from .utils import print_help_msg, print_intro_msg, ArgparseBuilder
+from .utils import print_help_msg, print_intro_msg
+from .utils import ArgparseBuilder, PredefinedCommands
 
 def main():
     optParser = ArgparseBuilder() 
@@ -27,11 +28,10 @@ def main():
             if rawUserInput == 'quit':
                 break
             if 'describe table' in rawUserInput:
-                tableName = rawUserInput.split(' ')[-1]
-                showTableSchema = "bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --table-name \"{0}\" --header --limit 0".format(tableName)
-                print("Executing: {0}".format(showTableSchema))
-                result = handle_query(optsDict, showTableSchema)
-                #print("hi")
+                table_name = rawUserInput.split(' ')[-1]
+                show_table_schema = PredefinedCommands.describe_table(table_name)
+                print("Executing: {0}".format(show_table_schema))
+                result = handle_query(optsDict, show_table_schema)
             if rawUserInput.split()[0] == 'file': 
                 for file in rawUserInput.split(' ', 1)[1].split():
                     with open(file) as f: 

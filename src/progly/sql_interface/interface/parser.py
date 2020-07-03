@@ -162,9 +162,6 @@ Assumptions:
 # in order to improve modularity. Makes no sense to create new
 # class if the parser is still intrinsically tied to it? 
 def handle_query(options, raw_input):
-    assert isinstance(raw_input, str), "Expected str"
-    assert isinstance(options, dict), "Expected dict"
-
     '''
     sk_parser handles parsing and translation to Skyhook command
         * Parses SQL Query into respective selection, projeciton, etc parts
@@ -179,6 +176,15 @@ def handle_query(options, raw_input):
     '''
     sk_handler = SkyhookHandler()
     sk_handler.check_options(options)
+
+    '''
+    Handle predefined Skyhook commands before SQL queries
+    '''
+    # DESCRIBE TABLE T
+    if isinstance(raw_input, dict):
+        if 'describe' in raw_input.keys:
+            results = sk_handler.run_query(raw_input)
+            return results
 
     queries = sk_parser.parse_query()
     results = sk_handler.run_query(queries)

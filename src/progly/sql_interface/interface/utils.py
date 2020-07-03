@@ -4,6 +4,7 @@ import re
 import sys
 
 # ------------------------------
+# Utility methods
 def print_help_msg():
     print( 
 '''
@@ -26,7 +27,7 @@ def print_intro_msg():
     print('{:^100}'.format("(Enter 'help' for a brief summary of supported commands)\n"))
 
 # ------------------------------
-
+# Utility classes
 class ArgparseBuilder():
     def __init__(self): #, arg_parser, **kwargs):
         # super(ArgparseBuilder, self).__init__(**kwargs)
@@ -67,3 +68,10 @@ class ArgparseBuilder():
             optsDict[item] = val
         print(optsDict)
         return optsDict
+
+class PredefinedCommands():
+    def __init__(self):
+        self.Predefined = None
+
+    def describe_table(self, table_name):
+        return {'describe':"bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --table-name \"{0}\" --header --limit 0".format(tableName)}
