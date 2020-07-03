@@ -100,7 +100,6 @@ def main():
             continue
 
         result = handle_query(optsDict, rawUserInput)
-        print(result)
         # except:
         #     continue
 
