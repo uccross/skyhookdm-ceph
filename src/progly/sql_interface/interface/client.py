@@ -3,9 +3,8 @@ from .utils import ArgparseBuilder, PredefinedCommands
 from .query import Query
 
 def main():
-    optParser = ArgparseBuilder() 
-    (options, args) = optParser.parse_args()
-
+    arg_obj = ArgparseBuilder() 
+    
     print_intro_msg()
 
     print("Enter a SQL query (multiple semi-colon separated queries can be accepted).")
@@ -17,12 +16,10 @@ def main():
         # try: 
         raw_input = input(">>> ")
 
-        option_dict = vars(options)
-
         if raw_input == 'options': 
             print("Current options: ", end=' ')
-            print(option_dict)
-            option_dict = optParser.change_options(option_dict)
+            print(arg_obj.args)
+            arg_obj.args = arg_obj.change_options(arg_obj.args)
             continue
 
         if raw_input == 'help':
@@ -38,7 +35,7 @@ def main():
             table_name = raw_input.split(' ')[-1]
             show_table_schema = predefined.describe_table(table_name)
             print("Executing: " + show_table_schema['describe'])
-            result = queryobj.handle_query(option_dict, show_table_schema)
+            result = queryobj.handle_query(arg_obj.args, show_table_schema)
 
         if raw_input.split()[0] == 'file': 
             for file in raw_input.split(' ', 1)[1].split():
@@ -46,10 +43,10 @@ def main():
                     # Max 10MB. TODO: Implement lazy method with 'yield' to read file piece by piece for large files
                     size = 1024  
                     read_queries = f.read(size)
-                result = queryobj.handle_query(option_dict, read_queries)
+                result = queryobj.handle_query(arg_obj.args, read_queries)
             continue
 
-        result = queryobj.handle_query(option_dict, raw_input)
+        result = queryobj.handle_query(arg_obj.args, raw_input)
         # except:
         #     continue
 

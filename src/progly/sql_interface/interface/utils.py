@@ -1,5 +1,4 @@
 import argparse
-from optparse import OptionParser
 import re
 import sys
 
@@ -32,21 +31,35 @@ class ArgparseBuilder():
     def __init__(self): #, arg_parser, **kwargs):
         # super(ArgparseBuilder, self).__init__(**kwargs)
         
-        # self._arg_parser = arg_parser
-        self.usage = "usage: python3 %prog [options]"
-        self.optParser = OptionParser(self.usage)
-        self.optParser.add_option("-c", "--use-cls", action="store_false", dest="use-cls",
-            default=True, help="push execution onto storage servers using object classes")
-        self.optParser.add_option("-q", "--quiet", action="store_true", dest="quiet",
-            default=False, help="see summary of query results only")
-        self.optParser.add_option("-n", "--num-objs", default=2, help="number of storage objects.",
-            dest='num-objs') 
-        self.optParser.add_option("-p", "--pool", default="tpchdata", help="name of object pool", 
-            dest='pool')
-
-    def parse_args(self):
-        return self.optParser.parse_args()
-
+        self.arg_parser = argparse.ArgumentParser(usage='usage: python3 -m interface.client | ./startup.sh')
+        self.arg_parser.add_argument('-c', 
+                                '--use-cls', 
+                                dest='use-cls', 
+                                action='store_false', 
+                                default=True, 
+                                help='push execution onto storage servers using object classses')
+        self.arg_parser.add_argument('-q', 
+                                '--quiet', 
+                                dest='quiet',
+                                action='store_true', 
+                                default=False, 
+                                help='see summary of query results only')
+        self.arg_parser.add_argument('-n', 
+                                '--num-objs', 
+                                dest='num-objs',
+                                nargs=1,
+                                default=2, 
+                                type=int,
+                                help='number of storage objects')
+        self.arg_parser.add_argument('-p',
+                                '--pool',
+                                dest='pool',
+                                nargs=1,
+                                default='tpchdata',
+                                type=str,
+                                help='name of object pool')
+        self.args = vars(self.arg_parser.parse_args())
+        
     def change_options(self, optsDict):
         possibleOptions = [
             'num-objs',
