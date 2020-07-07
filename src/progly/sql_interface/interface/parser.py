@@ -2,9 +2,9 @@ import os
 import sqlparse
 from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis, Comparison
-from .skyhookhandler import SkyhookHandler
+from .skyhook import SkyhookRunner
 
-class SkyhookSQLParser():
+class SQLParser():
     def __init__(self, raw_input):
         self.raw_query = raw_input
 
@@ -147,46 +147,3 @@ class SkyhookSQLParser():
 
         queries = transform_query()
         return queries
-
-'''
-Entry point of Skyhook SQL Parser.
-Instantiates SkyhookSQLParser object and transforms user input
-of a SQL query from the client into Skyhook query command. .
-
-Assumptions: 
-- No user input is validated. 
-- Assumes working in skyhookdm-ceph/src/progly/sql_interface
-- Assumes you are working with a physical OSD 
-'''
-# TODO: Extend this! Parser and SkyhookHandler must be separate
-# in order to improve modularity. Makes no sense to create new
-# class if the parser is still intrinsically tied to it? 
-def handle_query(options, raw_input):
-    '''
-    sk_parser handles parsing and translation to Skyhook command
-        * Parses SQL Query into respective selection, projeciton, etc parts
-        * Hands these parts to sk_handler dictionary
-        * Fills in template and sends to sk_handler runquery operations
-    '''
-    sk_parser = SkyhookSQLParser(raw_input)
-
-    '''
-    sk_handler keeps track of parsed segments, option handling, query execution,
-    and packaging dataframe objects as binaries if requested (e.g. arrow objects)
-    '''
-    sk_handler = SkyhookHandler()
-    sk_handler.check_options(options)
-
-    '''
-    Handle predefined Skyhook commands before SQL queries
-    '''
-    # DESCRIBE TABLE T
-    if isinstance(raw_input, dict):
-        if 'describe' in raw_input.keys():
-            results = sk_handler.run_predefined(raw_input['describe'])
-            return results
-
-    queries = sk_parser.parse_query()
-    results = sk_handler.run_query(queries)
-
-    return results
