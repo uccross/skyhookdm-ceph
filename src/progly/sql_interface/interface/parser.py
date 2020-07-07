@@ -2,7 +2,6 @@ import os
 import sqlparse
 from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis, Comparison
-from .skyhook import SkyhookRunner
 
 class SQLParser():
     def __init__(self, raw_input):

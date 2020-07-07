@@ -7,7 +7,16 @@ import sys
 def print_help_msg():
     print( 
 '''
-Skyhook SQL Client Application\nOptions:\n \t-n [--num-objs]\n \t-p [--pool]" 
+Skyhook SQL Client Application\n
+
+Options:\n \t-n [--num-objs]\n \t-p [--pool]\n \t-q [--quiet]\n \t-c [--use-cls] 
+
+Input modes:
+\t execute:    \e Enter a query that is immediately executed and stored in query object. (DEFAULT)
+\t input:      \i Enter a query that is stored in query object.
+\t file:       \\f Enter SQL files. 
+\t options:    \o Enter new options to store in query object. 
+\t manipulate: \m Enter an environment that enables manipulation of query object. 
 
 Currently supported syntax:
 \t Projections (EXAMPLE: SELECT orderkey FROM lineitem)
@@ -24,6 +33,11 @@ def print_intro_msg():
     print('{:^100}'.format("Welcome to the Skyhook SQL Client Application")) 
     print('{:^100}'.format("---------------------------------------------"))
     print('{:^100}'.format("(Enter 'help' for a brief summary of supported commands)\n"))
+    print("Enter a SQL query (multiple semi-colon separated queries can be accepted).")
+
+def prompt():
+    i = input(">>> ")
+    return i
 
 # ------------------------------
 # Utility classes
