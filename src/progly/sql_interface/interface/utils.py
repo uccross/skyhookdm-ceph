@@ -9,22 +9,32 @@ def print_help_msg():
 '''
 Skyhook SQL Client Application\n
 
-Options:\n \t-n [--num-objs]\n \t-p [--pool]\n \t-q [--quiet]\n \t-c [--use-cls] 
-
-Input modes:
-\t execute:    \e Enter a query that is immediately executed and stored in query object. (DEFAULT)
-\t input:      \i Enter a query that is stored in query object.
-\t file:       \\f Enter SQL files. 
-\t options:    \o Enter new options to store in query object. 
-\t manipulate: \m Enter an environment that enables manipulation of query object. 
-
-Currently supported syntax:
-\t Projections (EXAMPLE: SELECT orderkey FROM lineitem)
-\t Selections  (EXAMPLE: SELECT orderkey FROM lineitem WHERE orderkey<3;)
-\t SHOW schema (EXAMPLE: DESCRIBE TABLE lineitem)
-
 To show this message enter:     'help'
 To quit this application enter: 'quit' 
+
+Options:\n \t -n [--num-objs]\n \t -p [--pool]\n \t -q [--quiet]\n \t -c [--use-cls] 
+
+Input modes:
+\t execute:    \e Enter a query that is immediately executed and stored in query object. (DEFAULT MODE)
+\t\t usage: \e [<sql statement>, ...]
+
+\t input:      \i Enter a query that is stored in query object.
+\t\t usage: \i [<sql statement>, ...]
+
+\t file:       \\f Enter SQL files. 
+\t\t usage: \\f [<sql file>, ...]
+
+\t options:    \o Enter new options to store in query object. 
+\t\t usage: \o [<option>, ...]
+
+\t manipulate: \m Enter an environment that enables manipulation of query object(s). 
+\t\t usage: \m [<query_object>, ...]
+
+Supported syntax:
+\t Projections (EXAMPLE: SELECT orderkey FROM lineitem)
+\t Selections  (EXAMPLE: SELECT orderkey FROM lineitem WHERE orderkey<3;)
+\t Show Schema (EXAMPLE: DESCRIBE TABLE lineitem)
+
 '''
         )
 
@@ -72,9 +82,11 @@ class ArgparseBuilder():
                                 default='tpchdata',
                                 type=str,
                                 help='name of object pool')
-        self.args = vars(self.arg_parser.parse_args())
+        self.opts = vars(self.arg_parser.parse_args())
         
-    def change_options(self, optsDict):
+    def change_options(self, arg_obj):
+        print("In chane_opts argparse")
+        optsDict = vars(arg_obj)['opts']
         possibleOptions = [
             'num-objs',
             'pool',

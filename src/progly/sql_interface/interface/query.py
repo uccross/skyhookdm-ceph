@@ -10,16 +10,18 @@ class Query():
         self.most_recent_query = {}
         self.queries = []
         self.dataframes = [] # TODO: Implement
+        self.arg_obj = None
     
-    def set_options(self, opts):
+    def set_options(self, argparse_obj):
         '''
         Sent options from client via dictionary of ArgparseBuilder object 
         TODO: Handle --use-cls 'False' case. 
         TODO: Is verbose more readable? (ifel conditions for each option)
         '''
+        self.arg_obj = argparse_obj
         for opt in self.options:
-            if opts[opt]:
-                self.options[opt] = opts[opt]
+            if self.arg_obj.opts[opt]:
+                self.options[opt] = self.arg_obj.opts[opt]
         
         self.command_template = "bin/run-query --num-objs " + str(self.options['num-objs']) + " \
 --pool " + str(self.options["pool"]) + " --oid-prefix \"public\" "
@@ -30,9 +32,15 @@ class Query():
         if self.options["quiet"]:
             self.command_template += ("--quiet ")
 
-        return   
+        return
+
+    def change_options(self):
+        # Wrapper for ArgparseBuilder() change_options
+        print("in query change opts")
+        self.options = self.arg_obj.change_options(self.arg_obj)
 
     def handle_query(self, options, raw_input):
+        # TODO: Once a query is executed, remove from dictionary?
         self.set_options(options)
 
         '''        
@@ -66,13 +74,12 @@ class Query():
     def set_query(self):
         return 
 
+    def list_all_queries(self):
+        raise NotImplementedError
+
     def generate_cli_cmd(self):
         return
 
     def generate_dataframe(self):
         # Construct pyarrow dataframes
         raise NotImplementedError
-    
-
-
-    
