@@ -45,8 +45,15 @@ def print_intro_msg():
     print('{:^100}'.format("(Enter 'help' for a brief summary of supported commands)\n"))
     print("Enter a SQL query (multiple semi-colon separated queries can be accepted).")
 
-def prompt():
-    i = input(">>> ")
+def prompt(curr_mode):
+    modes = {'\e': 'execute',
+            '\i': 'input',
+            '\\f': 'files',
+            '\o': 'options',
+            '\m': 'manipulate',
+            'quit': 'quit',
+            'help': 'help'}    
+    i = input("({0}): ".format(modes[curr_mode]))
     return i
 
 # ------------------------------

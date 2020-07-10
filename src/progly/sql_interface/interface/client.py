@@ -21,6 +21,7 @@ class InputManager():
         and then branch to it
         '''
         while True:
+            print("In run")
             self.check(query_obj, self.mru_mode) 
 
     def check(self, query_obj, mode):
@@ -34,7 +35,9 @@ class InputManager():
         '''
         TODO: More modes such as "list all queries in object" 
         '''
-        if mode not in self.modes.keys():
+        print(mode)
+        if mode not in self.modes.values():
+            print("In mode not found")
             return # TODO: Handle this better, maybe go back to original mode/state?
         elif mode == self.modes['quit']:
             quit() 
@@ -42,26 +45,29 @@ class InputManager():
             print_help_msg() # TODO: Should prompt user again after this in same state 
             return
         elif mode == self.modes['execute']:
-            self.enter_mode(query_obj, self.execute())
+            self.enter_mode(query_obj, self.execute)
         elif mode == self.modes['input']:
-            self.enter_mode(query_obj, self.input())
+            self.enter_mode(query_obj, self.input)
         elif mode == self.modes['files']:
-            self.enter_mode(query_obj, self.files())
+            self.enter_mode(query_obj, self.files)
         elif mode == self.modes['options']:
-            self.enter_mode(query_obj, self.options())
+            self.enter_mode(query_obj, self.options)
         elif mode == self.modes['manipulate']:
-            self.enter_mode(query_obj, self.manipulate())
-
-        return
+            self.enter_mode(query_obj, self.manipulate)
     
     def split_mode_and_statement(self, input):
-        stub = None
-        split_input = input.split(' ')
+        stub = ''
+        split_input = input.split(' ', 1)
         if len(split_input) > 1:
-            mode, statement = split_input[0], split_input[1:]
-            return mode, statement
+            if split_input[0] not in self.modes.values():
+                mode, statement = stub, split_input[0] + ' ' + split_input[1]
+                return mode, statement
+            else:
+                mode, statement = split_input[0], split_input[1]
+                return mode, statement
+
         elif len(split_input) == 1:
-            if split_input[0] in self.modes.keys():
+            if split_input[0] in self.modes.values():
                 mode = split_input[0]
                 return mode, stub
             else: 
@@ -69,53 +75,65 @@ class InputManager():
                 return stub, statement
 
     def update_most_recent_mode(self, new_mode):
+        if new_mode == self.modes['help']:
+            return 
         self.mru_mode = new_mode
-        return
 
-    def set_change_mode(self):
+    def swap_change_mode(self):
         if self.change_mode:
             self.change_mode = False
         elif not self.change_mode:
             self.change_mode = True
 
     def enter_mode(self, query_obj, func):
+        print("in enter_mode")
+        print(func)
+        mode, statement = '', ''
         while not self.change_mode:
-            user_input = prompt()
+            user_input = prompt(self.mru_mode)
             
             mode, statement = self.split_mode_and_statement(user_input)
             
-            if mode not in self.modes.keys():
-                # TODO: Erroring better here 
-                print("ERROR: mode is not available")
+            print(mode)
+            print(statement)
+            print(self.mru_mode)
 
-            if mode is not None:
+            if mode == self.mru_mode:
+                print("in same mode")
+                func(query_obj, statement)
+                continue 
+
+            if mode is not '':
+                print("new mode: " + mode)
                 self.update_most_recent_mode(mode)
-                self.set_change_mode()
+                self.swap_change_mode()
                 continue
                 
-            if statement is not None:
-                func(query_obj, statement)
+            func(query_obj, statement)
 
             # TODO: What to do when both mode, statement = None? 
 
-        check(mode, query_obj, mode)
+        self.swap_change_mode()
+        self.check(query_obj, mode)
 
     def execute(self, query_obj, input=None):
         '''
         Immediately execute and then store input in query_obj
         '''
+        print('in execute')
+        # TODO: Handle when user supplies mutliple statements?
         if input:
             query_obj.handle_query(input)
-            query_obj.queries.append(input)
-        return
+            query_obj.set_query(input)
 
     def input(self, query_obj, input=None):
         '''
         Store input in query_obj, do not execute it though
         '''
+        # TODO: Handle when user supplies mutiples statements? 
+        print("in input")
         if input:
-            query_obj.queries.append(input)
-        return
+            query_obj.set_query(input)
 
     def files(self, query_obj, input=None):
         '''
@@ -143,6 +161,11 @@ class InputManager():
         '''
         raise NotImplementedError
 
+    def get_mode(self):
+        '''
+        Returns the current mode the user is operating in 
+        '''
+        raise NotImplementedError
 
 def main():
     print_intro_msg()
@@ -151,6 +174,8 @@ def main():
     
     query_obj = Query()
     query_obj.set_options(argparse_obj)
+
+    print("Before input mananger")
 
     input_manager = InputManager()
     input_manager.run(query_obj)

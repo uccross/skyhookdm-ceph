@@ -18,6 +18,7 @@ class SkyhookRunner:
         return res
 
     def run_query(self, queries): 
+        print("in skyhookrunner run_query")
         for query in queries: 
             cmd = ""
             # Check for WHERE clause 
@@ -30,7 +31,9 @@ class SkyhookRunner:
             if query['projection']:
                 cmd += '--project "{0}" '.format(query['projection'])
             self.command_list.append(cmd)
-
+        print(cmd)
+        return
+        
         results = []
         for cmd in self.command_list:
             res = os.popen(self.prog + cmd).read()
@@ -42,4 +45,7 @@ class SkyhookRunner:
     
     def clear_previous_query(self):
         self.command_list = []
+        return
+
+    def set_command_template(self, options):
         return
