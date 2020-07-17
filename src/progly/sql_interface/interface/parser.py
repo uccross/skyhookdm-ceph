@@ -4,10 +4,13 @@ from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis, Comparison
 
 class SQLParser():
-    def __init__(self, raw_input):
-        self.raw_query = raw_input
+    '''
+    Parses SQL statements
+    '''
+    def __init__(self):
+        self.raw_query = None
 
-    def parse_query(self):
+    def parse_query(self, statement):
         def extract_query_info(parsed):
             def extract_where(parsed):
                 # TODO: Order of allowed_ops matters, fix this  
@@ -109,13 +112,13 @@ class SQLParser():
 
             return (select_list, from_list, where_list)
         
-        def format_query_to_tuple_list(queryInfo):
+        def format_query_to_tuple_list(query_info):
             listQuery, formattedList = [], []
             query_dict = {}
 
-            # listQuery.append(str(queryInfo[2]))
-            listQuery.append(str(queryInfo[1]))
-            listQuery.append(str(queryInfo[0]))
+            # listQuery.append(str(query_info[2]))
+            listQuery.append(str(query_info[1]))
+            listQuery.append(str(query_info[0]))
 
             for element in listQuery:
                 for char in element:
@@ -124,7 +127,7 @@ class SQLParser():
                 formattedList.append(element)
 
             # TODO: Handle WHERE segment as above 
-            formattedList.append(queryInfo[2])
+            formattedList.append(query_info[2])
 
             return formattedList
         
@@ -144,5 +147,6 @@ class SQLParser():
 
             return queries
 
+        self.raw_query = statement
         queries = transform_query()
         return queries

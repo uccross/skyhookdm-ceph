@@ -50,7 +50,7 @@ def prompt(curr_mode):
             '\i': 'input',
             '\\f': 'files',
             '\o': 'options',
-            '\m': 'manipulate',
+            '\q': 'query',
             'quit': 'quit',
             'help': 'help'}    
     i = input("({0}): ".format(modes[curr_mode]))
@@ -114,6 +114,28 @@ class ArgparseBuilder():
             optsDict[item] = val
         print(optsDict)
         return optsDict
+
+#     def set_options(self, argparse_obj):
+#         '''
+#         Set options from client via ArgparseBuilder object 
+#         TODO: Handle --use-cls 'False' case. 
+#         TODO: Is verbose more readable? (ifel conditions for each option)
+#         '''
+#         self.arg_obj = argparse_obj
+#         for opt in self.options:
+#             if self.arg_obj.opts[opt]:
+#                 self.options[opt] = self.arg_obj.opts[opt]
+        
+#         self.command_template = "bin/run-query --num-objs " + str(self.options['num-objs']) + " \
+# --pool " + str(self.options["pool"]) + " --oid-prefix \"public\" "
+
+#         if self.options["use-cls"]:
+#             self.command_template += "--use-cls "
+
+#         if self.options["quiet"]:
+#             self.command_template += ("--quiet ")
+
+#         return
 
 class PredefinedCommands():
     def __init__(self):

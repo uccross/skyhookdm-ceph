@@ -1,6 +1,6 @@
 from .utils import print_help_msg, print_intro_msg, prompt
 from .utils import ArgparseBuilder, PredefinedCommands
-from .query import Query
+from .query import Query, QueryObjectManager
 
 class InputManager():
     def __init__(self):
@@ -8,11 +8,11 @@ class InputManager():
                  'input': '\i',
                  'files': '\\f',
                  'options': '\o',
-                 'manipulate': '\m',
+                 'query': '\q',
                  'quit': 'quit',
                  'help': 'help'}
-        self.mru_mode = '\e' # Most recently used mode (defaults to \e)
-        self.change_mode = False 
+        self.mru_mode = '\q' # Most recently used mode (defaults to \e)
+        self.change_mode = False
 
     def run(self, query_obj):
         '''
@@ -21,12 +21,11 @@ class InputManager():
         and then branch to it
         '''
         while True:
-            print("In run")
             self.check(query_obj, self.mru_mode) 
 
     def check(self, query_obj, mode):
         '''
-        check() manages control flow of application for users when
+        check() manages control flow of application for users when`
         they want to switch input modes. 
         
         It is called at each iteration of each input mode before continuing. 
@@ -35,10 +34,9 @@ class InputManager():
         '''
         TODO: More modes such as "list all queries in object" 
         '''
-        print(mode)
         if mode not in self.modes.values():
-            print("In mode not found")
-            return # TODO: Handle this better, maybe go back to original mode/state?
+            print("Error: {} is not a mode.".format(mode))
+            return 
         elif mode == self.modes['quit']:
             quit() 
         elif mode == self.modes['help']:
@@ -52,8 +50,8 @@ class InputManager():
             self.enter_mode(query_obj, self.files)
         elif mode == self.modes['options']:
             self.enter_mode(query_obj, self.options)
-        elif mode == self.modes['manipulate']:
-            self.enter_mode(query_obj, self.manipulate)
+        elif mode == self.modes['query']:
+            self.enter_mode(query_obj, self.query)
     
     def split_mode_and_statement(self, input):
         stub = ''
@@ -86,32 +84,28 @@ class InputManager():
             self.change_mode = True
 
     def enter_mode(self, query_obj, func):
-        print("in enter_mode")
-        print(func)
         mode, statement = '', ''
         while not self.change_mode:
             user_input = prompt(self.mru_mode)
             
             mode, statement = self.split_mode_and_statement(user_input)
             
-            print(mode)
-            print(statement)
-            print(self.mru_mode)
-
+             # TODO: Prevents access to 'help' and 'quit'
+            if mode == '' and statement == '':
+                continue 
+            
             if mode == self.mru_mode:
-                print("in same mode")
                 func(query_obj, statement)
                 continue 
 
             if mode is not '':
-                print("new mode: " + mode)
-                self.update_most_recent_mode(mode)
-                self.swap_change_mode()
+                print("Error: Switching modes is prohibited.")
                 continue
+                # self.update_most_recent_mode(mode)
+                # self.swap_change_mode()
+                # continue
                 
             func(query_obj, statement)
-
-            # TODO: What to do when both mode, statement = None? 
 
         self.swap_change_mode()
         self.check(query_obj, mode)
@@ -120,7 +114,6 @@ class InputManager():
         '''
         Immediately execute and then store input in query_obj
         '''
-        print('in execute')
         # TODO: Handle when user supplies mutliple statements?
         if input:
             query_obj.handle_query(input)
@@ -131,7 +124,6 @@ class InputManager():
         Store input in query_obj, do not execute it though
         '''
         # TODO: Handle when user supplies mutiples statements? 
-        print("in input")
         if input:
             query_obj.set_query(input)
 
@@ -155,15 +147,9 @@ class InputManager():
         print(query_obj.options)
         query_obj.change_options()
 
-    def manipulate(self, query_obj, input=None):
+    def query(self, query_obj=None, input=None):
         '''
-        Dev environment for full access to query_obj fields and methods
-        '''
-        raise NotImplementedError
-
-    def get_mode(self):
-        '''
-        Returns the current mode the user is operating in 
+        Mode for full access to query_obj fields and methods
         '''
         raise NotImplementedError
 
@@ -173,12 +159,14 @@ def main():
     argparse_obj = ArgparseBuilder() 
     
     query_obj = Query()
-    query_obj.set_options(argparse_obj)
+    query_obj.set_default_options(argparse_obj)
 
-    print("Before input mananger")
 
     input_manager = InputManager()
-    input_manager.run(query_obj)
+    query_manager = QueryObjectManager()
+
+    input_manager.query() 
+    # input_manager.run(query_obj)
 
 if __name__ == "__main__":
     main()

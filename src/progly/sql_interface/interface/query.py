@@ -3,61 +3,46 @@ from .skyhook import SkyhookRunner
 
 class Query():
     def __init__(self):
-        self.options = {'use-cls':  True,
-                        'quiet':    False,
-                        'pool':     'tpchdata',
-                        'num-objs': 2}
-        self.most_recent_query = {}
-        self.queries = []
-        self.dataframes = [] # TODO: Implement
-        self.arg_obj = None
-        self.command_template = None
-    
-    def set_options(self, argparse_obj):
         '''
-        Sent options from client via dictionary of ArgparseBuilder object 
-        TODO: Handle --use-cls 'False' case. 
-        TODO: Is verbose more readable? (ifel conditions for each option)
+        Initializes Query object state. 
         '''
-        self.arg_obj = argparse_obj
-        for opt in self.options:
-            if self.arg_obj.opts[opt]:
-                self.options[opt] = self.arg_obj.opts[opt]
+
+        '''
+        sk_runner keeps track of parsed segments, option handling, query execution,
+        and packaging dataframe objects as binaries if requested (e.g. arrow objects)
+        '''
+        self.sk_runner = SkyhookRunner()
         
-        self.command_template = "bin/run-query --num-objs " + str(self.options['num-objs']) + " \
---pool " + str(self.options["pool"]) + " --oid-prefix \"public\" "
-
-        if self.options["use-cls"]:
-            self.command_template += "--use-cls "
-
-        if self.options["quiet"]:
-            self.command_template += ("--quiet ")
-
-        return
-
-    def change_options(self):
-        # Wrapper for ArgparseBuilder() change_options
-        print("in query change opts")
-        self.options = self.arg_obj.change_options(self.arg_obj)
-    
-    def handle_query(self, raw_input):# options, raw_input):
-        # TODO: Once a query is executed, remove from dictionary?
-        # self.set_options(options)
-        print(self.command_template)
         '''        
         sk_parser handles parsing and translation to Skyhook command
             * Parses SQL Query into respective selection, projeciton, etc parts
-            * Hands these parts to sk_handler dictionary
-            * Fills in template and sends to sk_handler runquery operations
+            * Hands these parts to sk_runner dictionary
+            * Fills in template and sends to sk_runner runquery operations
         '''
-        sk_parser = SQLParser(raw_input)
+        self.sql_parser = SQLParser()
 
+        self.options = {'--use-cls'       :  True,
+                        '--quiet'         :    False,
+                        '--pool'          :     'tpchdata',
+                        '--num-objs'      : 2,
+                        '--result-format' : 'SFT_ARROW',
+                        '--output-format' : 'SFT_PYARROW_BINARY',
+                        '--data-schema'   : '...'}
+
+        self.query = {'selection'  : '',
+                      'projection' : '',
+                      'table-name' : '',
+                      'options'    : self.options}
+        
+        self.dataframes = [] # TODO: Implement
+        self.sk_cmd = ''
+        self.results = None
+    
+    def handle_query(self, raw_input):
         '''
-        sk_handler keeps track of parsed segments, option handling, query execution,
-        and packaging dataframe objects as binaries if requested (e.g. arrow objects)
+        Takes a SQL query, parses it, and executes it in Skyhook 
         '''
-        sk_handler = SkyhookRunner()
-        sk_handler.command_template = self.command_template
+        self.sk_runner.create_template(self.options)
 
         '''
         Handle predefined Skyhook commands before SQL queries
@@ -65,57 +50,107 @@ class Query():
         # DESCRIBE TABLE T
         if isinstance(raw_input, dict):
             if 'describe' in raw_input.keys():
-                results = sk_handler.run_predefined(raw_input['describe'])
+                results = self.sk_runner.run_predefined(raw_input['describe'])
                 return results
 
-        queries = sk_parser.parse_query()
+        queries = self.sk_parser.parse_query()
         print(queries)
-        results = sk_handler.run_query(queries)
+        self.results = self.sk_runner.run_query(queries)
 
-        return results
+        return self.results
 
     def parse_query(self, statement):
-        sk_parser = SQLParser(statement)
-        res = sk_parser.parse_query()
+        '''
+        Parses a SQL statement and returns dictionary results
+        '''
+        sk_parser = SQLParser()
+        res = sk_parser.parse_query(statement)[0]
         return res
 
-    def set_query_selection(self):
-        raise NotImplementedError
+    def set_selection(self, input):
+        '''
+        Sets the selection parameter for query 
+        '''
+        self.query['selection'] = input
 
-    def set_query_projection(self):
-        raise NotImplementedError
+    def set_projection(self, input):
+        '''
+        Sets the projection parameter for query
+        '''
+        self.query['projection'] = input
 
-    def set_query_table_name(self):
-        raise NotImplementedError
+    def set_table_name(self, input):
+        '''
+        Sets the table name parameter for query
+        '''
+        self.query['table-name'] = input
+
+    def set_option(self, option, value):
+        '''
+        Sets the option parameter to be the given value
+        '''
+        if option not in self.options.keys():
+            print("Error: Not an option")
+            return
+        self.options[str(option)] = value 
+        print(self.query)
 
     def set_query(self, statement):
         '''
         Parses query and appends to query kvs list
         '''
         parsed = self.parse_query(statement)
-        self.queries.append(parsed)
-        print("queries", end=' ')
-        print(self.queries)
+        self.query['selection'] = parsed['selection']
+        self.query['projection'] = parsed['projection']
+        self.query['table-name'] = parsed['table-name']
+        print(self.query)
 
-    def list_all_queries(self):
+    def show_query(self):
         '''
-        Lists all queries 
+        List most recently used query 
         '''
-        raise NotImplementedError
+        return self.query
+
+    def show_options(self):
+        '''
+        List all options and their current values
+        '''
+        return self.query['options']
+
+    def show_results(self):
+        '''
+        Show results from previously ran query 
+        '''
+        return self.results
+
+    def show_skyhook_cmd(self):
+        '''
+        Show the Skyhook command generated by current SQL statement
+        '''
+        return self.sk_cmd
+
+    def show_template(self):
+        '''
+        Show Skyhook's template before generating SQL command 
+        '''
+        print(self.sk_runner.command_template)
+        
+    def generate_cli_cmd(self):
+        '''
+        Generates the command line command for run-query
+        '''
+        print(self.query)
+        self.sk_cmd = self.sk_runner.create_cli_cmd(self.query)
 
     def execute_cli_cmd(self, cmd):
         '''
         Executes a cli command via run-query that was generated
         by the query object. 
         '''
-        raise NotImplementedError
+        self.results = self.sk_runner.execute_command(self.sk_cmd)
 
-    def generate_cli_cmd(self):
+    def generate_pyarrow_dataframe(self):
         '''
-        Generates the command line command for run-query
+        Construct pyarrow dataframe
         '''
-        return
-
-    def generate_dataframe(self):
-        # Construct pyarrow dataframes
         raise NotImplementedError
