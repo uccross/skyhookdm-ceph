@@ -143,3 +143,12 @@ class PredefinedCommands():
 
     def describe_table(self, table_name):
         return {'describe': "bin/run-query --num-objs 2 --pool tpchdata --oid-prefix \"public\" --table-name \"{0}\" --header --limit 0;".format(table_name)}
+
+    # '''
+    # Handle predefined Skyhook commands before SQL query
+    # '''
+    # # DESCRIBE TABLE T
+    # if isinstance(raw_input, dict):
+    #     if 'describe' in raw_input.keys():
+    #         results = self.sk_runner.run_predefined(raw_input['describe'])
+    #         return results

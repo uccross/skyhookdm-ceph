@@ -4,15 +4,18 @@ from sqlparse.tokens import Keyword, DML
 from sqlparse.sql import IdentifierList, Identifier, Where, Parenthesis, Comparison
 
 class SQLParser():
-    '''
-    Parses SQL statements
-    '''
     def __init__(self):
-        self.raw_query = None
+        '''
+        A class that parses SQL statements. 
+        '''
+        pass
 
-    def parse_query(self, statement):
-        def extract_query_info(parsed):
-            def extract_where(parsed):
+    def parse_query(self, raw_query):
+        '''
+        A function that parses a SQL string into a dictionary representation. 
+        '''
+        def extract_sql_semantics(parsed):
+            def parse_where_clause(parsed):
                 # TODO: Order of allowed_ops matters, fix this  
                 allowed_ops = ['>=', '<=', '!=', '<>','=', '>', '<']
                 opts_dict = {allowed_ops[0]: 'geq',
@@ -71,7 +74,7 @@ class SQLParser():
                #                 print("Passing where token")
                #                 pass
 
-            def extract_from(parsed):
+            def parse_from_clause(parsed):
                     from_seen = False
                     for item in parsed.tokens:
                         if from_seen:
@@ -82,7 +85,7 @@ class SQLParser():
                         elif item.ttype is Keyword and item.value.upper() == 'FROM':
                             from_seen = True
 
-            def extract_select(parsed):
+            def parse_select_clause(parsed):
                 select_seen = False
                 for item in parsed.tokens:
                     if select_seen:
@@ -91,7 +94,7 @@ class SQLParser():
                         else:
                             yield item
                     elif item.ttype is DML and item.value.upper() == 'SELECT':
-                        select_seen = True
+                        select_seen = True                
 
             def extract_identifiers(token_stream):
                 for item in token_stream:
@@ -101,52 +104,34 @@ class SQLParser():
                     elif isinstance(item, Identifier):
                         yield item.get_name()
 
-            select_stream = extract_select(parsed)
-            from_stream = extract_from(parsed)
-            where_list = extract_where(parsed)
+            select_stream = parse_select_clause(parsed)
+            from_stream = parse_from_clause(parsed)
+            where_list = parse_where_clause(parsed)
 
             select_list = list(extract_identifiers(select_stream))
             from_list = list(extract_identifiers(from_stream))
             #TODO: Make Where extraction a generator function
             #where_list = list(extract_identifiers(where_list)) 
 
-            return (select_list, from_list, where_list)
+            segments = [select_list, from_list, where_list]
+
+            semantics = []
+            
+            for s in segments:
+                    joined = ', '.join(s)
+                    semantics.append(joined)
+
+            return semantics
+
+
+        sql_statement = sqlparse.split(raw_query)[0]
         
-        def format_query_to_tuple_list(query_info):
-            listQuery, formattedList = [], []
-            query_dict = {}
+        tokens = sqlparse.parse(sql_statement)[0]
 
-            # listQuery.append(str(query_info[2]))
-            listQuery.append(str(query_info[1]))
-            listQuery.append(str(query_info[0]))
+        semantics = extract_sql_semantics(tokens)
 
-            for element in listQuery:
-                for char in element:
-                    if char in " []'":
-                        element = element.replace(char,'')
-                formattedList.append(element)
+        query = {'table-name' : semantics[1],
+                 'projection' : semantics[0],
+                 'selection'  : semantics[2]}
 
-            # TODO: Handle WHERE segment as above 
-            formattedList.append(query_info[2])
-
-            return formattedList
-        
-        def transform_query():
-            statements = sqlparse.split(self.raw_query)
-            queries = []
-            for st in statements:
-                if st == '':
-                    continue # TODO: Skip EOF (Fix: cut out in client?)
-                parsed = sqlparse.parse(st)[0]
-                query_info = extract_query_info(parsed)
-                list_query = format_query_to_tuple_list(query_info)
-
-                queries.append({'table-name': list_query[0],
-                                'projection': list_query[1],
-                                'selection': list_query[2]})
-
-            return queries
-
-        self.raw_query = statement
-        queries = transform_query()
-        return queries
+        return query

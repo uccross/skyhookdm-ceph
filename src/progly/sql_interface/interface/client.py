@@ -1,6 +1,6 @@
 from .utils import print_help_msg, print_intro_msg, prompt
 from .utils import ArgparseBuilder, PredefinedCommands
-from .query import Query, QueryObjectManager
+from .query import Query
 
 class InputManager():
     def __init__(self):
@@ -163,7 +163,6 @@ def main():
 
 
     input_manager = InputManager()
-    query_manager = QueryObjectManager()
 
     input_manager.query() 
     # input_manager.run(query_obj)
