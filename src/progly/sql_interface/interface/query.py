@@ -38,9 +38,9 @@ class Query():
         '''
         self.raw_query = statement
         parsed = self.parse_query(statement)
-        self.query['selection'] = parsed['selection']
-        self.query['projection'] = parsed['projection']
-        self.query['table-name'] = parsed['table-name']
+        self.set_table_name(parsed['table-name'])
+        self.set_projection(parsed['projection'])
+        self.set_selection(parsed['selection'])
 
     def run(self, cmd):
         '''
@@ -91,7 +91,7 @@ class Query():
         '''
         Sets the selection parameter for a query.
         '''
-        self.query['selection'] = input
+        self.query['selection'] = input.split(', ')
 
     def set_projection(self, input):
         '''
