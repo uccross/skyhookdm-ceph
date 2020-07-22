@@ -43,7 +43,7 @@ class SkyhookRunner:
         '''
         A function that executes a Skyhook CLI command. 
         '''
-        result = os.popen(self.prog + command).read()
+        result = os.popen(command).read()
         return result
 
     def run_query(self, query): 
