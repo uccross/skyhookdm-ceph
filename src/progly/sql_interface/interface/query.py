@@ -42,7 +42,7 @@ class Query():
         self.set_projection(parsed['projection'])
         self.set_selection(parsed['selection'])
 
-    def run(self, cmd):
+    def run(self):
         '''
         A function that executes the Skyhook CLI command by calling the run-query
         binary.

@@ -32,8 +32,6 @@ class SkyhookRunner:
                 command_args.append("--select \"{0},{1},{2}\" ".format(query['selection'][1],
                                                                         query['selection'][0],
                                                                         query['selection'][2]))
-            else:
-                command_args.append("--select \"\"")
 
         skyhook_cmd = self.path_to_run_query_bin
         for arg in command_args:
