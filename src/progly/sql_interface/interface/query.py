@@ -122,13 +122,13 @@ class Query():
         '''
         A function that shows the current Query object. 
         '''
-        return self.query
+        print(self.query)
 
     def show_options(self):
         '''
         A function that shows the current options being used. 
         '''
-        return self.query['options']
+        print(self.query['options'])
 
     def show_results(self):
         '''
@@ -141,4 +141,4 @@ class Query():
         A function that shows the Skyhook CLI command representation of the
         query object. 
         '''
-        return self.sk_cmd
+        print(self.sk_cmd)
