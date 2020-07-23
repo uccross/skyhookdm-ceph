@@ -22,7 +22,8 @@ class Query():
         self.options = {'cls'      : True,
                         'quiet'    : False,
                         'pool'     : 'tpchdata',
-                        'num-objs' : '2'}
+                        'num-objs' : '2',
+                        'header'   : True}
 
         self.query = {'selection'  : '',
                       'projection' : '',
@@ -54,7 +55,7 @@ class Query():
         A function that performs a full query execution starting from a SQL statement, parsing it,
         setting the Query object's settings, generating a Skyhook command, and executing the command. 
         '''
-        query = self.sk.parser.parse_query(raw_query)
+        query = self.sql_parser.parse_query(raw_query)
 
         self.set_projection(query['projection'])
         
@@ -130,7 +131,7 @@ class Query():
         '''
         A function that shows the results of the previously ran query.  
         '''
-        return self.results
+        print(self.results)
 
     def show_sk_cmd(self):
         '''

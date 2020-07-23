@@ -5,7 +5,7 @@ class SkyhookRunner:
         '''
         A class that 
         '''
-        self.path_to_run_query_bin = "~/skyhookdm-ceph/build/bin/run-query"
+        self.path_to_run_query_bin = "cd ~/skyhookdm-ceph/build/ && bin/run-query"
 
     def create_sk_cmd(self, query):
         '''
@@ -17,6 +17,9 @@ class SkyhookRunner:
             '--oid-prefix' , '\"public\"',
             '--table-name' , "\"{}\"".format(query['table-name'])
         ]
+
+        if query['options']['header']:
+            command_args.append("--header")
 
         if query['options']['cls']:
             command_args.append("--use-cls")
