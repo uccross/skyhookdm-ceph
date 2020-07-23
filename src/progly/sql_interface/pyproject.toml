@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "skyhooksql"
+version = "0.1.0"
+description = "A SQL client for the SkyhookDM data management system"
+authors = ["Matthew Rhea <mrhea@ucsc.edu>"]
+
+[tool.poetry.dependencies]
+python = "^3.6.9"
+sqlparse = "^0.3.1"
+
+[tool.poetry.dev-dependencies]
+
+

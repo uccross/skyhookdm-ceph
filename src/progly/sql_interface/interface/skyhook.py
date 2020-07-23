@@ -5,7 +5,7 @@ class SkyhookRunner:
         '''
         A class that 
         '''
-        self.default_path = "cd ~/skyhookdm-ceph/build/ && bin/run-query"
+        self.default_path = "~/skyhookdm-ceph/build/ && /bin/run-query"
 
     def create_sk_cmd(self, query):
         '''
@@ -47,7 +47,7 @@ class SkyhookRunner:
         '''
         A function that executes a Skyhook CLI command. 
         '''
-        result = os.popen(command).read()
+        result = os.popen("cd " + command).read()
         return result
 
     def run_query(self, query): 
