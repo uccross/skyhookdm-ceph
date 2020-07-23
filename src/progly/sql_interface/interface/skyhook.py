@@ -5,7 +5,7 @@ class SkyhookRunner:
         '''
         A class that 
         '''
-        self.path_to_run_query_bin = "cd ~/skyhookdm-ceph/build/ && bin/run-query"
+        self.default_path = "cd ~/skyhookdm-ceph/build/ && bin/run-query"
 
     def create_sk_cmd(self, query):
         '''
@@ -36,7 +36,7 @@ class SkyhookRunner:
                                                                         query['selection'][0],
                                                                         query['selection'][2]))
 
-        skyhook_cmd = self.path_to_run_query_bin
+        skyhook_cmd = self.default_path
         for arg in command_args:
             skyhook_cmd = ' '.join([skyhook_cmd, arg])
 

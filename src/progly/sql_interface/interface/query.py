@@ -19,11 +19,13 @@ class Query():
 
         self.raw_query = ''
 
-        self.options = {'cls'      : True,
-                        'quiet'    : False,
-                        'pool'     : 'tpchdata',
-                        'num-objs' : '2',
-                        'header'   : True}
+        self.options = {'cls'              : True,
+                        'quiet'            : False,
+                        'header'           : True,
+                        'pool'             : 'tpchdata',
+                        'num-objs'         : '2',
+                        'oid-prefix'       : '\"public\"',
+                        'path_to_run_query': self.sk_runner.default_path}
 
         self.query = {'selection'  : '',
                       'projection' : '',
@@ -48,6 +50,7 @@ class Query():
         A function that executes the Skyhook CLI command by calling the run-query
         binary.
         '''
+        self.generate_sk_cmd()
         self.results = self.sk_runner.execute_sk_cmd(self.sk_cmd)
 
     def query_lifetime(self, raw_query):
