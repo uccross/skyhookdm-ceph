@@ -43,7 +43,7 @@ def get_expected_value(path):
         data = f.read()
     return data
 
-class TestBasicQueries(unittest.TestCase): 
+class TestInterface(unittest.TestCase): 
     '''
     A testing module for each interface provided by the SkyhookSQL client. 
     '''
@@ -180,7 +180,7 @@ class TestBasicQueries(unittest.TestCase):
         parsed = parser.parse_query("select everything from thisTable where everything <> nothing")
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/parser/test_h_expected.txt")
-        self.assertEqual(parsed, expected) 
+        self.assertEqual(str(parsed), expected) 
 
 if __name__ == '__main__':
     unittest.main()
