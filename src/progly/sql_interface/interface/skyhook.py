@@ -14,7 +14,7 @@ class SkyhookRunner:
         command_args = [
             '--num-objs'   , query['options']['num-objs'],
             '--pool'       , query['options']['pool'],
-            '--oid-prefix' , '\"public\"',
+            '--oid-prefix' , query['options']['oid-prefix'],
             '--table-name' , "\"{}\"".format(query['table-name'])
         ]
 
@@ -38,7 +38,7 @@ class SkyhookRunner:
 
         skyhook_cmd = self.default_path
         for arg in command_args:
-            skyhook_cmd = ' '.join([skyhook_cmd, arg])
+            skyhook_cmd = ' '.join([skyhook_cmd, str(arg)])
 
         return skyhook_cmd
 
