@@ -17,7 +17,7 @@ class SQLParser():
         def parse_clauses(parsed):
             def parse_where_clause(parsed):
                 # TODO: Order of allowed_ops matters (ordered by length). Fix this. 
-                allowed_ops = ['>=', '<=', '!=', '<>','=', '>', '<']
+                allowed_ops = ['>=', '<=', '!=', '<>', '=', '>', '<', 'LIKE']
 
                 operator_strs = {allowed_ops[0] : 'geq',
                              allowed_ops[1] : 'leq',
@@ -25,7 +25,8 @@ class SQLParser():
                              allowed_ops[3] : 'ne',
                              allowed_ops[4] : 'eq',
                              allowed_ops[5] : 'gt',
-                             allowed_ops[6] : 'lt'}
+                             allowed_ops[6] : 'lt',
+                             allowed_ops[7] : 'like'}
 
                 where_tokens = []
                 identifier = None
@@ -38,6 +39,8 @@ class SQLParser():
                                     if op in str(i):
                                         where_tokens.append(operator_strs[op])
                                         break
+                                    if op.upper() == 'LIKE':
+                                        where_tokens.append(operator_strs[op.upper()])
                                 where_tokens.append(str(i.left))
                                 where_tokens.append(str(i.right))
                 
