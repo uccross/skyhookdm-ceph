@@ -41,6 +41,7 @@ def get_expected_value(path):
     '''
     with open(path, 'r') as f:
         data = f.read()
+        f.close()
     return data
 
 class TestInterface(unittest.TestCase): 
