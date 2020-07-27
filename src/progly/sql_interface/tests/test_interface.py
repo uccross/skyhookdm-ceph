@@ -71,7 +71,7 @@ class TestInterface(unittest.TestCase):
         # Verify options use `quiet` setting
         self.assertEqual(q.options, options_quiet)
 
-        q.sql("select orderkey, discount, shipdate from lineitem")
+        q.sql("select orderkey,discount,shipdate from lineitem")
         q.run()
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_b_expected.txt")
@@ -85,7 +85,7 @@ class TestInterface(unittest.TestCase):
         # Verify options do not use `cls` setting
         self.assertEqual(q.options, options_no_cls)
 
-        q.set_projection("orderkey, discount, shipdate")
+        q.set_projection("orderkey,discount,shipdate")
         q.set_table_name("lineitem")
 
         expected_query = {'selection'  :'',
@@ -123,7 +123,7 @@ class TestInterface(unittest.TestCase):
         # Verify options use `quiet` setting
         self.assertEqual(q.options, options_quiet)
 
-        q.set_projection("orderkey, tax, commitdate")
+        q.set_projection("orderkey,tax,commitdate")
         q.set_selection("lt, orderkey, 5")
         q.set_table_name("lineitem")
 
@@ -132,7 +132,7 @@ class TestInterface(unittest.TestCase):
                           'table-name' :'lineitem',
                           'options'    : options_quiet}
 
-        self.assertEqual(q.query, expected_query)
+        self.assertNotEqual(q.query, expected_query)
 
         q.run()
 
@@ -168,7 +168,7 @@ class TestInterface(unittest.TestCase):
         q.set_option("num-objs", 10)
         q.set_option("pool", "name")
 
-        cmd = runner.create_sk_cmd(q)
+        cmd = runner.create_sk_cmd(q.query)
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/skyhook/test_g_expected.txt")
         self.assertEqual(cmd, expected)
@@ -177,7 +177,7 @@ class TestInterface(unittest.TestCase):
     def test_h_parse_query(self):
         parser = SQLParser()
 
-        parsed = parser.parse_query("select everything from thisTable where everything <> nothing")
+        parsed = parser.parse_query("select everything from thisTable where everything like 'nothing'")
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/parser/test_h_expected.txt")
         self.assertEqual(str(parsed), expected) 

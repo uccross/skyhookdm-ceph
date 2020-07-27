@@ -1,1 +1,1 @@
-'{\'table-name\': \'thisTable\', \'projection\': \'everything\', \'selection\': "ne, everything, \'nothing\'"}'
+'{\'table-name\': \'thisTable\', \'projection\': \'everything\', \'selection\': "like, everything, \'nothing\'"}'

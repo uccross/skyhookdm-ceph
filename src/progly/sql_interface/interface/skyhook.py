@@ -5,7 +5,7 @@ class SkyhookRunner:
         '''
         A class that 
         '''
-        self.default_path = "~/skyhookdm-ceph/build && /bin/run-query"
+        self.default_path = "~/skyhookdm-ceph/build/ && bin/run-query"
 
     def create_sk_cmd(self, query):
         '''

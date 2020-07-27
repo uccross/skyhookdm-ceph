@@ -1,1 +1,1 @@
-'cd ~/skyhookdm-ceph/build/ && bin/run-query --num-objs 10 --pool name --oid-prefix "public" --table-name "lineitem" --quiet --project "shipdate,orderkey"  --select "orderkey,gt,3" '
+'~/skyhookdm-ceph/build/ && bin/run-query --num-objs 10 --pool name --oid-prefix "public" --table-name "lineitem" --quiet --project "shipdate,orderkey"  --select "orderkey,gt,3" '
