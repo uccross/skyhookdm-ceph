@@ -62,6 +62,8 @@ class TestInterface(unittest.TestCase):
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_a_expected.txt")
         self.assertEqual(q.results, expected)
 
+        time.sleep(5)
+
     def test_b_projection_2_quiet(self):
         # Init Query
         q = Query() 
@@ -76,6 +78,8 @@ class TestInterface(unittest.TestCase):
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_b_expected.txt")
         self.assertEqual(q.results, expected)
+
+        time.sleep(5)
     
     def test_c_projection_3_no_cls(self):
         q = Query()
@@ -89,7 +93,7 @@ class TestInterface(unittest.TestCase):
         q.set_table_name("lineitem")
 
         expected_query = {'selection'  :'',
-                          'projection' :'shipdate', 
+                          'projection' :'orderkey,discount,shipdate', 
                           'table-name' :'lineitem',
                           'options'    : options_no_cls}
         self.assertEqual(q.query, expected_query)
@@ -98,6 +102,8 @@ class TestInterface(unittest.TestCase):
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_c_expected.txt")
         self.assertEqual(q.results, expected)
+
+        time.sleep(5)
     
     #### Selection Queries ####
     def test_d_selection_1(self): 
@@ -113,6 +119,8 @@ class TestInterface(unittest.TestCase):
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_d_expected.txt")
         self.assertEqual(q.results, expected)
+
+        time.sleep(5)
 
     def test_e_selection_2_quiet(self):
         # Init Query
@@ -138,6 +146,8 @@ class TestInterface(unittest.TestCase):
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_e_expected.txt")
         self.assertEqual(q.results, expected)
+
+        time.sleep(5)
     
     def test_f_selection_3_no_cls(self):
         q = Query()
@@ -153,6 +163,8 @@ class TestInterface(unittest.TestCase):
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/query/test_f_expected.txt")
         self.assertEqual(q.results, expected)
+
+        time.sleep(5)
 
     #### Skyhook Runner ####
     def test_g_skyhook_cmd(self):
@@ -173,6 +185,8 @@ class TestInterface(unittest.TestCase):
         expected = get_expected_value(os.getcwd() + "/tests/expected/skyhook/test_g_expected.txt")
         self.assertEqual(cmd, expected)
 
+        time.sleep(5)
+
     #### Parser ####
     def test_h_parse_query(self):
         parser = SQLParser()
@@ -181,6 +195,8 @@ class TestInterface(unittest.TestCase):
 
         expected = get_expected_value(os.getcwd() + "/tests/expected/parser/test_h_expected.txt")
         self.assertEqual(str(parsed), expected) 
+
+        time.sleep(5)
 
 if __name__ == '__main__':
     unittest.main()
