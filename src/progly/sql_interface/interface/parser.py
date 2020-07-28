@@ -98,6 +98,7 @@ class SQLParser():
 
         clauses = parse_clauses(tokenized)
 
+        # TODO: Order should not matter. Fix this. 
         query = {'table-name' : clauses[1],
                  'projection' : clauses[0],
                  'selection'  : clauses[2]}
