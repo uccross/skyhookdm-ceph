@@ -7,24 +7,24 @@ class SkyhookRunner:
         '''
         self.default_path = "~/skyhookdm-ceph/build/ && bin/run-query"
 
-    def create_sk_cmd(self, query):
+    def create_sk_cmd(self, query, options):
         '''
         A function that generates the Skyhook CLI command from a Query Object. 
         '''
         command_args = [
-            '--num-objs'   , query['options']['num-objs'],
-            '--pool'       , query['options']['pool'],
-            '--oid-prefix' , query['options']['oid-prefix'],
+            '--num-objs'   , options['num-objs'],
+            '--pool'       , options['pool'],
+            '--oid-prefix' , options['oid-prefix'],
             '--table-name' , "\"{}\"".format(query['table-name'])
         ]
 
-        if query['options']['header']:
+        if options['header']:
             command_args.append("--header")
 
-        if query['options']['cls']:
+        if options['cls']:
             command_args.append("--use-cls")
 
-        if query['options']['quiet']:
+        if options['quiet']:
             command_args.append("--quiet")
 
         if query['projection']:

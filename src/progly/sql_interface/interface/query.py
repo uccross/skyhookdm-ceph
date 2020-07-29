@@ -29,8 +29,7 @@ class Query():
 
         self.query = {'selection'  : '',
                       'projection' : '',
-                      'table-name' : '',
-                      'options'    : self.options}
+                      'table-name' : ''}
         
         self.sk_cmd = ''
         self.results = None
@@ -50,7 +49,7 @@ class Query():
         A function that executes the Skyhook CLI command by calling the run-query
         binary.
         '''
-        self.generate_sk_cmd()
+        self.create_sk_cmd()
         self.results = self.sk_runner.execute_sk_cmd(self.sk_cmd)
 
     def query_lifetime(self, raw_query):
@@ -66,7 +65,7 @@ class Query():
 
         self.set_table_name(query['table-name'])
 
-        self.generate_sk_cmd()
+        self.create_sk_cmd()
 
         self.run()
 
@@ -77,12 +76,12 @@ class Query():
         res = self.sql_parser.parse_query(statement)
         return res
 
-    def generate_sk_cmd(self):
+    def create_sk_cmd(self):
         '''
         A function that generates the Skyhook CLI command representation of the 
         query object. 
         '''
-        self.sk_cmd = self.sk_runner.create_sk_cmd(self.query)
+        self.sk_cmd = self.sk_runner.create_sk_cmd(self.query, self.options)
 
     def generate_pyarrow_dataframe(self):
         '''
@@ -95,6 +94,12 @@ class Query():
         '''
         Sets the selection parameter for a query.
         '''
+        try:
+            assert isinstance(input, str)
+        except AssertionError as error:
+            print("Error: Selection must be a string.")
+            return
+
         self.query['selection'] = input.split(', ')
 
     def set_projection(self, input):
@@ -128,7 +133,7 @@ class Query():
         '''
         A function that shows the current options being used. 
         '''
-        print(self.query['options'])
+        print(self.options)
 
     def show_results(self):
         '''
